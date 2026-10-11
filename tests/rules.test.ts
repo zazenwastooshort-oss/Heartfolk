@@ -8,9 +8,11 @@ import { VILLAGE, inArea, type Layout, type NodeSpot } from '../src/world/layout
 import { navFor, NavGrid } from '../src/world/nav';
 import { applyCommands, type Command } from '../src/systems/commands';
 import { reachFor, WALK_SPEED } from '../src/actors/player';
-import { MOVE_ON_DELAY, MOVE_ON_EVERY, MOVE_ON_MARGIN } from '../src/systems/gathering';
+import { MOVE_ON_EVERY, MOVE_ON_MARGIN } from '../src/systems/gathering';
 import { RESOURCES } from '../src/data/skills';
 import { XP_TABLE } from '../src/data/xp';
+
+const MOVE_ON_DELAY = RESOURCES.birch_tree!.moveOnAfter;     // the pause before moving on from a birch
 
 // the village's tin is in land not yet claimed, so the level rule is tested on a copy with a tin rock in the village
 const TEST_LAYOUT: Layout = {

@@ -12,9 +12,9 @@ import { goWork, reachFor, WALK_SPEED } from '../actors/player';
 import { addXp, levelOf } from './skills';
 import { isClaimed } from './commands';
 
-export const MOVE_ON_DELAY = 1.0;     // seconds after a node runs out before moving on, so the tree lands (render/nodes.ts FALL) first
+// He pauses RESOURCES[...].moveOnAfter seconds after a node runs out (a tree is seen to land), then looks for another.
 export const MOVE_ON_EVERY = 0.5;     // then look again this often while still waiting; cheap when time is caught up
-export const MOVE_ON_MARGIN = 1.0;    // the walk has to beat the regrowth by this much to be worth it
+export const MOVE_ON_MARGIN = 0.3;    // the walk has to beat the regrowth by this much, so he doesn't set off for nothing
 const MOVE_ON_TRIES = 3;              // candidates to find a path to per look
 
 /** Chance a single swing yields an item: one item per `time` seconds on average, a little better with level. */
@@ -45,8 +45,8 @@ export function updateGathering(state: GameState, layout: Layout, dt: number, rn
     task.progress = 0;
     if (!task.mayMoveOn) return;
     const since = state.time - (node.depletedUntil - res.respawn);          // seconds since it ran out under him
-    const look = (t: number) => Math.floor((t - MOVE_ON_DELAY) / MOVE_ON_EVERY);
-    if (since >= MOVE_ON_DELAY && look(since) > look(since - dt)) moveOn(state, layout, task, spot, node.depletedUntil - state.time);
+    const look = (t: number) => Math.floor((t - res.moveOnAfter) / MOVE_ON_EVERY);
+    if (since >= res.moveOnAfter && look(since) > look(since - dt)) moveOn(state, layout, task, spot, node.depletedUntil - state.time);
     return;
   }
   const swing = SWINGS[res.skill];

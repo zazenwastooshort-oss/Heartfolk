@@ -1,17 +1,16 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { createState, SAVE_VERSION } from '../src/core/state';
 import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
 import { STEP } from '../src/core/loop';
 import { step } from '../src/sim';
 import { VILLAGE, type NodeSpot } from '../src/world/layout';
-import { navFor, NavGrid } from '../src/world/nav';
+import { navFor } from '../src/world/nav';
 import { walkTo, goWork, reachFor } from '../src/actors/player';
 import { serialize, deserialize } from '../src/core/save';
 import { RESOURCES } from '../src/data/skills';
 import { SWINGS } from '../src/data/animation';
 import { XP_TABLE } from '../src/data/xp';
-import { MOVE_ON_DELAY } from '../src/systems/gathering';
 
 function setup(seed = 1) {
   const state = createState(VILLAGE, seed), events = new EventBus(), log: GameEvent[] = [];
@@ -138,7 +137,7 @@ describe('moving on', () => {
     expect(s.state.nodes[id]!.depletedUntil).toBeGreaterThan(0);
     // he waits long enough to see it fall, then sets off well before it grows back
     const waited = runUntil(s, () => s.state.player.pending !== null, 1.5);
-    expect(waited).toBeGreaterThanOrEqual(MOVE_ON_DELAY - STEP);
+    expect(waited).toBeGreaterThanOrEqual(RESOURCES[from.resource]!.moveOnAfter - STEP);
     expect(waited).toBeLessThan(1.5);
     const pending = s.state.player.pending;
     expect(pending?.kind).toBe('node');
@@ -182,23 +181,28 @@ describe('moving on', () => {
     expect(count('arrived') - arrivals0).toBeLessThanOrEqual(count('nodeDepleted') - falls0);
   });
 
-  it('stays at a copper rock: it grows back sooner than he could walk to the next one', () => {
-    const s = setup(3);
+  it('hops between the copper rocks like woodcutting does, with little time standing at an empty rock', () => {
+    const s = setup(3), r = RESOURCES.copper_rock!;
     goWork(s.state, VILLAGE, 'copper1');
     runUntil(s, () => s.state.player.task.kind === 'gather', 40);
-    const falls0 = s.log.filter(e => e.type === 'nodeDepleted').length, elsewhere = new Set<string>();
-    const paths = vi.spyOn(NavGrid.prototype, 'findPath');      // and it costs no pathfinding to decide that
+    const count = (type: GameEvent['type']) => s.log.filter(e => e.type === type).length;
+    const falls0 = count('nodeDepleted'), arrivals0 = count('arrived'), worked = new Set<string>();
+    let waiting = 0;
     for (let t = 0; t < 300; t += STEP) {
+      const task = s.state.player.task;
+      if (task.kind === 'gather') {
+        worked.add(task.nodeId);
+        if (s.state.nodes[task.nodeId]!.depletedUntil > 0) waiting += STEP;
+      }
       step(s.state, STEP, s.ctx);
-      const p = s.state.player;
-      if (p.task.kind !== 'gather') elsewhere.add(p.task.kind);
-      else if (p.task.nodeId !== 'copper1') elsewhere.add(p.task.nodeId);
-      if (p.pending) elsewhere.add(p.pending.id);
     }
-    expect([...elsewhere]).toEqual([]);
-    expect(s.log.filter(e => e.type === 'nodeDepleted').length - falls0).toBeGreaterThan(10);
-    expect(paths).not.toHaveBeenCalled();
-    paths.mockRestore();
+    expect(count('nodeDepleted') - falls0).toBeGreaterThan(10);
+    expect(worked.size).toBeGreaterThan(1);                     // the nearest free rock each time: often just two of the three
+    expect([...worked].every(id => id.startsWith('copper'))).toBe(true);
+    expect(waiting / 300).toBeLessThan(0.15);
+    // every walk follows a rock running out: no going back and forth for nothing
+    expect(count('arrived') - arrivals0).toBeLessThanOrEqual(count('nodeDepleted') - falls0);
+    expect(s.state.bank.copper_ore ?? 0).toBeGreaterThan(300 / r.time * 0.7);
   });
 });
 
