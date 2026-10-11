@@ -1,0 +1,6 @@
+{
+  // Type-checks the opening preview with the game code it uses: npx tsc --noEmit -p preview/tsconfig.json
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "types": ["vite/client"] },
+  "include": [".", "../src"]
+}
