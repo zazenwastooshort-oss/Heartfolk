@@ -66,7 +66,7 @@ describe('the backpack', () => {
     run(s, 60);
     expect(backpackCount(s.state)).toBe(BACKPACK_SLOTS);
     expect(count(s, 'itemGained')).toBe(0);
-    expect(count(s, 'noPath')).toBe(1);                 // said once, not every step
+    expect(count(s, 'noStorage')).toBe(1);              // "nowhere to store it", said once, not every step
     expect(s.state.player.task.kind).toBe('idle');
   });
 });

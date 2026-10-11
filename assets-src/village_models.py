@@ -3,6 +3,7 @@
 #   buildings: Bank, CityHall, Forge, Stall, StallBlue, Inn, House (cottage), HouseTall, HouseLong, Barn
 #   props: Hearth, Lantern, Well, NoticeBoard, Bench, Crates, Garden, Fence (one 2 m section along X)
 #   nature: TreeBirch, TreeOak, TreePine, Bush, StumpBirch, StumpOak (what a felled tree leaves)
+#   camp (where a new game starts): Tent, CampfireCold
 # Glowing parts are named so the game can light them at night: meshes using materials window_glass, lamp_glass,
 # forge_glow, flame, flame_core; the hearth's flames are nodes Flame and FlameCore.
 # Run: A:\Blender\blender-5.2.2-windows-x64\blender.exe -b --factory-startup -P assets-src/village_models.py
@@ -19,7 +20,7 @@ PAL = {
     "flame": "#ff6a1a", "flame_core": "#ffe066", "forge_glow": "#ffa41b", "lamp_glass": "#ffd27a", "ash": "#3a3330",
     "bark": "#6b4423", "birch_bark": "#e8e2d6", "birch_mark": "#3a3a3a", "birch_leaf": "#8fc35e",
     "oak_leaf": "#3f7f35", "oak_leaf2": "#5a9a46", "pine": "#2f6b3a", "bush": "#4a8a3c",
-    "cut_wood": "#e2c48e", "flower_r": "#d84a4a", "flower_y": "#f4d03f", "apple": "#c0392b",
+    "cut_wood": "#e2c48e", "canvas": "#d8c39a", "canvas_dark": "#b49e74", "flower_r": "#d84a4a", "flower_y": "#f4d03f", "apple": "#c0392b",
     "wall_white": "#f2ede2", "roof_brown": "#7a4a32", "thatch": "#b89a5a", "soil": "#6b4a2e", "crop": "#5fa04a",
     "pumpkin": "#e08a2a", "blue_cloth": "#2e6fb0", "water_dark": "#2a4a6a", "paper": "#efe6cf",
 }
@@ -345,6 +346,34 @@ for row in range(3):
 r = root("Fence")                       # one 2 m section along X, centred on the origin
 for x in (-1.0, 1.0): box("post", (0.1, 0.1, 0.9), (x, 0, 0.45), "wood_dark", r)
 for z in (0.35, 0.7): box("rail", (2.0, 0.06, 0.08), (0, 0, z), "wood", r)
+
+# ---------- Camp: where a new game starts, at the foot of the waterfall ----------
+r = root("Tent")                        # a canvas A-frame, 1.9 wide and 2.4 deep, its door facing south (-Y)
+L, W, H = 2.4, 1.9, 1.45
+bm = bmesh.new()
+v = [bm.verts.new(p) for p in [(-W / 2, -L / 2, 0), (W / 2, -L / 2, 0), (0, -L / 2, H), (-W / 2, L / 2, 0), (W / 2, L / 2, 0), (0, L / 2, H)]]
+for f in [(v[0], v[2], v[5], v[3]), (v[1], v[4], v[5], v[2]), (v[3], v[5], v[4]), (v[0], v[1], v[2])]:
+    bm.faces.new(f)
+bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+obj("canvas", bm, "canvas", r)
+bm = bmesh.new()
+d = [bm.verts.new(p) for p in [(-0.42, -L / 2 - 0.012, 0), (0.42, -L / 2 - 0.012, 0), (0, -L / 2 - 0.012, 0.92)]]
+bm.faces.new(d); bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+obj("door", bm, "canvas_dark", r)
+for y in (-L / 2 - 0.04, L / 2 + 0.04): box("pole", (0.06, 0.06, H + 0.18), (0, y, (H + 0.18) / 2), "wood_dark", r)
+box("ridge", (0.05, L + 0.32, 0.05), (0, 0, H + 0.03), "wood_dark", r)
+for x, y in ((-W / 2 - 0.15, -L / 2 + 0.2), (W / 2 + 0.15, -L / 2 + 0.2), (-W / 2 - 0.15, L / 2 - 0.2), (W / 2 + 0.15, L / 2 - 0.2)):
+    box("peg", (0.05, 0.05, 0.16), (x, y, 0.06), "wood_dark", r)
+
+r = root("CampfireCold")                # a ring of stones round cold logs and ash; it is lit in a later update
+for i in range(9):
+    a = i / 9 * math.tau
+    blob("stone", 0.13, (math.cos(a) * 0.5, math.sin(a) * 0.5, 0.07), "stone", r, seed=200 + i, squash=(1, 1, 0.7), subdiv=0)
+cyl("ash", 0.4, 0.4, 0.03, (0, 0, 0.02), "ash", r, seg=10)
+for i in range(4):
+    a = i / 4 * math.tau + 0.3
+    cyl("log", 0.055, 0.055, 0.7, (math.cos(a) * 0.08, math.sin(a) * 0.08, 0.1), "wood", r, seg=6,
+        axis=Matrix.Rotation(a, 3, "Z") @ Matrix.Rotation(math.radians(82), 3, "Y"))
 
 # ---------- export ----------
 path = os.path.join(OUT, "village.glb")

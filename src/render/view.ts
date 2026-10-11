@@ -18,6 +18,7 @@ import { OrbitCamera } from './camera';
 import { buildWorld, type WorldView } from './world';
 import { VillageView } from './village';
 import { FogView } from './fog';
+import { FallsView } from './waterfall';
 import { NodesView } from './nodes';
 import { ArmIK, armedWeight, toolInHand, toolInTransit } from './arms';
 
@@ -41,6 +42,7 @@ export class View {
   private world: WorldView;
   private village?: VillageView;
   private fog: FogView;
+  private falls?: FallsView;
   private clock = 0;
   private nodes?: NodesView;
   private spots: Map<string, NodeSpot>;
@@ -72,6 +74,7 @@ export class View {
     this.ground.push(...this.world.ground);
     this.lighting = new Lighting(this.scene);
     this.fog = new FogView(this.scene, layout);
+    if (layout.falls) this.falls = new FallsView(this.scene, layout.falls);
     for (const a of [Math.PI / 4, -Math.PI / 4]) {
       const bar = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.02, 0.09), new THREE.MeshBasicMaterial({ color: '#ffe100' }));
       bar.rotation.y = a; this.marker.add(bar);
@@ -175,6 +178,7 @@ export class View {
     this.village?.update(this.clock, this.lighting.night, this.cam.look, dt);
     const mist = new THREE.Color('#eef3f5').lerp(this.lighting.horizon, 0.4).multiplyScalar(1 - this.lighting.night * 0.45);
     this.fog.update(this.clock, this.cam.camera, state, mist);
+    this.falls?.update(this.clock, dt, this.cam.camera);
     this.renderer.render(this.scene, this.cam.camera);
   }
 

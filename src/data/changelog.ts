@@ -6,6 +6,13 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.11', date: '12 Oct 2026', notes: [
+      'A new beginning: you wash up below a waterfall and make camp at its foot.',
+      'A goal at the top shows what to do next, starting with the campfire.',
+      'New players get a short welcome that explains the game.',
+    ],
+  },
+  {
     version: '0.0.10', date: '11 Oct 2026', notes: [
       "Your character carries his axe or pick on his back whenever he walks, and takes it out when he gets to a tree or rock.",
       'This note: after an update it shows what changed. Tap "What\'s new" at the top to see it again.',

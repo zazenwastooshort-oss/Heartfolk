@@ -272,10 +272,13 @@ Ten tasks take the village prototype to the first playable loop; tick each one o
 
 ## Decision log
 
-Twenty-eight decisions so far, newest first; each answered open question is added here with its date.
+Thirty-one decisions so far, newest first; each answered open question is added here with its date.
 
 | Date | Decision |
 | --- | --- |
+| 12 Oct 2026 | The camp is at the foot of a waterfall. A new game opens with a short cinematic: the character drifts down the river, goes over the waterfall and washes up in the pool below, where he sets up camp. The village lies far up the river and comes much later. |
+| 12 Oct 2026 | Work comes in small chunks of about 30-45 minutes, each ending in something the owner can see and play; a sketch comes first when the direction is unclear. |
+| 12 Oct 2026 | The game starts from zero at a camp in the wild. Setting up camp costs materials (campfire, shelter, storage chest) and keeping it going costs more: the fire burns fuel. Around Woodcutting 10 a fallen oak on the road can be cut, and beyond it lies an abandoned village the player restores building by building, with villagers joining as it grows. Existing saves start over at the camp. |
 | 11 Oct 2026 | Panels are forest green with cream text, in the game and on the plan board: dark and calm, never bright. |
 | 11 Oct 2026 | Roads are faster to travel (about 40% quicker than grass, easy to tune), and the character takes the quickest route: the road whenever it gets him there sooner, straight across the grass for short hops. |
 | 11 Oct 2026 | How new land is obtained is open again: land is there to explore, and getting it may take a task, a price, or both. The earlier decisions (claimed at the city hall, gold plus an XP milestone) stand as the working plan until this is settled; not needed before step 7. |

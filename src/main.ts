@@ -1,7 +1,7 @@
 // Wires the modules together: state, simulation loop, view, input, HUD, the "What's new" note and saving.
 // This is the only file that knows about every module; the modules themselves only know their own layer
 // (enforced by tests/architecture.test.ts).
-import { VILLAGE } from './world/layout';
+import { CAMP } from './world/camp';
 import { createState, type GameState } from './core/state';
 import { EventBus } from './core/events';
 import { createRng } from './core/rng';
@@ -13,6 +13,7 @@ import { View } from './render/view';
 import { Hud } from './ui/hud';
 import { bindInput } from './ui/input';
 import { News } from './ui/news';
+import { Intro } from './ui/intro';
 
 // An artifact viewer can swap in a new version of the page while it is open and hand the game's snapshot
 // to the new version, so play carries on. Everywhere else `hot` is absent, hence the optional chaining.
@@ -22,7 +23,7 @@ const hot = (window as unknown as { claude?: { hot?: Hot } }).claude?.hot;
 
 function start(data: HotData): void {
   const stage = document.getElementById('stage')!;
-  const layout = VILLAGE;
+  const layout = CAMP;                // a new game starts at the camp below the falls; the village comes much later
   let restored: GameState | null = null;
   if (data?.save) { try { restored = deserialize(data.save, layout); } catch { restored = null; } }
   const saved = restored ?? load(browserStorage, layout);
@@ -44,6 +45,7 @@ function start(data: HotData): void {
   events.on(e => { if (e.type === 'strike') view.strike(e.nodeId); });     // chips fly where the tool lands
   bindInput(view, layout, queue, label => hud.hover(label));
   new News(saved !== null);                                         // a returning player sees what changed since
+  new Intro(saved === null);                                        // a new one is told what the game is about
   // For checking a running game from the browser console: hearthfolk.state, hearthfolk.view
   (window as unknown as { hearthfolk: unknown }).hearthfolk = { state, queue, view };
 

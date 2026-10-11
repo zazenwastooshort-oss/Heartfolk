@@ -56,7 +56,8 @@ export class VillageView {
         }
       }
     }
-    for (const t of layout.trees) place(TREE[t.kind]!, t.pos, r() * Math.PI * 2, t.size);
+    for (const t of layout.trees) { const o = place(TREE[t.kind]!, t.pos, r() * Math.PI * 2, t.size); if (t.y) o.position.y = t.y; }
+    if (layout.camp) place('Tent', layout.camp.tent.pos, layout.camp.tent.rot);
     for (const p of layout.bushes) place('Bush', p, r() * Math.PI * 2);
     for (const p of layout.lanterns) {
       const face = Math.atan2(layout.hearth.pos.x - p.x, layout.hearth.pos.z - p.z) + Math.PI;   // lamp arm towards the hearth
@@ -67,7 +68,7 @@ export class VillageView {
       const light = new THREE.PointLight('#ffb050', 0, 7, 1.8); scene.add(light); this.lampLights.push(light);
     }
 
-    const hearth = proto('Hearth').clone(true);
+    const hearth = proto(layout.hearthModel ?? 'Hearth').clone(true);
     hearth.position.set(layout.hearth.pos.x, 0, layout.hearth.pos.z); scene.add(hearth);
     hearth.traverse(o => {
       const mesh = o as THREE.Mesh;
@@ -79,8 +80,10 @@ export class VillageView {
         this.flames.push(mesh);
       }
     });
-    this.hearthLight.position.set(layout.hearth.pos.x, 1.0, layout.hearth.pos.z);
-    scene.add(this.hearthLight);
+    if (this.flames.length) {                  // a cold campfire gives no light
+      this.hearthLight.position.set(layout.hearth.pos.x, 1.0, layout.hearth.pos.z);
+      scene.add(this.hearthLight);
+    }
 
     // land not yet claimed: an invisible box to tap
     for (const p of layout.parcels) {

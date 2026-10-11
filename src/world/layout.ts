@@ -32,8 +32,13 @@ export interface GardenSpot { pos: Vec2; rot: number; w: number; d: number }
  *  size: scale of a tree's model. */
 export interface NodeSpot { id: string; resource: string; pos: Vec2; radius: number; size?: number; parcel?: string }
 export type TreeKind = 'birch' | 'oak' | 'pine';
-export interface TreeSpot { pos: Vec2; kind: TreeKind; size: number }
+/** y: the height of the ground it stands on, when that isn't 0 (the clifftop above the waterfall at the camp) */
+export interface TreeSpot { pos: Vec2; kind: TreeKind; size: number; y?: number }
 export interface Parcel { id: string; name: string; area: Area }
+/** The waterfall a new game starts below (world/camp.ts): the river runs along the clifftop (`upper`, `height` metres
+ *  up), pours over the cliff face at `lip` (the cliff runs east-west along z = lip.z) into `pool`, and flows on as
+ *  the layout's `river`. */
+export interface Falls { lip: Vec2; width: number; height: number; pool: { pos: Vec2; radius: number }; upper: Vec2[] }
 
 export interface Layout {
   /** land the player can walk on at the start */
@@ -53,6 +58,13 @@ export interface Layout {
   /** roads (wide) and lanes (narrow), drawn as dirt */
   paths: { points: Vec2[]; width: number }[];
   parcels: Parcel[];
+  /** the model drawn at the hearth: the village's big Hearth, or the camp's campfire */
+  hearthModel?: string;
+  /** the camp a new game starts at: where the tent stands */
+  camp?: { tent: { pos: Vec2; rot: number } };
+  falls?: Falls;
+  /** the ground drawn in detail round the playable land (the village's is the default) */
+  ground?: Area;
 }
 
 const HEARTH: Vec2 = { x: 0, z: 0 };

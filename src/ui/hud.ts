@@ -9,6 +9,7 @@ import type { BuildingKind, Layout } from '../world/layout';
 import { levelFor, levelBounds } from '../data/xp';
 import { ITEMS, SKILLS } from '../data/skills';
 import { BACKPACK_SLOTS } from '../data/hauling';
+import { GOALS } from '../data/goals';
 import { clockLabel } from '../core/clock';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -33,6 +34,9 @@ export class Hud {
   private active: SkillId | null = null;
 
   constructor(private view: View, events: EventBus, private layout: Layout) {
+    // the bank line only where there is a bank; the goal card only at the camp (it leads a new player on)
+    $('bankRow').hidden = !layout.buildings.some(b => b.kind === 'bank');
+    $('goal').hidden = !layout.camp;
     // one row per skill in data/skills, so a new skill shows up here without touching the page
     for (const s of Object.values(SKILLS)) {
       const row = el('div', 'srow'), head = el('div', 'row'), lvl = el('span', 'lvl', '1'), bar = el('i', ''), text = el('small', '');
@@ -48,6 +52,7 @@ export class Hud {
       else if (e.type === 'banked') this.notice(`Banked ${itemList(e.items, ' and ')}.`);
       else if (e.type === 'nothingToBank') this.notice('Your backpack is empty.');
       else if (e.type === 'noPath') this.notice("He can't find a way there.");
+      else if (e.type === 'noStorage') this.notice("Your backpack is full, and there's nowhere to store it yet.");
       else if (e.type === 'levelUp') this.pendingLevel = { skill: e.skill, level: e.level };
       else if (e.type === 'levelTooLow') {
         const s = SKILLS[e.skill];
@@ -62,6 +67,19 @@ export class Hud {
     const [verb, thing] = label.split('|');
     el.innerHTML = ''; el.append(`${verb} `);
     const b = document.createElement('b'); b.textContent = thing ?? ''; el.append(b);
+  }
+
+  /** The goal card: the first goal (data/goals), how much of what it needs has been gathered so far. Building it
+   *  comes in a later update, so a goal that has everything says so. */
+  private updateGoal(state: GameState): void {
+    const goal = GOALS[0]!, have = (id: string) => (state.player.backpack[id] ?? 0) + (state.bank[id] ?? 0);
+    const parts = Object.entries(goal.needs).map(([id, n]) => ({ id, n, got: Math.min(n, have(id)) }));
+    const got = parts.reduce((a, p) => a + p.got, 0), need = parts.reduce((a, p) => a + p.n, 0);
+    $('goalTitle').textContent = goal.title;
+    $('goalCount').textContent = parts.map(p => `${p.got} / ${p.n} ${((p.n === 1 && ITEMS[p.id]?.one) || ITEMS[p.id]?.name)?.toLowerCase() ?? p.id}`).join(', ');
+    ($('goalBar') as HTMLElement).style.width = `${need ? got / need * 100 : 100}%`;
+    $('goalHint').textContent = got >= need ? goal.ready : goal.hint;
+    $('goal').classList.toggle('ready', got >= need);
   }
 
   /** What a building or a piece of land says when the miner arrives, while it has no use yet. The bank has one: its
@@ -117,6 +135,7 @@ export class Hud {
     $('pack').classList.toggle('full', carried >= BACKPACK_SLOTS);
     $('bank').textContent = itemList(state.bank) || 'empty';
     $('clock').textContent = clockLabel(state.time);
+    if (this.layout.camp) this.updateGoal(state);
     const b = this.view.renderer.domElement.getBoundingClientRect();
     for (let i = this.floats.length - 1; i >= 0; i--) {
       const f = this.floats[i]!; f.t += dt;

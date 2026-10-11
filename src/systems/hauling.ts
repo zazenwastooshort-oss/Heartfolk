@@ -50,7 +50,7 @@ function startTrip(state: GameState, layout: Layout, nodeId: string, events: Eve
   }
   // nowhere to empty it: stand still with the full backpack rather than look for a way every step
   p.task = { kind: 'idle' }; p.path = []; p.pending = null; p.trip = null;
-  events.emit({ type: 'noPath' });
+  events.emit(bank ? { type: 'noPath' } : { type: 'noStorage' });
 }
 
 function backToWork(state: GameState, layout: Layout, nodeId: string, events: EventBus): void {

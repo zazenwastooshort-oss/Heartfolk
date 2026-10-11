@@ -21,6 +21,7 @@
   --edge: 16px;
 }
 html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }
+[hidden] { display: none !important; }
 body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body); -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 .stage { position: fixed; inset: 0; background: var(--scene); }
 .stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
@@ -52,12 +53,36 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
   font: 700 14px/1 var(--body); cursor: pointer; }
 .news button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
-.hint { position: absolute; left: 50%; top: calc(58px + env(safe-area-inset-top, 0px)); transform: translateX(-50%);
+/* the goal card (src/data/goals.ts): what to do next, under the title */
+.goal { position: absolute; left: var(--edge); top: calc(56px + env(safe-area-inset-top, 0px)); box-sizing: border-box;
+  width: min(270px, calc(100% - 2 * var(--edge) - 136px)); background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 10px; padding: 8px 10px; display: grid; gap: 4px; box-shadow: 0 2px 10px rgba(0, 0, 0, .3); pointer-events: none; }
+.goal .goal-head { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--muted); letter-spacing: .04em; }
+.goal .goal-title { font: 700 1.02rem/1.2 var(--display); }
+.goal .bar i { background: var(--accent); }
+.goal.ready .bar i { background: var(--xp); }
+.goal .goal-hint { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.goal.ready .goal-hint { color: var(--xp); }
+
+/* the welcome for a new player (src/ui/intro.ts) */
+.intro { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; pointer-events: auto;
+  width: min(380px, calc(100% - 2 * var(--edge))); max-height: calc(100% - 120px); overflow-y: auto; box-sizing: border-box;
+  background: rgba(30, 52, 27, 0.97); color: var(--ink); border: 1px solid var(--line); border-radius: 12px;
+  padding: 18px 18px 16px; box-shadow: 0 6px 24px rgba(0, 0, 0, .45); }
+.intro h2 { margin: 0 0 8px; font: 700 1.45rem/1.15 var(--display); }
+.intro p { margin: 0 0 10px; font-size: 14px; line-height: 1.45; }
+.intro ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 14px; line-height: 1.4; }
+.intro button { margin-top: 16px; width: 100%; border: 0; border-radius: 999px; padding: 11px; background: var(--button); color: var(--button-ink);
+  font: 700 15px/1 var(--body); cursor: pointer; }
+.intro button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.hint.waiting { opacity: 0; }
+
+.hint { position: absolute; left: 50%; top: calc(166px + env(safe-area-inset-top, 0px)); transform: translateX(-50%);
   width: max-content; max-width: calc(100% - 2 * var(--edge)); box-sizing: border-box; padding: 8px 12px; border-radius: 8px;
   background: var(--chip); color: var(--chip-text); font-size: 13px; text-align: center; pointer-events: none; transition: opacity .5s ease-out; }
 .hint b { color: #ffffff; font-weight: 600; }
 .hint.gone { opacity: 0; }
-.notice { position: absolute; left: 50%; top: calc(58px + env(safe-area-inset-top, 0px)); transform: translateX(-50%);
+.notice { position: absolute; left: 50%; top: calc(166px + env(safe-area-inset-top, 0px)); transform: translateX(-50%);
   width: max-content; max-width: calc(100% - 2 * var(--edge)); box-sizing: border-box; padding: 8px 12px; border-radius: 8px;
   background: var(--chip); color: #ffe7a3; font-size: 13px; text-align: center; pointer-events: none; opacity: 0; transition: opacity .3s ease-out; }
 .notice.show { opacity: 1; }
@@ -101,10 +126,27 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
     <div class="top-right"><div class="clock" id="clock">07:40</div><button class="ver" id="ver" type="button">What's new</button></div>
   </div>
   <div class="hint" id="hint">
-    <span class="touch"><b>Tap the grass</b> to walk, <b>a rock</b> to mine, <b>a tree</b> to chop, <b>the bank</b> to empty your backpack. Drag to turn, pinch to zoom.</span>
-    <span class="mouse"><b>Click the grass</b> to walk, <b>a rock</b> to mine, <b>a tree</b> to chop, <b>the bank</b> to empty your backpack. Drag or arrow keys to turn, scroll to zoom.</span>
+    <span class="touch"><b>Tap a tree</b> to chop it, <b>a rock</b> to mine it, <b>the grass</b> to walk. Drag to turn, pinch to zoom.</span>
+    <span class="mouse"><b>Click a tree</b> to chop it, <b>a rock</b> to mine it, <b>the grass</b> to walk. Drag or arrow keys to turn, scroll to zoom.</span>
   </div>
   <div class="notice" id="notice" role="status"></div>
+  <div class="goal" id="goal" hidden>
+    <div class="goal-head"><span>GOAL</span></div>
+    <div class="goal-title" id="goalTitle">Light the campfire</div>
+    <div class="bar"><i id="goalBar"></i></div>
+    <small class="goal-count" id="goalCount">0 / 5 birch logs</small>
+    <div class="goal-hint" id="goalHint">Chop birch trees for logs.</div>
+  </div>
+  <div class="intro" id="intro" role="dialog" aria-labelledby="introTitle" hidden>
+    <h2 id="introTitle">Welcome to Hearthfolk</h2>
+    <p>The river swept you over the falls and left you on this bank with nothing but your tools. Make camp here, at the foot of the waterfall.</p>
+    <ul>
+      <li>Tap a tree to chop it, or a rock to mine it. Your character keeps working until you send him somewhere else.</li>
+      <li>Build up your camp: a campfire first, then a shelter and a storage chest. The goal at the top shows what's next.</li>
+      <li>Every log and every piece of ore makes you better at your skills. One day you'll find what lies up the river.</li>
+    </ul>
+    <button type="button" id="introOk">Make camp</button>
+  </div>
   <div class="news" id="news" role="dialog" aria-labelledby="newsTitle" hidden>
     <h2 id="newsTitle">What's new</h2>
     <div id="newsBody"></div>
@@ -113,7 +155,7 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
   <div class="skill" aria-live="polite">
     <div class="skills" id="skills"></div>
     <div class="pack" id="pack"><span class="name">Backpack</span><div class="bar"><i id="packBar"></i></div><small id="packCount">0 / 28</small></div>
-    <div class="bank"><span class="name">Bank</span> <span id="bank">empty</span></div>
+    <div class="bank" id="bankRow"><span class="name">Bank</span> <span id="bank">empty</span></div>
   </div>
 </div>
 <script type="module" src="/src/main.ts"></script>

@@ -9,7 +9,7 @@ const isRock = (n: NodeSpot) => RESOURCES[n.resource]!.model === 'Rock';
 
 function seeded(seed: number) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
-const G = { minX: -44, maxX: 50, minZ: -38, maxZ: 38 };          // the detailed ground, in metres
+const VILLAGE_GROUND = { minX: -44, maxX: 50, minZ: -38, maxZ: 38 };   // the detailed ground, in metres, unless the layout says
 
 function distToPolyline(p: Vec2, line: Vec2[]): number {
   let best = Infinity;
@@ -24,6 +24,7 @@ function distToPolyline(p: Vec2, line: Vec2[]): number {
 export interface WorldView { ground: THREE.Object3D[]; update(t: number): void }
 
 export function buildWorld(scene: THREE.Scene, layout: Layout): WorldView {
+  const G = layout.ground ?? VILLAGE_GROUND;
   const W = G.maxX - G.minX, D = G.maxZ - G.minZ;
   const c = document.createElement('canvas'); c.width = 3072; c.height = Math.round(3072 * D / W);
   const g = c.getContext('2d')!, px = c.width / W, r = seeded(11);
@@ -51,8 +52,9 @@ export function buildWorld(scene: THREE.Scene, layout: Layout): WorldView {
     }
   }
   // the town square: a worn dirt circle laid with irregular pale paving stones
-  dirt(layout.hearth.pos.x, layout.hearth.pos.z, layout.square + 0.6, layout.square + 0.6, 9000);
-  for (let i = 0; i < 1400; i++) {
+  if (layout.square > 0) dirt(layout.hearth.pos.x, layout.hearth.pos.z, layout.square + 0.6, layout.square + 0.6, 9000);
+  else dirt(layout.hearth.pos.x, layout.hearth.pos.z, 2.6, 2.6, 2200);          // trodden earth round a campfire
+  for (let i = 0; i < (layout.square > 0 ? 1400 : 0); i++) {
     const a = r() * Math.PI * 2, d = Math.sqrt(r()) * (layout.square - 0.3);
     const x = layout.hearth.pos.x + Math.cos(a) * d, z = layout.hearth.pos.z + Math.sin(a) * d, sz = (0.28 + r() * 0.3) * px;
     const tone = 150 + r() * 35 | 0;
@@ -78,7 +80,8 @@ export function buildWorld(scene: THREE.Scene, layout: Layout): WorldView {
   const n = 4200, inst = new THREE.InstancedMesh(blade, new THREE.MeshLambertMaterial({ color: '#4b8c3b' }), n);
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(); let k = 0, tries = 0;
   while (k < n && tries++ < 80000) {
-    const p = { x: -30 + r() * 64, z: -26 + r() * 52 };
+    const v = layout.village, p = { x: v.minX - 7 + r() * (v.maxX - v.minX + 16), z: v.minZ - 2 + r() * (v.maxZ - v.minZ + 4) };
+    if (layout.falls && Math.hypot(p.x - layout.falls.pool.pos.x, p.z - layout.falls.pool.pos.z) < layout.falls.pool.radius + 0.6) continue;
     if (Math.hypot(p.x - layout.hearth.pos.x, p.z - layout.hearth.pos.z) < layout.square + 0.8) continue;
     if (distToPolyline(p, layout.river.points) < layout.river.width / 2 + 1.4) continue;
     if (layout.paths.some(l => distToPolyline(p, l.points) < l.width * 0.5 + 0.3)) continue;

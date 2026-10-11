@@ -8,7 +8,7 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
 bpy.ops.import_scene.gltf(filepath=os.path.join(ROOT, "assets", "models", "village.glb"))
 order = ["House", "HouseTall", "HouseLong", "Bank", "CityHall", "Inn", "Forge", "Barn", "Stall", "StallBlue", "Hearth", "Well",
-         "NoticeBoard", "Bench", "Crates", "Garden", "Fence", "Lantern", "TreeBirch", "TreeOak", "TreePine", "Bush", "StumpBirch", "StumpOak"]
+         "NoticeBoard", "Bench", "Crates", "Garden", "Fence", "Lantern", "TreeBirch", "TreeOak", "TreePine", "Bush", "StumpBirch", "StumpOak", "Tent", "CampfireCold"]
 x = 0.0
 for name in order:
     o = bpy.data.objects[name]

@@ -15,6 +15,8 @@ export type GameEvent =
   | { type: 'levelTooLow'; skill: SkillId; need: number; what: string }
   | { type: 'visited'; id: string }
   | { type: 'noPath' }
+  /** the backpack is full and there is nowhere to store it yet (the camp, before its storage chest) */
+  | { type: 'noStorage' }
   | { type: 'arrived' };
 
 type Handler = (e: GameEvent) => void;

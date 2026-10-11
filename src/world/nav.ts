@@ -23,6 +23,9 @@ export class NavGrid {
       ...layout.bushes.map(b => [b, 0.45] as [Vec2, number]),
       ...layout.lanterns.map(l => [l, 0.2] as [Vec2, number]),
       ...layout.props.map(p => [p.pos, p.radius] as [Vec2, number]),
+      // at the camp: the tent, and the pool at the foot of the falls
+      ...(layout.camp ? [[layout.camp.tent.pos, 1.25] as [Vec2, number]] : []),
+      ...(layout.falls ? [[layout.falls.pool.pos, layout.falls.pool.radius + 0.2] as [Vec2, number]] : []),
     ];
     // gardens block with their fence, a little larger than the soil
     const rects = [

@@ -6,7 +6,8 @@ import { ITEMS, SKILLS, type SkillId } from '../data/skills';
 
 export interface Storage { get(key: string): string | null; set(key: string, value: string): void }
 
-export const SAVE_KEY = 'hearthfolk_save';
+// The camp game (12 Oct 2026) keeps its save under its own name, apart from the village build's 'hearthfolk_save'.
+export const SAVE_KEY = 'hearthfolk_camp';
 
 /** migrations[n] turns a version-n save into version n+1 */
 const migrations: Record<number, (s: any) => any> = {
