@@ -4,7 +4,7 @@
 #   test: one still from the middle of each shot -> assets/video/test_shotN.png (quick check)
 #   full: the video -> assets/video/hearthfolk_cinematic.mp4
 import bpy, bmesh, math, os, sys, random, json
-from mathutils import Vector, Euler
+from mathutils import Vector, Euler, Matrix
 
 MODE = sys.argv[sys.argv.index("--") + 1] if "--" in sys.argv else "test"
 ROOT = os.getcwd()
@@ -116,6 +116,89 @@ strip("Idle", 1, T_WALK1); strip("Walk", T_WALK1, T_MINE1); strip("Mine", T_MINE
 strip("Walk", T_WALK2, T_MINE2); strip("Mine", T_MINE2, END + 1)
 MINE_CYCLE = META["mine_cycle_s"] * FPS
 IMPACT = META["mine_impact_s"] * FPS
+
+# ---------- hands on the handle through the strip blends ----------
+# Each clip holds the handle, but the strips blend over 4 frames, and a blend of two arm poses doesn't follow the
+# blend of the two tool poses, so the hands would come off the handle. Fixed every frame as the game does
+# (src/render/arms.ts, draw_in and solve_arm in export_miner_glb.py): if a grip is out of reach the tool is drawn in
+# toward the shoulders, then each arm is re-solved onto its grip with the elbow toward its pole (the markers GripL/R,
+# HandL/R and PoleL/R in miner.glb). The result plays on a top NLA track.
+pb, bones = rig.pose.bones, rig.data.bones
+mark = {n: bpy.data.objects[n] for n in ("GripL", "GripR", "HandL", "HandR", "PoleL", "PoleR")}
+ARM = {}
+def frame3(axis, hinge):
+    return Matrix((axis, hinge.cross(axis), hinge)).transposed()
+rig.data.pose_position = "REST"; bpy.context.view_layer.update()
+for s in "lr":
+    S0, E0 = bones[f"upper_{s}"].head_local, bones[f"fore_{s}"].head_local
+    T0 = rig.matrix_world.inverted() @ mark[f"Hand{s.upper()}"].matrix_world.translation
+    u = (T0 - S0).normalized(); w = (E0 - S0) - (E0 - S0).dot(u) * u; w.normalize(); n = u.cross(w)
+    a, b = (E0 - S0).length, (T0 - E0).length
+    ARM[s] = dict(a=a, b=b, reach=a + b - 1e-6, Fu=frame3((E0 - S0).normalized(), n), Ff=frame3((T0 - E0).normalized(), n))
+rig.data.pose_position = "POSE"; bpy.context.view_layer.update()
+
+def hand_gap():
+    return max((mark[f"Hand{S}"].matrix_world.translation - mark[f"Grip{S}"].matrix_world.translation).length for S in "LR")
+
+fixes, before, drawn = {}, 0.0, 0.0
+for f in range(1, END + 1):
+    scene.frame_set(f)
+    before = max(before, hand_gap())
+    inv = rig.matrix_world.inverted()
+    S = {s: pb[f"upper_{s}"].head.copy() for s in "lr"}
+    G = {s: inv @ mark[f"Grip{s.upper()}"].matrix_world.translation for s in "lr"}
+    t = Vector()
+    for _ in range(8):
+        for s in "lr":
+            v = G[s] + t - S[s]
+            if v.length > ARM[s]["reach"]: t -= v * (1 - ARM[s]["reach"] / v.length)
+    drawn = max(drawn, t.length)
+    tool = bones["tool"]
+    rel = tool.parent.matrix_local.inverted() @ tool.matrix_local
+    tool_loc = (rel.inverted() @ pb[tool.parent.name].matrix.inverted() @ Matrix.Translation(t) @ pb["tool"].matrix).translation
+    fix = {"tool": tool_loc}
+    for s in "lr":
+        A = ARM[s]; a, b = A["a"], A["b"]
+        g = G[s] + t
+        v = g - S[s]; u = v.normalized()
+        d = min(max(v.length, abs(a - b) + 1e-4), a + b - 1e-6)
+        x = (a * a - b * b + d * d) / (2 * d); h = math.sqrt(max(a * a - x * x, 0.0))
+        p = inv @ mark[f"Pole{s.upper()}"].matrix_world.translation - S[s]
+        w = (p - p.dot(u) * u).normalized()
+        E = S[s] + u * x + w * h; T = S[s] + u * d; n = u.cross(w)
+        up, fo = bones[f"upper_{s}"], bones[f"fore_{s}"]
+        Mu = Matrix.Translation(S[s]) @ (frame3((E - S[s]).normalized(), n) @ A["Fu"].transposed() @ up.matrix_local.to_3x3()).to_4x4()
+        Mf = Matrix.Translation(E) @ (frame3((T - E).normalized(), n) @ A["Ff"].transposed() @ fo.matrix_local.to_3x3()).to_4x4()
+        fix[up.name] = (up.matrix_local.inverted() @ up.parent.matrix_local @ pb[up.parent.name].matrix.inverted() @ Mu).to_quaternion()
+        fix[fo.name] = (fo.matrix_local.inverted() @ up.matrix_local @ Mu.inverted() @ Mf).to_quaternion()
+    fixes[f] = fix
+
+root_act, root_slot = ad.action, ad.action_slot
+held = bpy.data.actions.new("HandsOnHandle")
+ad.action = held
+last = {}
+for f, fix in fixes.items():
+    for name, val in fix.items():
+        if name == "tool":
+            pb[name].location = val; pb[name].keyframe_insert("location", frame=f)
+        else:
+            if name in last and last[name].dot(val) < 0: val.negate()     # continuity
+            last[name] = val
+            pb[name].rotation_quaternion = val; pb[name].keyframe_insert("rotation_quaternion", frame=f)
+ad.action = root_act
+try: ad.action_slot = root_slot
+except Exception: pass
+tr = ad.nla_tracks.new(); tr.name = "HandsOnHandle"
+st = tr.strips.new("HandsOnHandle", 1, held)
+try:
+    if hasattr(held, "slots") and len(held.slots): st.action_slot = held.slots[0]
+except Exception: pass
+st.blend_type = "REPLACE"; st.extrapolation = "HOLD"
+after = 0.0
+for f in range(1, END + 1):
+    scene.frame_set(f); after = max(after, hand_gap())
+print(f"ARMS cinematic: a hand off the handle up to {before * 100:.1f} cm in the strip blends alone, "
+      f"{after * 100:.2f} cm fixed (the tool drawn in by up to {drawn * 100:.1f} cm)", flush=True)
 
 # ---------- the clearing ----------
 random.seed(4)

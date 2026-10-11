@@ -260,22 +260,27 @@ Ten tasks take the village prototype to the first playable loop; tick each one o
 - [ ] **Clean base.** Port the village simulation from the Hearthfolk prototype into the new modules, without priorities, blessings and petitions. Done when the village runs with day, night and the chronicle in the new look, and no player yet.
 - [ ] **Your character.** Tap a tree or rock and they walk there and work until sent elsewhere. Done when tapping a tree makes them chop until you tap something else. Built 11 Oct with step 2 (game 0.0.6), awaiting the owner's play.
 - [ ] **Woodcutting and mining (step 2).** Both skills on the 1 to 99 XP curve with their first tiers. Done when levels survive a reload and show in a skills panel. Built 11 Oct (game 0.0.6): six birches south of the square (level 1) and three oaks by the river (level 10), a chopping swing with an axe that replaces the pick, trees that fall and leave a stump, then grow back, and a panel with both skills.
-- [ ] **Backpack and bank.** Your character fills a backpack and walks full loads to the bank. Done when wood and ore pile up in the bank where you can count them.
+- [ ] **Backpack and bank (step 3).** Your character fills a backpack; when it's full they walk it to the bank, empty it and go back to the same tree or rock on their own. Done when wood and ore pile up in the bank where you can count them.
 - [ ] **The blacksmith.** An NPC with a daily routine who keeps the forge open only while at work; you smelt copper bars there. Done when the forge is cold at night and your character waits or says why.
 - [ ] **The merchant.** Buys everything at flat prices. Done when selling turns items into gold you can see.
 - [ ] **A neighbour.** One ordinary villager who eats, sleeps and chats on their own. Done when they live a whole day without you.
 - [ ] **First land parcel.** Buy the land east of the village; the fog clears and a tin vein appears, so bronze bars become possible. Done when gold turns into new land end to end.
-- [ ] **Saving and away time.** Progress saves, and your character keeps working while you're away. Done when closing and reopening shows a summary of what they made.
+- [ ] **Saving and away time.** Progress saves, and your character keeps working while the game is closed, at a fifth of the live rate for up to 2 hours. Done when closing and reopening shows a summary of what they made.
 - [ ] **Test and publish.** Headless simulation, screenshots at three sizes, version 0.1 built and logged. Done when you've played it.
 
-**Parking lot**, not slice 1: helpers who skill alongside you, NPC quests, petitions and blessings as flavour, achievements, prestige, sound, a watch showing the time of day, when it gets dark and where north is (11 Oct; possibly an item bought from the merchant, or a sundial on the square). When a tree falls or a rock runs out, the character could move on to the nearest free one of the same kind instead of waiting (11 Oct, Claude's suggestion for idle play; not decided).
+**Parking lot**, not slice 1: helpers who skill alongside you, NPC quests, petitions and blessings as flavour, achievements, prestige, sound, stamina for walking (11 Oct, the owner: maybe later, now that walking is faster), a look at the mining wind-up once the bending elbows are in (11 Oct: the hands now pass in front of the face instead of above the head; the owner will judge it when it is finished), a watch showing the time of day, when it gets dark and where north is (11 Oct; possibly an item bought from the merchant, or a sundial on the square).
 
 ## Decision log
 
-Twenty-one decisions so far, newest first; each answered open question is added here with its date.
+Twenty-six decisions so far, newest first; each answered open question is added here with its date.
 
 | Date | Decision |
 | --- | --- |
+| 11 Oct 2026 | How new land is obtained is open again: land is there to explore, and getting it may take a task, a price, or both. The earlier decisions (claimed at the city hall, gold plus an XP milestone) stand as the working plan until this is settled; not needed before step 7. |
+| 11 Oct 2026 | Progress runs at the full rate (1x) while the game is open, even in a background tab or with the screen off, and at a fifth of it (0.2x) while the game is closed, for at most 2 hours; after that the character stops until you come back. The game cannot tell a game you closed from one the phone closed in the background, so both count as closed. The 2 hours is easy to change later. |
+| 11 Oct 2026 | The backpack's size doesn't matter for now (easy to expand later). When it's full, the character walks it to the bank, empties it and goes back to work on their own. |
+| 11 Oct 2026 | Little downtime while gathering: when a tree falls or a rock runs out, the character moves on to the nearest free one of the same kind, as long as that is quicker than waiting for it to grow back. |
+| 11 Oct 2026 | Git and GitHub after all, replacing the earlier "no Git" decision: a private repository on the owner's GitHub account, pushed after every round, so the work is safe off the PC. |
 | 11 Oct 2026 | The village is laid out like a real village: the town square at the centre, the busiest buildings round it, then workshops, then homes, then the edges. |
 | 11 Oct 2026 | The game model can still change: it doesn't have to be an idle game. The owner's view is that an idle core is the best way to make an OSRS-style game streamlined and modern for how people use phone games, so that stays the direction; the code keeps room for more hands-on play. |
 | 11 Oct 2026 | Land is claimed at the city hall: bought with gold, or restored first and then claimed. |
@@ -300,12 +305,11 @@ Twenty-one decisions so far, newest first; each answered open question is added 
 
 ## Open questions
 
-Ten questions for you, in the order they're needed; the first is needed during slice 1.
+Nine questions for you, in the order they're needed; the first is needed during slice 1.
 
 | Question | Options | Needed by |
 | --- | --- | --- |
-| Which XP milestones open each parcel? | Total level; the level of the skill the parcel serves | Slice 1 |
-| Git and GitHub (deferred) | Add when the work is worth backing up | Before the code goes online |
+| How is new land obtained? | Pay gold at the city hall; do a task to restore it; reach a level (total, or the skill the land serves); a mix | Slice 1, step 7 |
 | Is "cut wood" a Carpentry skill, with planks used for building? | Yes; fold it into Woodcutting; not now | Slice 2 |
 | Can you forge your own tools? | Buy only; buy or forge | Slice 2 |
 | Do NPCs age and die, with someone taking over their role? | Yes; no, they stay | Slice 2 |

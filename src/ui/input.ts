@@ -63,7 +63,7 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
     }
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size === 1) {
-      view.cam.turn(-(e.clientX - prev.x) * 0.008, (e.clientY - prev.y) * 0.3);
+      view.cam.turn((e.clientX - prev.x) * 0.008, (e.clientY - prev.y) * 0.3);   // the scene follows the finger sideways, as in most games
       if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) down = null;
     } else if (pointers.size === 2) {
       const [a, b] = [...pointers.values()] as [{ x: number; y: number }, { x: number; y: number }];

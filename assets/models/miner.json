@@ -1,6 +1,8 @@
 {
  "fps": 100,
  "walk_cycle_s": 0.8,
+ "run_cycle_s": 0.56,
+ "run_speed_m_s": 2.771,
  "reach_m": 1.05,
  "strike_deg": -70.1,
  "mine_impact_s": 0.79,

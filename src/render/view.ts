@@ -1,6 +1,7 @@
 // Draws the game: the ground and river, the village, fog over unclaimed land, the rocks and trees, and the character
 // with the tool for the job (pick or axe) and the matching animation, placed from the game state every frame, plus
-// effects (chips, the click cross). It reads state; it never changes it.
+// effects (chips, the click cross). It reads state; it never changes it. Clips crossfade, and ArmIK puts the hands
+// back on the handle after every blend.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import minerUrl from '../../assets/models/miner.glb?url';
@@ -8,7 +9,7 @@ import villageUrl from '../../assets/models/village.glb?url';
 import type { GameState } from '../core/state';
 import type { Layout, NodeSpot } from '../world/layout';
 import { RESOURCES } from '../data/skills';
-import { SWINGS, type Swing } from '../data/animation';
+import { GAIT, SWINGS, type Swing } from '../data/animation';
 import { dayFraction } from '../core/clock';
 import { Lighting } from './lighting';
 import { OrbitCamera } from './camera';
@@ -16,6 +17,7 @@ import { buildWorld, type WorldView } from './world';
 import { VillageView } from './village';
 import { FogView } from './fog';
 import { NodesView } from './nodes';
+import { ArmIK } from './arms';
 
 type Tool = Swing['tool'];
 
@@ -44,6 +46,7 @@ export class View {
   private tools?: Record<Tool, { parts: THREE.Object3D[]; tip: THREE.Object3D }>;
   private tool: Tool | null = null;
   private mixer?: THREE.AnimationMixer;
+  private arms?: ArmIK;
   private actions: Record<string, THREE.AnimationAction> = {};
   private current?: THREE.AnimationAction;
   private shown = { pos: new THREE.Vector3(), heading: 0, ready: false };
@@ -92,9 +95,11 @@ export class View {
     this.nodes = new NodesView(this.scene, this.layout, find('Rock'), village.scene);
     this.pickables.push(...this.nodes.pickables);
     this.scene.add(this.miner);
+    this.arms = new ArmIK(this.miner);   // reads the rest pose, so before the mixer first runs
     this.mixer = new THREE.AnimationMixer(this.miner);
     for (const clip of gltf.animations) this.actions[clip.name] = this.mixer.clipAction(clip);
     for (const s of Object.values(SWINGS)) this.actions[s.clip]!.timeScale = 0;   // the simulation drives each swing, so strikes line up
+    this.actions[GAIT.clip]!.timeScale = GAIT.speed / GAIT.clipSpeed;              // stride matched to the ground speed
     this.play('Idle', 0);
   }
 
@@ -140,10 +145,11 @@ export class View {
       const swing = spot ? SWINGS[RESOURCES[spot.resource]!.skill] : null;
       if (swing) this.useTool(swing.tool);
       const waiting = task.kind === 'gather' && !!state.nodes[task.nodeId]?.depletedUntil;
-      if (task.kind === 'walk') this.play('Walk');
+      if (task.kind === 'walk') this.play(GAIT.clip);
       else if (task.kind === 'gather' && !waiting && swing) { this.play(swing.clip); this.actions[swing.clip]!.time = task.progress * swing.cycle; }
       else this.play('Idle');
       this.mixer.update(dt);
+      this.arms?.solve();                   // a crossfade blends the arms apart from the tool: hands back on the handle
       if (this.strikeAt && this.tools && this.tool) this.nodes?.hit(this.strikeAt, this.tools[this.tool].tip.getWorldPosition(new THREE.Vector3()));
     }
     this.strikeAt = null;

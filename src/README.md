@@ -11,7 +11,7 @@ TypeScript, built by Vite into one file, `dist/index.html`. Rules from `CLAUDE.m
 | `actors/player.ts` | Walking to a tap, to a rock or tree (stand within the tool's reach), to a building's door or the edge of unclaimed land |
 | `systems/` | `gathering.ts` (swings, yields, rocks and trees running out and growing back), `skills.ts` (XP, level-ups), `commands.ts` (the UI's only way in) |
 | `sim.ts` | One simulation step; headless, used by the game and the tests |
-| `render/` | three.js: `view.ts` (the character and his tools, the click cross), `nodes.ts` (rocks and trees: running out, falling, stumps, growing back, chips and leaves), `world.ts` (ground, paths, river), `village.ts` (buildings, trees, lanterns, hearth, night glow, merged per material), `fog.ts` (mist over unclaimed land), `lighting.ts` (day and night), `camera.ts` (third-person orbit) |
+| `render/` | three.js: `view.ts` (the character and his tools, the click cross), `arms.ts` (keeps his hands on the handle when clips crossfade), `nodes.ts` (rocks and trees: running out, falling, stumps, growing back, chips and leaves), `world.ts` (ground, paths, river), `village.ts` (buildings, trees, lanterns, hearth, night glow, merged per material), `fog.ts` (mist over unclaimed land), `lighting.ts` (day and night), `camera.ts` (third-person orbit) |
 | `ui/` | `input.ts` (tap, drag, pinch, keys), `hud.ts` (panels, floating numbers) |
 | `main.ts` | Wires it all together; `window.hearthfolk` exposes state and view for checking in the browser console |
 

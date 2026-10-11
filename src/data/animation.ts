@@ -13,3 +13,8 @@ export const SWINGS: Record<SkillId, Swing> = {
   mining: { clip: 'Mine', tool: 'pick', cycle: meta.mine_cycle_s, impact: meta.mine_impact_s, reach: meta.reach_m, refRadius: 0.95 },
   woodcutting: { clip: 'Chop', tool: 'axe', cycle: meta.chop_cycle_s, impact: meta.chop_impact_s, reach: meta.chop_reach_m, refRadius: meta.chop_trunk_m },
 };
+
+/** How the character gets about: `speed` metres a second on the ground (doubled from walking pace at the owner's
+ *  request, 11 Oct; stamina may come later), drawn with `clip`, whose stride covers `clipSpeed` metres a second at
+ *  its own pace, so the view plays it speed / clipSpeed times as fast and the feet don't slide. */
+export const GAIT = { clip: 'Run', speed: 2.9, clipSpeed: meta.run_speed_m_s };

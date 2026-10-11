@@ -5,10 +5,10 @@ import type { EventBus } from '../core/events';
 import type { Layout, NodeSpot, Vec2 } from '../world/layout';
 import { doorOf } from '../world/layout';
 import { navFor } from '../world/nav';
-import { SWINGS } from '../data/animation';
+import { GAIT, SWINGS } from '../data/animation';
 import { RESOURCES } from '../data/skills';
 
-export const WALK_SPEED = 1.45;        // m/s, matches the walk animation's stride
+export const WALK_SPEED = GAIT.speed;  // m/s
 const TURN_RATE = 12;                  // how quickly heading catches up with the walking direction
 
 const sub = (a: Vec2, b: Vec2): Vec2 => ({ x: a.x - b.x, z: a.z - b.z });

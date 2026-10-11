@@ -5,8 +5,10 @@ import { DAY_SECONDS } from './clock';
 
 export const SAVE_VERSION = 3;
 
-/** gather: working a rock or a tree; progress runs 0..1 through one swing of that skill's tool */
-export type Task = { kind: 'idle' } | { kind: 'walk' } | { kind: 'gather'; nodeId: string; progress: number };
+/** gather: working a rock or a tree; progress runs 0..1 through one swing of that skill's tool. `mayMoveOn` is set
+ *  when the node runs out while he works it, so he can move on to another; a node that was already down when he got
+ *  there (the player tapped a stump) is one he was sent to, so he waits at it. */
+export type Task = { kind: 'idle' } | { kind: 'walk' } | { kind: 'gather'; nodeId: string; progress: number; mayMoveOn?: boolean };
 
 /** What the player is walking towards: a resource node to work, or a place to visit (a building or land). */
 export type Pending = { kind: 'node'; id: string } | { kind: 'visit'; id: string } | null;
