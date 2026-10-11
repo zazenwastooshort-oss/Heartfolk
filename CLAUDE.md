@@ -24,7 +24,7 @@ Hearthfolk is an idle skilling game you leave running like an ant farm. The play
 - Ideas that come up mid-slice go to the parking lot in `docs/PLAN.md`, not into the current slice.
 - Talk plainly and briefly. The owner starts in Manual permission mode: before installing software or running anything unusual, say in a sentence or two what it is and why.
 - Keep everything inside this project folder. Never delete the owner's files.
-- Match the effort to how lasting the work is. The character and models are placeholder art, so animation and art fixes stay quick and small (fix what is clearly broken, then show it); no hour-long multi-agent polish on them (the owner, 11 Oct 2026). Put the heavy effort into gameplay systems, saves and tests.
+- Aim for a good alpha of the core loop: fix whatever makes the alpha feel better, but match the effort to how lasting the work is. The character and models are placeholder art, so art and animation fixes stay quick and small (fix what is clearly broken or off-putting, then show it); no hour-long multi-agent polish on them (the owner, 11 Oct 2026). Put the heavy effort into gameplay systems, saves and tests.
 
 ## Status (11 Oct 2026, plan version 0.5)
 
