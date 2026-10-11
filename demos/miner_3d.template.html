@@ -1,0 +1,486 @@
+<title>Hearthfolk Miner 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<style>
+/* Layout: one framed live-3D scene, centred; hover text over its corner; skill panel, time-of-day switch and hint below.
+   Single look (the scene is the same for every viewer), so colours are set once, not per theme. */
+:root {
+  color-scheme: dark;
+  --frame: #1f2b1c;
+  --frame-edge: #344a2e;
+  --panel: rgba(249, 243, 229, 0.88);
+  --ink: #2b2116;
+  --muted: #6b5c48;
+  --accent: #a8641c;
+  --highlight: #e4a42a;
+  --xp: #5ca04a;
+  --hint: #c9d6bf;
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
+  --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+html, body { height: 100%; }
+body { background: var(--frame); color: var(--hint); font-family: var(--body); }
+.wrap { box-sizing: border-box; min-height: 100%; padding-block: 20px; padding-inline: 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+h1 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 1.35rem; color: #f1e8d4; text-wrap: balance; }
+h1 small { font-family: var(--body); font-weight: 500; font-size: 0.8rem; color: var(--hint); margin-left: 6px; }
+.stage, .below { width: min(100%, 960px, calc((100dvh - 190px) * 1.6)); min-width: min(100%, 320px); }
+.stage { position: relative; aspect-ratio: 16 / 10; border-radius: 10px; overflow: hidden; background: #2c4a26;
+  box-shadow: 0 0 0 2px var(--frame-edge), 0 12px 40px rgba(0, 0, 0, 0.45); }
+.stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.stage.over-rock canvas { cursor: pointer; }
+.hover { position: absolute; left: 10px; top: 8px; font: 700 15px/1.2 var(--body); color: #fff; text-shadow: 1px 1px 0 #000; pointer-events: none; }
+.hover b { color: #00ffff; }
+.floats { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.float { position: absolute; transform: translate(-50%, -100%); font: 700 13px/1 var(--body); color: #fff4c8; text-shadow: 1px 1px 0 #000; white-space: nowrap; }
+.float.big { font-size: 16px; color: #ffd34d; }
+.msg { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; text-align: center; color: #f1e8d4; font-size: 14px; }
+.below { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+.skill { flex: 0 0 200px; background: var(--panel); color: var(--ink); border-radius: 8px; padding: 8px 10px; display: grid; gap: 5px; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+.skill .row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.skill .name { font-weight: 600; font-size: 13px; }
+.skill .lvl { font-family: var(--display); font-weight: 700; font-size: 20px; color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
+.bar { height: 6px; background: rgba(43, 33, 22, 0.15); border-radius: 3px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--xp); transition: width .25s ease-out; }
+.skill small { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ore { display: flex; align-items: center; gap: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.ore i { width: 10px; height: 10px; border-radius: 3px; background: #c8763a; box-shadow: inset -2px -2px 0 rgba(0,0,0,.2); }
+.side { flex: 1 1 260px; min-width: 0; display: grid; gap: 8px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.tod { display: inline-flex; max-width: 100%; border: 1px solid var(--frame-edge); border-radius: 8px; overflow: hidden; }
+.tod button { font: 600 12px var(--body); color: var(--hint); background: transparent; border: 0; padding: 6px 12px; cursor: pointer; }
+.tod button + button { border-left: 1px solid var(--frame-edge); }
+.tod button[aria-pressed="true"] { background: var(--highlight); color: #2b2116; }
+.tod button:focus-visible { outline: 2px solid var(--highlight); outline-offset: -2px; }
+.hint { margin: 0; font-size: 13px; line-height: 1.45; }
+.hint b { color: #f1e8d4; font-weight: 600; }
+@media (max-width: 520px) { .skill { flex-basis: 100%; } .hover { font-size: 12px; } }
+@media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+
+<div class="wrap">
+  <h1>Hearthfolk Miner <small>live 3D</small></h1>
+  <div class="stage" id="stage">
+    <div class="hover" id="hover">Walk here</div>
+    <div class="floats" id="floats"></div>
+  </div>
+  <div class="below">
+    <div class="skill" aria-live="polite">
+      <div class="row"><span class="name">Mining</span><span class="lvl" id="lvl">1</span></div>
+      <div class="bar"><i id="xpbar"></i></div>
+      <small id="xptext">0 / 83 xp</small>
+      <div class="ore"><i></i><span id="ore">0 copper ore</span></div>
+    </div>
+    <div class="side">
+      <div class="controls">
+        <div class="tod" role="group" aria-label="Time of day">
+          <button type="button" id="tod-day" data-tod="day" aria-pressed="true">Day</button>
+          <button type="button" id="tod-dusk" data-tod="dusk" aria-pressed="false">Dusk</button>
+          <button type="button" id="tod-night" data-tod="night" aria-pressed="false">Night</button>
+        </div>
+        <div class="tod camsel" role="group" aria-label="Camera angle">
+          <button type="button" id="cam-current" data-cam="current" aria-pressed="true">Current</button>
+          <button type="button" id="cam-iso" data-cam="iso" aria-pressed="false">Isometric</button>
+          <button type="button" id="cam-high" data-cam="high" aria-pressed="false">High 60&deg;</button>
+          <button type="button" id="cam-front" data-cam="front" aria-pressed="false">Front 45&deg;</button>
+          <button type="button" id="cam-front30" data-cam="front30" aria-pressed="false">Front 30&deg;</button>
+          <button type="button" id="cam-front18" data-cam="front18" aria-pressed="false">Front 18&deg;</button>
+          <button type="button" id="cam-follow" data-cam="follow" aria-pressed="false">Follow</button>
+          <button type="button" id="cam-orbit" data-cam="orbit" aria-pressed="false">3rd person</button>
+        </div>
+      </div>
+      <p class="hint"><b>Click the grass</b> to walk and <b>click the copper rock</b> to mine; he keeps at it until you send him elsewhere. <b>Scroll or pinch</b> to zoom, and try the camera angles; in <b>3rd person</b>, drag or use the arrow keys to turn the camera round him. This is the real 3D model, lit live, so he turns smoothly and the light changes with the time of day.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const META = /*META*/null;
+const GLB = "__GLB__";
+const stage = document.getElementById('stage'), $ = id => document.getElementById(id);
+if (!window.THREE || !THREE.GLTFLoader) { stage.insertAdjacentHTML('beforeend', '<div class="msg">The 3D library did not load. Check your connection and reload the page.</div>'); return; }
+
+/* ---------- renderer, camera ---------- */
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ antialias: true }); }
+catch (e) { stage.insertAdjacentHTML('beforeend', '<div class="msg">This browser can\'t show 3D (WebGL is off or unsupported).</div>'); return; }
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+stage.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#2c4a26');
+
+const VIEW_H = 6.5;                                   // metres of world shown top to bottom at zoom 1
+const cam = new THREE.OrthographicCamera(-5, 5, 3, -3, 0.1, 100);
+// Camera presets: el = degrees looking down, az = degrees round from straight-on (-90 is straight from the front).
+const CAMS = {
+  current: { el: 32, az: -72 },               // the sprite renders' angle
+  iso:     { el: 35.264, az: -45 },           // true isometric
+  front:   { el: 45, az: -90 },               // Eatventure-style three-quarter view
+  front30: { el: 30, az: -90 },               // lower, looking across the village
+  front18: { el: 18, az: -90 },               // near eye level, diorama-like
+  high:    { el: 60, az: -90 },               // nearly a map
+};
+const camAng = { el: 32, az: -72 }, camGoal = { el: 32, az: -72 };
+const camDir = new THREE.Vector3();
+const camTarget = new THREE.Vector3(0.3, 0.6, 0.2);
+function placeCamera() {
+  const el = THREE.MathUtils.degToRad(camAng.el), az = THREE.MathUtils.degToRad(camAng.az);
+  camDir.set(Math.cos(el) * Math.cos(az), Math.sin(el), -Math.cos(el) * Math.sin(az));
+  cam.position.copy(camTarget).addScaledVector(camDir, 30); cam.lookAt(camTarget);
+}
+placeCamera();
+// Perspective views share one camera:
+//  Follow: behind the miner's shoulder, turning with him.
+//  3rd person: OSRS-style, circles the miner; the player turns it by dragging or with the arrow keys.
+const pcam = new THREE.PerspectiveCamera(55, 1.6, 0.05, 200);
+let active = cam, following = false, orbiting = false, followDist = 3.2;
+const orbit = { yaw: Math.PI * 0.5, pitch: 32, dist: 6.5 };
+const perspView = () => following || orbiting;
+document.querySelector('.camsel').addEventListener('click', e => {
+  const b = e.target.closest('button[data-cam]'); if (!b) return;
+  for (const x of document.querySelectorAll('.camsel button')) x.setAttribute('aria-pressed', String(x === b));
+  following = b.dataset.cam === 'follow'; orbiting = b.dataset.cam === 'orbit';
+  active = perspView() ? pcam : cam;
+  if (following) placeFollow(1);
+  if (orbiting) placeOrbit(1);
+  if (!perspView()) Object.assign(camGoal, CAMS[b.dataset.cam]);
+  applyTod(todT);
+});
+const orbitLook = new THREE.Vector3();
+function placeOrbit(k) {
+  if (!miner) return;
+  orbitLook.lerp(miner.position.clone().add(new THREE.Vector3(0, 1.0, 0)), k);
+  const p = THREE.MathUtils.degToRad(orbit.pitch);
+  pcam.position.set(Math.cos(p) * Math.cos(orbit.yaw), Math.sin(p), Math.cos(p) * Math.sin(orbit.yaw)).multiplyScalar(orbit.dist).add(orbitLook);
+  pcam.lookAt(orbitLook);
+}
+function turnOrbit(dYaw, dPitch) { orbit.yaw += dYaw; orbit.pitch = THREE.MathUtils.clamp(orbit.pitch + dPitch, 8, 80); }
+window.addEventListener('keydown', e => {
+  if (!orbiting) return;
+  const k = { ArrowLeft: [0.08, 0], ArrowRight: [-0.08, 0], ArrowUp: [0, 3], ArrowDown: [0, -3] }[e.key];
+  if (k) { e.preventDefault(); turnOrbit(k[0], k[1]); }
+});
+const followLook = new THREE.Vector3();
+function placeFollow(k) {
+  if (!miner) return;
+  const f = new THREE.Vector3(Math.cos(P.heading), 0, -Math.sin(P.heading));
+  const want = miner.position.clone().addScaledVector(f, -followDist).add(new THREE.Vector3(0, 0.8 + followDist * 0.5, 0)).addScaledVector(new THREE.Vector3(-f.z, 0, f.x), 1.0);
+  const look = miner.position.clone().addScaledVector(f, 1.4).add(new THREE.Vector3(0, 0.9, 0)).addScaledVector(new THREE.Vector3(-f.z, 0, f.x), 0.9);
+  pcam.position.lerp(want, k); followLook.lerp(look, k); pcam.lookAt(followLook);
+}
+function zoomBy(f) {
+  if (following) followDist = THREE.MathUtils.clamp(followDist / f, 1.6, 8);
+  else if (orbiting) orbit.dist = THREE.MathUtils.clamp(orbit.dist / f, 2.2, 16);
+  else setZoom(cam.zoom * f);
+}
+
+/* ---------- light ---------- */
+const hemi = new THREE.HemisphereLight('#bcd7ff', '#5c7d3a', 0.65); scene.add(hemi);
+const sun = new THREE.DirectionalLight('#fff3e0', 1.1);
+sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9, near: 1, far: 60 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
+scene.add(sun, sun.target);
+const lantern = new THREE.PointLight('#ffb050', 0, 7, 1.6);
+lantern.castShadow = true; lantern.shadow.mapSize.set(512, 512);
+scene.add(lantern);
+const TOD = {
+  day:   { sun: '#fff3e0', sunI: 1.1, el: 52, az: 140, sky: '#bcd7ff', gnd: '#5c7d3a', hemiI: 0.65, lamp: 0,   bg: '#2c4a26', horizon: '#b4d3ec' },
+  dusk:  { sun: '#ffa45e', sunI: 0.85, el: 16, az: 205, sky: '#d8a080', gnd: '#4a3a2a', hemiI: 0.42, lamp: 0.9, bg: '#3a2e22', horizon: '#e3a983' },
+  night: { sun: '#93a9ff', sunI: 0.22, el: 40, az: 60,  sky: '#2c3d70', gnd: '#10180f', hemiI: 0.2,  lamp: 2.2, bg: '#0e1424', horizon: '#18213d' },
+};
+let todFrom = null, todTo = TOD.day, todT = 1;
+const bgColor = new THREE.Color(), horizonColor = new THREE.Color();
+scene.fog = new THREE.Fog('#b4d3ec', 1000, 2000);
+const lerpC = (a, b, t) => new THREE.Color(a).lerp(new THREE.Color(b), t);
+function applyTod(t) {
+  const a = todFrom || todTo, b = todTo, k = t * t * (3 - 2 * t);
+  sun.color.copy(lerpC(a.sun, b.sun, k)); sun.intensity = a.sunI + (b.sunI - a.sunI) * k;
+  hemi.color.copy(lerpC(a.sky, b.sky, k)); hemi.groundColor.copy(lerpC(a.gnd, b.gnd, k)); hemi.intensity = a.hemiI + (b.hemiI - a.hemiI) * k;
+  lantern.intensity = a.lamp + (b.lamp - a.lamp) * k; lampGlow.material.color.copy(lerpC('#6a5030', '#ffd27a', Math.min(1, lantern.intensity / 1.2)));
+  bgColor.copy(lerpC(a.bg, b.bg, k)); horizonColor.copy(lerpC(a.horizon, b.horizon, k));
+  // looking from above, the ground fills the view; from the follow camera you see a sky and a hazy horizon
+  scene.background.copy(perspView() ? horizonColor : bgColor);
+  scene.fog.color.copy(horizonColor); scene.fog.near = perspView() ? 14 : 1000; scene.fog.far = perspView() ? 50 : 2000;
+  const el = THREE.MathUtils.degToRad(a.el + (b.el - a.el) * k), az = THREE.MathUtils.degToRad(a.az + (b.az - a.az) * k);
+  sun.position.set(Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az)).multiplyScalar(20).add(camTarget);
+  sun.target.position.copy(camTarget);
+}
+document.querySelector('.tod').addEventListener('click', e => {
+  const b = e.target.closest('button[data-tod]'); if (!b) return;
+  for (const x of b.parentElement.querySelectorAll('button')) x.setAttribute('aria-pressed', String(x === b));
+  todFrom = todTo; todTo = TOD[b.dataset.tod]; todT = 0;
+});
+
+/* ---------- ground ---------- */
+const ROCK_POS = new THREE.Vector3(1.6, 0, -0.4);
+const GW = 40, GD = 48;
+const groundTex = (() => {
+  const c = document.createElement('canvas'); c.width = 2048; c.height = Math.round(2048 * GD / GW);
+  const g = c.getContext('2d'), sx = c.width / GW, sz = c.height / GD;
+  let seed = 11; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  g.fillStyle = '#5ca04a'; g.fillRect(0, 0, c.width, c.height);
+  for (let i = 0; i < 52000; i++) { g.fillStyle = r() < 0.5 ? 'rgba(40,90,30,0.16)' : 'rgba(150,210,110,0.14)'; g.fillRect(r() * c.width, r() * c.height, 3, 3); }
+  const rx = (ROCK_POS.x + GW / 2) * sx, rz = (ROCK_POS.z + GD / 2) * sz;
+  for (let i = 0; i < 2600; i++) {
+    const a = r() * Math.PI * 2, d = Math.sqrt(r());
+    g.fillStyle = `rgba(${150 + r() * 40 | 0},${120 + r() * 30 | 0},${80 + r() * 20 | 0},${0.6 * (1 - d * d)})`;
+    g.fillRect(rx + Math.cos(a) * d * 2.0 * sx, rz + Math.sin(a) * d * 1.7 * sz, 5, 4);
+  }
+  for (let i = 0; i < 140; i++) { g.fillStyle = ['#f4e04d', '#f7f7f7', '#f29bb5'][i % 3]; g.beginPath(); g.arc(r() * c.width, r() * c.height, 3, 0, 7); g.fill(); }
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t;
+})();
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(GW, GD), new THREE.MeshLambertMaterial({ map: groundTex }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+// plain grass reaching far beyond the detailed patch, so low camera angles never see past the edge
+const farGround = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshLambertMaterial({ color: '#5ca04a' }));
+farGround.rotation.x = -Math.PI / 2; farGround.position.y = -0.01; farGround.receiveShadow = true; scene.add(farGround);
+// grass tufts as tiny low-poly blades, so the ground has some depth under the light
+(() => {
+  const blade = new THREE.ConeGeometry(0.035, 0.16, 3); blade.translate(0, 0.08, 0);
+  const mat = new THREE.MeshLambertMaterial({ color: '#4b8c3b' });
+  const n = 420, inst = new THREE.InstancedMesh(blade, mat, n), m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+  let seed = 3; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  let k = 0;
+  while (k < n) {
+    const x = (r() - 0.5) * 16, z = (r() - 0.5) * 12;
+    if (Math.hypot((x - ROCK_POS.x) / 2.2, (z - ROCK_POS.z) / 1.8) < 1) continue;
+    for (let j = 0; j < 3 && k < n; j++, k++) {
+      q.setFromEuler(new THREE.Euler((r() - 0.5) * 0.5, r() * 6.3, (r() - 0.5) * 0.5)); s.setScalar(0.7 + r() * 0.6);
+      m.compose(new THREE.Vector3(x + (r() - 0.5) * 0.12, 0, z + (r() - 0.5) * 0.12), q, s); inst.setMatrixAt(k, m);
+    }
+  }
+  inst.receiveShadow = true; scene.add(inst);
+})();
+// a lantern post beside the rock, lit at dusk and night
+const post = new THREE.Mesh(new THREE.BoxGeometry(0.09, 1.3, 0.09), new THREE.MeshLambertMaterial({ color: '#6b4a2a' }));
+post.position.set(ROCK_POS.x + 1.0, 0.65, ROCK_POS.z + 1.0); post.castShadow = true; scene.add(post);
+const lampGlow = new THREE.Mesh(new THREE.IcosahedronGeometry(0.11, 0), new THREE.MeshBasicMaterial({ color: '#6a5030' }));
+lampGlow.position.set(post.position.x, 1.36, post.position.z); scene.add(lampGlow);
+lantern.position.set(post.position.x, 1.36, post.position.z);
+
+/* ---------- click marker (OSRS-style cross) ---------- */
+const marker = new THREE.Group();
+for (const a of [Math.PI / 4, -Math.PI / 4]) { const bar = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.02, 0.09), new THREE.MeshBasicMaterial({ color: '#ffe100' })); bar.rotation.y = a; marker.add(bar); }
+marker.visible = false; scene.add(marker);
+let markerT = 0;
+function showMarker(p, red) { marker.position.set(p.x, 0.02, p.z); for (const c of marker.children) c.material.color.set(red ? '#ff2a1a' : '#ffe100'); markerT = 0.45; marker.visible = true; }
+
+/* ---------- game state ---------- */
+const XP_FOR = [0, 0];
+(() => { let acc = 0; for (let n = 1; n < 99; n++) { acc += Math.floor(n + 300 * Math.pow(2, n / 7)); XP_FOR[n + 1] = Math.floor(acc / 4); } })();
+const levelOf = xp => { let l = 1; while (l < 99 && xp >= XP_FOR[l + 1]) l++; return l; };
+const S = { xp: 0, ore: 0 };
+function updateHud() {
+  const l = levelOf(S.xp), lo = XP_FOR[l], hi = XP_FOR[Math.min(99, l + 1)];
+  $('lvl').textContent = l; $('xpbar').style.width = (l >= 99 ? 100 : (S.xp - lo) / (hi - lo) * 100) + '%';
+  $('xptext').textContent = `${Math.floor(S.xp).toLocaleString()} / ${hi.toLocaleString()} xp`;
+  $('ore').textContent = `${S.ore} copper ore`;
+}
+updateHud();
+
+let miner, rock, tipNode, mixer, actions = {}, current = null;
+const ores = [], rockMats = [];
+const P = { pos: new THREE.Vector3(-2.6, 0, 1.4), heading: 0, wantHeading: 0, mode: 'idle', path: [], mining: false, mineHeading: 0 };
+const ROCK_R = 0.95, REACH = META.reach_m || 1.08, SPEED = 1.45;
+const rockState = { depleted: false, respawnAt: 0 };
+const chips = [], floatEls = [];
+
+function play(name, fade = 0.18) {
+  const next = actions[name]; if (!next || current === next) return;
+  next.reset().setEffectiveWeight(1).play();
+  if (current) current.crossFadeTo(next, fade, false);
+  current = next;
+}
+
+/* ---------- load the model ---------- */
+const bin = Uint8Array.from(atob(GLB), c => c.charCodeAt(0)).buffer;
+new THREE.GLTFLoader().parse(bin, '', gltf => {
+  const root = gltf.scene;
+  miner = root.getObjectByName('Miner'); rock = root.getObjectByName('Rock'); tipNode = root.getObjectByName('PickTip');
+  root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  scene.add(miner); scene.add(rock);
+  rock.position.copy(ROCK_POS);
+  rock.traverse(o => {
+    if (!o.isMesh) return;
+    o.material = o.material.clone(); rockMats.push({ m: o.material, base: o.material.color.clone() });
+    if (/^Ore/.test(o.name)) ores.push(o);
+  });
+  miner.position.copy(P.pos);
+  mixer = new THREE.AnimationMixer(miner);
+  for (const clip of gltf.animations) actions[clip.name] = mixer.clipAction(clip);
+  play('Idle', 0);
+}, err => { stage.insertAdjacentHTML('beforeend', '<div class="msg">The miner model failed to load.</div>'); console.error(err); });
+
+/* ---------- input ---------- */
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function pick(e) {
+  const b = renderer.domElement.getBoundingClientRect();
+  ndc.set((e.clientX - b.left) / b.width * 2 - 1, -(e.clientY - b.top) / b.height * 2 + 1);
+  ray.setFromCamera(ndc, active);
+  const onRock = rock ? ray.intersectObject(rock, true)[0] : null;
+  const onGround = ray.intersectObject(ground)[0];
+  return { rock: onRock, ground: onGround };
+}
+renderer.domElement.addEventListener('pointermove', e => {
+  if (pinch.size) return;
+  const h = pick(e); stage.classList.toggle('over-rock', !!h.rock);
+  $('hover').innerHTML = h.rock ? 'Mine <b>Copper rock</b>' : 'Walk here';
+});
+let downAt = null;
+renderer.domElement.addEventListener('pointerdown', e => { pinch.set(e.pointerId, { x: e.clientX, y: e.clientY }); downAt = pinch.size === 1 ? { x: e.clientX, y: e.clientY } : null; });
+renderer.domElement.addEventListener('pointerup', e => {
+  pinch.delete(e.pointerId);
+  if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 8 || !miner) return;
+  const h = pick(e);
+  if (h.rock) {
+    showMarker(h.rock.point, true);
+    // stand on the side of the rock you're coming from, one pick's reach from its centre
+    const d = new THREE.Vector3().subVectors(P.pos, ROCK_POS).setY(0); if (d.lengthSq() < 1e-4) d.set(-1, 0, 0);
+    d.normalize();
+    const stand = ROCK_POS.clone().addScaledVector(d, REACH);
+    P.mineHeading = Math.atan2(d.z, -d.x);
+    walkTo(stand, true);
+  } else if (h.ground) {
+    showMarker(h.ground.point, false);
+    walkTo(h.ground.point.clone().setY(0), false);
+  }
+});
+function walkTo(target, thenMine) {
+  target.x = THREE.MathUtils.clamp(target.x, -7, 7); target.z = THREE.MathUtils.clamp(target.z, -5.5, 5.5);
+  // keep out of the rock; go round it with one waypoint if the straight line passes through
+  const off = new THREE.Vector3().subVectors(target, ROCK_POS).setY(0);
+  if (!thenMine && off.length() < ROCK_R) target.copy(ROCK_POS).addScaledVector(off.normalize(), ROCK_R);
+  const a = P.pos, ab = new THREE.Vector3().subVectors(target, a), t = THREE.MathUtils.clamp(new THREE.Vector3().subVectors(ROCK_POS, a).dot(ab) / Math.max(1e-6, ab.lengthSq()), 0, 1);
+  const closest = a.clone().addScaledVector(ab, t), miss = new THREE.Vector3().subVectors(closest, ROCK_POS).setY(0);
+  P.path = [];
+  if (miss.length() < ROCK_R && t > 0.02 && t < 0.98) {
+    if (miss.lengthSq() < 1e-4) miss.set(-ab.z, 0, ab.x);
+    P.path.push(ROCK_POS.clone().addScaledVector(miss.normalize(), ROCK_R + 0.25));
+  }
+  P.path.push(target);
+  P.mining = thenMine; P.mode = 'walk'; play('Walk');
+}
+// zoom: wheel and two-finger pinch
+const pinch = new Map(); let pinchD = 0;
+renderer.domElement.addEventListener('wheel', e => { e.preventDefault(); zoomBy(Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
+renderer.domElement.addEventListener('pointermove', e => {
+  if (!pinch.has(e.pointerId)) return;
+  const prev = pinch.get(e.pointerId); pinch.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  // 3rd person: dragging with one finger or the mouse turns the camera round the miner (and isn't a click)
+  if (orbiting && pinch.size === 1) {
+    turnOrbit(-(e.clientX - prev.x) * 0.008, (e.clientY - prev.y) * 0.3);
+    if (downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 8) downAt = null;
+  }
+  if (pinch.size === 2) { const [p1, p2] = [...pinch.values()], d = Math.hypot(p1.x - p2.x, p1.y - p2.y); if (pinchD) zoomBy(d / pinchD); pinchD = d; downAt = null; }
+});
+renderer.domElement.addEventListener('pointercancel', e => { pinch.delete(e.pointerId); pinchD = 0; });
+function setZoom(z) { cam.zoom = THREE.MathUtils.clamp(z, 0.7, 2.2); cam.updateProjectionMatrix(); if (pinch.size < 2) pinchD = 0; }
+
+/* ---------- mining ---------- */
+const IMPACT = META.mine_impact_s, CYCLE = META.mine_cycle_s;
+let lastMineT = 0;
+const chipGeo = new THREE.BoxGeometry(0.05, 0.05, 0.05);
+const chipMats = [new THREE.MeshLambertMaterial({ color: '#8d8f94' }), new THREE.MeshLambertMaterial({ color: '#d98a4a' })];
+function strike() {
+  const p = tipNode.getWorldPosition(new THREE.Vector3());
+  for (let i = 0; i < 10; i++) {
+    const m = new THREE.Mesh(chipGeo, chipMats[i % 3 ? 0 : 1]); m.position.copy(p); m.castShadow = true;
+    m.userData = { v: new THREE.Vector3((Math.random() - 0.5) * 2.2, 1.6 + Math.random() * 1.6, (Math.random() - 0.5) * 2.2), life: 0.7 + Math.random() * 0.3, spin: Math.random() * 10 };
+    scene.add(m); chips.push(m);
+  }
+  const lvl = levelOf(S.xp);
+  if (Math.random() < 0.38 + lvl * 0.012) {
+    S.ore++; S.xp += 17.5;
+    floatText('+17.5 xp', miner.position.clone().setY(2.1));
+    if (levelOf(S.xp) > lvl) floatText('Mining level ' + levelOf(S.xp) + '!', miner.position.clone().setY(2.45), true);
+    if (Math.random() < 0.35) { rockState.depleted = true; rockState.respawnAt = performance.now() + 2600; }
+    updateHud();
+  }
+}
+function floatText(text, pos, big) {
+  const el = document.createElement('div'); el.className = 'float' + (big ? ' big' : ''); el.textContent = text;
+  $('floats').appendChild(el); floatEls.push({ el, pos, t: 0 });
+}
+
+/* ---------- loop ---------- */
+const clock = new THREE.Clock();
+function angleLerp(a, b, t) { let d = ((b - a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI; return a + d * t; }
+function update(dt, now) {
+  if (todT < 1) { todT = Math.min(1, todT + dt / 1.2); applyTod(todT); if (todT >= 1) todFrom = null; }
+  if (Math.abs(camGoal.el - camAng.el) + Math.abs(camGoal.az - camAng.az) > 0.01) {
+    const k = Math.min(1, dt * 4); camAng.el += (camGoal.el - camAng.el) * k; camAng.az += (camGoal.az - camAng.az) * k; placeCamera();
+  }
+  if (!miner) return;
+  // rock: run out, grey over, grow back
+  const left = rockState.depleted ? Math.max(0, rockState.respawnAt - now) / 2600 : 0;
+  for (const o of ores) o.visible = !rockState.depleted;
+  for (const r of rockMats) r.m.color.copy(r.base).lerp(new THREE.Color('#6d6f73'), left * 0.6);
+  if (rockState.depleted && now >= rockState.respawnAt) { rockState.depleted = false; for (const o of ores) { o.scale.setScalar(0.2); } }
+  for (const o of ores) o.scale.lerp(new THREE.Vector3(1, 1, 1), Math.min(1, dt * 8));
+
+  if (P.mode === 'walk') {
+    const tgt = P.path[0], d = new THREE.Vector3().subVectors(tgt, P.pos).setY(0), dist = d.length(), step = SPEED * dt;
+    if (dist <= step) {
+      P.pos.copy(tgt); P.path.shift();
+      if (!P.path.length) {
+        if (P.mining) { P.mode = rockState.depleted ? 'wait' : 'mine'; P.wantHeading = P.mineHeading; play(P.mode === 'mine' ? 'Mine' : 'Idle'); lastMineT = 0; }
+        else { P.mode = 'idle'; play('Idle'); }
+      }
+    } else {
+      d.normalize(); P.pos.addScaledVector(d, step); P.wantHeading = Math.atan2(-d.z, d.x);
+    }
+  } else if (P.mode === 'mine') {
+    const t = actions.Mine.time;
+    if ((lastMineT < IMPACT && t >= IMPACT) || (t < lastMineT && IMPACT >= lastMineT)) strike();
+    lastMineT = t;
+    if (rockState.depleted && t < 0.12) { P.mode = 'wait'; play('Idle'); }
+  } else if (P.mode === 'wait' && !rockState.depleted) { P.mode = 'mine'; play('Mine'); lastMineT = 0; }
+
+  P.heading = angleLerp(P.heading, P.wantHeading, Math.min(1, dt * 12));
+  miner.position.copy(P.pos); miner.rotation.y = P.heading;
+  mixer.update(dt);
+  if (following) placeFollow(Math.min(1, dt * 5));
+  if (orbiting) placeOrbit(Math.min(1, dt * 6));
+
+  for (let i = chips.length - 1; i >= 0; i--) {
+    const c = chips[i], u = c.userData; u.life -= dt; u.v.y -= 9 * dt; c.position.addScaledVector(u.v, dt);
+    if (c.position.y < 0.03) { c.position.y = 0.03; u.v.multiplyScalar(0.4); u.v.y = Math.abs(u.v.y) * 0.3; }
+    c.rotation.x += u.spin * dt; c.rotation.y += u.spin * dt; c.scale.setScalar(Math.min(1, u.life * 3));
+    if (u.life <= 0) { scene.remove(c); chips.splice(i, 1); }
+  }
+  if (marker.visible) { markerT -= dt; marker.scale.setScalar(0.4 + markerT * 1.6); if (markerT <= 0) marker.visible = false; }
+}
+function placeFloats() {
+  const b = renderer.domElement.getBoundingClientRect();
+  for (let i = floatEls.length - 1; i >= 0; i--) {
+    const f = floatEls[i]; f.t += 1 / 60;
+    const v = f.pos.clone().project(active);
+    f.el.style.left = ((v.x + 1) / 2 * b.width) + 'px';
+    f.el.style.top = ((1 - v.y) / 2 * b.height - f.t * 30) + 'px';
+    f.el.style.opacity = String(Math.max(0, 1 - f.t / 1.3));
+    if (f.t > 1.3) { f.el.remove(); floatEls.splice(i, 1); }
+  }
+}
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight; if (!w || !h) return;
+  renderer.setSize(w, h, false);
+  const asp = w / h; cam.left = -VIEW_H * asp / 2; cam.right = VIEW_H * asp / 2; cam.top = VIEW_H / 2; cam.bottom = -VIEW_H / 2;
+  cam.updateProjectionMatrix();
+  pcam.aspect = asp; pcam.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage); resize(); applyTod(1);
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(0.05, clock.getDelta());
+  update(dt, performance.now());
+  renderer.render(scene, active);
+  placeFloats();
+});
+})();
+</script>

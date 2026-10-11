@@ -1,0 +1,47 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "demos",
+      "runtimeExecutable": "A:\\ComfyUI\\ComfyUI_windows_portable\\python_embeded\\python.exe",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "A:\\Hearthfolk\\demos"
+      ],
+      "port": 8765
+    },
+    {
+      "name": "game",
+      "runtimeExecutable": "A:\\ComfyUI\\ComfyUI_windows_portable\\python_embeded\\python.exe",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8766",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "A:\\Hearthfolk\\dist"
+      ],
+      "port": 8766
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "A:\\ComfyUI\\ComfyUI_windows_portable\\python_embeded\\python.exe",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8767",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "A:\\Hearthfolk\\dist-web"
+      ],
+      "port": 8767
+    }
+  ]
+}

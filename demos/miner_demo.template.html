@@ -1,0 +1,280 @@
+<title>Hearthfolk Miner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+<style>
+/* Layout: one framed game scene, centred; HUD laid over the scene's corners; a short hint line below.
+   Single look (the scene is the same for every viewer), so colours are set once, not per theme. */
+:root {
+  color-scheme: dark;
+  --frame: #1f2b1c;        /* deep forest behind the scene */
+  --frame-edge: #344a2e;
+  --panel: rgba(249, 243, 229, 0.88);  /* plan: interface panel #f9f3e5 at ~86% */
+  --ink: #2b2116;
+  --muted: #6b5c48;
+  --accent: #a8641c;       /* plan: interface accent */
+  --highlight: #e4a42a;    /* plan: highlight */
+  --xp: #5ca04a;           /* summer grass */
+  --hint: #c9d6bf;
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
+  --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+html, body { height: 100%; }
+body { background: var(--frame); color: var(--hint); font-family: var(--body); }
+.wrap { box-sizing: border-box; min-height: 100%; padding-block: 20px; padding-inline: 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+h1 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 1.35rem; color: #f1e8d4; letter-spacing: 0.2px; text-wrap: balance; }
+.stage { position: relative; width: min(100%, 960px, calc((100dvh - 170px) * 1.6)); min-width: min(100%, 320px); aspect-ratio: 16 / 10; border-radius: 10px; overflow: hidden;
+  box-shadow: 0 0 0 2px var(--frame-edge), 0 12px 40px rgba(0, 0, 0, 0.45); }
+canvas { display: block; width: 100%; height: 100%; touch-action: manipulation; cursor: default; }
+canvas.over-rock { cursor: pointer; }
+.hover { position: absolute; left: 10px; top: 8px; font: 700 15px/1.2 var(--body); color: #fff; text-shadow: 1px 1px 0 #000; pointer-events: none; }
+.hover b { color: #00ffff; font-weight: 700; }
+.below { width: min(100%, 960px, calc((100dvh - 170px) * 1.6)); min-width: min(100%, 320px); display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+.skill { flex: 0 0 200px; background: var(--panel); color: var(--ink);
+  border-radius: 8px; padding: 8px 10px; display: grid; gap: 5px; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+.skill .row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.skill .name { font-weight: 600; font-size: 13px; }
+.skill .lvl { font-family: var(--display); font-weight: 700; font-size: 20px; color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
+.bar { height: 6px; background: rgba(43, 33, 22, 0.15); border-radius: 3px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--xp); transition: width .25s ease-out; }
+.skill small { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ore { display: flex; align-items: center; gap: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.ore i { width: 10px; height: 10px; border-radius: 3px; background: #c8763a; box-shadow: inset -2px -2px 0 rgba(0,0,0,.2); }
+.hint { margin: 0; flex: 1 1 240px; min-width: 0; font-size: 13px; line-height: 1.45; }
+.hint b { color: #f1e8d4; font-weight: 600; }
+@media (max-width: 520px) {
+  .skill { flex-basis: 100%; } .hover { font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+
+<div class="wrap">
+  <h1>Hearthfolk Miner</h1>
+  <div class="stage" id="stage">
+    <canvas id="game" aria-label="A grassy clearing with a copper rock. Click to walk, click the rock to mine."></canvas>
+    <div class="hover" id="hover">Walk here</div>
+  </div>
+  <div class="below">
+    <div class="skill" aria-live="polite">
+      <div class="row"><span class="name">Mining</span><span class="lvl" id="lvl">1</span></div>
+      <div class="bar"><i id="xpbar"></i></div>
+      <small id="xptext">0 / 83 xp</small>
+      <div class="ore"><i></i><span id="ore">0 copper ore</span></div>
+    </div>
+    <p class="hint"><b>Click the grass</b> to walk. <b>Click the copper rock</b> to mine it. He keeps mining until you send him somewhere else; the rock runs out now and then and grows back after a few seconds.</p>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const L = /*LAYOUT*/null;
+const WW = 640, WH = 400;
+const atlas = new Image(); atlas.src = "__ATLAS__";
+const rockImg = new Image(); rockImg.src = "__ROCK__";
+const cv = document.getElementById('game'), ctx = cv.getContext('2d');
+const $ = id => document.getElementById(id);
+
+/* ---------- world ---------- */
+const ROCK = { x: 430, y: 215, depleted: 0, respawnAt: 0 };
+const P = { x: 200, y: 300, facing: 2, mode: 'idle', target: null, mineFacing: -1, frame: 0, t: 0 };
+const chips = [], floats = [];
+let marker = null, hoverRock = false;
+
+const XP_FOR = [0, 0];
+(() => { let acc = 0; for (let n = 1; n < 99; n++) { acc += Math.floor(n + 300 * Math.pow(2, n / 7)); XP_FOR[n + 1] = Math.floor(acc / 4); } })();
+const levelOf = xp => { let l = 1; while (l < 99 && xp >= XP_FOR[l + 1]) l++; return l; };
+const S = { xp: 0, ore: 0 };
+
+/* ground: drawn once */
+const ground = document.createElement('canvas'); ground.width = WW; ground.height = WH;
+(() => {
+  const g = ground.getContext('2d');
+  let seed = 7; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const grad = g.createLinearGradient(0, 0, 0, WH);
+  grad.addColorStop(0, '#68ad55'); grad.addColorStop(1, '#559844');
+  g.fillStyle = grad; g.fillRect(0, 0, WW, WH);
+  for (let i = 0; i < 2600; i++) { g.fillStyle = r() < 0.5 ? 'rgba(40,90,30,0.18)' : 'rgba(150,210,110,0.16)'; g.fillRect(r() * WW, r() * WH, 2, 2); }
+  // dirt worn around the rock
+  for (let i = 0; i < 900; i++) {
+    const a = r() * Math.PI * 2, d = Math.sqrt(r());
+    const x = ROCK.x + Math.cos(a) * d * 120, y = ROCK.y + 6 + Math.sin(a) * d * 52;
+    g.fillStyle = `rgba(${150 + r() * 40 | 0},${120 + r() * 30 | 0},${80 + r() * 20 | 0},${0.55 * (1 - d * d)})`;
+    g.fillRect(x, y, 3, 2);
+  }
+  // grass tufts and a few flowers
+  for (let i = 0; i < 140; i++) {
+    const x = r() * WW, y = 20 + r() * (WH - 20);
+    if (Math.hypot((x - ROCK.x) / 130, (y - ROCK.y) / 60) < 1) continue;
+    g.strokeStyle = r() < 0.5 ? '#3f7d33' : '#4b8c3b'; g.lineWidth = 1.4;
+    for (let k = -1; k <= 1; k++) { g.beginPath(); g.moveTo(x, y); g.lineTo(x + k * 3 + (r() - 0.5) * 2, y - 5 - r() * 4); g.stroke(); }
+  }
+  for (let i = 0; i < 26; i++) { g.fillStyle = ['#f4e04d', '#f7f7f7', '#f29bb5'][i % 3]; const x = r() * WW, y = 20 + r() * (WH - 20); g.beginPath(); g.arc(x, y, 1.8, 0, 7); g.fill(); }
+})();
+
+/* rock hit-testing by pixel alpha */
+let rockMask = null;
+rockImg.onload = () => {
+  const c = document.createElement('canvas'); c.width = rockImg.width; c.height = rockImg.height;
+  const g = c.getContext('2d'); g.drawImage(rockImg, 0, 0); rockMask = g.getImageData(0, 0, c.width, c.height).data;
+};
+const rockLeft = () => ROCK.x - L.rock.anchor[0], rockTop = () => ROCK.y - L.rock.anchor[1];
+function onRock(x, y) {
+  if (!rockMask) return false;
+  const ix = Math.floor(x - rockLeft()), iy = Math.floor(y - rockTop());
+  if (ix < 0 || iy < 0 || ix >= L.rock.size[0] || iy >= L.rock.size[1]) return false;
+  return rockMask[(iy * L.rock.size[0] + ix) * 4 + 3] > 40;
+}
+// the rock's footprint on the ground, which the miner walks around rather than into
+const FOOT = { rx: L.rock.size[0] * 0.42, ry: L.rock.size[0] * 0.18 };
+function outsideRock(x, y) {
+  const dx = (x - ROCK.x) / FOOT.rx, dy = (y - ROCK.y) / FOOT.ry, d = Math.hypot(dx, dy);
+  if (d >= 1) return { x, y };
+  const k = 1 / (d || 0.01); return { x: ROCK.x + dx * k * FOOT.rx, y: ROCK.y + dy * k * FOOT.ry };
+}
+const clampWorld = p => ({ x: Math.max(28, Math.min(WW - 28, p.x)), y: Math.max(95, Math.min(WH - 10, p.y)) });
+
+/* ---------- input ---------- */
+function toWorld(e) { const b = cv.getBoundingClientRect(); return { x: (e.clientX - b.left) / b.width * WW, y: (e.clientY - b.top) / b.height * WH }; }
+cv.addEventListener('pointermove', e => {
+  const w = toWorld(e); hoverRock = onRock(w.x, w.y);
+  cv.classList.toggle('over-rock', hoverRock);
+  $('hover').innerHTML = hoverRock ? 'Mine <b>Copper rock</b>' : 'Walk here';
+});
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const w = toWorld(e);
+  if (onRock(w.x, w.y)) {
+    marker = { x: w.x, y: w.y, t: 0, red: true };
+    // stand on whichever side of the rock is nearest
+    let best = 0, bd = Infinity;
+    L.facings.forEach((f, i) => { const s = clampWorld({ x: ROCK.x + f.stand[0], y: ROCK.y + f.stand[1] }); const d = Math.hypot(s.x - P.x, s.y - P.y); if (d < bd) { bd = d; best = i; } });
+    const f = L.facings[best];
+    P.target = { x: ROCK.x + f.stand[0], y: ROCK.y + f.stand[1] };
+    P.mineFacing = best;
+    if (Math.hypot(P.target.x - P.x, P.target.y - P.y) < 2) startMining(); else setMode('walk');
+  } else {
+    marker = { x: w.x, y: w.y, t: 0, red: false };
+    P.target = clampWorld(outsideRock(w.x, w.y)); P.mineFacing = -1;
+    setMode('walk');
+  }
+});
+
+/* ---------- miner ---------- */
+const MINE_MS = [95, 95, 95, 95, 95, 190, 70, 55, 55, 150, 95, 95];
+function setMode(m) { if (P.mode !== m) { P.mode = m; P.frame = 0; P.t = 0; } }
+function startMining() { P.facing = P.mineFacing; if (ROCK.depleted) setMode('wait'); else setMode('mine'); }
+function facingFor(dx, dy) {
+  const d = Math.hypot(dx, dy) || 1; let best = 0, bv = -2;
+  L.facings.forEach((f, i) => { const v = (f.dir[0] * dx + f.dir[1] * dy) / d; if (v > bv) { bv = v; best = i; } });
+  return best;
+}
+function impactPoint() { const f = L.facings[P.facing]; return { x: P.x + f.impact[0] - L.anchor[0], y: P.y + f.impact[1] - L.anchor[1] }; }
+function strike() {
+  const ip = impactPoint();
+  for (let i = 0; i < 9; i++) chips.push({ x: ip.x, y: ip.y, vx: (Math.random() - 0.5) * 120, vy: -60 - Math.random() * 90, life: 0.55 + Math.random() * 0.25, c: i % 3 ? '#8d8f94' : '#d98a4a', s: 2 + Math.random() * 2 });
+  const lvl = levelOf(S.xp);
+  if (Math.random() < 0.38 + lvl * 0.012) {
+    S.ore++; S.xp += 17.5;
+    const nl = levelOf(S.xp);
+    floats.push({ x: P.x, y: P.y - L.anchor[1] + 24, t: 0, text: '+17.5 xp', c: '#fff4c8' });
+    if (nl > lvl) floats.push({ x: P.x, y: P.y - L.anchor[1] + 4, t: 0, text: 'Mining level ' + nl + '!', c: '#ffd34d', big: true });
+    if (Math.random() < 0.35) { ROCK.depleted = 1; ROCK.respawnAt = performance.now() + 2600; }
+    updateHud();
+  }
+}
+function updateHud() {
+  const l = levelOf(S.xp), lo = XP_FOR[l], hi = XP_FOR[Math.min(99, l + 1)];
+  $('lvl').textContent = l;
+  $('xpbar').style.width = (l >= 99 ? 100 : (S.xp - lo) / (hi - lo) * 100) + '%';
+  $('xptext').textContent = `${Math.floor(S.xp).toLocaleString()} / ${hi.toLocaleString()} xp`;
+  $('ore').textContent = `${S.ore} copper ore`;
+}
+
+function update(dt, now) {
+  if (ROCK.depleted && now >= ROCK.respawnAt) { ROCK.depleted = 0; if (P.mode === 'wait') setMode('mine'); }
+  P.t += dt * 1000;
+  if (P.mode === 'walk') {
+    const dx = P.target.x - P.x, dy = P.target.y - P.y, d = Math.hypot(dx, dy), step = 105 * dt;
+    if (d <= step) { P.x = P.target.x; P.y = P.target.y; if (P.mineFacing >= 0) startMining(); else setMode('idle'); }
+    else {
+      let nx = P.x + dx / d * step, ny = P.y + dy / d * step;
+      // slide round the rock rather than walking through it
+      const o = outsideRock(nx, ny); if (P.mineFacing < 0 || Math.hypot(P.target.x - nx, P.target.y - ny) > 6) { nx = o.x; ny = o.y; }
+      P.facing = facingFor(dx, dy); P.x = nx; P.y = ny;
+      if (P.t > 95) { P.t -= 95; P.frame = (P.frame + 1) % L.anims.walk; }
+    }
+  } else if (P.mode === 'mine') {
+    if (ROCK.depleted && P.frame === 0) { setMode('wait'); return; }
+    if (P.t > MINE_MS[P.frame]) {
+      P.t -= MINE_MS[P.frame]; P.frame = (P.frame + 1) % L.anims.mine;
+      if (P.frame === L.impactFrame) strike();
+    }
+  }
+  for (let i = chips.length - 1; i >= 0; i--) { const c = chips[i]; c.life -= dt; c.vy += 420 * dt; c.x += c.vx * dt; c.y += c.vy * dt; if (c.life <= 0) chips.splice(i, 1); }
+  for (let i = floats.length - 1; i >= 0; i--) { floats[i].t += dt; if (floats[i].t > 1.3) floats.splice(i, 1); }
+  if (marker) { marker.t += dt; if (marker.t > 0.45) marker = null; }
+}
+
+/* ---------- drawing ---------- */
+function drawRock(now) {
+  ctx.save();
+  if (ROCK.depleted) {
+    const left = Math.max(0, ROCK.respawnAt - now) / 2600;
+    if ('filter' in ctx) ctx.filter = `grayscale(${left}) brightness(${1 - 0.25 * left})`; else ctx.globalAlpha = 1 - 0.4 * left;
+  }
+  ctx.drawImage(rockImg, rockLeft(), rockTop());
+  ctx.restore();
+}
+function drawMiner() {
+  const anim = P.mode === 'walk' ? 'walk' : (P.mode === 'mine' ? 'mine' : 'idle');
+  const row = L.rows.indexOf(anim + '_' + P.facing), [fw, fh] = L.frame;
+  const fr = anim === 'idle' ? 0 : P.frame;
+  ctx.drawImage(atlas, fr * fw, row * fh, fw, fh, Math.round(P.x - L.anchor[0]), Math.round(P.y - L.anchor[1]), fw, fh);
+}
+function drawMarker() {
+  if (!marker) return;
+  const k = 1 - marker.t / 0.45, s = 4 + 5 * k;
+  ctx.save(); ctx.translate(marker.x, marker.y); ctx.rotate(Math.PI / 4);
+  ctx.lineCap = 'square'; ctx.strokeStyle = '#000'; ctx.lineWidth = 4.5;
+  ctx.beginPath(); ctx.moveTo(-s, 0); ctx.lineTo(s, 0); ctx.moveTo(0, -s); ctx.lineTo(0, s); ctx.stroke();
+  ctx.strokeStyle = marker.red ? '#ff2a1a' : '#ffe100'; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.restore();
+}
+function render(now) {
+  ctx.drawImage(ground, 0, 0);
+  drawMarker();
+  // nearer things (lower on screen) draw last
+  if (P.y < ROCK.y) { drawMiner(); drawRock(now); } else { drawRock(now); drawMiner(); }
+  for (const c of chips) { ctx.globalAlpha = Math.min(1, c.life * 2.5); ctx.fillStyle = c.c; ctx.fillRect(c.x, c.y, c.s, c.s); }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center';
+  for (const f of floats) {
+    ctx.globalAlpha = Math.max(0, 1 - f.t / 1.3);
+    ctx.font = `700 ${f.big ? 16 : 13}px system-ui, sans-serif`;
+    const y = f.y - f.t * 26;
+    ctx.fillStyle = '#000'; ctx.fillText(f.text, f.x + 1, y + 1);
+    ctx.fillStyle = f.c; ctx.fillText(f.text, f.x, y);
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- sizing and loop ---------- */
+function resize() {
+  const b = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = Math.round(b.width * dpr); cv.height = Math.round(b.height * dpr);
+  ctx.setTransform(cv.width / WW, 0, 0, cv.height / WH, 0, 0);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+}
+new ResizeObserver(resize).observe(cv);
+resize(); updateHud();
+let last = performance.now();
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  update(dt, now);
+  if (atlas.complete && rockImg.complete) render(now);
+}
+requestAnimationFrame(frame);
+})();
+</script>

@@ -1,0 +1,18 @@
+# src: the game
+
+TypeScript, built by Vite into one file, `dist/index.html`. Rules from `CLAUDE.md`: systems change state, rendering only reads it, the UI only sends commands, modules announce events.
+
+| Folder or file | Holds |
+| --- | --- |
+| `core/` | `state.ts` (the saved game), `loop.ts` (fixed 1/30 s step), `events.ts` (event bus), `rng.ts` (seeded randomness), `clock.ts` (time of day, 12-minute days), `save.ts` (versioned saves with migrations) |
+| `data/` | Tables only: `skills.ts` (skills, resources, items from the Wanderskill prototype), `xp.ts` (the 1-99 curve), `animation.ts` (timings from `assets/models/miner.json`) |
+| `world/layout.ts` | The village (VILLAGE), in rings from the square: buildings (each kind has a ring in `RING`), props, gardens, rocks, trees, lanterns, river, roads and lanes, the land under fog |
+| `world/nav.ts` | Walking: a grid of where a person can stand, A* paths and straight-line smoothing; everything that blocks goes here |
+| `actors/player.ts` | Walking to a tap, to a rock (stand within reach), to a building's door or the edge of unclaimed land |
+| `systems/` | `gathering.ts` (swings, yields, rocks running out and growing back), `skills.ts` (XP, level-ups), `commands.ts` (the UI's only way in) |
+| `sim.ts` | One simulation step; headless, used by the game and the tests |
+| `render/` | three.js: `view.ts` (miner, rocks, effects), `world.ts` (ground, paths, river), `village.ts` (buildings, trees, lanterns, hearth, night glow, merged per material), `fog.ts` (mist over unclaimed land), `lighting.ts` (day and night), `camera.ts` (third-person orbit) |
+| `ui/` | `input.ts` (tap, drag, pinch, keys), `hud.ts` (panels, floating numbers) |
+| `main.ts` | Wires it all together; `window.hearthfolk` exposes state and view for checking in the browser console |
+
+Tests are in `tests/`; the long headless run in `tests/play.test.ts` is the start of the plan's multi-day simulation check. `tests/architecture.test.ts` enforces the module boundaries: each folder may only import from the layers listed there, the simulation layers may not touch three.js or the page, and `render/` and `ui/` may not assign to game state. If it fails, move the code to the right layer rather than loosening the rule.

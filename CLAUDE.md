@@ -1,0 +1,94 @@
+# Hearthfolk: notes for Claude Code
+
+Hearthfolk is an idle skilling game you leave running like an ant farm. The player sends their character to work in a living village, the character levels up the long OSRS way (1 to 99), and their earnings visibly grow the world. Phone and tablet first (Android), also PC browser and TV.
+
+## Read first
+
+- `docs/PLAN.md`: the design and development plan. It is the source of truth; read it before any work.
+- `docs/CHANGELOG.md`: every change to the plan or the game, newest first. Add an entry every round.
+- `prototypes/`: two playable single-file prototypes (open in a browser). Reference only: reuse their ideas and code, never edit them.
+- Each working folder has a short `README.md` saying what is in it and how to run it: `assets-src/` (recipes), `tools/` (scripts), `assets/` (generated output), `demos/` (playable tests), `docs/style-refs/`. Read the one for the folder you are about to work in.
+
+## Keeping notes
+
+- The project's memory lives in files, not in the conversation: `CLAUDE.md` (map, status, setup), `docs/PLAN.md` (design and decisions), `docs/CHANGELOG.md` (what changed), and the folder READMEs.
+- Update a folder README only when a file is added, removed or changes purpose. Changes go in the changelog only, never in folder READMEs. Keep READMEs short.
+- Before a session ends or the work changes topic, make sure status and decisions are written down here and in the plan.
+
+## Working with the owner
+
+- The owner (the person you're working with) decides what the game is, what comes next, and when something is done. They like to bounce ideas around: propose, don't presume.
+- You design, build, test, and keep `docs/PLAN.md` and `docs/CHANGELOG.md` current.
+- One small piece per round: build it, test it, show it, then the owner plays it and decides. Every task has a "done when" line, and it's done once the owner has played it and agrees.
+- Open questions are answered before the work that depends on them. Record each answer in the decision log in `docs/PLAN.md`, with the date.
+- Ideas that come up mid-slice go to the parking lot in `docs/PLAN.md`, not into the current slice.
+- Talk plainly and briefly. The owner starts in Manual permission mode: before installing software or running anything unusual, say in a sentence or two what it is and why.
+- Keep everything inside this project folder. Never delete the owner's files.
+
+## Status (11 Oct 2026, plan version 0.5)
+
+- Decided: the player sends the character (tap a place or NPC, they work until sent elsewhere); NPCs run the services and live their own routines; land is bought around the village with gold, each parcel gated by an XP milestone, far regions come later; smelting is part of Smithing; the character carries a backpack to the bank, then a cart, villager helpers and caravans later; the code is modular; the art moves toward OSRS-style low-poly models with Eatventure's bright, clean look, confirmed by a style test first.
+- Decided 11 Oct 2026: live 3D; the default camera is third person and rotatable (OSRS-style); land is claimed at the city hall, bought with gold or restored first; the v2 look is placeholder art. Still open for slice 1: whether parcels unlock by total level or by the related skill's level.
+- The game model can change (it doesn't have to be idle), but idle-first is the direction: a streamlined, modern OSRS for phones. Keep systems free of assumptions that only work for idle play.
+- Slice 1 build order: village layout (step 1, built 11 Oct, awaiting the owner's play), woodcutting, backpack and bank, merchant, blacksmith, neighbour, city hall and first parcel, away time, version 0.1. The village lives in `src/world/layout.ts` (VILLAGE), laid out in rings like a real village (the owner's rule): square, busiest buildings, workshops, homes, edges; each building kind has a ring in `RING` and `tests/world.test.ts` enforces the order. Walking goes through `src/world/nav.ts`, so anything that blocks must be added there.
+- Before step 5 (blacksmith hours): move the day-phase times (dawn, day, dusk, night) out of `src/render/lighting.ts` into one shared table in `data/` read through `core/clock.ts`, so lighting, opening hours, villager routines and a future watch all agree.
+- Testing plan: share a web link first (phones and PCs, updates reach everyone at once), APKs later around slices 2-3.
+- Art so far (see `assets-src/README.md`): the owner compared boxy low-poly, gritty and clean Fallout-style, and a realistic MakeHuman miner, and preferred low-poly. Boxy looked too much like Minecraft Dungeons, so v2 uses shaped OSRS-like facets (faceted head with jaw, nose, ears; tapered limbs). The owner likes v2; it is not formally approved. Possible next polish: body lean and knee bend in the swing, slightly bigger head and hands, Eatventure-style soft light and outline, bronze pick head, better ore.
+- A playable demo exists: `demos/miner_demo.html` (click to walk, click the rock to mine, XP and ore, rock depletes and respawns), published privately at https://claude.ai/artifact/M6SNaMagAYSmf8xgkHzWzh. It uses pre-rendered 8-facing sprites; this is a test, not the game's architecture. A live-3D twin, `demos/miner_3d.html` (https://claude.ai/artifact/FwDrpH7Zbbdgz1o4ZVFXkv), shows the same model in three.js with real light and day/night, so the owner can settle live 3D vs pre-rendered 2D.
+- Pixel-art item icons were made in `A:\ComfyUI\wanderskill\` for the Wanderskill prototype; they don't fit Hearthfolk's look and are not used.
+- No Git or GitHub for now: the owner chose to defer version control. Don't run `git init` until they ask.
+- The PC runs Windows 11 with a Radeon RX 9070 XT (16 GB). ComfyUI (AMD portable build) is installed at `A:\ComfyUI` with SDXL base and the pixel-art-xl LoRA; start it with `ComfyUI_windows_portable\run_amd_gpu.bat`. Its licence for commercial use is checked for SDXL (allowed) but not yet for pixel-art-xl. Test scripts from Wanderskill icon experiments are in `A:\ComfyUI\wanderskill\`.
+- The game project is set up (step 0 done): TypeScript 7, Vite 8 with vite-plugin-singlefile, Vitest 5, three.js 0.186, pinned in `package.json`. Node.js 24.21 LTS is portable at `A:\Tools\node` (not on the system PATH): in bash run `export PATH=/a/Tools/node:$PATH` first. Commands: `npm run dev` (live dev server), `npm test`, `npm run typecheck` (two configs: `tsconfig.json` for the game without Node types, `tsconfig.tools.json` for tests and config), `npm run build` (writes `dist/index.html`, one self-contained offline file), `npm run check` (all three), `npm run build:web` (writes `dist-web/hearthfolk.html` for the shareable link: three.js from jsDelivr at the package.json version, outer tags stripped, plus `dist-web/preview.html` served by the "web" launch entry at http://localhost:8767/preview.html).
+- The playable build is published privately at https://claude.ai/artifact/7YuS2GDUio87zA4RkMKQa7. To update it: `npm run check`, `npm run build:web`, test preview.html, then publish `dist-web/hearthfolk.html` to that URL. The owner shares it with testers from the page's Share menu. Saves live in each tester's browser.
+- `tests/architecture.test.ts` enforces the module boundaries; keep it passing by moving code to the right layer, never by loosening the rules. The "game" entry in `.claude/launch.json` serves `dist/` at http://localhost:8766. See `src/README.md` for the code layout.
+- three.js r155+ uses physical light units: light intensities in `src/render/lighting.ts` are about 2.5-12x the old demo's values.
+- The Browser pane throttles or pauses a hidden tab, so the game looks frozen there; read `window.hearthfolk.state` with the JavaScript tool to check what the simulation is doing.
+- Blender 5.2.2 LTS (portable) is at `A:\Blender\blender-5.2.2-windows-x64\blender.exe`; run recipes headless with `blender.exe -b --factory-startup -P assets-src/<recipe>.py`. `assets-src/smoke_test_rock.py` is a working example (EEVEE, about 13 seconds).
+- Blender gotcha: when keying rotations as quaternions, keep each key on the same side as the previous one (negate it if their dot product is negative), or Blender blends the long way round. This made the 3D pick swing forward instead of over the head.
+- Blender gotcha: after creating a new parent object in a script, call `bpy.context.view_layer.update()` before reparenting children with `matrix_world`, or they jump by the parent's offset (this broke the demo's legs once).
+- Realistic humans come from MPFB 2.0.18 (MakeHuman for Blender) with the CC0 `makehuman_system_assets` pack, both installed in the portable Blender (`portable\extensions\...\mpfb`). Import it as `bl_ext.user_default.mpfb`. `assets-src/human_miner.py` builds a rigged miner (game_engine rig, IK hands on the pick) and renders the mining loop: run with `-- still` or `-- anim`.
+
+## First session
+
+1. Read `docs/PLAN.md` and this file.
+2. Check what's installed (git, Node.js, Python, Blender). Report what's missing and propose installs; ask before installing anything.
+3. (Deferred by the owner: `git init`.)
+4. Ask the owner the open slice 1 questions.
+5. Work through "Before slice 1" in `docs/PLAN.md`: project setup, then the style test.
+
+## Architecture (agreed: modular)
+
+TypeScript, no game engine yet, running in the browser. A small build step bundles everything into one HTML file that opens anywhere. The engine decision (stay on the web and wrap it for Android, or port to Godot) comes at the gate after slice 3.
+
+```
+src/
+  core/      clock, game loop (fixed time step), save/load, event bus, seeded randomness
+  data/      skills, items, prices, tools, buildings, NPC roles: tables only, no logic
+  world/     map, terrain, land parcels and fog, trees and rocks
+  actors/    the player's character, NPCs, walking
+  systems/   skills and XP, backpack and bank, selling, hauling, chronicle, away time
+  render/    draws the world; reads game state, never changes it
+  ui/        panels, buttons, taps turned into commands
+  main.ts    wires the modules together
+tests/       one test file per module, plus a long headless simulation
+assets-src/  a recipe for every model and picture (Blender Python scripts, ComfyUI workflows)
+tools/       generator scripts that turn recipes into assets
+assets/      generated output (glTF models, PNG images); never edit by hand
+```
+
+Rules:
+
+- Systems change state. Rendering only reads it. The UI only sends commands.
+- Modules announce events (for example `itemBanked`, `levelUp`, `parcelBought`) instead of calling into each other; the chronicle, the UI and later sound subscribe to them.
+- Content is data: a new ore, tool tier or price is a row in `src/data`, not new code.
+- Saves carry a version number, with a migration for every format change, so an update never wipes a village.
+- The simulation runs headless, with no screen, so tests can run hundreds of in-game days.
+- Before showing the owner a build: all tests pass; a 300-day headless simulation shows no stuck characters, no NaN or out-of-bounds positions and no starvation spirals; screenshots at phone (390 x 844), desktop (1280 x 800) and TV (1920 x 1080) sizes look right.
+
+## Art direction (proposed; the style test confirms it)
+
+- The fusion: OSRS's chunky, flat-shaded low-poly models and recognisable silhouettes (gear changes the model, like a bronze pickaxe becoming iron), with Eatventure's bright colours, soft light and shadows, a tidy scene seen from a fixed angle above, and small characters you can read at a glance.
+- Models come from recipes: Blender Python scripts run headless (`blender -b -P assets-src/<recipe>.py`) build low-poly, flat-shaded models from simple solids and export glTF into `assets/`. The game shows them in 3D with Three.js. Every model uses the palette in `docs/PLAN.md` (Art and feel).
+- AI images come from ComfyUI on the owner's graphics card, if it is a Radeon RX 7000 or 9000 series card: style references, item icons, the logo and store art. Save every ComfyUI workflow in `assets-src/` so any picture can be remade. Only use AI models whose licence allows commercial use.
+- Take the feel of OSRS, never its actual models, names or art.
+- First build task, the style test: the player's character mining next to a tree and the forge, with a day-night cycle, made through this pipeline. Show it to the owner; nothing else gets built on the look until they approve it.

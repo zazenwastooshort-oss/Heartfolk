@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wanderskill — idle skilling sim</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#e6d9bd; --panel:#f6eedb; --panel2:#ebdfc4; --border:#cdb88f; --text:#2a2016; --muted:#6f6052;
+  --accent:#a86f12; --gold:#b98a14; --green:#4a8a36; --blue:#2f6fb0; --red:#b3362d; --bar:#ddcfb0;
+  --frame:#1c2a1a; --rowhi:rgba(74,138,54,.14);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#1a1511; --panel:#241d18; --panel2:#2f261f; --border:#43362c; --text:#f1e8da; --muted:#a4958a;
+    --accent:#e9b949; --gold:#f0c24f; --green:#7cc264; --blue:#73b3ea; --red:#e4675d; --bar:#3a2f27;
+    --rowhi:rgba(124,194,100,.14);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1a1511; --panel:#241d18; --panel2:#2f261f; --border:#43362c; --text:#f1e8da; --muted:#a4958a;
+  --accent:#e9b949; --gold:#f0c24f; --green:#7cc264; --blue:#73b3ea; --red:#e4675d; --bar:#3a2f27;
+  --rowhi:rgba(124,194,100,.14);
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.35;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;overflow:hidden;-webkit-text-size-adjust:100%}
+.pf{font-family:"Pixelify Sans",system-ui,sans-serif}
+#app{height:100%;min-height:0;max-width:560px;margin:0 auto;display:grid;grid-template-rows:auto auto auto minmax(0,1fr);grid-template-areas:"hud" "scene" "tabs" "panel";background:var(--bg)}
+@media (min-width:900px){
+  #app{max-width:1080px;grid-template-columns:544px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"hud tabs" "scene panel";column-gap:18px}
+  .scene{align-self:start;border-radius:0 0 14px 14px;overflow:hidden}
+}
+.hud{grid-area:hud;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border)}
+.brand{display:flex;align-items:baseline;gap:8px;min-width:0}
+.logo{font-family:"Pixelify Sans",system-ui,sans-serif;font-weight:700;font-size:21px;color:var(--accent);letter-spacing:.3px;line-height:1}
+.brand small{color:var(--muted);font-size:11px;white-space:nowrap}
+.hud-stats{display:flex;gap:6px}
+.pill{display:flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--border);border-radius:999px;padding:3px 10px 3px 8px;font-size:13px;white-space:nowrap}
+.pill b{font-family:"Pixelify Sans",system-ui,sans-serif;font-weight:600;font-size:16px;line-height:1}
+.pill.gold b{color:var(--gold)}
+.scene{grid-area:scene;background:var(--frame)}
+.scene-wrap{display:flex;justify-content:center;background:var(--frame)}
+.canvas-box{position:relative;line-height:0}
+canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:manipulation;cursor:pointer}
+.overlay{position:absolute;inset:0;pointer-events:none;overflow:hidden;line-height:1}
+.float{position:absolute;transform:translate(-50%,-100%);font-family:"Pixelify Sans",system-ui,sans-serif;font-weight:700;font-size:13px;color:#fff;text-shadow:0 1px 0 #000,0 0 3px #000;white-space:nowrap;animation:floatUp 1.1s ease-out forwards}
+.float.big{font-size:16px}
+@keyframes floatUp{0%{opacity:0;margin-top:6px}15%{opacity:1}100%{opacity:0;margin-top:-30px}}
+.toasts{position:absolute;left:0;right:0;bottom:6px;display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none}
+.toast{background:rgba(20,14,10,.88);color:#f7eedc;border:1px solid rgba(233,185,73,.45);padding:5px 10px;border-radius:8px;font-size:12px;line-height:1.3;max-width:92%;animation:toastIn .22s ease-out}
+.toast.gold{border-color:#e9b949;color:#ffe7a3}
+@keyframes toastIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.hint{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:max-content;max-width:90%;background:rgba(20,14,10,.9);color:#f7eedc;border:1px solid rgba(233,185,73,.5);border-radius:10px;padding:8px 12px;font-size:12px;line-height:1.4;pointer-events:none}
+.hint b{color:#ffe7a3}
+.status{display:flex;align-items:center;gap:10px;padding:7px 12px;background:var(--panel);border-bottom:1px solid var(--border);font-size:13px;min-height:34px}
+.status span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sbar{flex:0 0 84px;height:6px;background:var(--bar);border-radius:3px;overflow:hidden}
+.sbar i{display:block;height:100%;width:0;background:var(--green)}
+.tabs{grid-area:tabs;display:flex;background:var(--panel);border-bottom:1px solid var(--border)}
+.tabs button{flex:1;background:none;border:0;padding:10px 4px;font:inherit;font-size:13px;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;touch-action:manipulation}
+.tabs button.active{color:var(--text);border-bottom-color:var(--accent);font-weight:600}
+.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.panel{grid-area:panel;min-height:0;overflow-y:auto;padding:10px 12px 24px;-webkit-overflow-scrolling:touch}
+.panel textarea{-webkit-user-select:text;user-select:text}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;margin-bottom:8px;overflow:hidden}
+.card-title{padding:9px 12px 7px;font-weight:600;border-bottom:1px solid var(--border)}
+.card-title small{font-weight:400;color:var(--muted);margin-left:6px}
+.skill-head{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer}
+.sicon{font-size:22px;width:30px;text-align:center;line-height:1}
+.sinfo{flex:1;min-width:0}
+.srow{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.lvl{font-family:"Pixelify Sans",system-ui,sans-serif;font-size:17px;color:var(--accent);line-height:1;white-space:nowrap}
+.xpbar{height:7px;background:var(--bar);border-radius:4px;overflow:hidden;margin:5px 0 4px}
+.xpbar i{display:block;height:100%;background:var(--green);width:0;transition:width .25s}
+.xptext{display:flex;flex-wrap:wrap;gap:0 10px;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.chev{color:var(--muted);transition:transform .2s;font-size:12px}
+.card.open .chev{transform:rotate(180deg)}
+.actions{border-top:1px solid var(--border)}
+.arow{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border)}
+.arow:last-child{border-bottom:0}
+.arow.locked{opacity:.5}
+.arow.active{background:var(--rowhi)}
+.dot{width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.25);flex:none}
+.ainfo{flex:1;min-width:0;display:flex;flex-direction:column;font-size:13px;gap:1px}
+.ainfo b{font-weight:600}
+.ainfo small{color:var(--muted);font-size:11px;display:flex;flex-wrap:wrap;gap:0 8px}
+.who{display:flex;gap:3px}
+.avatar{width:10px;height:10px;border-radius:2px;background:var(--c,#999);display:inline-block;flex:none}
+.lock{font-size:12px;color:var(--muted);white-space:nowrap}
+.btn{font:inherit;font-size:13px;padding:7px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);cursor:pointer;touch-action:manipulation;white-space:nowrap}
+.btn.primary{background:var(--accent);color:#1b1208;border-color:transparent;font-weight:600}
+.btn.small{padding:5px 10px;font-size:12px}
+.btn.danger{color:var(--red)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn:active:not(:disabled){transform:translateY(1px)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px}
+.chip{display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;background:var(--panel);border:1px solid var(--border);font:inherit;font-size:12px;color:var(--text);white-space:nowrap;cursor:pointer;touch-action:manipulation;flex:none}
+.chip.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.chip small{color:var(--muted)}
+.chip.ghost{color:var(--muted);border-style:dashed}
+.bank-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px}
+.bank-top b{font-family:"Pixelify Sans",system-ui,sans-serif;font-size:18px;color:var(--gold)}
+.bank-opt{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border-top:1px solid var(--border);font-size:13px}
+.bank-opt small{color:var(--muted)}
+.items{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+@media (max-width:360px){.items{grid-template-columns:1fr}}
+.item{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 10px;background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--c,#999);border-radius:10px}
+.item .ii{font-size:18px;line-height:1}
+.item .it{flex:1;min-width:0;display:flex;flex-direction:column;font-size:12px}
+.item .it b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .it small{color:var(--muted);font-size:11px}
+.item .tag{font-size:10px;color:var(--green)}
+.empty{padding:28px 12px;text-align:center;color:var(--muted)}
+.shop-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border)}
+.shop-row:last-child{border-bottom:0}
+.owned{font-size:12px;color:var(--muted);white-space:nowrap}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)}
+.stat{background:var(--panel);padding:9px 12px;display:flex;flex-direction:column}
+.stat small{color:var(--muted);font-size:11px}
+.stat b{font-family:"Pixelify Sans",system-ui,sans-serif;font-weight:600;font-size:17px;line-height:1.2}
+.pad{padding:10px 12px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+textarea{width:100%;min-height:72px;margin-top:8px;font:12px ui-monospace,Menlo,Consolas,monospace;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);resize:vertical}
+.muted{color:var(--muted);font-size:12px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+.modal[hidden]{display:none}
+.box{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px 16px 14px;max-width:420px;width:100%;max-height:82%;overflow:auto}
+.box h3{margin:0 0 8px;font-family:"Pixelify Sans",system-ui,sans-serif;font-size:22px;color:var(--accent);font-weight:600}
+.box ul{margin:6px 0 10px;padding-left:18px}
+.box li{margin:3px 0}
+.box .btn{width:100%;margin-top:6px}
+@media (prefers-reduced-motion:reduce){.float,.toast,.xpbar i,.chev{animation:none;transition:none}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="hud">
+    <div class="brand"><span class="logo">Wanderskill</span><small>idle skilling sim</small></div>
+    <div class="hud-stats">
+      <div class="pill gold">🪙 <b id="hud-gold">0</b></div>
+      <div class="pill">Total <b id="hud-total">5</b></div>
+    </div>
+  </header>
+  <section class="scene">
+    <div class="scene-wrap" id="scene-wrap">
+      <div class="canvas-box" id="canvas-box">
+        <canvas id="game" width="384" height="288"></canvas>
+        <div class="overlay" id="floats"></div>
+        <div class="toasts" id="toasts"></div>
+        <div class="hint" id="hint" hidden>👋 Tap the <b>rocks</b>, <b>tree</b>, <b>pond</b>, <b>furnace</b> or <b>campfire</b> to put your skiller to work.<br>Tap the grass while they work to lend a hand.</div>
+      </div>
+    </div>
+    <div class="status"><span id="status-text">Pick a task to begin</span><div class="sbar"><i id="status-bar"></i></div></div>
+  </section>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="skills">📜 Skills</button>
+    <button data-tab="bank">🧺 Bank</button>
+    <button data-tab="shop">🛒 Shop</button>
+    <button data-tab="stats">📊 Stats</button>
+  </nav>
+  <main class="panel" id="panel"></main>
+  <div class="modal" id="modal" hidden>
+    <div class="box">
+      <h3 id="modal-title"></h3>
+      <div id="modal-body"></div>
+      <button class="btn primary" id="modal-ok">Nice</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ================= data ================= */
+const W = 128, H = 96, SAVE_KEY = 'wanderskill_save_v1';
+const SKILL_ORDER = ['mining', 'woodcutting', 'fishing', 'smithing', 'cooking'];
+const SKILLS = {
+  mining:      { name: 'Mining',      icon: '⛏️', color: '#d8a35a', verb: 'Mining',   tiers: ['Worn pickaxe', 'Copper pickaxe', 'Iron pickaxe', 'Steel pickaxe', 'Starsteel pickaxe', 'Emberite pickaxe'] },
+  woodcutting: { name: 'Woodcutting', icon: '🪓', color: '#8fd36e', verb: 'Chopping', tiers: ['Worn axe', 'Copper axe', 'Iron axe', 'Steel axe', 'Starsteel axe', 'Emberite axe'] },
+  fishing:     { name: 'Fishing',     icon: '🎣', color: '#7fc1ff', verb: 'Fishing',  tiers: ['Frayed rod', 'Birch rod', 'Oak rod', 'Yew rod', 'Moonwood rod', 'Elderwood rod'] },
+  smithing:    { name: 'Smithing',    icon: '⚒️', color: '#c9bde6', verb: 'Smelting', tiers: ['Worn hammer', 'Copper hammer', 'Iron hammer', 'Steel hammer', 'Starsteel hammer', 'Emberite hammer'] },
+  cooking:     { name: 'Cooking',     icon: '🍳', color: '#ff9b6a', verb: 'Cooking',  tiers: ['Sharp stick', 'Iron skillet', 'Steel skillet', 'Silver skillet', 'Gold skillet', 'Emberite skillet'] },
+};
+const ACTIONS = {
+  mining: [
+    { id: 'copper_ore',    name: 'Copper Ore',    lvl: 1,  time: 2.4, xp: 12,  value: 3,   color: '#c8763a' },
+    { id: 'tin_ore',       name: 'Tin Ore',       lvl: 6,  time: 2.6, xp: 16,  value: 4,   color: '#c9ccd1' },
+    { id: 'iron_ore',      name: 'Iron Ore',      lvl: 15, time: 3.0, xp: 30,  value: 9,   color: '#9a6b55' },
+    { id: 'coal',          name: 'Coal',          lvl: 30, time: 3.4, xp: 48,  value: 18,  color: '#3a3a3a' },
+    { id: 'silver_ore',    name: 'Silver Ore',    lvl: 40, time: 3.6, xp: 62,  value: 30,  color: '#e6ecf2' },
+    { id: 'gold_ore',      name: 'Gold Ore',      lvl: 50, time: 4.0, xp: 82,  value: 50,  color: '#f1c84b' },
+    { id: 'starsteel_ore', name: 'Starsteel Ore', lvl: 65, time: 4.6, xp: 115, value: 92,  color: '#7fb3ff' },
+    { id: 'duskite',       name: 'Duskite',       lvl: 80, time: 5.4, xp: 165, value: 165, color: '#7b4fa8' },
+    { id: 'emberite',      name: 'Emberite',      lvl: 90, time: 6.4, xp: 235, value: 300, color: '#ff6b35' },
+  ],
+  woodcutting: [
+    { id: 'birch_log',     name: 'Birch Log',     lvl: 1,  time: 2.2, xp: 10,  value: 2,   color: '#8fbf6a' },
+    { id: 'oak_log',       name: 'Oak Log',       lvl: 10, time: 2.8, xp: 22,  value: 6,   color: '#5e9a3f' },
+    { id: 'pine_log',      name: 'Pine Log',      lvl: 22, time: 3.1, xp: 36,  value: 12,  color: '#2f7a4a' },
+    { id: 'maple_log',     name: 'Maple Log',     lvl: 38, time: 3.6, xp: 58,  value: 28,  color: '#d9732b' },
+    { id: 'yew_log',       name: 'Yew Log',       lvl: 55, time: 4.2, xp: 90,  value: 60,  color: '#3b5d3a' },
+    { id: 'ironbark_log',  name: 'Ironbark Log',  lvl: 70, time: 5.0, xp: 130, value: 110, color: '#6c6f7a' },
+    { id: 'moonwood_log',  name: 'Moonwood Log',  lvl: 85, time: 6.0, xp: 190, value: 220, color: '#b9c7ff' },
+    { id: 'elderwood_log', name: 'Elderwood Log', lvl: 95, time: 7.2, xp: 270, value: 400, color: '#e8c15a' },
+  ],
+  fishing: [
+    { id: 'minnow',        name: 'Raw Minnow',        lvl: 1,  time: 2.5, xp: 10,  value: 2,   color: '#9fd0e8' },
+    { id: 'trout',         name: 'Raw Trout',         lvl: 12, time: 3.0, xp: 25,  value: 7,   color: '#c98a6b' },
+    { id: 'perch',         name: 'Raw Perch',         lvl: 25, time: 3.3, xp: 40,  value: 14,  color: '#8aa84f' },
+    { id: 'salmon',        name: 'Raw Salmon',        lvl: 38, time: 3.8, xp: 60,  value: 26,  color: '#f28c74' },
+    { id: 'pike',          name: 'Raw Pike',          lvl: 50, time: 4.2, xp: 85,  value: 48,  color: '#6d8f6a' },
+    { id: 'sturgeon',      name: 'Raw Sturgeon',      lvl: 65, time: 5.0, xp: 125, value: 95,  color: '#7f8c99' },
+    { id: 'glowfin',       name: 'Raw Glowfin',       lvl: 80, time: 5.8, xp: 175, value: 180, color: '#6ff2d2' },
+    { id: 'leviathan_eel', name: 'Raw Leviathan Eel', lvl: 92, time: 7.0, xp: 250, value: 330, color: '#4a3f8f' },
+  ],
+  smithing: [
+    { id: 'copper_bar',    name: 'Copper Bar',    lvl: 1,  time: 2.4, xp: 14,  value: 10,  inputs: { copper_ore: 1 },               color: '#c8763a' },
+    { id: 'bronze_bar',    name: 'Bronze Bar',    lvl: 8,  time: 2.6, xp: 26,  value: 20,  inputs: { copper_ore: 1, tin_ore: 1 },   color: '#b08a4a' },
+    { id: 'iron_bar',      name: 'Iron Bar',      lvl: 18, time: 3.0, xp: 36,  value: 26,  inputs: { iron_ore: 1 },                 color: '#9a8b85' },
+    { id: 'steel_bar',     name: 'Steel Bar',     lvl: 32, time: 3.4, xp: 60,  value: 58,  inputs: { iron_ore: 1, coal: 1 },        color: '#aab4bd' },
+    { id: 'silver_bar',    name: 'Silver Bar',    lvl: 42, time: 3.6, xp: 72,  value: 68,  inputs: { silver_ore: 1 },               color: '#e6ecf2' },
+    { id: 'gold_bar',      name: 'Gold Bar',      lvl: 52, time: 4.0, xp: 96,  value: 112, inputs: { gold_ore: 1 },                 color: '#f1c84b' },
+    { id: 'starsteel_bar', name: 'Starsteel Bar', lvl: 68, time: 4.6, xp: 150, value: 270, inputs: { starsteel_ore: 1, coal: 2 },   color: '#7fb3ff' },
+    { id: 'duskite_bar',   name: 'Duskite Bar',   lvl: 82, time: 5.4, xp: 210, value: 480, inputs: { duskite: 1, coal: 3 },         color: '#7b4fa8' },
+    { id: 'emberite_bar',  name: 'Emberite Bar',  lvl: 92, time: 6.4, xp: 300, value: 880, inputs: { emberite: 1, coal: 4 },        color: '#ff6b35' },
+  ],
+};
+ACTIONS.cooking = ACTIONS.fishing.map(f => ({
+  id: 'cooked_' + f.id, name: f.name.replace('Raw ', 'Cooked '), lvl: f.lvl, time: +(f.time * 0.7).toFixed(2),
+  xp: Math.round(f.xp * 1.2), value: f.value * 2 + 1, inputs: { [f.id]: 1 }, color: f.color, burn: true,
+}));
+const ITEMS = {}, ACTION_BY_ID = {};
+for (const s of SKILL_ORDER) for (const a of ACTIONS[s]) { a.skill = s; ACTION_BY_ID[a.id] = a; ITEMS[a.id] = { name: a.name, value: a.value, color: a.color, cat: s }; }
+ITEMS.burnt_fish = { name: 'Burnt Fish', value: 1, color: '#2b2b2b', cat: 'burnt' };
+const CAT_ICON = { mining: '🪨', woodcutting: '🪵', fishing: '🐟', smithing: '🔶', cooking: '🍽️', burnt: '🖤' };
+
+const TOOL_MULT = [1, 1.15, 1.32, 1.52, 1.75, 2.0];
+const TOOL_COST = [0, 120, 700, 3500, 18000, 90000];
+const APPRENTICES = [
+  { name: 'Pip',  tunic: '#2e86ab', hair: '#d9a441', cost: 1500 },
+  { name: 'Tam',  tunic: '#6a994e', hair: '#2b1d14', cost: 12000 },
+  { name: 'Wren', tunic: '#8e44ad', hair: '#8b4a2b', cost: 90000 },
+];
+const TRAIN_EFF = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
+const TRAIN_COST = [800, 2400, 7200, 21600, 64800];
+const SCHOLAR_MAX = 10, MERCHANT_MAX = 10, AUTOSELL_COST = 4000;
+const scholarCost = n => Math.round(400 * Math.pow(2.2, n));
+const merchantCost = n => Math.round(300 * Math.pow(2.4, n));
+const REST = [{ h: 2, cost: 0 }, { h: 4, cost: 1500 }, { h: 8, cost: 10000 }, { h: 16, cost: 60000 }, { h: 24, cost: 300000 }];
+
+const XP_TABLE = [0, 0];
+(() => { let acc = 0; for (let n = 1; n < 99; n++) { acc += Math.floor(n + 290 * Math.pow(2, n / 7.1)); XP_TABLE[n + 1] = Math.floor(acc / 4); } })();
+const MAX_XP = XP_TABLE[99];
+
+/* scene layout (logical pixels) */
+const NODES = {
+  mining:      { x: 8,   y: 28, w: 24, h: 13, base: 41, stand: { x: 35, y: 44 }, face: -1, label: 'rocks' },
+  woodcutting: { x: 99,  y: 19, w: 18, h: 21, base: 40, stand: { x: 99, y: 42 }, face: 1,  label: 'tree' },
+  fishing:     { x: 6,   y: 65, w: 36, h: 19, base: 0,  stand: { x: 46, y: 74 }, face: -1, label: 'pond' },
+  smithing:    { x: 103, y: 58, w: 16, h: 17, base: 75, stand: { x: 98, y: 78 }, face: 1,  label: 'furnace' },
+  cooking:     { x: 60,  y: 78, w: 14, h: 11, base: 89, stand: { x: 54, y: 90 }, face: 1,  label: 'campfire' },
+};
+const CHEST = { x: 58, y: 36, w: 12, h: 9, base: 44 };
+const HOME_SPOTS = [{ x: 56, y: 54 }, { x: 74, y: 54 }, { x: 64, y: 60 }, { x: 84, y: 48 }];
+
+/* ================= sprites ================= */
+const SPR_STAND = [
+  '..hhhh..', '.hhhhhh.', '.hssssh.', '.hseses.', '..ssss..', '.TTTTTT.',
+  'sTTTTTTs', 'sTTTTTTs', '.TTTTTT.', '..LL.LL.', '..LL.LL.', '.bb..bb.',
+];
+const SPR_WALK = SPR_STAND.slice(0, 9).concat(['..LLLL..', '.LL..LL.', 'bb....bb']);
+const SPR_ROCK = [
+  '......aaaa..............',
+  '.....ahhbba.......aaa...',
+  '....ahbbbbba.....ahhba..',
+  '...ahbbbobbba...ahbbbba.',
+  '...abbbbbbbba...abbobba.',
+  '..abbbbobbbbba..abbbbba.',
+  '..abbbbbbbbbba.abbbbbbba',
+  '..abbobbbbbobbaabbobbbba',
+  '.abbbbbbbbbbbbabbbbbbbba',
+  '.abbbbbbbbbbbbbbbbbbbbba',
+  '.aaaaaaaaaaaaaaaaaaaaaaa',
+  '..ssssssssssssssssssssss',
+];
+const SPR_TREE = [
+  '......LLLLLL......', '....LLLLLLLLLL....', '...LLLLhLLLLLLL...', '..LLLLLLLLLLLLLL..',
+  '..LLhLLLLLLLhLLL..', '.LLLLLLLLLLLLLLLL.', '.LLLLLLLLhLLLLLLL.', '.LLLLLLLLLLLLLLLL.',
+  '..LLLLLLLLLLLLLL..', '..LLLdLLLLLLdLLL..', '...LLLLLLLLLLLL...', '....LLddLLLLdL....',
+  '......LLLLLL......', '.......ttt........', '.......ttt........', '.......ttt........',
+  '.......ttt........', '.......ttt........', '......tttt........', '......ttttt.......',
+  '....sssssssss.....',
+];
+const SPR_FURNACE = [
+  '....cccc........', '....c..c........', '...cccccc.......', '..mmmmmmmmmmmm..',
+  '.mssssssssssssm.', '.mssmsssssmsssm.', '.mssssssssssssm.', '.msssooooooossm.',
+  '.mssoffffffoosm.', '.mssoffFFffoosm.', '.mssoffFFffoosm.', '.mssoffffffoosm.',
+  '.msssooooooossm.', '.mssssssssssssm.', '.mssmsssssmsssm.', '.mmmmmmmmmmmmmm.',
+  '..kkkkkkkkkkkk..',
+];
+const SPR_FIRE_A = [
+  '......F.......', '.....FFF......', '....fFFFf.....', '....ffFff.....', '...fffffff....',
+  '...rfffffr....', '..rrrrrrrrrr..', '.wwwwwwwwwwww.', 'ww...wwww...ww', '..aaaaaaaaaa..',
+];
+const SPR_FIRE_B = [
+  '....F.........', '....FF..F.....', '...fFFFfF.....', '....fFfff.....', '...fffffff....',
+  '...rfffffr....', '..rrrrrrrrrr..', '.wwwwwwwwwwww.', 'ww...wwww...ww', '..aaaaaaaaaa..',
+];
+const SPR_CHEST = [
+  '.oooooooooo.', 'obbbbbbbbbbo', 'obbbbbbbbbbo', 'oddddddddddo', 'oddddGGddddo',
+  'oddddGGddddo', 'oddddddddddo', '.oooooooooo.', '..kkkkkkkkkk',
+];
+
+/* ================= helpers ================= */
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const num = v => (Number.isFinite(+v) ? +v : 0);
+const clampInt = (v, a, b) => clamp(Math.floor(num(v)), a, b);
+const el = html => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+function mix(a, b, t) {
+  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+  const r = Math.round(((pa >> 16) & 255) * (1 - t) + ((pb >> 16) & 255) * t);
+  const g = Math.round(((pa >> 8) & 255) * (1 - t) + ((pb >> 8) & 255) * t);
+  const bl = Math.round((pa & 255) * (1 - t) + (pb & 255) * t);
+  return `rgb(${r},${g},${bl})`;
+}
+function fmtG(n) { n = Math.floor(n); if (n < 100000) return n.toLocaleString(); if (n < 1e6) return (n / 1e3).toFixed(1) + 'K'; if (n < 1e9) return (n / 1e6).toFixed(2) + 'M'; return (n / 1e9).toFixed(2) + 'B'; }
+function fmtXp(n) { return Math.floor(n).toLocaleString(); }
+function fmtRate(n) { if (n < 1000) return Math.round(n).toString(); if (n < 1e6) return (n / 1e3).toFixed(1) + 'K'; return (n / 1e6).toFixed(2) + 'M'; }
+function fmtDur(s) {
+  s = Math.max(0, Math.round(s));
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+  if (d) return `${d}d ${h}h`; if (h) return `${h}h ${m}m`; if (m) return `${m}m ${sec}s`; return `${sec}s`;
+}
+function srand(seed) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }; }
+function levelFor(xp) { let lo = 1, hi = 99; while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (xp >= XP_TABLE[mid]) lo = mid; else hi = mid - 1; } return lo; }
+
+/* ================= state ================= */
+function defaultState() {
+  return {
+    v: 1, gold: 0,
+    xp: { mining: 0, woodcutting: 0, fishing: 0, smithing: 0, cooking: 0 },
+    bank: {},
+    tools: { mining: 0, woodcutting: 0, fishing: 0, smithing: 0, cooking: 0 },
+    up: { scholar: 0, merchant: 0, autosell: false, rest: 0, train: 0 },
+    hired: 0,
+    workers: [{ task: null, progress: 0 }],
+    sel: 0,
+    stats: { actions: 0, goldEarned: 0, playtime: 0, levelups: 0, burnt: 0, itemsSold: 0 },
+    lastSave: Date.now(), created: Date.now(), seenHint: false,
+  };
+}
+let state = defaultState();
+const RT = { workers: [] };
+const P = []; // particles
+const ui = { tab: 'skills', dirty: true, open: new Set(['mining']), bankSig: '', noStorage: false, resetArmed: 0, lastBoost: 0 };
+
+function sanitize(d) {
+  const s = defaultState();
+  if (!d || typeof d !== 'object') return s;
+  s.gold = Math.max(0, num(d.gold));
+  for (const k of SKILL_ORDER) {
+    s.xp[k] = clamp(num(d.xp && d.xp[k]), 0, MAX_XP);
+    s.tools[k] = clampInt(d.tools && d.tools[k], 0, 5);
+  }
+  if (d.bank && typeof d.bank === 'object') for (const [k, v] of Object.entries(d.bank)) if (ITEMS[k] && num(v) > 0) s.bank[k] = Math.floor(num(v));
+  if (d.up) {
+    s.up.scholar = clampInt(d.up.scholar, 0, SCHOLAR_MAX); s.up.merchant = clampInt(d.up.merchant, 0, MERCHANT_MAX);
+    s.up.autosell = !!d.up.autosell; s.up.rest = clampInt(d.up.rest, 0, REST.length - 1); s.up.train = clampInt(d.up.train, 0, TRAIN_EFF.length - 1);
+  }
+  s.hired = clampInt(d.hired, 0, APPRENTICES.length);
+  const ws = Array.isArray(d.workers) ? d.workers : [];
+  s.workers = [];
+  for (let i = 0; i <= s.hired; i++) {
+    const w = ws[i] || {};
+    const a = w.task && ACTION_BY_ID[w.task.id];
+    const task = a && levelFor(s.xp[a.skill]) >= a.lvl ? { skill: a.skill, id: a.id } : null;
+    s.workers.push({ task, progress: clamp(num(w.progress), 0, 1) });
+  }
+  s.sel = clampInt(d.sel, 0, s.workers.length - 1);
+  if (d.stats) for (const k of Object.keys(s.stats)) s.stats[k] = Math.max(0, num(d.stats[k]));
+  s.lastSave = num(d.lastSave) || Date.now();
+  s.created = num(d.created) || Date.now();
+  s.seenHint = !!d.seenHint;
+  return s;
+}
+function save() {
+  state.lastSave = Date.now();
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch (e) { ui.noStorage = true; }
+}
+function load() {
+  let raw = null;
+  try { raw = localStorage.getItem(SAVE_KEY); } catch (e) { ui.noStorage = true; }
+  if (!raw) return null;
+  try { return sanitize(JSON.parse(raw)); } catch (e) { return null; }
+}
+const encodeSave = () => 'WS1.' + btoa(unescape(encodeURIComponent(JSON.stringify(state))));
+function decodeSave(str) {
+  str = String(str || '').trim();
+  if (str.startsWith('WS1.')) str = str.slice(4);
+  return sanitize(JSON.parse(decodeURIComponent(escape(atob(str)))));
+}
+
+/* ================= game rules ================= */
+const lvl = s => levelFor(state.xp[s]);
+const totalLevel = () => SKILL_ORDER.reduce((t, s) => t + lvl(s), 0);
+const xpMult = () => 1 + 0.08 * state.up.scholar;
+const sellMult = () => 1 + 0.10 * state.up.merchant;
+const sellValue = a => Math.floor(a.value * sellMult());
+const lookOf = i => (i === 0 ? { name: 'You', tunic: '#c0392b', hair: '#5b3a1e' } : APPRENTICES[i - 1]);
+function actionTime(wi, a) {
+  const t = a.time / TOOL_MULT[state.tools[a.skill]];
+  return wi === 0 ? t : t / TRAIN_EFF[state.up.train];
+}
+function maxCraftable(a) {
+  if (!a.inputs) return Infinity;
+  let m = Infinity;
+  for (const [id, n] of Object.entries(a.inputs)) m = Math.min(m, Math.floor((state.bank[id] || 0) / n));
+  return m;
+}
+function reservedItems() {
+  const set = new Set();
+  for (const sw of state.workers) if (sw.task) { const a = ACTION_BY_ID[sw.task.id]; if (a.inputs) for (const id of Object.keys(a.inputs)) set.add(id); }
+  return set;
+}
+function burnChance(a) {
+  if (!a.burn) return 0;
+  return clamp(0.3 - (lvl('cooking') - a.lvl) * 0.012 - 0.05 * state.tools.cooking, 0, 0.3);
+}
+function sellItem(id, n) {
+  if (n <= 0) return 0;
+  const v = Math.floor(ITEMS[id].value * sellMult() * n);
+  state.gold += v; state.stats.goldEarned += v; state.stats.itemsSold += n;
+  return v;
+}
+function addItem(id, n) {
+  if (n <= 0) return;
+  if (state.up.autosell && !reservedItems().has(id)) { sellItem(id, n); return; }
+  state.bank[id] = (state.bank[id] || 0) + n;
+}
+function gainXp(skill, amt) {
+  const before = lvl(skill);
+  state.xp[skill] = Math.min(MAX_XP, state.xp[skill] + amt);
+  const after = lvl(skill);
+  if (after > before) onLevelUp(skill, before, after);
+}
+function completeAction(wi, a, count) {
+  if (a.inputs) {
+    count = Math.min(count, maxCraftable(a));
+    if (count <= 0) return 0;
+    for (const [id, n] of Object.entries(a.inputs)) { state.bank[id] -= n * count; if (state.bank[id] <= 0) delete state.bank[id]; }
+  }
+  let burnt = 0;
+  if (a.burn) { const c = burnChance(a); burnt = count === 1 ? (Math.random() < c ? 1 : 0) : Math.round(count * c); }
+  addItem(a.id, count - burnt);
+  if (burnt) { addItem('burnt_fish', burnt); state.stats.burnt += burnt; }
+  gainXp(a.skill, a.xp * xpMult() * count);
+  state.stats.actions += count;
+  return count;
+}
+function onLevelUp(skill, before, after) {
+  const S = SKILLS[skill];
+  state.stats.levelups += after - before;
+  toast(`${S.icon} ${S.name} level ${after}!`, true);
+  for (const a of ACTIONS[skill]) if (a.lvl > before && a.lvl <= after) toast(`Unlocked: ${a.name}`);
+  if (after === 99) toast(`🎉 ${S.name} mastered. You've earned the ${S.name} cloak.`, true);
+  state.workers.forEach((sw, i) => { if (sw.task && sw.task.skill === skill) { const w = RT.workers[i]; if (w) { burst(w.x, w.y - 8, '#f4c542', 14); floatText(`Level ${after}!`, w.x, w.y - 18, '#ffe7a3', true); } } });
+  if (navigator.vibrate) { try { navigator.vibrate(12); } catch (e) {} }
+  ui.dirty = true;
+}
+function bestAction(skill) {
+  const L = lvl(skill);
+  const avail = ACTIONS[skill].filter(a => a.lvl <= L);
+  if (!avail.length) return null;
+  const ready = avail.filter(a => !a.inputs || maxCraftable(a) > 0);
+  const pool = ready.length ? ready : avail;
+  return pool[pool.length - 1];
+}
+function nodeAction(skill) {
+  const sel = state.workers[state.sel];
+  if (sel.task && sel.task.skill === skill) return ACTION_BY_ID[sel.task.id];
+  for (const sw of state.workers) if (sw.task && sw.task.skill === skill) return ACTION_BY_ID[sw.task.id];
+  return bestAction(skill);
+}
+function xpRate(s) {
+  let r = 0;
+  state.workers.forEach((sw, i) => {
+    if (!sw.task || sw.task.skill !== s) return;
+    const a = ACTION_BY_ID[sw.task.id];
+    if (a.inputs && maxCraftable(a) <= 0) return;
+    r += a.xp * xpMult() / actionTime(i, a) * 3600;
+  });
+  return r;
+}
+function assign(wi, actionId) {
+  const a = ACTION_BY_ID[actionId]; if (!a) return;
+  if (lvl(a.skill) < a.lvl) { toast(`Needs ${SKILLS[a.skill].name} level ${a.lvl}`); return; }
+  const sw = state.workers[wi];
+  if (sw.task && sw.task.id === actionId) return;
+  sw.task = { skill: a.skill, id: a.id }; sw.progress = 0;
+  const w = RT.workers[wi]; w.lastFrame = 0;
+  floatText(`${lookOf(wi).name} → ${a.name}`, w.x, w.y - 14, '#fff');
+  if (!state.seenHint) { state.seenHint = true; $('hint').hidden = true; }
+  ui.open.add(a.skill); ui.dirty = true; save();
+}
+function stopTask(wi) {
+  const sw = state.workers[wi]; if (!sw.task) return;
+  sw.task = null; sw.progress = 0;
+  const w = RT.workers[wi]; w.target = { x: w.home.x, y: w.home.y }; w.wanderT = 4;
+  ui.dirty = true; save();
+}
+function selectWorker(i) {
+  if (i === state.sel) return;
+  state.sel = i; ui.dirty = true;
+  const w = RT.workers[i]; floatText(lookOf(i).name, w.x, w.y - 14, '#ffe7a3');
+}
+function spend(cost) {
+  if (state.gold < cost) { toast(`Not enough gold — need ${fmtG(cost - state.gold)} more`); return false; }
+  state.gold -= cost; return true;
+}
+function buy(kind, arg) {
+  switch (kind) {
+    case 'tool': {
+      const s = arg, tier = state.tools[s]; if (tier >= 5) return;
+      if (!spend(TOOL_COST[tier + 1])) return;
+      state.tools[s]++; toast(`${SKILLS[s].icon} ${SKILLS[s].tiers[tier + 1]} acquired`); break;
+    }
+    case 'hire': {
+      const n = state.hired; if (n >= APPRENTICES.length) return;
+      if (!spend(APPRENTICES[n].cost)) return;
+      state.hired++; state.workers.push({ task: null, progress: 0 });
+      addRuntimeWorker(state.workers.length - 1, true);
+      toast(`${APPRENTICES[n].name} joins your camp. Select them in Skills to give them work.`, true); break;
+    }
+    case 'train': {
+      const t = state.up.train; if (t >= TRAIN_EFF.length - 1) return;
+      if (!spend(TRAIN_COST[t])) return;
+      state.up.train++; toast(`Apprentices now work at ${Math.round(TRAIN_EFF[state.up.train] * 100)}% speed`); break;
+    }
+    case 'scholar': {
+      const n = state.up.scholar; if (n >= SCHOLAR_MAX) return;
+      if (!spend(scholarCost(n))) return;
+      state.up.scholar++; toast(`Scholar's Guide vol. ${state.up.scholar}: +${state.up.scholar * 8}% XP`); break;
+    }
+    case 'merchant': {
+      const n = state.up.merchant; if (n >= MERCHANT_MAX) return;
+      if (!spend(merchantCost(n))) return;
+      state.up.merchant++; toast(`Merchant's Favor: +${state.up.merchant * 10}% sell prices`); break;
+    }
+    case 'autosell': {
+      if (state.up.autosell) return;
+      if (!spend(AUTOSELL_COST)) return;
+      state.up.autosell = true; toast('Auto-sell on. Items your crew needs are kept.'); break;
+    }
+    case 'rest': {
+      const r = state.up.rest; if (r >= REST.length - 1) return;
+      if (!spend(REST[r + 1].cost)) return;
+      state.up.rest++; toast(`Your crew now works up to ${REST[state.up.rest].h}h while you're away`); break;
+    }
+  }
+  ui.dirty = true; save();
+}
+
+/* ================= simulation ================= */
+function addRuntimeWorker(i, pop) {
+  const sw = state.workers[i];
+  const home = HOME_SPOTS[i % HOME_SPOTS.length];
+  let x = home.x, y = home.y, facing = i % 2 ? -1 : 1;
+  if (sw.task) { const n = NODES[sw.task.skill]; x = n.stand.x; y = n.stand.y; facing = n.face; }
+  RT.workers[i] = { x, y, home, target: { x, y }, facing, state: 'idle', animT: Math.random() * 10, lastFrame: 0, wanderT: 2 + Math.random() * 3 };
+  if (pop) burst(x, y - 6, '#f4c542', 14);
+}
+function moveToward(w, tgt, dt, speed) {
+  const dx = tgt.x - w.x, dy = tgt.y - w.y, d = Math.hypot(dx, dy);
+  if (d <= speed * dt) { w.x = tgt.x; w.y = tgt.y; return true; }
+  w.x += dx / d * speed * dt; w.y += dy / d * speed * dt;
+  if (Math.abs(dx) > 0.3) w.facing = dx > 0 ? 1 : -1;
+  return false;
+}
+function updateWorker(i, dt) {
+  const w = RT.workers[i], sw = state.workers[i];
+  w.animT += dt;
+  if (!sw.task) {
+    if (Math.hypot(w.target.x - w.x, w.target.y - w.y) > 0.5) { w.state = 'walking'; moveToward(w, w.target, dt, 12); }
+    else {
+      w.state = 'idle'; w.wanderT -= dt;
+      if (w.wanderT <= 0) {
+        w.wanderT = 3 + Math.random() * 5;
+        w.target = { x: clamp(w.home.x + (Math.random() * 18 - 9), 44, 92), y: clamp(w.home.y + (Math.random() * 10 - 5), 46, 66) };
+      }
+    }
+    return;
+  }
+  const a = ACTION_BY_ID[sw.task.id], node = NODES[a.skill], st = node.stand;
+  if (Math.hypot(st.x - w.x, st.y - w.y) > 0.5) { w.state = 'walking'; moveToward(w, st, dt, 26); return; }
+  w.x = st.x; w.y = st.y; w.facing = node.face;
+  if (a.inputs && maxCraftable(a) <= 0) { w.state = 'waiting'; return; }
+  w.state = 'working';
+  sw.progress += dt / actionTime(i, a);
+  const fr = Math.floor(w.animT * 4) % 2;
+  if (fr !== w.lastFrame) { w.lastFrame = fr; if (fr === 1) workParticles(w, a); }
+  if (sw.progress >= 1) {
+    const n = Math.floor(sw.progress);
+    const done = completeAction(i, a, n);
+    if (done > 0) { sw.progress -= done; onActionDone(w, a, done); }
+    if (done < n) { sw.progress = Math.min(sw.progress, 1); w.state = 'waiting'; }
+  }
+}
+function onActionDone(w, a, done) {
+  floatText(`+${fmtXp(a.xp * xpMult() * done)} xp`, w.x, w.y - 15, SKILLS[a.skill].color);
+}
+function step(dt) {
+  state.stats.playtime += dt;
+  for (let i = 0; i < RT.workers.length; i++) updateWorker(i, dt);
+  for (let i = P.length - 1; i >= 0; i--) {
+    const p = P[i]; p.life -= dt;
+    if (p.life <= 0) { P.splice(i, 1); continue; }
+    p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+  }
+}
+function bulk(seconds) {
+  const cap = REST[state.up.rest].h * 3600, sim = Math.min(seconds, cap);
+  const sum = { away: seconds, sim, capped: seconds > cap + 1, items: {}, xpBefore: {}, lvlBefore: {}, goldBefore: state.gold, any: false };
+  for (const s of SKILL_ORDER) { sum.xpBefore[s] = state.xp[s]; sum.lvlBefore[s] = lvl(s); }
+  const idx = state.workers.map((w, i) => i).filter(i => state.workers[i].task);
+  idx.sort((i, j) => (ACTION_BY_ID[state.workers[i].task.id].inputs ? 1 : 0) - (ACTION_BY_ID[state.workers[j].task.id].inputs ? 1 : 0));
+  for (const i of idx) {
+    const sw = state.workers[i], a = ACTION_BY_ID[sw.task.id], w = RT.workers[i], node = NODES[a.skill];
+    w.x = node.stand.x; w.y = node.stand.y; w.target = { x: w.x, y: w.y }; w.facing = node.face;
+    const prog = sw.progress + sim / actionTime(i, a), n = Math.floor(prog);
+    const done = n > 0 ? completeAction(i, a, n) : 0;
+    sw.progress = done < n ? 1 : prog - n;
+    if (done > 0) { sum.items[a.id] = (sum.items[a.id] || 0) + done; sum.any = true; }
+  }
+  return sum;
+}
+
+/* ================= canvas ================= */
+const cv = $('game'), ctx = cv.getContext('2d');
+const off = document.createElement('canvas'); off.width = W; off.height = H;
+const g = off.getContext('2d');
+const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+let scale = 3;
+const px = (x, y, c) => { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), 1, 1); };
+function drawSprite(c2, rows, pal, x, y, flip) {
+  for (let r = 0; r < rows.length; r++) {
+    const row = rows[r];
+    for (let i = 0; i < row.length; i++) {
+      const ch = row[i]; if (ch === '.') continue;
+      const col = pal[ch]; if (!col) continue;
+      c2.fillStyle = col; c2.fillRect(x + (flip ? row.length - 1 - i : i), y + r, 1, 1);
+    }
+  }
+}
+function ellipse(c2, cx, cy, rx, ry, color) {
+  c2.fillStyle = color;
+  for (let y = -ry; y <= ry; y++) { const hw = Math.round(rx * Math.sqrt(Math.max(0, 1 - (y / ry) ** 2))); c2.fillRect(cx - hw, cy + y, hw * 2 + 1, 1); }
+}
+function buildTerrain() {
+  const b = bg.getContext('2d'), r = srand(1234);
+  b.fillStyle = '#5c9b45'; b.fillRect(0, 0, W, H);
+  for (let i = 0; i < 520; i++) { b.fillStyle = r() < 0.5 ? '#528d3d' : '#6aab51'; b.fillRect((r() * W) | 0, (r() * H) | 0, 1, 1); }
+  for (let i = 0; i < 44; i++) { const x = (r() * (W - 3)) | 0, y = (12 + r() * (H - 14)) | 0; b.fillStyle = '#457f32'; b.fillRect(x, y + 1, 1, 1); b.fillRect(x + 2, y + 1, 1, 1); b.fillRect(x + 1, y, 1, 1); }
+  b.fillStyle = '#a37a4e';
+  ellipse(b, 64, 50, 16, 7, '#a37a4e');
+  for (const s of SKILL_ORDER) {
+    const st = NODES[s].stand, x1 = 64, y1 = 50, x2 = st.x, y2 = st.y + 1, n = Math.ceil(Math.hypot(x2 - x1, y2 - y1));
+    for (let i = 0; i <= n; i++) { const t = i / n, x = Math.round(x1 + (x2 - x1) * t), y = Math.round(y1 + (y2 - y1) * t); b.fillStyle = '#a37a4e'; b.fillRect(x - 2, y - 1, 4, 3); }
+    for (let i = 0; i <= n; i += 3) { const t = i / n, x = Math.round(x1 + (x2 - x1) * t) + ((r() * 4) | 0) - 2, y = Math.round(y1 + (y2 - y1) * t) + ((r() * 3) | 0) - 1; b.fillStyle = '#8e6a44'; b.fillRect(x, y, 1, 1); }
+  }
+  for (let i = 0; i < 30; i++) { const x = 48 + ((r() * 32) | 0), y = 44 + ((r() * 13) | 0); b.fillStyle = r() < 0.5 ? '#8e6a44' : '#b58a5c'; b.fillRect(x, y, 1, 1); }
+  for (let i = 0; i < 16; i++) { const x = (r() * W) | 0, y = (12 + r() * (H - 14)) | 0; b.fillStyle = r() < 0.5 ? '#f4e04d' : '#f7f7f7'; b.fillRect(x, y, 1, 1); }
+  ellipse(b, 24, 74, 19, 10, '#8c6f47');
+  ellipse(b, 24, 74, 18, 9, '#3a79b8');
+  ellipse(b, 22, 73, 12, 5, '#4d8fcb');
+  b.fillStyle = '#2f6a2a'; b.fillRect(14, 78, 2, 1); b.fillRect(30, 70, 2, 1); b.fillRect(12, 70, 1, 1);
+  b.fillStyle = '#2b4f27'; b.fillRect(0, 0, W, 9);
+  for (let x = -2; x < W; x += 5) { const h = 4 + ((r() * 5) | 0); b.fillStyle = '#35603a'; b.fillRect(x, 9 - h, 4, h + 1); b.fillStyle = '#3f7140'; b.fillRect(x + 1, 10 - h, 2, h - 2); }
+  b.fillStyle = '#24421f'; b.fillRect(0, 10, W, 1);
+}
+function resize() {
+  const wrapW = $('scene-wrap').clientWidth || 384;
+  scale = clamp(Math.floor(wrapW / W), 2, 5);
+  cv.width = W * scale; cv.height = H * scale;
+  cv.style.width = cv.width + 'px'; cv.style.height = cv.height + 'px';
+  ctx.imageSmoothingEnabled = false;
+}
+function burst(x, y, color, n) {
+  for (let i = 0; i < n && P.length < 120; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 14 + Math.random() * 26;
+    P.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 10, g: 50, life: 0.5 + Math.random() * 0.5, max: 1, c: color });
+  }
+}
+function workParticles(w, a) {
+  if (P.length > 110) return;
+  const d = w.facing, hx = d > 0 ? w.x + 3 : w.x - 4, hy = w.y - 6;
+  const skill = a.skill;
+  if (skill === 'fishing') {
+    const bx = hx + d * 6, by = hy + 8;
+    for (let i = 0; i < 3; i++) P.push({ x: bx, y: by, vx: (Math.random() - 0.5) * 20, vy: -12 - Math.random() * 14, g: 70, life: 0.4, max: 0.4, c: i ? '#cfe9ff' : '#ffffff' });
+  } else if (skill === 'cooking' || skill === 'smithing') {
+    const sx = skill === 'cooking' ? 66 : 106, sy = skill === 'cooking' ? 80 : 68;
+    for (let i = 0; i < 3; i++) P.push({ x: sx + (Math.random() - 0.5) * 6, y: sy, vx: (Math.random() - 0.5) * 14, vy: -14 - Math.random() * 16, g: 10, life: 0.5, max: 0.5, c: i ? '#ff9f1c' : '#ffd166' });
+  } else {
+    const tx = hx + d * 5, ty = hy + 2;
+    for (let i = 0; i < 4; i++) P.push({ x: tx, y: ty, vx: d * (6 + Math.random() * 22) * (Math.random() < 0.3 ? -0.5 : 1), vy: -18 - Math.random() * 22, g: 90, life: 0.5, max: 0.5, c: Math.random() < 0.5 ? a.color : (skill === 'mining' ? '#8d8d8d' : '#c9a36b') });
+  }
+}
+function drawTool(skill, d, hx, hy, frame, t, foodColor) {
+  const handle = '#7a4e2a';
+  if (skill === 'mining' || skill === 'woodcutting' || skill === 'smithing') {
+    const head = skill === 'mining' ? '#9a9a9a' : skill === 'woodcutting' ? '#d6d9dd' : '#6c6c6c';
+    if (frame === 0) {
+      for (let k = 1; k <= 5; k++) px(hx + d, hy - k, handle);
+      if (skill === 'mining') { px(hx, hy - 6, head); px(hx + d, hy - 6, head); px(hx + d * 2, hy - 6, head); px(hx + d * 3, hy - 5, head); px(hx - d, hy - 5, head); }
+      else if (skill === 'woodcutting') { px(hx + d * 2, hy - 6, head); px(hx + d * 2, hy - 5, head); px(hx + d * 3, hy - 5, head); px(hx + d * 3, hy - 4, head); }
+      else { px(hx, hy - 6, head); px(hx + d, hy - 6, head); px(hx + d * 2, hy - 6, head); px(hx, hy - 7, head); px(hx + d, hy - 7, head); px(hx + d * 2, hy - 7, head); }
+    } else {
+      px(hx + d, hy, handle); px(hx + d * 2, hy + 1, handle); px(hx + d * 3, hy + 1, handle); px(hx + d * 4, hy + 2, handle);
+      if (skill === 'mining') { px(hx + d * 5, hy + 1, head); px(hx + d * 5, hy + 2, head); px(hx + d * 5, hy + 3, head); px(hx + d * 6, hy + 3, head); }
+      else if (skill === 'woodcutting') { px(hx + d * 5, hy + 1, head); px(hx + d * 5, hy + 2, head); px(hx + d * 6, hy + 2, head); px(hx + d * 5, hy + 3, head); }
+      else { px(hx + d * 5, hy + 1, head); px(hx + d * 5, hy + 2, head); px(hx + d * 6, hy + 1, head); px(hx + d * 6, hy + 2, head); }
+    }
+  } else if (skill === 'fishing') {
+    for (let k = 1; k <= 5; k++) px(hx + d * k, hy - k, '#6b4a2a');
+    const bob = Math.round(Math.sin(t * 3) * 1);
+    for (let y = hy - 5; y <= hy + 7 + bob; y++) px(hx + d * 6, y, '#e8f1f8');
+    px(hx + d * 6, hy + 8 + bob, '#e63946'); px(hx + d * 6, hy + 7 + bob, '#f4f4f4');
+  } else if (skill === 'cooking') {
+    const lift = frame ? -1 : 0;
+    for (let k = 1; k <= 4; k++) px(hx + d * k, hy + lift, '#6b4a2a');
+    px(hx + d * 5, hy + lift, foodColor); px(hx + d * 6, hy + lift, foodColor);
+  }
+}
+function capeColor(i) {
+  if (i !== 0) return null;
+  const sw = state.workers[0];
+  if (sw.task && lvl(sw.task.skill) >= 99) return SKILLS[sw.task.skill].color;
+  for (const s of SKILL_ORDER) if (lvl(s) >= 99) return SKILLS[s].color;
+  return null;
+}
+function drawWorker(i, t) {
+  const w = RT.workers[i], sw = state.workers[i], look = lookOf(i);
+  const walking = w.state === 'walking';
+  const frame = walking ? Math.floor(w.animT * 6) % 2 : 0;
+  const workFrame = Math.floor(w.animT * 4) % 2;
+  const bob = (walking && frame) || (w.state === 'working' && workFrame) ? -1 : 0;
+  const x0 = Math.round(w.x) - 4, y0 = Math.round(w.y) - 12 + bob;
+  const flip = w.facing < 0, d = w.facing;
+  const cape = capeColor(i);
+  if (cape) {
+    const cx = flip ? x0 + 7 : x0 - 1;
+    g.fillStyle = cape; g.fillRect(cx, y0 + 5, 2, 7);
+    g.fillStyle = mix('#ffffff', cape.startsWith('#') ? cape : '#ffffff', 0.4); g.fillRect(cx, y0 + 11, 2, 1);
+  }
+  drawSprite(g, frame ? SPR_WALK : SPR_STAND, { h: look.hair, s: '#f1c27d', e: '#2a1a0f', T: look.tunic, L: '#4a3728', b: '#2c1e12' }, x0, y0, flip);
+  if (sw.task && !walking) {
+    const a = ACTION_BY_ID[sw.task.id];
+    const hx = d > 0 ? w.x + 3 : w.x - 4, hy = w.y - 6 + bob;
+    drawTool(a.skill, d, hx, hy, w.state === 'working' ? workFrame : 0, t, a.color);
+  }
+  if (w.state === 'waiting' && Math.floor(t * 2) % 2) {
+    const bx = Math.round(w.x) - 2, by = y0 - 7;
+    g.fillStyle = '#f7eedc'; g.fillRect(bx, by, 5, 5); g.fillStyle = '#b3362d'; g.fillRect(bx + 2, by + 1, 1, 2); g.fillRect(bx + 2, by + 3, 1, 1);
+  }
+}
+function render(t) {
+  g.drawImage(bg, 0, 0);
+  for (let i = 0; i < 5; i++) { const ph = t * 0.8 + i * 1.3; g.fillStyle = '#a9d4f5'; g.fillRect(Math.round(24 + Math.sin(ph) * 12), Math.round(74 + Math.cos(ph * 0.7) * 5), 2, 1); }
+  const list = [];
+  const mineA = nodeAction('mining'), woodA = nodeAction('woodcutting'), smithA = nodeAction('smithing');
+  const smithing = state.workers.some(sw => sw.task && sw.task.skill === 'smithing');
+  list.push({ y: NODES.mining.base, f: () => drawSprite(g, SPR_ROCK, { a: '#3b3b3b', b: '#7b7b7b', h: '#9c9c9c', o: mineA ? mineA.color : '#c8763a', s: '#3f7a30' }, NODES.mining.x, NODES.mining.y) });
+  list.push({ y: NODES.woodcutting.base, f: () => { const L = woodA ? woodA.color : '#5e9a3f'; drawSprite(g, SPR_TREE, { L, h: mix(L, '#ffffff', 0.3), d: mix(L, '#000000', 0.3), t: '#6b4423', s: '#3f7a30' }, NODES.woodcutting.x, NODES.woodcutting.y); } });
+  list.push({ y: NODES.smithing.base, f: () => { const flick = Math.floor(t * 6) % 2; drawSprite(g, SPR_FURNACE, { c: '#5a5450', m: '#4a4541', s: '#7d7670', o: '#2a2420', f: flick ? '#ff8c1a' : '#ff6d00', F: flick ? '#ffd166' : '#ffb703', k: '#3f7a30' }, NODES.smithing.x, NODES.smithing.y); if (smithing && Math.random() < 0.06 && P.length < 120) P.push({ x: 108 + Math.random() * 2, y: 57, vx: (Math.random() - 0.5) * 4, vy: -7, g: -2, life: 1.6, max: 1.6, c: '#9a9a9a' }); } });
+  list.push({ y: NODES.cooking.base, f: () => drawSprite(g, Math.floor(t * 5) % 2 ? SPR_FIRE_A : SPR_FIRE_B, { F: '#ffd166', f: '#ff7b1a', r: '#e63946', w: '#7a4e2a', a: '#3f7a30' }, NODES.cooking.x, NODES.cooking.y) });
+  list.push({ y: CHEST.base, f: () => drawSprite(g, SPR_CHEST, { o: '#3a2a1a', b: '#9b5f2e', d: '#7a4a22', G: '#e9b949', k: '#3f7a30' }, CHEST.x, CHEST.y) });
+  for (let i = 0; i < RT.workers.length; i++) list.push({ y: RT.workers[i].y, f: () => drawWorker(i, t) });
+  list.sort((a, b) => a.y - b.y);
+  for (const o of list) o.f();
+  for (const p of P) { g.globalAlpha = clamp(p.life / p.max * 1.6, 0, 1); g.fillStyle = p.c; g.fillRect(Math.round(p.x), Math.round(p.y), 1, 1); }
+  g.globalAlpha = 1;
+  const sw = RT.workers[state.sel];
+  if (sw) {
+    const ax = Math.round(sw.x), ay = Math.round(sw.y) - 16 + Math.round(Math.sin(t * 4));
+    g.fillStyle = '#f4c542'; g.fillRect(ax - 2, ay, 5, 1); g.fillRect(ax - 1, ay + 1, 3, 1); g.fillRect(ax, ay + 2, 1, 1);
+  }
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(off, 0, 0, cv.width, cv.height);
+}
+
+/* ================= floating text & toasts ================= */
+function floatText(text, x, y, color, big) {
+  const box = $('floats'); if (box.children.length > 22) return;
+  const d = document.createElement('div');
+  d.className = 'float' + (big ? ' big' : ''); d.textContent = text; d.style.color = color || '#fff';
+  d.style.left = (x * scale) + 'px'; d.style.top = (y * scale) + 'px';
+  d.addEventListener('animationend', () => d.remove());
+  box.appendChild(d);
+  setTimeout(() => d.remove(), 1400);
+}
+function toast(text, gold) {
+  const box = $('toasts');
+  while (box.children.length >= 3) box.firstChild.remove();
+  const d = document.createElement('div'); d.className = 'toast' + (gold ? ' gold' : ''); d.textContent = text;
+  box.appendChild(d); setTimeout(() => d.remove(), 2800);
+}
+function openModal(title, html, okLabel) { $('modal-title').textContent = title; $('modal-body').innerHTML = html; $('modal-ok').textContent = okLabel || 'OK'; $('modal').hidden = false; }
+$('modal-ok').addEventListener('click', () => { $('modal').hidden = true; });
+
+/* ================= scene input ================= */
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width * W, y = (e.clientY - r.top) / r.height * H;
+  for (let i = RT.workers.length - 1; i >= 0; i--) { const w = RT.workers[i]; if (Math.abs(x - w.x) <= 5 && y <= w.y + 1 && y >= w.y - 13) { selectWorker(i); return; } }
+  if (x >= CHEST.x - 2 && x <= CHEST.x + CHEST.w + 2 && y >= CHEST.y - 2 && y <= CHEST.y + CHEST.h + 2) { setTab('bank'); return; }
+  for (const s of SKILL_ORDER) { const n = NODES[s]; if (x >= n.x - 3 && x <= n.x + n.w + 3 && y >= n.y - 3 && y <= n.y + n.h + 3) { const a = bestAction(s); if (a) assign(state.sel, a.id); return; } }
+  const now = performance.now(); if (now - ui.lastBoost < 110) return; ui.lastBoost = now;
+  const w0 = RT.workers[0], sw0 = state.workers[0];
+  if (sw0.task && w0.state === 'working') { sw0.progress += 0.15; w0.animT += 0.25; burst(x, y, '#f4c542', 4); }
+  else if (!sw0.task) floatText('Tap a spot to start a task', x, y, '#ffe7a3');
+  else if (w0.state === 'waiting') floatText('Waiting for materials', x, y, '#ffe7a3');
+});
+
+/* ================= panel UI ================= */
+const panel = $('panel');
+function setTab(tab) {
+  ui.tab = tab; ui.dirty = true;
+  for (const b of $('tabs').querySelectorAll('button')) b.classList.toggle('active', b.dataset.tab === tab);
+  panel.scrollTop = 0;
+  uiTick();
+}
+$('tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) setTab(b.dataset.tab); });
+
+function inputsText(a) {
+  return 'Uses ' + Object.entries(a.inputs).map(([id, n]) => `${n}× ${ITEMS[id].name} (${fmtG(state.bank[id] || 0)} in bank)`).join(', ');
+}
+function buildSkills() {
+  const root = el('<div></div>');
+  let chips = '<div class="chips">';
+  state.workers.forEach((sw, i) => { const look = lookOf(i); chips += `<button class="chip${i === state.sel ? ' sel' : ''}" data-act="selw" data-w="${i}"><span class="avatar" style="--c:${look.tunic}"></span><span>${look.name}</span><small id="chipst-${i}"></small></button>`; });
+  if (state.hired < APPRENTICES.length) chips += `<button class="chip ghost" data-act="tab" data-tab="shop">+ Hire help</button>`;
+  root.appendChild(el(chips + '</div>'));
+  for (const s of SKILL_ORDER) {
+    const S = SKILLS[s], L = lvl(s), open = ui.open.has(s);
+    const rows = ACTIONS[s].map(a => {
+      const locked = L < a.lvl;
+      const here = state.workers.map((w, i) => (w.task && w.task.id === a.id ? i : -1)).filter(i => i >= 0);
+      const isSel = here.includes(state.sel);
+      const right = locked ? `<span class="lock">🔒 Lv ${a.lvl}</span>` : isSel ? `<button class="btn small" data-act="stop" data-w="${state.sel}">Stop</button>` : `<button class="btn small primary" data-act="assign" data-id="${a.id}">Go</button>`;
+      const who = here.map(i => `<span class="avatar" style="--c:${lookOf(i).tunic}"></span>`).join('');
+      return `<div class="arow${locked ? ' locked' : ''}${here.length ? ' active' : ''}" data-aid="${a.id}"><span class="dot" style="background:${a.color}"></span><div class="ainfo"><b>${a.name}</b><small><span>${fmtXp(a.xp * xpMult())} xp</span><span>${actionTime(state.sel, a).toFixed(1)}s</span><span>${fmtG(sellValue(a))}g</span>${a.burn ? '<span data-burn="' + a.id + '"></span>' : ''}</small>${a.inputs ? `<small><span data-inp="${a.id}"></span></small>` : ''}</div><div class="who">${who}</div>${right}</div>`;
+    }).join('');
+    root.appendChild(el(`<div class="card${open ? ' open' : ''}" data-skill="${s}"><div class="skill-head" data-act="toggle" data-skill="${s}"><span class="sicon">${S.icon}</span><div class="sinfo"><div class="srow"><b>${S.name}</b><span class="lvl">Lv <span id="lvl-${s}">${L}</span></span></div><div class="xpbar"><i id="bar-${s}"></i></div><div class="xptext" id="xpt-${s}"></div></div><span class="chev">▼</span></div><div class="actions"${open ? '' : ' hidden'}>${rows}</div></div>`));
+  }
+  return root;
+}
+function updateSkills() {
+  for (const s of SKILL_ORDER) {
+    const L = lvl(s), xp = state.xp[s], rate = xpRate(s);
+    const lo = XP_TABLE[L], hi = L >= 99 ? MAX_XP : XP_TABLE[L + 1];
+    const e1 = $('lvl-' + s), e2 = $('bar-' + s), e3 = $('xpt-' + s);
+    if (!e1) continue;
+    e1.textContent = L;
+    e2.style.width = (L >= 99 ? 100 : clamp((xp - lo) / (hi - lo) * 100, 0, 100)) + '%';
+    let html = L >= 99 ? `<span>${fmtXp(xp)} xp</span><span>Mastered</span>` : `<span>${fmtXp(xp)} / ${fmtXp(hi)} xp</span>`;
+    if (rate > 0) { html += `<span>${fmtRate(rate)} xp/h</span>`; if (L < 99) html += `<span>${fmtDur((hi - xp) / (rate / 3600))} to Lv ${L + 1}</span>`; }
+    e3.innerHTML = html;
+  }
+  for (const e of panel.querySelectorAll('[data-inp]')) e.textContent = inputsText(ACTION_BY_ID[e.dataset.inp]);
+  for (const e of panel.querySelectorAll('[data-burn]')) { const c = burnChance(ACTION_BY_ID[e.dataset.burn]); e.textContent = c > 0 ? `${Math.round(c * 100)}% burn` : 'no burn'; }
+  state.workers.forEach((sw, i) => {
+    const e = $('chipst-' + i); if (!e) return;
+    const w = RT.workers[i];
+    e.textContent = !sw.task ? 'idle' : w.state === 'waiting' ? '⏳ waiting' : `${SKILLS[sw.task.skill].icon} ${ACTION_BY_ID[sw.task.id].name}`;
+  });
+}
+function bankSig() { return Object.keys(state.bank).filter(k => state.bank[k] > 0).sort().join(',') + '|' + state.up.autosell + '|' + state.workers.map(w => (w.task ? w.task.id : '-')).join(','); }
+function buildBank() {
+  const root = el('<div></div>');
+  const reserved = reservedItems();
+  const ids = Object.keys(state.bank).filter(k => state.bank[k] > 0).sort((a, b) => ITEMS[a].value - ITEMS[b].value);
+  root.appendChild(el(`<div class="card"><div class="bank-top"><div>🪙 <b id="bank-gold">${fmtG(state.gold)}</b></div><button class="btn" data-act="sellall" id="sellall">Sell all</button></div>${state.up.autosell ? `<div class="bank-opt"><div>Auto-sell is on<br><small>New items sell on pickup; anything your smiths and cooks need is kept here</small></div></div>` : `<div class="bank-opt"><small>Auto-sell can be bought in the Shop</small></div>`}</div>`));
+  if (!ids.length) root.appendChild(el(`<div class="empty">Nothing here yet. Everything your crew gathers lands in this chest.</div>`));
+  else {
+    const grid = el('<div class="items"></div>');
+    for (const id of ids) {
+      const it = ITEMS[id];
+      grid.appendChild(el(`<div class="item" style="--c:${it.color}"><span class="ii">${CAT_ICON[it.cat]}</span><div class="it"><b>${it.name}</b><small>×<span data-cnt="${id}">${fmtG(state.bank[id])}</span> at ${fmtG(Math.floor(it.value * sellMult()))}g${reserved.has(id) ? ' <span class="tag">in use</span>' : ''}</small></div><button class="btn small" data-act="sell" data-id="${id}">Sell</button></div>`));
+    }
+    root.appendChild(grid);
+  }
+  ui.bankSig = bankSig();
+  return root;
+}
+function updateBank() {
+  if (bankSig() !== ui.bankSig) { ui.dirty = true; return; }
+  const bg0 = $('bank-gold'); if (bg0) bg0.textContent = fmtG(state.gold);
+  for (const e of panel.querySelectorAll('[data-cnt]')) e.textContent = fmtG(state.bank[e.dataset.cnt] || 0);
+  const reserved = reservedItems(); let total = 0;
+  for (const [id, n] of Object.entries(state.bank)) if (!reserved.has(id)) total += Math.floor(ITEMS[id].value * sellMult() * n);
+  const sa = $('sellall'); if (sa) { sa.textContent = total > 0 ? `Sell all for ${fmtG(total)}g` : 'Sell all'; sa.disabled = total <= 0; }
+}
+function shopRow(name, desc, kind, arg, cost, maxed) {
+  return `<div class="shop-row"><div class="ainfo"><b>${name}</b><small><span>${desc}</span></small></div>${maxed ? `<span class="owned">${maxed}</span>` : `<button class="btn small primary" data-act="buy" data-kind="${kind}" data-arg="${arg}" data-cost="${cost}">${fmtG(cost)}g</button>`}</div>`;
+}
+function buildShop() {
+  const root = el('<div></div>');
+  let tools = '';
+  for (const s of SKILL_ORDER) {
+    const tier = state.tools[s], S = SKILLS[s];
+    if (tier >= 5) tools += shopRow(`${S.icon} ${S.tiers[5]}`, `${S.name} at full speed`, 'tool', s, 0, 'Maxed');
+    else tools += shopRow(`${S.icon} ${S.tiers[tier + 1]}`, `${S.name} ${Math.round((TOOL_MULT[tier + 1] - 1) * 100)}% faster than base${s === 'cooking' ? ', 5% less burning' : ''}${tier ? ` (now ${Math.round((TOOL_MULT[tier] - 1) * 100)}%)` : ''}`, 'tool', s, TOOL_COST[tier + 1]);
+  }
+  root.appendChild(el(`<div class="card"><div class="card-title">Tools<small>faster actions</small></div>${tools}</div>`));
+  let crew = '';
+  if (state.hired < APPRENTICES.length) { const ap = APPRENTICES[state.hired]; crew += shopRow(`Hire ${ap.name}`, `A second pair of hands for any skill, working at ${Math.round(TRAIN_EFF[state.up.train] * 100)}% speed`, 'hire', '', ap.cost); }
+  else crew += shopRow('Camp is full', 'Three apprentices is the most your camp can feed', 'hire', '', 0, 'Full');
+  if (state.hired > 0) {
+    const t = state.up.train;
+    crew += t >= TRAIN_EFF.length - 1 ? shopRow('Apprentice training', 'Apprentices work at full speed', 'train', '', 0, 'Maxed') : shopRow('Apprentice training', `Apprentices work at ${Math.round(TRAIN_EFF[t + 1] * 100)}% speed (now ${Math.round(TRAIN_EFF[t] * 100)}%)`, 'train', '', TRAIN_COST[t]);
+  }
+  root.appendChild(el(`<div class="card"><div class="card-title">Crew<small>more hands, more progress</small></div>${crew}</div>`));
+  const sc = state.up.scholar, me = state.up.merchant;
+  let know = sc >= SCHOLAR_MAX ? shopRow("Scholar's Guide", 'All volumes collected: +80% XP', 'scholar', '', 0, 'Maxed') : shopRow(`Scholar's Guide vol. ${sc + 1}`, `+8% XP in every skill${sc ? ` (now +${sc * 8}%)` : ''}`, 'scholar', '', scholarCost(sc));
+  know += me >= MERCHANT_MAX ? shopRow("Merchant's Favor", 'Sell prices doubled', 'merchant', '', 0, 'Maxed') : shopRow(`Merchant's Favor ${me + 1}`, `+10% sell prices${me ? ` (now +${me * 10}%)` : ''}`, 'merchant', '', merchantCost(me));
+  know += state.up.autosell ? shopRow('Auto-sell', 'Gathered items sell themselves', 'autosell', '', 0, 'Owned') : shopRow('Auto-sell', 'Gathered items sell themselves; anything your smiths and cooks need is kept', 'autosell', '', AUTOSELL_COST);
+  const r = state.up.rest;
+  know += r >= REST.length - 1 ? shopRow('Long rest', 'Your crew works a full day while you are away', 'rest', '', 0, 'Maxed') : shopRow('Longer rest', `Crew keeps working up to ${REST[r + 1].h}h while you're away (now ${REST[r].h}h)`, 'rest', '', REST[r + 1].cost);
+  root.appendChild(el(`<div class="card"><div class="card-title">Knowledge &amp; trade</div>${know}</div>`));
+  return root;
+}
+function updateShop() { for (const b of panel.querySelectorAll('[data-cost]')) b.disabled = state.gold < +b.dataset.cost; }
+function buildStats() {
+  const root = el('<div></div>');
+  const mastered = SKILL_ORDER.filter(s => lvl(s) >= 99).map(s => SKILLS[s].icon).join(' ') || '—';
+  root.appendChild(el(`<div class="card"><div class="stat-grid">
+    <div class="stat"><small>Total level</small><b id="st-total"></b></div>
+    <div class="stat"><small>Total XP</small><b id="st-xp"></b></div>
+    <div class="stat"><small>Gold earned</small><b id="st-gold"></b></div>
+    <div class="stat"><small>Actions done</small><b id="st-actions"></b></div>
+    <div class="stat"><small>Items sold</small><b id="st-sold"></b></div>
+    <div class="stat"><small>Fish burnt</small><b id="st-burnt"></b></div>
+    <div class="stat"><small>Time at camp</small><b id="st-time"></b></div>
+    <div class="stat"><small>Level-ups</small><b id="st-lvlups"></b></div>
+    <div class="stat"><small>Crew</small><b>${state.workers.length}</b></div>
+    <div class="stat"><small>Mastered</small><b>${mastered}</b></div>
+  </div></div>`));
+  root.appendChild(el(`<div class="card"><div class="card-title">Save<small>${ui.noStorage ? 'storage blocked in this browser' : 'saves automatically here'}</small></div><div class="pad"><div class="row"><button class="btn" data-act="export">Export code</button><button class="btn" data-act="import">Import code</button><button class="btn danger" data-act="reset" id="reset-btn">Reset camp</button></div><textarea id="savebox" placeholder="Export writes a save code here. Paste one and tap Import to load it on another device." spellcheck="false"></textarea>${ui.noStorage ? '<p class="muted">⚠️ This browser is blocking local storage, so progress will be lost when you leave. Export a save code to keep it.</p>' : ''}</div></div>`));
+  root.appendChild(el(`<p class="muted" style="text-align:center">An original idle skiller for people who remember the long road to 99.</p>`));
+  return root;
+}
+function updateStats() {
+  const e = $('st-total'); if (!e) return;
+  e.textContent = totalLevel();
+  $('st-xp').textContent = fmtXp(SKILL_ORDER.reduce((t, s) => t + state.xp[s], 0));
+  $('st-gold').textContent = fmtG(state.stats.goldEarned);
+  $('st-actions').textContent = fmtG(state.stats.actions);
+  $('st-sold').textContent = fmtG(state.stats.itemsSold);
+  $('st-burnt').textContent = fmtG(state.stats.burnt);
+  $('st-time').textContent = fmtDur(state.stats.playtime);
+  $('st-lvlups').textContent = fmtG(state.stats.levelups);
+}
+function buildTab(tab) {
+  panel.innerHTML = '';
+  panel.appendChild(tab === 'skills' ? buildSkills() : tab === 'bank' ? buildBank() : tab === 'shop' ? buildShop() : buildStats());
+}
+function updateTab(tab) {
+  if (tab === 'skills') updateSkills(); else if (tab === 'bank') updateBank(); else if (tab === 'shop') updateShop(); else updateStats();
+}
+function updateHud() {
+  $('hud-gold').textContent = fmtG(state.gold);
+  $('hud-total').textContent = totalLevel();
+  const i = state.sel, sw = state.workers[i], w = RT.workers[i], name = lookOf(i).name;
+  let text, prog = 0;
+  if (!sw.task) text = `${name}: idle. Tap a spot in the world to start.`;
+  else {
+    const a = ACTION_BY_ID[sw.task.id];
+    prog = sw.progress;
+    if (w.state === 'walking') text = `${name}: heading to the ${NODES[a.skill].label}`;
+    else if (w.state === 'waiting') text = `${name}: waiting for ${Object.keys(a.inputs).map(id => ITEMS[id].name).join(' and ')}`;
+    else text = `${name}: ${SKILLS[a.skill].icon} ${SKILLS[a.skill].verb} ${a.name}`;
+  }
+  $('status-text').textContent = text;
+  $('status-bar').style.width = (clamp(prog, 0, 1) * 100) + '%';
+}
+function uiTick() {
+  if (ui.dirty) { ui.dirty = false; buildTab(ui.tab); }
+  updateTab(ui.tab);
+  updateHud();
+}
+panel.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const d = b.dataset;
+  switch (d.act) {
+    case 'toggle': { const card = b.closest('.card'); const open = !ui.open.has(d.skill); if (open) ui.open.add(d.skill); else ui.open.delete(d.skill); card.classList.toggle('open', open); card.querySelector('.actions').hidden = !open; break; }
+    case 'assign': assign(state.sel, d.id); break;
+    case 'stop': stopTask(+d.w); break;
+    case 'selw': selectWorker(+d.w); break;
+    case 'tab': setTab(d.tab); break;
+    case 'sell': { const n = state.bank[d.id] || 0; if (n > 0) { const v = sellItem(d.id, n); delete state.bank[d.id]; toast(`Sold ${fmtG(n)} ${ITEMS[d.id].name} for ${fmtG(v)}g`); ui.dirty = true; save(); } break; }
+    case 'sellall': { const reserved = reservedItems(); let total = 0, count = 0; for (const [id, n] of Object.entries(state.bank)) { if (reserved.has(id) || n <= 0) continue; total += sellItem(id, n); count += n; delete state.bank[id]; } toast(count ? `Sold ${fmtG(count)} items for ${fmtG(total)}g` : 'Nothing to sell'); ui.dirty = true; save(); break; }
+    case 'autosell': toast('Auto-sell stays on once bought — stock up by assigning smiths or cooks to the items you want kept.'); break;
+    case 'buy': buy(d.kind, d.arg); break;
+    case 'export': { const box = $('savebox'); box.value = encodeSave(); box.focus(); box.select(); if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(box.value).then(() => toast('Save code copied'), () => toast('Save code ready — copy it from the box')); else toast('Save code ready — copy it from the box'); break; }
+    case 'import': { const box = $('savebox'); try { const s = decodeSave(box.value); if (!box.value.trim()) throw new Error('empty'); applyState(s, false); toast('Save loaded', true); } catch (err) { toast('That code didn\'t load. Paste the whole code, starting with WS1.'); } break; }
+    case 'reset': { const now = Date.now(); if (now - ui.resetArmed < 4000) { applyState(defaultState(), false); ui.resetArmed = 0; toast('Camp reset. Fresh start!'); } else { ui.resetArmed = now; b.textContent = 'Tap again to confirm'; setTimeout(() => { if (b.isConnected) b.textContent = 'Reset camp'; }, 4000); } break; }
+  }
+});
+
+/* ================= boot ================= */
+function applyState(s, offline) {
+  state = s;
+  RT.workers = [];
+  for (let i = 0; i < state.workers.length; i++) addRuntimeWorker(i, false);
+  P.length = 0;
+  ui.open = new Set([state.workers[state.sel].task ? state.workers[state.sel].task.skill : 'mining']);
+  $('hint').hidden = state.seenHint;
+  if (offline) {
+    const away = Math.max(0, (Date.now() - state.lastSave) / 1000);
+    if (away > 5) { const sum = bulk(away); if (away > 90 && sum.any) showWelcome(sum); }
+  }
+  ui.dirty = true; save();
+}
+function showWelcome(sum) {
+  const sk = SKILL_ORDER.filter(s => state.xp[s] > sum.xpBefore[s]).map(s => { const l0 = sum.lvlBefore[s], l1 = lvl(s); return `<li>${SKILLS[s].icon} ${SKILLS[s].name}: +${fmtXp(state.xp[s] - sum.xpBefore[s])} xp${l1 > l0 ? ` — level ${l0} → <b>${l1}</b>` : ''}</li>`; }).join('');
+  const it = Object.entries(sum.items).map(([id, n]) => `<li>${CAT_ICON[ITEMS[id].cat]} ${ITEMS[id].name} ×${n.toLocaleString()}</li>`).join('');
+  const gold = state.gold - sum.goldBefore;
+  let html = `<p>You were away for <b>${fmtDur(sum.away)}</b>.${sum.capped ? ` Your crew kept at it for <b>${fmtDur(sum.sim)}</b> of that — a longer rest can be bought in the Shop.` : ' Your crew kept at it the whole time.'}</p>`;
+  html += `<ul>${sk}</ul>${it ? `<p class="muted">Produced</p><ul>${it}</ul>` : ''}${gold > 0 ? `<p>🪙 +${fmtG(gold)} gold from auto-sell</p>` : ''}`;
+  openModal('Welcome back', html, 'Back to work');
+}
+buildTerrain();
+resize();
+window.addEventListener('resize', resize);
+applyState(load() || defaultState(), true);
+if (!state.seenHint) $('hint').hidden = false;
+
+let last = performance.now(), uiAcc = 0, saveAcc = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  let dt = (now - last) / 1000; last = now;
+  if (dt <= 0) return;
+  if (dt > 3) bulk(dt); else step(dt);
+  render(now / 1000);
+  uiAcc += dt; if (uiAcc >= 0.1) { uiAcc = 0; uiTick(); }
+  saveAcc += dt; if (saveAcc >= 5) { saveAcc = 0; save(); }
+}
+uiTick();
+requestAnimationFrame(frame);
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+window.addEventListener('pagehide', save);
+window.addEventListener('beforeunload', save);
+})();
+</script>
+</body>
+</html>

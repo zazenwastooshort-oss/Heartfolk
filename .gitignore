@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.blend1
+*.log
+.env
+.DS_Store
+Thumbs.db
+dist-web/

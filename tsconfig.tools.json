@@ -1,0 +1,6 @@
+{
+  // Tests and build config run in Node.js, so they get Node's types; the game in src/ deliberately does not.
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["node", "vite/client"] },
+  "include": ["src", "tests", "vite.config.ts"]
+}
