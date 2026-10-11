@@ -268,14 +268,16 @@ Ten tasks take the village prototype to the first playable loop; tick each one o
 - [ ] **Saving and away time.** Progress saves, and your character keeps working while the game is closed, at a fifth of the live rate for up to 2 hours. Done when closing and reopening shows a summary of what they made.
 - [ ] **Test and publish.** Headless simulation, screenshots at three sizes, version 0.1 built and logged. Done when you've played it.
 
-**Parking lot**, not slice 1: helpers who skill alongside you, NPC quests, petitions and blessings as flavour, achievements, prestige, sound, stamina for walking (11 Oct, the owner: maybe later, now that walking is faster), a watch showing the time of day, when it gets dark and where north is (11 Oct; possibly an item bought from the merchant, or a sundial on the square).
+**Parking lot**, not slice 1: helpers who skill alongside you, NPC quests, petitions and blessings as flavour, achievements, prestige, sound, stamina for walking (11 Oct, the owner: maybe later, now that walking is faster), the survival book (12 Oct, the owner): the character washes up with only his book of know-how, which becomes the in-game guide to what he can make and where he learned it, a joke on survival handbooks, and a printed copy could be a Kickstarter reward; to add once crafting exists, a watch showing the time of day, when it gets dark and where north is (11 Oct; possibly an item bought from the merchant, or a sundial on the square).
 
 ## Decision log
 
-Thirty-one decisions so far, newest first; each answered open question is added here with its date.
+Thirty-three decisions so far, newest first; each answered open question is added here with its date.
 
 | Date | Decision |
 | --- | --- |
+| 12 Oct 2026 | The character washes up with nothing: no tools. He gathers branches and stones by hand and makes his first tools from them (a stone axe first); better tools come later. The camp starts bare: tent and campfire appear only when built. |
+| 12 Oct 2026 | The fall was so far that the top of the waterfall is never seen: from the camp there is only water pouring out of the sky down a towering mountain wall. The opening cinematic shows him falling out of the mist with the water into the pool. |
 | 12 Oct 2026 | The camp is at the foot of a waterfall. A new game opens with a short cinematic: the character drifts down the river, goes over the waterfall and washes up in the pool below, where he sets up camp. The village lies far up the river and comes much later. |
 | 12 Oct 2026 | Work comes in small chunks of about 30-45 minutes, each ending in something the owner can see and play; a sketch comes first when the direction is unclear. |
 | 12 Oct 2026 | The game starts from zero at a camp in the wild. Setting up camp costs materials (campfire, shelter, storage chest) and keeping it going costs more: the fire burns fuel. Around Woodcutting 10 a fallen oak on the road can be cut, and beyond it lies an abandoned village the player restores building by building, with villagers joining as it grows. Existing saves start over at the camp. |
