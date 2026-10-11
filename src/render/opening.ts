@@ -70,7 +70,8 @@ const cloudTex = () => canvasTex(512, 512, g => {
 interface Billboards { mesh: THREE.InstancedMesh; at: { x: number; y: number; z: number; s: number; phase: number }[] }
 
 export class OpeningView {
-  private root = new THREE.Group();          // everything this adds to the scene
+  /** everything this adds to the scene (a host hiding its world should leave this, the hero and the lights alone) */
+  readonly root = new THREE.Group();
   private set = new THREE.Group();           // the clifftop and the cloud sea
   private own: { dispose(): void }[] = [];   // geometries, materials, textures made here
   private flows: { tex: THREE.Texture; speed: number }[] = [];
