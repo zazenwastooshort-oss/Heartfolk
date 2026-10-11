@@ -6,7 +6,8 @@
 //   2. the busiest buildings facing the square: city hall at its head, bank, forge, the market, the inn
 //   3. workshops and storage: the barn, behind the market on the east road
 //   4. homes along the roads, some with vegetable gardens
-//   5. the edges: the copper quarry, the birch woods, oaks by the river, forest, and land not yet claimed
+//   5. the edges: the copper quarry, the birch woods and the oaks by the river (rocks and trees to work), the forest,
+//      and land not yet claimed
 
 export interface Vec2 { x: number; z: number }
 export interface Area { minX: number; maxX: number; minZ: number; maxZ: number }
@@ -27,7 +28,9 @@ export type PropKind = 'well' | 'board' | 'bench' | 'crates';
 export interface PropSpot { kind: PropKind; pos: Vec2; rot: number; radius: number }
 /** a fenced vegetable plot: w x d of soil, fenced all round */
 export interface GardenSpot { pos: Vec2; rot: number; w: number; d: number }
-export interface NodeSpot { id: string; resource: string; pos: Vec2; radius: number; parcel?: string }
+/** Something to work: a rock or a tree. radius: how much ground it takes up (a tree's trunk at chopping height);
+ *  size: scale of a tree's model. */
+export interface NodeSpot { id: string; resource: string; pos: Vec2; radius: number; size?: number; parcel?: string }
 export type TreeKind = 'birch' | 'oak' | 'pine';
 export interface TreeSpot { pos: Vec2; kind: TreeKind; size: number }
 export interface Parcel { id: string; name: string; area: Area }
@@ -62,6 +65,12 @@ const NAME: Record<string, string> = { House: 'Cottage', HouseTall: 'Townhouse',
 function building(id: string, kind: BuildingKind, model: string, x: number, z: number, faces: Vec2 = HEARTH, name?: string): BuildingSpot {
   const [w, d] = SIZE[model]!;
   return { id, kind, model, name: name ?? NAME[model] ?? model, pos: { x, z }, w, d, rot: facing({ x, z }, faces) };
+}
+
+/** Trunk radius at chopping height for a size-1 tree, measured from assets-src/village_models.py. */
+const TRUNK: Record<string, number> = { birch_tree: 0.115, oak_tree: 0.2 };
+function tree(id: string, resource: string, x: number, z: number, size = 1): NodeSpot {
+  return { id, resource, pos: { x, z }, radius: TRUNK[resource]! * size, size };
 }
 
 /** Where to stand to use a building: just outside the middle of its front. */
@@ -139,20 +148,22 @@ export const VILLAGE: Layout = {
     { id: 'copper1', resource: 'copper_rock', pos: W(20.4, -15.4), radius: 0.95 },
     { id: 'copper2', resource: 'copper_rock', pos: W(22.6, -11.4), radius: 0.95 },
     { id: 'copper3', resource: 'copper_rock', pos: W(18.0, -19.4), radius: 0.95 },
+    // the birch woods to the south, either side of the road
+    tree('birch1', 'birch_tree', -3.6, 21.4, 1.0), tree('birch2', 'birch_tree', -6.4, 23.0, 1.1),
+    tree('birch3', 'birch_tree', -9.2, 21.4, 0.95), tree('birch4', 'birch_tree', 3.6, 21.0, 1.05),
+    tree('birch5', 'birch_tree', 6.6, 22.8, 1.0), tree('birch6', 'birch_tree', 9.4, 21.2, 0.9),
+    // oaks by the river (Woodcutting level 10)
+    tree('oak1', 'oak_tree', -21.2, 11.2, 1.1), tree('oak2', 'oak_tree', -21.6, 2.8, 1.0), tree('oak3', 'oak_tree', -21.4, -14.2, 1.15),
     // tin waits in the unexplored land
     { id: 'tin1', resource: 'tin_rock', pos: W(30.5, -4.5), radius: 0.95, parcel: 'east' },
     { id: 'tin2', resource: 'tin_rock', pos: W(32.6, 3.6), radius: 0.95, parcel: 'east' },
   ],
+  // scenery only (the trees to chop are nodes). Inside the village they are pines, so nobody taps a birch or an
+  // oak that can't be chopped.
   trees: [
-    // the birch woods to the south (woodcutting, step 2)
-    { pos: W(-3.4, 21.6), kind: 'birch', size: 1 }, { pos: W(0.9, 22.6), kind: 'birch', size: 1.1 },
-    { pos: W(4.4, 21.2), kind: 'birch', size: 0.95 }, { pos: W(-8.8, 22.3), kind: 'birch', size: 1.05 },
-    { pos: W(9.6, 22.6), kind: 'birch', size: 1 }, { pos: W(-1.4, 18.6), kind: 'birch', size: 0.9 },
-    // oaks by the river, a few trees in the village's corners
-    { pos: W(-21.2, 11.2), kind: 'oak', size: 1.1 }, { pos: W(-21.6, 2.8), kind: 'oak', size: 1.0 },
-    { pos: W(-21.4, -14.2), kind: 'oak', size: 1.15 }, { pos: W(-21.8, -22.4), kind: 'pine', size: 1.1 },
-    { pos: W(22.8, 21.6), kind: 'pine', size: 1.0 }, { pos: W(-21.6, 22.2), kind: 'pine', size: 1.05 },
-    { pos: W(13.8, -14.2), kind: 'oak', size: 1.0 }, { pos: W(12.4, 11.2), kind: 'birch', size: 0.9 },
+    { pos: W(-21.8, -22.4), kind: 'pine', size: 1.1 }, { pos: W(22.8, 21.6), kind: 'pine', size: 1.0 },
+    { pos: W(-21.6, 22.2), kind: 'pine', size: 1.05 }, { pos: W(13.8, -14.2), kind: 'pine', size: 1.0 },
+    { pos: W(12.4, 11.2), kind: 'pine', size: 0.9 },
     ...forest(),
   ],
   bushes: [W(-4.6, -6.8), W(4.4, -6.9), W(-6.2, 11.4), W(12.8, -5.6), W(-14.2, -10.4), W(20.6, -3.2), W(-3.2, -17.8), W(3.4, 11.6)],
@@ -166,7 +177,7 @@ export const VILLAGE: Layout = {
     { points: [W(-4.6, -5.0), W(-5.2, -15.0), W(-5.6, -26)], width: 2.4 },                // north-west, past the forge
     { points: [W(4.6, -5.0), W(5.2, -15.0), W(5.8, -26)], width: 2.4 },                   // north-east, past the bank
     { points: [W(6.6, 0.4), W(16, 0.4), W(25, 0.4), W(32, 0.2)], width: 2.4 },            // east, through the market past the barn, into the unexplored land
-    { points: [W(0, 6.6), W(0, 16), W(0, 26)], width: 2.4 },                              // south, to the birch woods
+    { points: [W(0, 6.6), W(0, 16), W(0, 26)], width: 2.4 },                              // south, through the birch woods
     { points: [W(-6.6, 0), W(-16, 0), W(-24, 0)], width: 2.4 },                           // west, to the river
     // lanes
     { points: [W(5.2, -15.0), W(12, -16.5), W(18.8, -16.2)], width: 1.4 },                // to the copper quarry

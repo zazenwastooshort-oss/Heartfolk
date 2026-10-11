@@ -47,10 +47,31 @@ describe('level requirements', () => {
 
   it('stops an old save that was already mining a rock above the player level', () => {
     const s = setup();
-    s.state.player.task = { kind: 'mine', nodeId: 'testTin', progress: 0 };
+    s.state.player.task = { kind: 'gather', nodeId: 'testTin', progress: 0 };
     run(s, 5);
     expect(s.state.player.task.kind).toBe('idle');
     expect(s.state.bank.tin_ore ?? 0).toBe(0);
+  });
+});
+
+describe('woodcutting levels', () => {
+  const oakLevel = RESOURCES.oak_tree!.level;
+
+  it('refuses the oaks by the river until Woodcutting level 10, whatever the Mining level', () => {
+    const s = setup(VILLAGE), queue: Command[] = [{ type: 'work', nodeId: 'oak1' }];
+    s.state.skills.mining = XP_TABLE[50]!;
+    applyCommands(s.state, VILLAGE, queue, s.events);
+    run(s, 5);
+    expect(s.state.player.task.kind).toBe('idle');
+    expect(s.log).toContainEqual({ type: 'levelTooLow', skill: 'woodcutting', need: oakLevel, what: 'Oak tree' });
+  });
+
+  it('chops oak once you reach the level', () => {
+    const s = setup(VILLAGE), queue: Command[] = [{ type: 'work', nodeId: 'oak1' }];
+    s.state.skills.woodcutting = XP_TABLE[oakLevel]!;
+    applyCommands(s.state, VILLAGE, queue, s.events);
+    run(s, 90);
+    expect(s.state.bank.oak_logs ?? 0).toBeGreaterThan(0);
   });
 });
 

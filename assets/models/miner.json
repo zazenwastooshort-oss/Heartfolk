@@ -4,5 +4,10 @@
  "reach_m": 1.05,
  "strike_deg": -70.1,
  "mine_impact_s": 0.79,
- "mine_cycle_s": 1.185
+ "mine_cycle_s": 1.185,
+ "chop_impact_s": 0.735,
+ "chop_cycle_s": 1.105,
+ "chop_reach_m": 1.247,
+ "chop_trunk_m": 0.115,
+ "chop_strike_deg": -98.5
 }

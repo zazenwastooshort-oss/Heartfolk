@@ -2,7 +2,7 @@
 # one glTF with each model as a named root node at the origin, front facing south (+z in the game, -Y here):
 #   buildings: Bank, CityHall, Forge, Stall, StallBlue, Inn, House (cottage), HouseTall, HouseLong, Barn
 #   props: Hearth, Lantern, Well, NoticeBoard, Bench, Crates, Garden, Fence (one 2 m section along X)
-#   nature: TreeBirch, TreeOak, TreePine, Bush
+#   nature: TreeBirch, TreeOak, TreePine, Bush, StumpBirch, StumpOak (what a felled tree leaves)
 # Glowing parts are named so the game can light them at night: meshes using materials window_glass, lamp_glass,
 # forge_glow, flame, flame_core; the hearth's flames are nodes Flame and FlameCore.
 # Run: A:\Blender\blender-5.2.2-windows-x64\blender.exe -b --factory-startup -P assets-src/village_models.py
@@ -19,7 +19,7 @@ PAL = {
     "flame": "#ff6a1a", "flame_core": "#ffe066", "forge_glow": "#ffa41b", "lamp_glass": "#ffd27a", "ash": "#3a3330",
     "bark": "#6b4423", "birch_bark": "#e8e2d6", "birch_mark": "#3a3a3a", "birch_leaf": "#8fc35e",
     "oak_leaf": "#3f7f35", "oak_leaf2": "#5a9a46", "pine": "#2f6b3a", "bush": "#4a8a3c",
-    "flower_r": "#d84a4a", "flower_y": "#f4d03f", "apple": "#c0392b",
+    "cut_wood": "#e2c48e", "flower_r": "#d84a4a", "flower_y": "#f4d03f", "apple": "#c0392b",
     "wall_white": "#f2ede2", "roof_brown": "#7a4a32", "thatch": "#b89a5a", "soil": "#6b4a2e", "crop": "#5fa04a",
     "pumpkin": "#e08a2a", "blue_cloth": "#2e6fb0", "water_dark": "#2a4a6a", "paper": "#efe6cf",
 }
@@ -234,6 +234,18 @@ r = root("TreePine")
 cyl("trunk", 0.15, 0.11, 0.9, (0, 0, 0.45), "bark", r, seg=6)
 for i, (rr, h, z) in enumerate([(1.05, 1.3, 1.25), (0.82, 1.15, 1.95), (0.55, 1.0, 2.6)]):
     cyl("needles", rr, 0.0, h, (0, 0, z), "pine", r, seg=7)
+
+# Stumps match their tree's trunk at 0.35-0.4 m, with the cut face showing the pale wood inside.
+r = root("StumpBirch")
+cyl("stump", 0.13, 0.124, 0.35, (0, 0, 0.175), "birch_bark", r, seg=6)
+cyl("cut", 0.112, 0.112, 0.02, (0, 0, 0.355), "cut_wood", r, seg=6)
+
+r = root("StumpOak")
+cyl("stump", 0.25, 0.22, 0.4, (0, 0, 0.2), "bark", r, seg=7)
+cyl("cut", 0.2, 0.2, 0.02, (0, 0, 0.405), "cut_wood", r, seg=7)
+for i in range(3):
+    a = i / 3 * math.tau + 0.4
+    box("root", (0.34, 0.12, 0.1), (math.cos(a) * 0.26, math.sin(a) * 0.26, 0.04), "bark", r, rot_z=a)
 
 r = root("Bush")
 for i, (x, y, rr) in enumerate([(0, 0, 0.45), (0.38, 0.12, 0.34), (-0.32, -0.1, 0.36)]):

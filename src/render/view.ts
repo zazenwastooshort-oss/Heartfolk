@@ -1,22 +1,23 @@
-// Draws the game: the ground and river, the village, fog over unclaimed land, the miner and the rocks, placed from
-// the game state every frame, with the matching animation and effects (chips, the click cross).
-// It reads state; it never changes it.
+// Draws the game: the ground and river, the village, fog over unclaimed land, the rocks and trees, and the character
+// with the tool for the job (pick or axe) and the matching animation, placed from the game state every frame, plus
+// effects (chips, the click cross). It reads state; it never changes it.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import minerUrl from '../../assets/models/miner.glb?url';
 import villageUrl from '../../assets/models/village.glb?url';
 import type { GameState } from '../core/state';
-import type { Layout } from '../world/layout';
+import type { Layout, NodeSpot } from '../world/layout';
 import { RESOURCES } from '../data/skills';
-import { ANIM } from '../data/animation';
+import { SWINGS, type Swing } from '../data/animation';
 import { dayFraction } from '../core/clock';
 import { Lighting } from './lighting';
 import { OrbitCamera } from './camera';
 import { buildWorld, type WorldView } from './world';
 import { VillageView } from './village';
 import { FogView } from './fog';
+import { NodesView } from './nodes';
 
-interface RockView { root: THREE.Object3D; ores: THREE.Mesh[]; mats: { m: THREE.MeshStandardMaterial; base: THREE.Color }[] }
+type Tool = Swing['tool'];
 
 /** In builds the model is embedded in the page as a data: URL; decode it here rather than fetching it, because
  *  some hosts (artifact links) block fetch() of anything but their own files. The dev server serves a real file. */
@@ -37,14 +38,16 @@ export class View {
   private village?: VillageView;
   private fog: FogView;
   private clock = 0;
+  private nodes?: NodesView;
+  private spots: Map<string, NodeSpot>;
   private miner?: THREE.Object3D;
-  private tip?: THREE.Object3D;
+  private tools?: Record<Tool, { parts: THREE.Object3D[]; tip: THREE.Object3D }>;
+  private tool: Tool | null = null;
   private mixer?: THREE.AnimationMixer;
   private actions: Record<string, THREE.AnimationAction> = {};
   private current?: THREE.AnimationAction;
-  private rocks = new Map<string, RockView>();
   private shown = { pos: new THREE.Vector3(), heading: 0, ready: false };
-  private chips: { m: THREE.Mesh; v: THREE.Vector3; life: number; spin: number }[] = [];
+  private strikeAt: string | null = null;
   private marker = new THREE.Group();
   private markerT = 0;
   readonly pickables: THREE.Object3D[] = [];
@@ -52,6 +55,7 @@ export class View {
   ready: Promise<void>;
 
   constructor(container: HTMLElement, private layout: Layout) {
+    this.spots = new Map(layout.nodes.map(n => [n.id, n]));
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.PCFShadowMap;   // PCFSoftShadowMap was removed in three r180+; softness comes from shadow.radius
@@ -74,30 +78,31 @@ export class View {
     this.village = new VillageView(this.scene, this.layout, village.scene);
     this.pickables.push(...this.village.pickables);
     gltf.scene.traverse(o => { if ((o as THREE.Mesh).isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    this.miner = gltf.scene.getObjectByName('Miner')!;
-    this.tip = gltf.scene.getObjectByName('PickTip')!;
-    const rockSrc = gltf.scene.getObjectByName('Rock')!;
+    const find = (name: string) => {
+      const o = gltf.scene.getObjectByName(name);
+      if (!o) throw new Error(`miner.glb has no ${name}`);
+      return o;
+    };
+    this.miner = find('Miner');
+    this.tools = {
+      pick: { parts: [find('pick_head'), find('pick_collar')], tip: find('PickTip') },
+      axe: { parts: [find('axe_head'), find('axe_blade')], tip: find('AxeTip') },
+    };
+    this.useTool('pick');
+    this.nodes = new NodesView(this.scene, this.layout, find('Rock'), village.scene);
+    this.pickables.push(...this.nodes.pickables);
     this.scene.add(this.miner);
     this.mixer = new THREE.AnimationMixer(this.miner);
     for (const clip of gltf.animations) this.actions[clip.name] = this.mixer.clipAction(clip);
-    this.actions.Mine!.timeScale = 0;               // the simulation drives the swing, so strikes line up
-    for (const spot of this.layout.nodes) {
-      const root = rockSrc.clone(true); root.position.set(spot.pos.x, 0, spot.pos.z);
-      root.rotation.y = (spot.pos.x * 1.7 + spot.pos.z) % (Math.PI * 2);
-      const view: RockView = { root, ores: [], mats: [] };
-      const oreColor = new THREE.Color(RESOURCES[spot.resource]!.color);
-      root.traverse(o => {
-        const mesh = o as THREE.Mesh; if (!mesh.isMesh) return;
-        mesh.material = (mesh.material as THREE.MeshStandardMaterial).clone();
-        const m = mesh.material as THREE.MeshStandardMaterial;
-        if (/^Ore/.test(mesh.name)) { m.color.copy(oreColor); view.ores.push(mesh); }
-        view.mats.push({ m, base: m.color.clone() });
-        mesh.userData.nodeId = spot.id;
-        this.pickables.push(mesh);
-      });
-      this.scene.add(root); this.rocks.set(spot.id, view);
-    }
+    for (const s of Object.values(SWINGS)) this.actions[s.clip]!.timeScale = 0;   // the simulation drives each swing, so strikes line up
     this.play('Idle', 0);
+  }
+
+  /** Show the pick or the axe in the character's hands. */
+  private useTool(tool: Tool): void {
+    if (!this.tools || tool === this.tool) return;
+    for (const [name, t] of Object.entries(this.tools)) for (const part of t.parts) part.visible = name === tool;
+    this.tool = tool;
   }
 
   private play(name: string, fade = 0.18): void {
@@ -113,16 +118,8 @@ export class View {
     this.markerT = 0.45; this.marker.visible = true;
   }
 
-  strike(): void {
-    if (!this.tip) return;
-    const p = this.tip.getWorldPosition(new THREE.Vector3());
-    const geo = new THREE.BoxGeometry(0.05, 0.05, 0.05);
-    for (let i = 0; i < 10; i++) {
-      const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: i % 3 ? '#8d8f94' : '#d98a4a' }));
-      m.position.copy(p); m.castShadow = true; this.scene.add(m);
-      this.chips.push({ m, v: new THREE.Vector3((Math.random() - 0.5) * 2.2, 1.6 + Math.random() * 1.6, (Math.random() - 0.5) * 2.2), life: 0.7 + Math.random() * 0.3, spin: Math.random() * 10 });
-    }
-  }
+  /** The tool struck a node. Shown on the next frame, once, however many strikes arrive at once (catching up). */
+  strike(nodeId: string): void { this.strikeAt = nodeId; }
 
   /** World position of the character as currently drawn. */
   minerPos(): THREE.Vector3 { return this.shown.pos.clone(); }
@@ -137,29 +134,20 @@ export class View {
       this.shown.heading += dh * Math.min(1, dt * 20);
       this.miner.position.copy(this.shown.pos); this.miner.rotation.y = this.shown.heading;
       const task = p.task;
-      const waiting = task.kind === 'mine' && !!state.nodes[task.nodeId]?.depletedUntil;
+      // the node being worked, or the one he is walking to: he takes out the tool for it on the way
+      const workId = task.kind === 'gather' ? task.nodeId : p.pending?.kind === 'node' ? p.pending.id : null;
+      const spot = workId ? this.spots.get(workId) : undefined;
+      const swing = spot ? SWINGS[RESOURCES[spot.resource]!.skill] : null;
+      if (swing) this.useTool(swing.tool);
+      const waiting = task.kind === 'gather' && !!state.nodes[task.nodeId]?.depletedUntil;
       if (task.kind === 'walk') this.play('Walk');
-      else if (task.kind === 'mine' && !waiting) { this.play('Mine'); this.actions.Mine!.time = task.progress * ANIM.mineCycle; }
+      else if (task.kind === 'gather' && !waiting && swing) { this.play(swing.clip); this.actions[swing.clip]!.time = task.progress * swing.cycle; }
       else this.play('Idle');
       this.mixer.update(dt);
+      if (this.strikeAt && this.tools && this.tool) this.nodes?.hit(this.strikeAt, this.tools[this.tool].tip.getWorldPosition(new THREE.Vector3()));
     }
-    for (const [id, rv] of this.rocks) {
-      const until = state.nodes[id]?.depletedUntil ?? 0;
-      const spot = this.layout.nodes.find(n => n.id === id)!;
-      const left = until ? Math.max(0, until - state.time) / RESOURCES[spot.resource]!.respawn : 0;
-      for (const o of rv.ores) {
-        o.visible = !until;
-        o.scale.lerp(new THREE.Vector3(1, 1, 1), Math.min(1, dt * 8));
-        if (until) o.scale.setScalar(0.2);
-      }
-      for (const { m, base } of rv.mats) m.color.copy(base).lerp(new THREE.Color('#6d6f73'), left * 0.6);
-    }
-    for (let i = this.chips.length - 1; i >= 0; i--) {
-      const c = this.chips[i]!; c.life -= dt; c.v.y -= 9 * dt; c.m.position.addScaledVector(c.v, dt);
-      if (c.m.position.y < 0.03) { c.m.position.y = 0.03; c.v.multiplyScalar(0.4); c.v.y = Math.abs(c.v.y) * 0.3; }
-      c.m.rotation.x += c.spin * dt; c.m.rotation.y += c.spin * dt; c.m.scale.setScalar(Math.min(1, c.life * 3));
-      if (c.life <= 0) { this.scene.remove(c.m); (c.m.material as THREE.Material).dispose(); this.chips.splice(i, 1); }
-    }
+    this.strikeAt = null;
+    this.nodes?.update(state, dt, this.shown.pos);
     if (this.marker.visible) { this.markerT -= dt; this.marker.scale.setScalar(0.4 + this.markerT * 1.6); if (this.markerT <= 0) this.marker.visible = false; }
     this.cam.follow(this.shown.pos, Math.min(1, dt * 6));
     this.lighting.update(dayFraction(state.time), this.shown.pos, true, this.cam.dist);

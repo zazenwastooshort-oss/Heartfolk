@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { VILLAGE, RING, doorOf, inArea, type Vec2 } from '../src/world/layout';
 import { navFor } from '../src/world/nav';
 import { RESOURCES } from '../src/data/skills';
-import { ANIM } from '../src/data/animation';
+import { reachFor } from '../src/actors/player';
 
 const nav = navFor(VILLAGE);
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -68,11 +68,11 @@ describe('village layout', () => {
     }
   });
 
-  it('can reach a working spot beside every rock in the village', () => {
+  it('can reach a working spot beside every rock and tree in the village', () => {
     for (const n of VILLAGE.nodes.filter(n => !n.parcel)) {
       let found = false;
       for (let k = 0; k < 36 && !found; k++) {
-        const a = k / 36 * Math.PI * 2, stand = { x: n.pos.x + Math.cos(a) * ANIM.reach, z: n.pos.z + Math.sin(a) * ANIM.reach };
+        const a = k / 36 * Math.PI * 2, r = reachFor(n), stand = { x: n.pos.x + Math.cos(a) * r, z: n.pos.z + Math.sin(a) * r };
         found = nav.walkable(stand) && nav.findPath(VILLAGE.start, stand) !== null;
       }
       expect(found, n.id).toBe(true);

@@ -258,8 +258,8 @@ Ten tasks take the village prototype to the first playable loop; tick each one o
 - [ ] **Village layout (step 1).** The village around a central hearth: bank, city hall, forge, merchant's stall and a cottage, a river to the west, forest to the north and south, copper rocks and a birch grove, unexplored land under fog to the east. Buildings say what they'll do later. Rebuilt in rings like a real village (11 Oct) after the owner's feedback. Done when you can walk the village and every slice 1 place is there.
 
 - [ ] **Clean base.** Port the village simulation from the Hearthfolk prototype into the new modules, without priorities, blessings and petitions. Done when the village runs with day, night and the chronicle in the new look, and no player yet.
-- [ ] **Your character.** Tap a tree or rock and they walk there and work until sent elsewhere. Done when tapping a tree makes them chop until you tap something else.
-- [ ] **Woodcutting and mining.** Both skills on the 1 to 99 XP curve with their first tiers. Done when levels survive a reload and show in a skills panel.
+- [ ] **Your character.** Tap a tree or rock and they walk there and work until sent elsewhere. Done when tapping a tree makes them chop until you tap something else. Built 11 Oct with step 2 (game 0.0.6), awaiting the owner's play.
+- [ ] **Woodcutting and mining (step 2).** Both skills on the 1 to 99 XP curve with their first tiers. Done when levels survive a reload and show in a skills panel. Built 11 Oct (game 0.0.6): six birches south of the square (level 1) and three oaks by the river (level 10), a chopping swing with an axe that replaces the pick, trees that fall and leave a stump, then grow back, and a panel with both skills.
 - [ ] **Backpack and bank.** Your character fills a backpack and walks full loads to the bank. Done when wood and ore pile up in the bank where you can count them.
 - [ ] **The blacksmith.** An NPC with a daily routine who keeps the forge open only while at work; you smelt copper bars there. Done when the forge is cold at night and your character waits or says why.
 - [ ] **The merchant.** Buys everything at flat prices. Done when selling turns items into gold you can see.
@@ -268,7 +268,7 @@ Ten tasks take the village prototype to the first playable loop; tick each one o
 - [ ] **Saving and away time.** Progress saves, and your character keeps working while you're away. Done when closing and reopening shows a summary of what they made.
 - [ ] **Test and publish.** Headless simulation, screenshots at three sizes, version 0.1 built and logged. Done when you've played it.
 
-**Parking lot**, not slice 1: helpers who skill alongside you, NPC quests, petitions and blessings as flavour, achievements, prestige, sound, a watch showing the time of day, when it gets dark and where north is (11 Oct; possibly an item bought from the merchant, or a sundial on the square).
+**Parking lot**, not slice 1: helpers who skill alongside you, NPC quests, petitions and blessings as flavour, achievements, prestige, sound, a watch showing the time of day, when it gets dark and where north is (11 Oct; possibly an item bought from the merchant, or a sundial on the square). When a tree falls or a rock runs out, the character could move on to the nearest free one of the same kind instead of waiting (11 Oct, Claude's suggestion for idle play; not decided).
 
 ## Decision log
 

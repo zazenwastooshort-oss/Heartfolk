@@ -1,4 +1,4 @@
-// The panels laid over the game: Mining level and XP, what has been gathered, the clock, hover text, notices
+// The panels laid over the game: each skill's level and XP, what has been gathered, the clock, hover text, notices
 // and floating "+xp" numbers. Reads state and listens to events; never changes the game.
 import * as THREE from 'three';
 import type { GameState } from '../core/state';
@@ -11,6 +11,9 @@ import { ITEMS, SKILLS } from '../data/skills';
 import { clockLabel } from '../core/clock';
 
 const $ = (id: string) => document.getElementById(id)!;
+const el = (tag: string, className: string, text = '') => { const e = document.createElement(tag); e.className = className; e.textContent = text; return e; };
+
+interface SkillRow { row: HTMLElement; lvl: HTMLElement; bar: HTMLElement; text: HTMLElement }
 
 export class Hud {
   private floats: { el: HTMLElement; pos: THREE.Vector3; t: number }[] = [];
@@ -20,14 +23,27 @@ export class Hud {
   private pendingLevel: { skill: SkillId; level: number } | null = null;
   private noticeTimer = 0;
   private hintGone = false;
+  private rows = new Map<SkillId, SkillRow>();
+  private active: SkillId | null = null;
 
   constructor(private view: View, events: EventBus, private layout: Layout) {
+    // one row per skill in data/skills, so a new skill shows up here without touching the page
+    for (const s of Object.values(SKILLS)) {
+      const row = el('div', 'srow'), head = el('div', 'row'), lvl = el('span', 'lvl', '1'), bar = el('i', ''), text = el('small', '');
+      head.append(el('span', 'name', s.name), lvl);
+      const track = el('div', 'bar'); track.append(bar); bar.style.background = s.color;
+      row.append(head, track, text); $('skills').append(row);
+      this.rows.set(s.id, { row, lvl, bar, text });
+    }
     events.on(e => {
-      if (e.type === 'xpGained') this.pendingXp += e.amount;
+      if (e.type === 'xpGained') { this.pendingXp += e.amount; this.active = e.skill; }
       else if (e.type === 'visited') this.notice(this.visitText(e.id));
       else if (e.type === 'noPath') this.notice("He can't find a way there.");
       else if (e.type === 'levelUp') this.pendingLevel = { skill: e.skill, level: e.level };
-      else if (e.type === 'levelTooLow') this.notice(`You need ${SKILLS[e.skill].name} level ${e.need} to mine ${e.what}.`);
+      else if (e.type === 'levelTooLow') {
+        const s = SKILLS[e.skill];
+        this.notice(`You need ${s.name} level ${e.need} to ${s.verb.toLowerCase()} ${e.what.toLowerCase()}s.`);
+      }
     });
   }
 
@@ -78,10 +94,13 @@ export class Hud {
     }
     if (this.noticeTimer > 0) { this.noticeTimer -= dt; if (this.noticeTimer <= 0) $('notice').classList.remove('show'); }
 
-    const xp = state.skills.mining, lvl = levelFor(xp), [lo, hi] = levelBounds(lvl);
-    $('lvl').textContent = String(lvl);
-    ($('xpbar') as HTMLElement).style.width = `${lvl >= 99 ? 100 : (xp - lo) / (hi - lo) * 100}%`;
-    $('xptext').textContent = `${Math.floor(xp).toLocaleString()} / ${hi.toLocaleString()} xp`;
+    for (const [id, r] of this.rows) {
+      const xp = state.skills[id], lvl = levelFor(xp), [lo, hi] = levelBounds(lvl);
+      r.lvl.textContent = String(lvl);
+      r.bar.style.width = `${lvl >= 99 ? 100 : (xp - lo) / (hi - lo) * 100}%`;
+      r.text.textContent = `${Math.floor(xp).toLocaleString()} / ${hi.toLocaleString()} xp`;
+      r.row.classList.toggle('active', id === this.active);
+    }
     const items = Object.entries(state.bank).filter(([, n]) => n > 0);
     $('bank').textContent = items.length ? items.map(([id, n]) => `${n} ${ITEMS[id]?.name.toLowerCase() ?? id}`).join(', ') : 'Nothing gathered yet';
     $('clock').textContent = clockLabel(state.time);

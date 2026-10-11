@@ -1,10 +1,10 @@
-// Taps and drags on the scene: a tap sends a command (walk here, work this rock, visit this building or land);
+// Taps and drags on the scene: a tap sends a command (walk here, work this rock or tree, visit this building or land);
 // a drag turns the camera. Wheel and pinch zoom. Arrow keys turn the camera too.
 import * as THREE from 'three';
 import type { View } from '../render/view';
 import type { Command } from '../systems/commands';
 import type { Layout } from '../world/layout';
-import { RESOURCES } from '../data/skills';
+import { RESOURCES, SKILLS } from '../data/skills';
 
 type Target =
   | { kind: 'node'; id: string; point: THREE.Vector3 }
@@ -41,7 +41,10 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
 
   function label(t: Target): string | null {
     if (!t || t.kind === 'ground') return null;
-    if (t.kind === 'node') { const spot = layout.nodes.find(n => n.id === t.id)!; return `Mine|${RESOURCES[spot.resource]!.name}`; }
+    if (t.kind === 'node') {
+      const res = RESOURCES[layout.nodes.find(n => n.id === t.id)!.resource]!;
+      return `${SKILLS[res.skill].verb}|${res.name}`;
+    }
     if (t.kind === 'building') return `Visit|${layout.buildings.find(b => b.id === t.id)!.name}`;
     return `Explore|${layout.parcels.find(p => p.id === t.id)!.name}`;
   }

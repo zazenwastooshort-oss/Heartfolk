@@ -1,11 +1,12 @@
-// The player's character: turning taps into a path round buildings and rocks, walking it, and starting work
+// The player's character: turning taps into a path round buildings, rocks and trees, walking it, and starting work
 // (or arriving at a building) at the end.
 import type { GameState } from '../core/state';
 import type { EventBus } from '../core/events';
-import type { Layout, Vec2 } from '../world/layout';
+import type { Layout, NodeSpot, Vec2 } from '../world/layout';
 import { doorOf } from '../world/layout';
 import { navFor } from '../world/nav';
-import { ANIM } from '../data/animation';
+import { SWINGS } from '../data/animation';
+import { RESOURCES } from '../data/skills';
 
 export const WALK_SPEED = 1.45;        // m/s, matches the walk animation's stride
 const TURN_RATE = 12;                  // how quickly heading catches up with the walking direction
@@ -27,17 +28,23 @@ export function walkTo(state: GameState, layout: Layout, target: Vec2): boolean 
   return setPath(state, nav.findPath(state.player.pos, nav.nearestWalkable(target)), null);
 }
 
-/** Walk to a resource node: stand one pick's reach from it, on the side nearest the player if that side is free. */
+/** How far from a node's centre to stand so the tool lands on it: the swing's reach, further back from bigger nodes. */
+export function reachFor(spot: NodeSpot): number {
+  const swing = SWINGS[RESOURCES[spot.resource]!.skill];
+  return swing.reach + (spot.radius - swing.refRadius);
+}
+
+/** Walk to a resource node: stand within the tool's reach of it, on the side nearest the player if that side is free. */
 export function goWork(state: GameState, layout: Layout, nodeId: string): boolean {
   const node = layout.nodes.find(n => n.id === nodeId);
   if (!node) return false;
-  const nav = navFor(layout), p = state.player;
+  const nav = navFor(layout), p = state.player, reach = reachFor(node);
   let d = sub(p.pos, node.pos);
   if (len(d) < 1e-4) d = { x: -1, z: 0 };
   const base = Math.atan2(d.z, d.x);
   for (let k = 0; k <= 18; k++) {                     // try straight towards the player first, then fan out
     const a = base + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 9);
-    const stand = { x: node.pos.x + Math.cos(a) * ANIM.reach, z: node.pos.z + Math.sin(a) * ANIM.reach };
+    const stand = { x: node.pos.x + Math.cos(a) * reach, z: node.pos.z + Math.sin(a) * reach };
     if (!nav.walkable(stand)) continue;
     if (setPath(state, nav.findPath(p.pos, stand), { kind: 'node', id: nodeId })) return true;
   }
@@ -70,7 +77,7 @@ export function updatePlayer(state: GameState, layout: Layout, dt: number, event
       if (!p.path.length) {
         const pending = p.pending; p.pending = null;
         events.emit({ type: 'arrived' });
-        if (pending?.kind === 'node') p.task = { kind: 'mine', nodeId: pending.id, progress: 0 };
+        if (pending?.kind === 'node') p.task = { kind: 'gather', nodeId: pending.id, progress: 0 };
         else {
           p.task = { kind: 'idle' };
           if (pending?.kind === 'visit') {
@@ -83,7 +90,7 @@ export function updatePlayer(state: GameState, layout: Layout, dt: number, event
     } else {
       p.pos = { x: p.pos.x + d.x / dist * step, z: p.pos.z + d.z / dist * step };
     }
-  } else if (p.task.kind === 'mine') {
+  } else if (p.task.kind === 'gather') {
     const id = p.task.nodeId, node = layout.nodes.find(n => n.id === id);
     if (node) p.heading = angleToward(p.heading, headingOf(sub(node.pos, p.pos)), TURN_RATE * dt);
   }

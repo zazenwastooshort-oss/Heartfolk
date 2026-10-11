@@ -39,7 +39,7 @@ function start(data: HotData): void {
     return;
   }
   const hud = new Hud(view, events, layout);
-  events.on(e => { if (e.type === 'strike') view.strike(); });     // chips fly where the pick lands
+  events.on(e => { if (e.type === 'strike') view.strike(e.nodeId); });     // chips fly where the tool lands
   bindInput(view, layout, queue, label => hud.hover(label));
   // For checking a running game from the browser console: hearthfolk.state, hearthfolk.view
   (window as unknown as { hearthfolk: unknown }).hearthfolk = { state, queue, view };

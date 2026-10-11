@@ -1,8 +1,11 @@
 // The ground and the river, drawn from the layout: grass, dirt roads and lanes, the paved town square, worn patches
-// by doors and rocks, a sandy riverbank, grass tufts, and the river itself (a faceted water strip that gently moves).
+// by doors, rocks and trees, a sandy riverbank, grass tufts, and the river itself (a faceted water strip that gently moves).
 import * as THREE from 'three';
-import type { Layout, Vec2 } from '../world/layout';
+import type { Layout, NodeSpot, Vec2 } from '../world/layout';
 import { doorOf } from '../world/layout';
+import { RESOURCES } from '../data/skills';
+
+const isRock = (n: NodeSpot) => RESOURCES[n.resource]!.model === 'Rock';
 
 function seeded(seed: number) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
@@ -57,7 +60,8 @@ export function buildWorld(scene: THREE.Scene, layout: Layout): WorldView {
     g.save(); g.translate(X(x), Z(z)); g.rotate(r() * Math.PI); g.fillRect(-sz / 2, -sz / 2, sz, sz * (0.7 + r() * 0.5)); g.restore();
   }
   for (const b of layout.buildings) { const d = doorOf(b); dirt(d.x, d.z, 1.4, 1.4, 900); }
-  for (const n of layout.nodes) dirt(n.pos.x, n.pos.z, 2.0, 1.7, 2600);
+  // a quarry floor round each rock; a smaller trampled patch where the woodcutter stands round a tree
+  for (const n of layout.nodes) if (isRock(n)) dirt(n.pos.x, n.pos.z, 2.0, 1.7, 2600); else dirt(n.pos.x, n.pos.z, 1.5, 1.5, 900);
   // land not yet claimed lies a little darker under its fog
   for (const p of layout.parcels) { g.fillStyle = 'rgba(20,40,25,0.18)'; g.fillRect(X(p.area.minX), Z(p.area.minZ), (p.area.maxX - p.area.minX) * px, (p.area.maxZ - p.area.minZ) * px); }
   for (let i = 0; i < 260; i++) { g.fillStyle = ['#f4e04d', '#f7f7f7', '#f29bb5'][i % 3]!; g.beginPath(); g.arc(r() * c.width, r() * c.height, 3, 0, 7); g.fill(); }
@@ -79,7 +83,7 @@ export function buildWorld(scene: THREE.Scene, layout: Layout): WorldView {
     if (distToPolyline(p, layout.river.points) < layout.river.width / 2 + 1.4) continue;
     if (layout.paths.some(l => distToPolyline(p, l.points) < l.width * 0.5 + 0.3)) continue;
     if (layout.gardens.some(gd => Math.hypot(p.x - gd.pos.x, p.z - gd.pos.z) < Math.hypot(gd.w, gd.d) / 2 + 0.4)) continue;
-    if (layout.nodes.some(nd => Math.hypot(p.x - nd.pos.x, p.z - nd.pos.z) < 1.9)) continue;
+    if (layout.nodes.some(nd => Math.hypot(p.x - nd.pos.x, p.z - nd.pos.z) < (isRock(nd) ? 1.9 : 1.1))) continue;
     if (layout.buildings.some(b => Math.hypot(p.x - b.pos.x, p.z - b.pos.z) < Math.hypot(b.w, b.d) / 2 + 0.3)) continue;
     for (let j = 0; j < 3 && k < n; j++, k++) {
       q.setFromEuler(new THREE.Euler((r() - 0.5) * 0.5, r() * 6.3, (r() - 0.5) * 0.5)); s.setScalar(0.7 + r() * 0.6);

@@ -51,8 +51,12 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
 .skill { position: absolute; left: var(--edge); bottom: calc(var(--edge) + env(safe-area-inset-bottom, 0px));
   width: min(240px, calc(100% - 2 * var(--edge))); box-sizing: border-box; background: var(--panel); color: var(--ink);
   border-radius: 10px; padding: 8px 10px; display: grid; gap: 5px; box-shadow: 0 2px 10px rgba(0, 0, 0, .3); pointer-events: none; }
+.skills { display: grid; gap: 6px; }
+.srow { display: grid; gap: 3px; }
+.srow + .srow { padding-top: 6px; border-top: 1px solid rgba(43, 33, 22, .12); }
 .skill .row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .skill .name { font-weight: 600; font-size: 13px; }
+.srow.active .name { color: var(--accent); }
 .skill .lvl { font-family: var(--display); font-weight: 700; font-size: 20px; color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
 .bar { height: 6px; background: rgba(43, 33, 22, .15); border-radius: 3px; overflow: hidden; }
 .bar i { display: block; height: 100%; width: 0; background: var(--xp); transition: width .25s ease-out; }
@@ -71,14 +75,12 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
     <div class="clock" id="clock">07:40</div>
   </div>
   <div class="hint" id="hint">
-    <span class="touch"><b>Tap the grass</b> to walk, <b>tap a rock</b> to mine, <b>tap a building</b> to visit. Drag to turn, pinch to zoom.</span>
-    <span class="mouse"><b>Click the grass</b> to walk, <b>click a rock</b> to mine, <b>click a building</b> to visit. Drag or arrow keys to turn, scroll to zoom.</span>
+    <span class="touch"><b>Tap the grass</b> to walk, <b>a rock</b> to mine, <b>a tree</b> to chop, <b>a building</b> to visit. Drag to turn, pinch to zoom.</span>
+    <span class="mouse"><b>Click the grass</b> to walk, <b>a rock</b> to mine, <b>a tree</b> to chop, <b>a building</b> to visit. Drag or arrow keys to turn, scroll to zoom.</span>
   </div>
   <div class="notice" id="notice" role="status"></div>
   <div class="skill" aria-live="polite">
-    <div class="row"><span class="name">Mining</span><span class="lvl" id="lvl">1</span></div>
-    <div class="bar"><i id="xpbar"></i></div>
-    <small id="xptext">0 / 80 xp</small>
+    <div class="skills" id="skills"></div>
     <div class="bank" id="bank">Nothing gathered yet</div>
   </div>
 </div>

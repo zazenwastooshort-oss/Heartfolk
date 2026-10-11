@@ -15,6 +15,11 @@ const migrations: Record<number, (s: any) => any> = {
     const { pendingNode, ...player } = s.player ?? {};
     return { ...s, player: { ...player, pending: pendingNode ? { kind: 'node', id: pendingNode } : null }, parcels: {} };
   },
+  // 0.0.6: woodcutting. The 'mine' task became 'gather', for rocks and trees alike.
+  2: (s) => {
+    const task = s.player?.task;
+    return task?.kind === 'mine' ? { ...s, player: { ...s.player, task: { ...task, kind: 'gather' } } } : s;
+  },
 };
 
 export function serialize(state: GameState): string { return JSON.stringify(state); }
@@ -43,7 +48,7 @@ export function deserialize(raw: string, layout: Layout): GameState {
     p.pos = { ...layout.start }; p.path = []; p.task = { kind: 'idle' }; p.pending = null;
   }
   // a task or destination pointing at something that no longer exists is dropped
-  if (p.task.kind === 'mine' && !(p.task.nodeId in state.nodes)) p.task = { kind: 'idle' };
+  if (p.task.kind === 'gather' && !(p.task.nodeId in state.nodes)) p.task = { kind: 'idle' };
   if (p.pending?.kind === 'node' && !(p.pending.id in state.nodes)) { p.pending = null; p.path = []; if (p.task.kind === 'walk') p.task = { kind: 'idle' }; }
   return state;
 }

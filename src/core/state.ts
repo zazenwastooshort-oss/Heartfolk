@@ -3,9 +3,10 @@ import type { SkillId } from '../data/skills';
 import type { Layout, Vec2 } from '../world/layout';
 import { DAY_SECONDS } from './clock';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
-export type Task = { kind: 'idle' } | { kind: 'walk' } | { kind: 'mine'; nodeId: string; progress: number };
+/** gather: working a rock or a tree; progress runs 0..1 through one swing of that skill's tool */
+export type Task = { kind: 'idle' } | { kind: 'walk' } | { kind: 'gather'; nodeId: string; progress: number };
 
 /** What the player is walking towards: a resource node to work, or a place to visit (a building or land). */
 export type Pending = { kind: 'node'; id: string } | { kind: 'visit'; id: string } | null;
