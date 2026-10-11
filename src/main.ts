@@ -1,4 +1,4 @@
-// Wires the modules together: state, simulation loop, view, input, HUD and saving.
+// Wires the modules together: state, simulation loop, view, input, HUD, the "What's new" note and saving.
 // This is the only file that knows about every module; the modules themselves only know their own layer
 // (enforced by tests/architecture.test.ts).
 import { VILLAGE } from './world/layout';
@@ -12,6 +12,7 @@ import { applyCommands, type Command } from './systems/commands';
 import { View } from './render/view';
 import { Hud } from './ui/hud';
 import { bindInput } from './ui/input';
+import { News } from './ui/news';
 
 // An artifact viewer can swap in a new version of the page while it is open and hand the game's snapshot
 // to the new version, so play carries on. Everywhere else `hot` is absent, hence the optional chaining.
@@ -24,7 +25,8 @@ function start(data: HotData): void {
   const layout = VILLAGE;
   let restored: GameState | null = null;
   if (data?.save) { try { restored = deserialize(data.save, layout); } catch { restored = null; } }
-  const state = restored ?? load(browserStorage, layout) ?? createState(layout, (Math.random() * 2 ** 31) | 0);
+  const saved = restored ?? load(browserStorage, layout);
+  const state = saved ?? createState(layout, (Math.random() * 2 ** 31) | 0);
   try { hot?.snapshot?.(() => ({ save: serialize(state) })); } catch { /* not an artifact viewer */ }
 
   const events = new EventBus();
@@ -41,6 +43,7 @@ function start(data: HotData): void {
   const hud = new Hud(view, events, layout);
   events.on(e => { if (e.type === 'strike') view.strike(e.nodeId); });     // chips fly where the tool lands
   bindInput(view, layout, queue, label => hud.hover(label));
+  new News(saved !== null);                                         // a returning player sees what changed since
   // For checking a running game from the browser console: hearthfolk.state, hearthfolk.view
   (window as unknown as { hearthfolk: unknown }).hearthfolk = { state, queue, view };
 

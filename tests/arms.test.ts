@@ -1,17 +1,28 @@
 // The character's hands stay on the tool's handle while the game crossfades clips (src/render/arms.ts). Loads the
 // real assets/models/miner.glb and drives it the way src/render/view.ts does: an AnimationMixer, 0.18 s crossfades,
 // the swing clips frozen (timeScale 0) with their time set from the swing's progress, so an interrupted swing stays
-// where it was while the next clip fades in.
+// where it was while the next clip fades in. The free clips (the tool on his back) are left alone by the IK, and the
+// rule for when he holds the tool runs headless on the simulation.
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
-import { ArmIK } from '../src/render/arms';
+import { ArmIK, armedWeight, toolInHand, toolInTransit } from '../src/render/arms';
+import { ARMED_CLIPS, FADE, GAIT, IDLE } from '../src/data/animation';
+import { createState } from '../src/core/state';
+import { EventBus, type GameEvent } from '../src/core/events';
+import { createRng } from '../src/core/rng';
+import { STEP } from '../src/core/loop';
+import { step } from '../src/sim';
+import { VILLAGE } from '../src/world/layout';
+import { applyCommands, type Command } from '../src/systems/commands';
 
 const bytes = readFileSync(new URL('../assets/models/miner.glb', import.meta.url));
 const load = (): Promise<GLTF> => new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer, '');
-const CLIPS = ['Idle', 'Walk', 'Run', 'Mine', 'Chop'];
+const CLIPS = ['Idle', 'Walk', 'Run', 'Mine', 'Chop'];        // armed: the tool in both hands
+const FREE = [IDLE.freeClip, GAIT.freeClip];                   // the tool on his back, the arms free
 const SWING = new Set(['Mine', 'Chop']);
+const BONES = ['upper_l', 'fore_l', 'upper_r', 'fore_r'];
 
 function rig(gltf: GLTF) {
   const miner = gltf.scene.getObjectByName('Miner')!;
@@ -26,28 +37,43 @@ function rig(gltf: GLTF) {
     miner.updateMatrixWorld(true);
     return Math.max(...pairs.map(([h, g]) => h.getWorldPosition(new THREE.Vector3()).distanceTo(g.getWorldPosition(new THREE.Vector3()))));
   };
+  const handPos = () => { miner.updateMatrixWorld(true); return pairs.map(([h]) => h.getWorldPosition(new THREE.Vector3())); };
   let current: THREE.AnimationAction | undefined;
-  const play = (name: string, fade = 0.18) => {      // view.ts play()
+  const play = (name: string, fade?: number) => {    // view.ts play()
     const next = actions[name]!; if (next === current) return;
     next.reset().setEffectiveWeight(1).play();
-    if (current) current.crossFadeTo(next, fade, false);
+    if (current) {
+      const swap = ARMED_CLIPS.has(current.getClip().name) !== ARMED_CLIPS.has(name);
+      current.crossFadeTo(next, fade ?? (swap ? FADE.swap : FADE.normal), false);
+    }
     current = next;
   };
   const reset = () => { mixer.stopAllAction(); current = undefined; };
-  return { miner, ik, mixer, actions, gap, play, reset };
+  const solve = () => ik.solve(armedWeight(Object.values(actions), current));   // as view.ts draw()
+  // a marker in the torso's frame at rest, the hips' own movement taken out: +x forward, +y up, -z his left
+  const hips = marker('hips');
+  miner.updateMatrixWorld(true);
+  const hipsRest = hips.matrixWorld.clone();
+  const inTorso = (name: string) => {
+    miner.updateMatrixWorld(true);
+    const m = hipsRest.clone().multiply(hips.matrixWorld.clone().invert());
+    return marker(name).getWorldPosition(new THREE.Vector3()).applyMatrix4(m);
+  };
+  return { miner, ik, mixer, actions, gap, handPos, play, reset, solve, inTorso };
 }
 
 describe('arm IK', () => {
-  it('finds every clip and marker in miner.glb', async () => {
+  it('finds every clip and marker in miner.glb, and knows which clips hold the tool', async () => {
     const r = rig(await load());
-    for (const c of CLIPS) expect(r.actions[c], c).toBeDefined();
+    for (const c of [...CLIPS, ...FREE]) expect(r.actions[c], c).toBeDefined();
+    expect([...ARMED_CLIPS].sort()).toEqual([...CLIPS].sort());
   });
 
   it('changes nothing inside a single clip', async () => {
     // sampled on the baked keys (100 per second); between keys the interpolated arm can be a fraction of a millimetre
     // off, and near a straight arm (the mining impact) putting that right turns the forearm a degree or so
     const r = rig(await load());
-    const bones = ['upper_l', 'fore_l', 'upper_r', 'fore_r'].map(n => r.miner.getObjectByName(n)!);
+    const bones = BONES.map(n => r.miner.getObjectByName(n)!);
     let worstTurn = 0, worstGap = 0;
     for (const clip of CLIPS) {
       r.reset(); r.play(clip, 0);
@@ -82,7 +108,7 @@ describe('arm IK', () => {
             if (SWING.has(to)) r.actions[to]!.time = f / 60;
             r.mixer.update(1 / 60);
             raw = Math.max(raw, r.gap());
-            r.ik.solve();
+            r.solve();
             fixed = Math.max(fixed, r.gap());
           }
         }
@@ -92,5 +118,104 @@ describe('arm IK', () => {
     const off = Object.entries(worst).filter(([, w]) => w.fixed > 0.003).map(([k, w]) => `${k}: ${(w.fixed * 100).toFixed(1)} cm`);
     expect(off, 'hand off its grip during a fade (blended alone: ' +
       Object.entries(worst).map(([k, w]) => `${k} ${(w.raw * 100).toFixed(0)} cm`).join(', ') + ')').toEqual([]);
+  });
+
+  it('leaves the free clips alone: the hands are off the handle and the handle stays behind the torso', async () => {
+    const r = rig(await load());
+    const bones = BONES.map(n => r.miner.getObjectByName(n)!);
+    let nearest = Infinity, turned = 0, front = -Infinity;
+    for (const clip of FREE) {
+      r.reset(); r.play(clip, 0);
+      const keys = Math.round(r.actions[clip]!.getClip().duration * 100);
+      for (let i = 0; i <= keys; i += 3) {
+        r.actions[clip]!.time = i / 100;
+        r.mixer.update(0);
+        nearest = Math.min(nearest, r.gap());
+        const before = bones.map(b => b.quaternion.clone());
+        r.solve();
+        bones.forEach((b, k) => { turned = Math.max(turned, b.quaternion.angleTo(before[k]!)); });
+        // both grips (the handle's lower half) behind his back: the torso reaches 0.17 m behind the shoulder line
+        for (const m of ['GripL', 'GripR']) front = Math.max(front, r.inTorso(m).x);
+      }
+    }
+    expect(nearest, 'metres the nearer hand comes to its grip').toBeGreaterThan(0.1);
+    expect(turned, 'radians the IK turned an arm bone in a free clip').toBeLessThan(1e-6);
+    expect(front, 'how far forward the handle on his back comes (m)').toBeLessThan(-0.17);
+  });
+
+  it('lets go of the handle fading to a free clip, and takes hold of it smoothly fading back', async () => {
+    const r = rig(await load());
+    const bones = BONES.map(n => r.miner.getObjectByName(n)!);
+    const issues: string[] = [];
+    for (const from of [...CLIPS, ...FREE]) {
+      for (const to of [...CLIPS, ...FREE]) {
+        if (from === to || (CLIPS.includes(from) && CLIPS.includes(to))) continue;   // armed to armed: the test above
+        const fromDur = r.actions[from]!.getClip().duration;
+        let jump = 0, touched = 0;
+        for (let k = 0; k < 4; k++) {
+          r.reset(); r.play(from, 0);
+          r.actions[from]!.time = (k / 4) * fromDur;
+          r.mixer.update(0); r.solve();
+          let last = r.handPos();
+          r.play(to);
+          for (let f = 1; f <= 15; f++) {
+            if (SWING.has(to)) r.actions[to]!.time = f / 60;
+            r.mixer.update(1 / 60);
+            // the tool is hidden while it goes between his hands and his back (the quick swap fade, about 7 frames)
+            const transit = toolInTransit(Object.values(r.actions));
+            const swap = CLIPS.includes(from) !== CLIPS.includes(to), swapFrames = Math.floor(FADE.swap * 60);
+            if (transit !== (swap && f <= swapFrames) && f !== swapFrames + 1) issues.push(`${from}->${to}: tool ${transit ? 'hidden' : 'shown'} at frame ${f}`);
+            const before = bones.map(b => b.quaternion.clone());
+            r.solve();
+            if (FREE.includes(to)) bones.forEach((b, i) => { touched = Math.max(touched, b.quaternion.angleTo(before[i]!)); });
+            const now = r.handPos();
+            jump = Math.max(jump, ...now.map((p, i) => p.distanceTo(last[i]!)));
+            last = now;
+          }
+          const end = r.gap();                          // 0.25 s in, the fade is over
+          if (FREE.includes(to) && end < 0.1) issues.push(`${from}->${to}: a hand still ${(end * 100).toFixed(0)} cm from the handle`);
+          if (CLIPS.includes(to) && end > 0.003) issues.push(`${from}->${to}: a hand ${(end * 100).toFixed(1)} cm off the handle after the fade`);
+        }
+        if (touched > 1e-6) issues.push(`${from}->${to}: the IK moved the arms fading to a free clip`);
+        // a 0.18 s fade moves a hand up to about 12 cm a frame at 60 fps (as between two armed clips, Mine to Run);
+        // snapping onto the handle at the start of a fade into an armed clip would jump 50-65 cm
+        if (jump > 0.2) issues.push(`${from}->${to}: a hand jumped ${(jump * 100).toFixed(0)} cm in one frame`);
+      }
+    }
+    expect(issues).toEqual([]);
+  });
+});
+
+describe('tool in hand or on his back', () => {
+  it('holds it only while he works, and slings it on his back on every walk (to work too) and otherwise', () => {
+    const state = createState(VILLAGE, 4), events = new EventBus(), log: GameEvent[] = [];
+    events.on(e => log.push(e));
+    const ctx = { layout: VILLAGE, rng: createRng(4), events };
+    const send = (...c: Command[]) => applyCommands(state, VILLAGE, c, events);
+    const runUntil = (done: () => boolean, max: number) => { for (let t = 0; t < max && !done(); t += STEP) step(state, STEP, ctx); };
+    const p = state.player, held = () => toolInHand(p);
+
+    expect(held(), 'standing about at the start').toBe(false);
+    send({ type: 'work', nodeId: 'birch1' });
+    expect(p.task.kind).toBe('walk');
+    expect(held(), 'on his way to a tree').toBe(false);
+    runUntil(() => p.task.kind === 'gather', 60);
+    expect(held(), 'chopping').toBe(true);
+    runUntil(() => log.some(e => e.type === 'backpackFull'), 600);
+    expect(p.pending?.kind).toBe('visit');
+    expect(held(), 'on a trip to the bank').toBe(false);
+    runUntil(() => p.task.kind === 'idle', 120);
+    expect(held(), 'the moment at the bank door').toBe(false);
+    runUntil(() => p.task.kind === 'walk', 30);
+    expect(p.pending?.kind).toBe('node');
+    expect(held(), 'back to work from the bank').toBe(false);
+    send({ type: 'walk', to: VILLAGE.start });
+    expect(p.task.kind).toBe('walk');
+    expect(held(), 'walking to a tapped spot').toBe(false);
+    send({ type: 'visit', id: VILLAGE.buildings.find(b => b.kind !== 'bank')!.id });
+    expect(p.task.kind).toBe('walk');
+    expect(held(), 'visiting a building').toBe(false);
+    // waiting at a stump he was sent to is still work
+    expect(toolInHand({ task: { kind: 'gather', nodeId: 'birch1', progress: 0 } })).toBe(true);
   });
 });

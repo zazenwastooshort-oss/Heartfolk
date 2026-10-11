@@ -272,10 +272,11 @@ Ten tasks take the village prototype to the first playable loop; tick each one o
 
 ## Decision log
 
-Twenty-seven decisions so far, newest first; each answered open question is added here with its date.
+Twenty-eight decisions so far, newest first; each answered open question is added here with its date.
 
 | Date | Decision |
 | --- | --- |
+| 11 Oct 2026 | Panels are forest green with cream text, in the game and on the plan board: dark and calm, never bright. |
 | 11 Oct 2026 | Roads are faster to travel (about 40% quicker than grass, easy to tune), and the character takes the quickest route: the road whenever it gets him there sooner, straight across the grass for short hops. |
 | 11 Oct 2026 | How new land is obtained is open again: land is there to explore, and getting it may take a task, a price, or both. The earlier decisions (claimed at the city hall, gold plus an XP milestone) stand as the working plan until this is settled; not needed before step 7. |
 | 11 Oct 2026 | Progress runs at the full rate (1x) while the game is open, even in a background tab or with the screen off, and at a fifth of it (0.2x) while the game is closed, for at most 2 hours; after that the character stops until you come back. The game cannot tell a game you closed from one the phone closed in the background, so both count as closed. The 2 hours is easy to change later. |

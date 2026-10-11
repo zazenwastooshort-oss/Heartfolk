@@ -1,7 +1,9 @@
 // Draws the game: the ground and river, the village, fog over unclaimed land, the rocks and trees, and the character
 // with the tool for the job (pick or axe) and the matching animation, placed from the game state every frame, plus
-// effects (chips, the click cross). It reads state; it never changes it. Clips crossfade, and ArmIK puts the hands
-// back on the handle after every blend.
+// effects (chips, the click cross). It reads state; it never changes it. The tool is in his hands while he works and
+// on his back otherwise, every walk included (toolInHand picks the armed or the free clip), hidden for the moment it
+// moves between the two. Clips crossfade, and ArmIK puts the hands back on the handle after every blend into an
+// armed clip.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import minerUrl from '../../assets/models/miner.glb?url';
@@ -9,7 +11,7 @@ import villageUrl from '../../assets/models/village.glb?url';
 import type { GameState } from '../core/state';
 import type { Layout, NodeSpot } from '../world/layout';
 import { RESOURCES } from '../data/skills';
-import { GAIT, SWINGS, type Swing } from '../data/animation';
+import { ARMED_CLIPS, FADE, GAIT, IDLE, SWINGS, type Swing } from '../data/animation';
 import { dayFraction } from '../core/clock';
 import { Lighting } from './lighting';
 import { OrbitCamera } from './camera';
@@ -17,7 +19,7 @@ import { buildWorld, type WorldView } from './world';
 import { VillageView } from './village';
 import { FogView } from './fog';
 import { NodesView } from './nodes';
-import { ArmIK } from './arms';
+import { ArmIK, armedWeight, toolInHand, toolInTransit } from './arms';
 
 type Tool = Swing['tool'];
 
@@ -45,6 +47,8 @@ export class View {
   private miner?: THREE.Object3D;
   private tools?: Record<Tool, { parts: THREE.Object3D[]; tip: THREE.Object3D }>;
   private tool: Tool | null = null;
+  private handle?: THREE.Object3D;       // the handle both tools share
+  private toolHidden = false;
   private mixer?: THREE.AnimationMixer;
   private arms?: ArmIK;
   private actions: Record<string, THREE.AnimationAction> = {};
@@ -91,7 +95,8 @@ export class View {
       pick: { parts: [find('pick_head'), find('pick_collar')], tip: find('PickTip') },
       axe: { parts: [find('axe_head'), find('axe_blade')], tip: find('AxeTip') },
     };
-    this.useTool('pick');
+    this.handle = find('pick_handle');
+    this.showTool('pick');
     this.nodes = new NodesView(this.scene, this.layout, find('Rock'), village.scene);
     this.pickables.push(...this.nodes.pickables);
     this.scene.add(this.miner);
@@ -99,21 +104,26 @@ export class View {
     this.mixer = new THREE.AnimationMixer(this.miner);
     for (const clip of gltf.animations) this.actions[clip.name] = this.mixer.clipAction(clip);
     for (const s of Object.values(SWINGS)) this.actions[s.clip]!.timeScale = 0;   // the simulation drives each swing, so strikes line up
-    this.actions[GAIT.clip]!.timeScale = GAIT.speed / GAIT.clipSpeed;              // stride matched to the ground speed
-    this.play('Idle', 0);
+    for (const c of [GAIT.clip, GAIT.freeClip]) this.actions[c]!.timeScale = GAIT.speed / GAIT.clipSpeed;   // stride matched to the ground speed
+    this.play(IDLE.freeClip, 0);
   }
 
-  /** Show the pick or the axe in the character's hands. */
-  private useTool(tool: Tool): void {
-    if (!this.tools || tool === this.tool) return;
-    for (const [name, t] of Object.entries(this.tools)) for (const part of t.parts) part.visible = name === tool;
-    this.tool = tool;
+  /** Show the pick or the axe (in his hands or on his back, as the clip has it), or neither while it moves between
+   *  the two (toolInTransit). */
+  private showTool(tool: Tool, hidden = this.toolHidden): void {
+    if (!this.tools || !this.handle || (tool === this.tool && hidden === this.toolHidden)) return;
+    for (const [name, t] of Object.entries(this.tools)) for (const part of t.parts) part.visible = !hidden && name === tool;
+    this.handle.visible = !hidden;
+    this.tool = tool; this.toolHidden = hidden;
   }
 
-  private play(name: string, fade = 0.18): void {
+  private play(name: string, fade?: number): void {
     const next = this.actions[name]; if (!next || next === this.current) return;
     next.reset().setEffectiveWeight(1).play();
-    if (this.current) this.current.crossFadeTo(next, fade, false);
+    if (this.current) {
+      const swap = ARMED_CLIPS.has(this.current.getClip().name) !== ARMED_CLIPS.has(name);
+      this.current.crossFadeTo(next, fade ?? (swap ? FADE.swap : FADE.normal), false);
+    }
     this.current = next;
   }
 
@@ -139,17 +149,20 @@ export class View {
       this.shown.heading += dh * Math.min(1, dt * 20);
       this.miner.position.copy(this.shown.pos); this.miner.rotation.y = this.shown.heading;
       const task = p.task;
-      // the node being worked, or the one he is walking to: he takes out the tool for it on the way
+      // the node being worked, or the one he is walking to: its tool rides on his back on the way, out once he is there
       const workId = task.kind === 'gather' ? task.nodeId : p.pending?.kind === 'node' ? p.pending.id : null;
       const spot = workId ? this.spots.get(workId) : undefined;
       const swing = spot ? SWINGS[RESOURCES[spot.resource]!.skill] : null;
-      if (swing) this.useTool(swing.tool);
+      if (swing) this.showTool(swing.tool);
       const waiting = task.kind === 'gather' && !!state.nodes[task.nodeId]?.depletedUntil;
-      if (task.kind === 'walk') this.play(GAIT.clip);
+      const armed = toolInHand(p);         // otherwise the tool is on his back
+      if (task.kind === 'walk') this.play(armed ? GAIT.clip : GAIT.freeClip);
       else if (task.kind === 'gather' && !waiting && swing) { this.play(swing.clip); this.actions[swing.clip]!.time = task.progress * swing.cycle; }
-      else this.play('Idle');
+      else this.play(armed ? IDLE.clip : IDLE.freeClip);
       this.mixer.update(dt);
-      this.arms?.solve();                   // a crossfade blends the arms apart from the tool: hands back on the handle
+      // a crossfade blends the arms apart from the tool: hands back on the handle (in armed clips only)
+      this.arms?.solve(armedWeight(Object.values(this.actions), this.current));
+      if (this.tool) this.showTool(this.tool, toolInTransit(Object.values(this.actions)));   // between hands and back
       if (this.strikeAt && this.tools && this.tool) this.nodes?.hit(this.strikeAt, this.tools[this.tool].tip.getWorldPosition(new THREE.Vector3()));
     }
     this.strikeAt = null;

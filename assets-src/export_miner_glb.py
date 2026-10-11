@@ -1,8 +1,11 @@
 # Recipe: the v2 miner and the copper rock as a real 3D model (glTF binary) for live 3D in the browser.
 # Builds the character from assets-src/sprite_miner_v2.py (everything above "# Copper rock"), adds a woodcutting
 # axe beside the pick (the game shows one or the other), gives it a small skeleton (root, hips, head, tool, two hip
-# joints, and per arm an upper arm and a forearm) with each body part rigidly attached to a bone, keys five
-# animations (Idle, Walk, Run, Mine, Chop) and exports assets/models/miner.glb. The rock is a separate node named "Rock".
+# joints, and per arm an upper arm and a forearm) with each body part rigidly attached to a bone, keys seven
+# animations and exports assets/models/miner.glb: five armed ones with the tool in both hands (Idle, Walk, Run, Mine,
+# Chop) and two free ones with the tool slung across his back and the arms keyed on their own (RunFree, IdleFree: the
+# same legs, root, hips and head as Run and Idle; the game shows them on every walk and whenever he isn't working).
+# The rock is a separate node named "Rock".
 # Markers PickTip and AxeTip show where each tool lands. Timings and standing distances go to assets/models/miner.json.
 # Arms: the tool swings on its own bone ("tool"). Each hand holds a fixed point on the handle, and a two-bone IK
 # (solved here in Python, elbows pointing out and down) bends the elbows to reach it, baked into a key per frame on
@@ -10,11 +13,14 @@
 # both swings lean over the right shoulder, so the elbows bend at the top and straighten into the strike; all of
 # this is zero at the impact keys, so the measured strikes and miner.json are unchanged. The "ARMS" lines printed
 # per clip check the hands stay on the handle, the arms and tool stay out of the head and torso, and how much of the
-# face they hide. The game blends clips, so markers GripL/R, HandL/R and PoleL/R let it re-solve the same IK on the
-# blended pose (src/render/arms.ts); the "BLEND" lines check that keeps the hands on the handle in every crossfade.
+# face they hide; for the free clips they say how near the hands come to the handle and check the tool on his back
+# stays out of the head, torso and arms (the hand-gap and BLEND checks are the armed clips' alone). The game blends
+# clips, so markers GripL/R, HandL/R and PoleL/R let it re-solve the same IK on the blended pose of the armed clips
+# (src/render/arms.ts); the "BLEND" lines check that keeps the hands on the handle in every crossfade between them.
 # Run: A:\Blender\blender-5.2.2-windows-x64\blender.exe -b --factory-startup -P assets-src/export_miner_glb.py
 # Add "-- check" to also render a contact sheet of Mine, Chop, Idle, Walk and Run from the side, a three-quarter front and
-# the front at the game camera's pitch (assets/renders/rig_check_sheet.png).
+# the front at the game camera's pitch, and of IdleFree and RunFree (with the pick and with the axe) from the side, a
+# three-quarter front and a three-quarter back (assets/renders/rig_check_sheet.png).
 import bpy, bmesh, math, os, json, sys, struct
 from mathutils import Vector, Matrix, Quaternion
 from mathutils.bvhtree import BVHTree
@@ -177,8 +183,13 @@ def pose(bone, deg=0.0, dz=0.0, roll=0.0, yaw=0.0, pull=0.0, lead=0.0):
     """Pose a bone with a rotation given in the character's frame (converted into the bone's own frame).
     For the tool, `pull` slides it along its handle toward the shoulders (its rotated +Z) and `lead` moves it
     toward the side that leads the swing (its rotated -X, where the pick tip and the axe edge point)."""
-    rest = rig.data.bones[bone].matrix_local.to_3x3()
     rot = turn(deg, roll, yaw)
+    pose_rot(bone, rot, Vector((0, 0, dz)) + rot @ Vector((-lead, 0, pull)))
+
+def pose_rot(bone, rot, move=Vector()):
+    """Pose a bone with a rotation (a Quaternion in the character's frame, about the bone's head) and a move (in the
+    parent's frame, as at rest)."""
+    rest = rig.data.bones[bone].matrix_local.to_3x3()
     q = (rest.inverted() @ rot.to_matrix() @ rest).to_quaternion()
     # q and -q are the same rotation; keep the one nearest the last key, or Blender blends the long way round
     # (this made the wind-up swing forward through the front instead of up over the head)
@@ -187,7 +198,7 @@ def pose(bone, deg=0.0, dz=0.0, roll=0.0, yaw=0.0, pull=0.0, lead=0.0):
         q.negate()
     LAST_Q[bone] = q.copy()
     pb[bone].rotation_quaternion = q
-    pb[bone].location = rest.inverted() @ (Vector((0, 0, dz)) + rot @ Vector((-lead, 0, pull)))
+    pb[bone].location = rest.inverted() @ move
 
 def key(frame):
     for n in BODY:
@@ -227,11 +238,16 @@ CHOP_PULL = [0.05, 0.105, 0.18, 0.265, 0.315, 0.335, 0.22, 0.07, 0, 0, 0.02, 0.0
 CHOP_LEAD = [0.025, 0.075, 0.16, 0.2, 0.24, 0.24, 0.185, 0.07, 0, 0, 0.02, 0.025]
 meta = {"fps": FPS}
 
+IDLE_KEYS = (0, 100, 200)
+def idle_body(t):
+    """Idle's legs, hips and head at key t (hundredths of a second): standing, a slow breath (shared by IdleFree)."""
+    pose("hips", 0, 0.006 if t == 100 else 0.0); pose("head", 0)
+    pose("hip_l", 0); pose("hip_r", 0)
+
 new_action("Idle")
-for t, dz in ((0, 0.0), (100, 0.006), (200, 0.0)):
+for t in IDLE_KEYS:
     pose("tool", CARRY + (1.5 if t == 100 else 0), pull=CARRY_PULL + (0.01 if t == 100 else 0), lead=CARRY_LEAD)
-    pose("hips", 0, dz); pose("head", 0)
-    pose("hip_l", 0); pose("hip_r", 0); key(t)
+    idle_body(t); key(t)
 idle = finish_action("Idle")
 
 new_action("Walk")
@@ -252,17 +268,22 @@ meta["walk_cycle_s"] = STEPS * 10 / FPS
 # The whole body (root) dips while the legs are spread, so the straight legs don't lift the feet far off the ground.
 # A leg turning SWING degrees about its hip moves the foot LEG * sin(SWING), so one cycle (two steps) covers
 # 4 * LEG * sin(RUN_SWING); the game plays the clip faster or slower from run_speed_m_s so the feet don't slide.
-new_action("Run")
 RUN_STEPS, RUN_SWING, RUN_KEY = 8, 36, 7        # keys per cycle, leg swing (degrees), hundredths of a second per key
 LEG = 0.66                                      # hip joint height
-for f in range(RUN_STEPS + 1):
-    ph = f / RUN_STEPS * 2 * math.pi
+
+def run_body(ph):
+    """Run's legs, root, hips and head at phase ph of the stride (shared by RunFree, so both cover the same ground)."""
     swing = RUN_SWING * math.sin(ph)
     pose("hip_l", -swing); pose("hip_r", swing)
     pose("root", 0, -0.045 * math.sin(ph) ** 2)
     pose("hips", 9, 0.012 * math.cos(2 * ph), yaw=4 * math.sin(ph))       # the right shoulder forward with the left leg
-    pose("tool", CARRY + 7 * math.sin(ph), pull=CARRY_PULL + 0.015 * math.cos(2 * ph), lead=CARRY_LEAD)
     pose("head", -8, yaw=-4 * math.sin(ph))     # looking ahead, steady while the shoulders turn
+
+new_action("Run")
+for f in range(RUN_STEPS + 1):
+    ph = f / RUN_STEPS * 2 * math.pi
+    run_body(ph)
+    pose("tool", CARRY + 7 * math.sin(ph), pull=CARRY_PULL + 0.015 * math.cos(2 * ph), lead=CARRY_LEAD)
     key(f * RUN_KEY)
 run = finish_action("Run")
 meta["run_cycle_s"] = RUN_STEPS * RUN_KEY / FPS
@@ -483,7 +504,9 @@ def frames_of(act):
     f0, f1 = act.frame_range
     return range(int(round(f0)), int(round(f1)) + 1)
 
-def bake_arms(act):
+def bake_arms(act, arm_at=None):
+    """Key the arm bones of a clip on every frame: onto the handle by the IK above, or for a free clip from
+    arm_at(frame) -> {side: (swing, bend, out)} (see hang_arm)."""
     rig.animation_data.action = act
     last = {}
     rest = {n: bones[n].matrix_local for n in ("hips", "tool") + ARM_BONES}
@@ -493,7 +516,10 @@ def bake_arms(act):
         H = hips_m @ rest["hips"].inverted()
         Tm = pb["tool"].matrix @ rest["tool"].inverted()
         for s in "lr":
-            Mu, Mf, _ = solve_arm(s, H, Tm @ (PIVOT - Vector((0, 0, GRIP[s]))))
+            if arm_at is None:
+                Mu, Mf, _ = solve_arm(s, H, Tm @ (PIVOT - Vector((0, 0, GRIP[s]))))
+            else:
+                Mu, Mf = hang_arm(s, H, *arm_at(fr)[s])
             up, fo = f"upper_{s}", f"fore_{s}"
             local = {up: rest[up].inverted() @ rest["hips"] @ hips_m.inverted() @ Mu,
                      fo: rest[fo].inverted() @ rest[up] @ Mu.inverted() @ Mf}
@@ -511,6 +537,75 @@ def bake_arms(act):
 
 for act in (idle, walk, run, mine, chop):
     bake_arms(act)
+
+# ---------- free clips: the tool on his back, his arms his own ----------
+# On every walk (the walk to work too) and whenever he isn't working, the game shows RunFree and IdleFree
+# (src/render/arms.ts, toolInHand); Run, like Walk, is kept but unused. Their legs, root, hips and head are keyed
+# exactly as Run's and Idle's, so RunFree covers the same ground (run_speed_m_s holds for both). The tool hangs across his back, the handle diagonal behind the torso and
+# the head (pick head or axe blade) up behind his right shoulder, bobbing a little with the stride. The arms are
+# keyed directly, with no IK onto the handle: in RunFree they swing against the legs, elbows a little bent; in
+# IdleFree they hang at his sides and move with his breath. The game's arm IK leaves these clips alone.
+BACK_HEAD = Vector((-0.27, -0.24, 1.36))        # the tool's head (the collar round the handle end), torso frame at rest
+BACK_DIR = Vector((-0.08, -0.5, 0.86)).normalized()  # along the handle toward the head: up, to his right, a little back
+BACK_ROLL = 20                  # degrees the head turns about the handle, the pick tip (or blade) forward, its back away
+COLLAR = 1.12                   # the collar's distance from the pivot along the handle
+
+def back_tool(bob=0.0, dz=0.0):
+    """Pose the tool across his back, rocked `bob` degrees about the facing axis round its head and raised dz."""
+    X = Vector((1, 0, 0))
+    tip = X.cross(BACK_DIR).normalized()        # across the back, down to his right
+    tip = tip * math.cos(math.radians(BACK_ROLL)) + BACK_DIR.cross(tip) * math.sin(math.radians(BACK_ROLL))
+    frame = lambda a, b: Matrix((a, b, a.cross(b))).transposed()
+    R = Quaternion(X, math.radians(bob)) @ (frame(BACK_DIR, tip) @ frame(Vector((0, 0, -1)), -X).transposed()).to_quaternion()
+    pose_rot("tool", R, BACK_HEAD + Vector((0, 0, dz)) - PIVOT - R @ Vector((0, 0, -COLLAR)))
+
+def hang_arm(s, H, swing, bend, out):
+    """Armature-space pose matrices of an arm's upper arm and forearm, hanging from the shoulder: the upper arm turned
+    `swing` degrees forward and `out` degrees out to the side (in the torso's frame, H as in solve_arm), the forearm
+    bent `bend` degrees further forward at the elbow and half as far out; the thumbs point forward."""
+    m = 1 if s == "l" else -1
+    S0, E0, T0 = JOINT[s]
+    H3 = H.to_3x3()
+    fwd = H3 @ Vector((1, 0, 0))
+    def along(f, o):
+        f, o = math.radians(f), math.radians(o)
+        return H3 @ Vector((math.sin(f) * math.cos(o), m * math.sin(o), -math.cos(f) * math.cos(o)))
+    def turn_onto(rest_dir, new_dir):
+        """Rotation taking rest_dir to new_dir, the rest pose's forward (+X, where the thumb is) kept forward."""
+        ref = fwd - fwd.dot(new_dir) * new_dir
+        return frame3(new_dir, ref.normalized()) @ frame3(rest_dir, Vector((1, 0, 0))).transposed()
+    du, df = along(swing, out), along(swing + bend, out * 0.5)
+    S = H @ S0; E = S + du * ARM_LEN[s][0]
+    Ru, Rf = turn_onto((E0 - S0).normalized(), du), turn_onto((T0 - E0).normalized(), df)
+    return (Matrix.Translation(S) @ (Ru @ bones[f"upper_{s}"].matrix_local.to_3x3()).to_4x4(),
+            Matrix.Translation(E) @ (Rf @ bones[f"fore_{s}"].matrix_local.to_3x3()).to_4x4())
+
+RUN_FRAMES = RUN_STEPS * RUN_KEY
+new_action("RunFree")
+for f in range(RUN_STEPS + 1):
+    ph = f / RUN_STEPS * 2 * math.pi
+    run_body(ph)
+    back_tool(2 * math.sin(ph), 0.006 * math.sin(2 * ph))
+    key(f * RUN_KEY)
+run_free = finish_action("RunFree")
+
+def run_free_arms(fr):
+    """Each arm swings against its leg (the left leg is forward when sin > 0), bending more as it comes forward."""
+    ph = fr / RUN_FRAMES * 2 * math.pi
+    return {s: (-8 + 28 * a, 48 + 14 * a, 10) for s, a in (("l", -math.sin(ph)), ("r", math.sin(ph)))}
+bake_arms(run_free, run_free_arms)
+
+new_action("IdleFree")
+for t in IDLE_KEYS:
+    back_tool(); idle_body(t); key(t)
+idle_free = finish_action("IdleFree")
+
+def idle_free_arms(fr):
+    """Relaxed at his sides, lifting a touch out and forward as he breathes in (Idle's breath peaks at 1 s)."""
+    b = (1 - math.cos(fr / 200 * 2 * math.pi)) / 2
+    return {s: (4 + 1.5 * b, 14 + 2 * b, 9 + 1.5 * b) for s in "lr"}
+bake_arms(idle_free, idle_free_arms)
+FREE = {"RunFree", "IdleFree"}
 
 # ---------- arms: verify ----------
 # Per clip: the largest gap between each hand centre and its grip, the elbow bend range, how deep any arm part
@@ -534,7 +629,8 @@ def hull(name):
     bm.free()
     return bpy.data.objects[name], np.array(N), np.array(D)
 
-BODY_HULLS = {"head": [hull("face"), hull("hair")], "torso": [hull("torso")]}
+BODY_HULLS = {"head": [hull("face"), hull("hair")], "torso": [hull("torso")],
+              "arms": [hull(f"{part}_{s}") for s in "lr" for part in ("upperarm", "cuff", "forearm", "hand", "thumb")]}
 def part_pts(name, keep=lambda p: True):
     """(object, points in its mesh frame, which points count against the torso)."""
     o = bpy.data.objects[name]
@@ -547,6 +643,22 @@ ARM_PTS = [part_pts(f"{part}_{s}", (lambda p, s=s: (p - JOINT[s][0]).length > 0.
 PICK_PTS = [part_pts(n) for n in ("pick_handle", "pick_collar", "pick_head")]
 AXE_PTS = [part_pts(n) for n in ("axe_head", "axe_blade")]
 TOOL_PTS = {"Idle": PICK_PTS + AXE_PTS, "Walk": PICK_PTS + AXE_PTS, "Run": PICK_PTS + AXE_PTS, "Mine": PICK_PTS, "Chop": PICK_PTS[:1] + AXE_PTS}
+
+def dense_pts(name, step=0.03):
+    """A tool part's vertices plus points along its edges every `step` metres: the handle is a long box with only
+    eight corners, and on his back it lies close along the torso."""
+    o, pts, _ = part_pts(name)
+    me = o.data
+    extra = []
+    for e in me.edges:
+        a, b = me.vertices[e.vertices[0]].co, me.vertices[e.vertices[1]].co
+        n = int((b - a).length / step)
+        extra += [a.lerp(b, i / (n + 1)) for i in range(1, n + 1)]
+    pts = np.vstack([pts, np.array(extra)]) if extra else pts
+    return o, pts, np.ones(len(pts), dtype=bool)
+# in the free clips both tools are carried on his back (the game shows one); they are checked against the arms too
+for name in FREE:
+    TOOL_PTS[name] = [dense_pts(n) for n in ("pick_handle", "pick_collar", "pick_head", "axe_head", "axe_blade")]
 
 def depth(kind, parts=ARM_PTS):
     """(deepest point of any of the parts inside the body kind in metres, negative if clear; the part)."""
@@ -602,9 +714,13 @@ def face_hidden(occluders, n=22):
     return worst
 
 def arm_report(act):
+    """Prints the clip's ARMS line; returns (largest hand gap, frames with over half the face hidden, smallest hand
+    gap, {check: (deepest, where)}). A free clip's hands are off the handle, so it reports how near they come to it,
+    and how close the tool on his back comes to the arms."""
+    free = act.name in FREE
     rig.animation_data.action = act
-    gap = {"l": 0.0, "r": 0.0}; bend = {"l": [999.0, -1.0], "r": [999.0, -1.0]}
-    deep = {"head": (-1.0, None), "torso": (-1.0, None), "tool": (-1.0, None)}
+    gap = {"l": 0.0, "r": 0.0}; near = {"l": 9.0, "r": 9.0}; bend = {"l": [999.0, -1.0], "r": [999.0, -1.0]}
+    deep = {"head": (-1.0, None), "torso": (-1.0, None), "tool": (-1.0, None), "tool in arms": (-1.0, None)}
     prev, spin = {}, (0.0, None)
     tool_objs = [o for o, _, _ in TOOL_PTS[act.name]]
     face, face_over_half = (0.0, None), 0
@@ -613,7 +729,7 @@ def arm_report(act):
         for s in "lr":
             c = bpy.data.objects[f"hand_{s}"].matrix_world @ HAND_C[s]
             g = handle.matrix_world @ Vector((0, 0, -GRIP[s]))
-            gap[s] = max(gap[s], (c - g).length)
+            gap[s] = max(gap[s], (c - g).length); near[s] = min(near[s], (c - g).length)
             up, fo = pb[f"upper_{s}"], pb[f"fore_{s}"]
             ang = math.degrees((up.tail - up.head).angle(fo.tail - fo.head))
             bend[s] = [min(bend[s][0], ang), max(bend[s][1], ang)]
@@ -623,29 +739,42 @@ def arm_report(act):
                 d = math.degrees(2 * math.acos(min(1.0, abs(prev[n].dot(q)))))
                 if d > spin[0]: spin = (d, f"{n} frame {fr}")
             prev[n] = q
-        for kind, d in (("head", depth("head")), ("torso", depth("torso")),
-                        ("tool", max(depth("head", TOOL_PTS[act.name]), depth("torso", TOOL_PTS[act.name])))):
+        checks = [("head", depth("head")), ("torso", depth("torso")),
+                  ("tool", max(depth("head", TOOL_PTS[act.name]), depth("torso", TOOL_PTS[act.name])))]
+        if free: checks.append(("tool in arms", depth("arms", TOOL_PTS[act.name])))
+        for kind, d in checks:
             if d[0] > deep[kind][0]: deep[kind] = (d[0], f"{d[1]} frame {fr}")
         f = face_hidden(ARM_OBJS + tool_objs)
         face_over_half += f[0] > 0.5
         if f[0] > face[0]: face = (f[0], f"{f[1]}, frame {fr}")
     rig.animation_data.action = None
-    print(f"ARMS {act.name}: hand gap L {gap['l'] * 100:.2f} cm R {gap['r'] * 100:.2f} cm; "
+    hands = (f"free, the hands no nearer the handle than L {near['l'] * 100:.0f} cm R {near['r'] * 100:.0f} cm" if free
+             else f"hand gap L {gap['l'] * 100:.2f} cm R {gap['r'] * 100:.2f} cm")
+    tool_arms = (f"tool in arms {max(deep['tool in arms'][0], 0) * 100:.1f} cm ({deep['tool in arms'][1]}); " if free else "")
+    print(f"ARMS {act.name}: {hands}; "
           f"elbow bend L {bend['l'][0]:.0f}-{bend['l'][1]:.0f} deg R {bend['r'][0]:.0f}-{bend['r'][1]:.0f} deg; "
           f"arms in head {max(deep['head'][0], 0) * 100:.1f} cm ({deep['head'][1]}), "
           f"in torso {max(deep['torso'][0], 0) * 100:.1f} cm ({deep['torso'][1]}); "
-          f"tool in head or torso {max(deep['tool'][0], 0) * 100:.1f} cm ({deep['tool'][1]}); "
+          f"tool in head or torso {max(deep['tool'][0], 0) * 100:.1f} cm ({deep['tool'][1]}); {tool_arms}"
           f"largest turn per frame {spin[0]:.1f} deg ({spin[1]}); "
           f"face hidden up to {face[0] * 100:.0f}% ({face[1]}), over half in {face_over_half} of {len(frames_of(act))} frames",
           flush=True)
-    return max(gap.values()), face_over_half
+    return max(gap.values()), face_over_half, min(near.values()), deep
 
-reports = {act.name: arm_report(act) for act in (idle, walk, run, mine, chop)}
-worst_gap = max(g for g, _ in reports.values())
+reports = {act.name: arm_report(act) for act in (idle, walk, run, mine, chop, run_free, idle_free)}
+# the hands hold the handle in the armed clips (the hand-gap check is theirs alone)
+worst_gap = max(r[0] for name, r in reports.items() if name not in FREE)
 assert worst_gap < 0.01, f"a hand is {worst_gap * 100:.1f} cm off its grip"
 # the tool may sweep past the face for a moment in a swing, but never stay in front of it
-hidden = {name: n for name, (_, n) in reports.items() if n > 10}
+hidden = {name: r[1] for name, r in reports.items() if r[1] > 10}
 assert not hidden, f"over half the face hidden for more than 0.1 s: {hidden} (frames)"
+# in the free clips the hands are off the handle, the tool on his back is clear of his head, torso and arms, and the
+# arms are clear of his head and torso
+for name in FREE:
+    _, _, near, deep = reports[name]
+    assert near > 0.1, f"{name}: a hand comes within {near * 100:.0f} cm of the handle on his back"
+    bad = {k: round(d * 100, 1) for k, (d, _) in deep.items() if d > 0.002}
+    assert not bad, f"{name}: parts into each other (cm): {bad}"
 
 # ---------- arms: crossfades ----------
 # The game crossfades clips over 0.18 s (src/render/view.ts): three.js mixes each bone's local rotation (slerp) and
@@ -778,30 +907,38 @@ if CHECK:
     rock_root.location.x = REACH                # the rock where the game stands the miner (after the export)
     renders = os.path.join(os.getcwd(), "assets", "renders"); os.makedirs(renders, exist_ok=True)
     key_fr = lambda ms, k: round(sum(ms[:k]) / 10)
-    clips = [  # (row label, action, tool shown, target shown, [(label, frame)])
+    clips = [  # (row label, action, tool shown, target shown, [(label, frame or (action, frame[, tool]))][, views])
         ("Mine", mine, "pick", rock_root, [("wind-up", key_fr(MINE_MS, 3)), ("top", key_fr(MINE_MS, 5)), ("strike", key_fr(MINE_MS, 7)),
                                            ("impact", round(meta["mine_impact_s"] * FPS)), ("recover", key_fr(MINE_MS, 10))]),
         ("Chop", chop, "axe", trunk, [("wind-up", key_fr(CH_MS, 3)), ("top", key_fr(CH_MS, 5)), ("strike", key_fr(CH_MS, 7)),
                                       ("impact", impact_f), ("recover", key_fr(CH_MS, 10))]),
         ("Idle/Walk/Run", None, "pick", None, [("idle", (idle, 0)), ("walk 0.2 s", (walk, 20)), ("run 0.14 s", (run, 14)), ("run 0.42 s", (run, 42))]),
+        ("IdleFree/RunFree", None, "pick", None, [("pick", (idle_free, 100, "pick")), ("0.14 s, pick", (run_free, 14, "pick")),
+                                                  ("axe", (idle_free, 0, "axe")), ("0.42 s, axe", (run_free, 42, "axe"))],
+         ("side", "3/4 front", "3/4 back")),
     ]
     TOOLS = {"pick": ("pick_head", "pick_collar"), "axe": ("axe_head", "axe_blade")}
     # the side, a three-quarter front, and straight on from the front at the game camera's pitch (38 degrees,
     # src/render/camera.ts), where the face shows; the rock or trunk is left out of that one so it hides nothing
     p38 = math.radians(38)
-    VIEWS = (("side", Vector((0, -1, 0.08))), ("3/4 front", Vector((1, 0.8, 0.35))), ("front, game pitch", Vector((math.cos(p38), 0, math.sin(p38)))))
-    rows = []
-    for row_label, act, tool, target, shots in clips:
+    VIEWS = (("side", Vector((0, -1, 0.08))), ("3/4 front", Vector((1, 0.8, 0.35))), ("front, game pitch", Vector((math.cos(p38), 0, math.sin(p38)))),
+             ("3/4 back", Vector((-1, -0.8, 0.35))))
+    def show_tool(tool):
         for tl, names_ in TOOLS.items():
             for n in names_: bpy.data.objects[n].hide_render = tl != tool
+    rows = []
+    for row_label, act, tool, target, shots, *row_views in clips:
+        show_tool(tool)
         for view, d in VIEWS:
+            if view not in (row_views[0] if row_views else [v for v, _ in VIEWS[:3]]): continue
             for o in [rock_root, *rock_root.children, trunk]:
                 o.hide_render = target is None or view.startswith("front") or not (o is target or o.parent is target)
             cam.location = look + d.normalized() * 8
             cam.rotation_euler = (look - cam.location).to_track_quat("-Z", "Y").to_euler()
             row = []
             for label, fr in shots:
-                a, fr = (act, fr) if act else fr
+                a, fr, *shot_tool = (act, fr) if act else fr
+                show_tool(shot_tool[0] if shot_tool else tool)
                 rig.animation_data.action = a
                 scene.frame_set(fr)
                 scene.render.stamp_note_text = f"{a.name} {label} ({view})"

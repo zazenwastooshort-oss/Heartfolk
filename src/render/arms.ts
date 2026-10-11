@@ -1,11 +1,46 @@
-// Keeps the character's hands on the tool's handle. Every clip in miner.glb has its arms baked by a two-bone IK
+// Keeps the character's hands on the tool's handle. Every armed clip in miner.glb has its arms baked by a two-bone IK
 // (assets-src/export_miner_glb.py), but the game crossfades clips, and a blend of two arm poses does not follow the
 // blend of the two tool poses: on its own each fade would take the hands off the handle. After the mixer has run,
 // ArmIK fixes the blended pose the same way the recipe checks it (draw_in and solve_arm there): if a grip has gone
 // out of an arm's reach, the tool is drawn in toward the shoulders until both grips are in reach; then each arm's
 // upper arm and forearm turn so its hand (marker HandL/HandR on fore_l/r) lands on its grip (GripL/GripR on the
 // tool), the elbow bending toward its pole (PoleL/PoleR on the hips). Inside a single clip it changes nothing.
+// The tool is only in his hands while he works (toolInHand); on every walk, and whenever else he isn't working, the
+// free clips carry it on his back with the arms keyed on their own, and ArmIK leaves them be (armedWeight).
 import * as THREE from 'three';
+import type { PlayerState } from '../core/state';
+import { ARMED_CLIPS } from '../data/animation';
+
+/** Whether he has the tool in his hands: only while he works a node (waiting at a stump or an empty rock included).
+ *  On every walk (to work, back to work from the bank, on to the next tree or rock, to the bank, to a tapped spot, to
+ *  a building) and the rest of the time (standing about, the moment at the bank door) it is on his back and his arms
+ *  are free: he sheathes it to walk and takes it out when he reaches the node (the owner, 11 Oct 2026). */
+export function toolInHand(p: Pick<PlayerState, 'task'>): boolean {
+  return p.task.kind === 'gather';
+}
+
+/** How much of the blended pose comes from clips that hold the tool, for ArmIK.solve: 0 while the clip being faded
+ *  to is a free one, so the hands let go of the handle as the tool goes onto his back; fading into an armed clip it
+ *  rises with the armed clips' weight, so the hands take hold of the handle as he takes it out, and it is 1 inside an
+ *  armed clip or a fade between two. Call after mixer.update(). */
+export function armedWeight(actions: Iterable<THREE.AnimationAction>, target: THREE.AnimationAction | undefined): number {
+  if (!target || !ARMED_CLIPS.has(target.getClip().name)) return 0;
+  let w = 0;
+  for (const a of actions) if (a.isScheduled() && ARMED_CLIPS.has(a.getClip().name)) w += a.getEffectiveWeight();
+  return Math.min(1, w);
+}
+
+/** Whether a fade between an armed and a free clip is under way. The blend would swing the tool straight through his
+ *  body on its way between his hands and his back, so the view hides it for that short swap (FADE.swap in
+ *  data/animation). Call after mixer.update(). */
+export function toolInTransit(actions: Iterable<THREE.AnimationAction>): boolean {
+  let armed = 0, free = 0;
+  for (const a of actions) {
+    if (!a.isScheduled()) continue;
+    if (ARMED_CLIPS.has(a.getClip().name)) armed += a.getEffectiveWeight(); else free += a.getEffectiveWeight();
+  }
+  return armed > 1e-3 && free > 1e-3;
+}
 
 interface Arm {
   upper: THREE.Object3D; fore: THREE.Object3D; grip: THREE.Object3D; pole: THREE.Object3D;
@@ -28,7 +63,8 @@ export class ArmIK {
   private v = { d: new THREE.Vector3(), u: new THREE.Vector3(), w: new THREE.Vector3(), p: new THREE.Vector3(), e: new THREE.Vector3(),
                 t: new THREE.Vector3(), n: new THREE.Vector3(), axis: new THREE.Vector3(), move: new THREE.Vector3() };
   private m = new THREE.Matrix4();
-  private q = { upper: new THREE.Quaternion(), fore: new THREE.Quaternion(), parent: new THREE.Quaternion() };
+  private q = { upper: new THREE.Quaternion(), fore: new THREE.Quaternion(), parent: new THREE.Quaternion(),
+                rawUpper: new THREE.Quaternion(), rawFore: new THREE.Quaternion() };
 
   /** `model` is the character (the glTF scene's Miner node), still in its rest pose: make this before the mixer runs. */
   constructor(private model: THREE.Object3D) {
@@ -60,8 +96,12 @@ export class ArmIK {
     this.tool = this.arms[0]!.grip.parent!;
   }
 
-  /** Put both hands back on the handle. Call after mixer.update(). */
-  solve(): void {
+  /** Put both hands back on the handle, `weight` of the way (armedWeight): fully in an armed clip, partly while one
+   *  fades in over a free clip, not at all in a free clip (the hands are off the handle there). Call after
+   *  mixer.update(). */
+  solve(weight = 1): void {
+    if (weight <= 0) return;
+    weight = Math.min(1, weight);
     const { d, u, w, p, e, t, n, axis, move } = this.v;
     this.model.updateMatrixWorld(true);
     for (const arm of this.arms) { arm.upper.getWorldPosition(arm.shoulder); arm.grip.getWorldPosition(arm.target); }
@@ -75,6 +115,7 @@ export class ArmIK {
         if (len > arm.reach) move.addScaledVector(d, -(1 - arm.reach / len));
       }
     }
+    move.multiplyScalar(weight);
     if (move.lengthSq() > 0) {
       this.tool.position.copy(this.tool.parent!.worldToLocal(this.tool.getWorldPosition(d).add(move)));
       this.tool.updateMatrixWorld(true);
@@ -97,9 +138,14 @@ export class ArmIK {
       n.crossVectors(u, w);
       this.q.upper.setFromRotationMatrix(this.m.multiplyMatrices(frame(axis.subVectors(e, s).divideScalar(a), n, this.m), arm.upperFrame));
       this.q.fore.setFromRotationMatrix(this.m.multiplyMatrices(frame(axis.subVectors(t, e).divideScalar(b), n, this.m), arm.foreFrame));
+      this.q.rawUpper.copy(arm.upper.quaternion); this.q.rawFore.copy(arm.fore.quaternion);
       arm.upper.parent!.getWorldQuaternion(this.q.parent);
       arm.upper.quaternion.copy(this.q.parent.invert().multiply(this.q.upper));
       arm.fore.quaternion.copy(this.q.upper.invert().multiply(this.q.fore));
+      if (weight < 1) {                  // part of the way from the arms the clips give toward the handle
+        arm.upper.quaternion.copy(this.q.rawUpper.slerp(arm.upper.quaternion, weight));
+        arm.fore.quaternion.copy(this.q.rawFore.slerp(arm.fore.quaternion, weight));
+      }
       arm.upper.updateMatrixWorld(true);
     }
   }

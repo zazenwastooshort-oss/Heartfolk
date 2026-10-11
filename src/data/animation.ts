@@ -15,6 +15,21 @@ export const SWINGS: Record<SkillId, Swing> = {
 };
 
 /** How the character gets about: `speed` metres a second on the ground (doubled from walking pace at the owner's
- *  request, 11 Oct; stamina may come later), drawn with `clip`, whose stride covers `clipSpeed` metres a second at
- *  its own pace, so the view plays it speed / clipSpeed times as fast and the feet don't slide. */
-export const GAIT = { clip: 'Run', speed: 2.9, clipSpeed: meta.run_speed_m_s };
+ *  request, 11 Oct; stamina may come later), drawn with `freeClip` (the tool on his back, arms swinging) on every
+ *  walk, to work included: he takes the tool out only when he gets there (the owner, 11 Oct). `clip` is the same
+ *  stride with the tool in his hands, unused for now (like Walk) but kept in miner.glb. Both strides cover
+ *  `clipSpeed` metres a second at their own pace, so the view plays them speed / clipSpeed times as fast and the feet
+ *  don't slide. */
+export const GAIT = { clip: 'Run', freeClip: 'RunFree', speed: 2.9, clipSpeed: meta.run_speed_m_s };
+
+/** Standing: `clip` with the tool in his hands (at work, waiting at a stump or an empty rock), `freeClip` with it
+ *  on his back and his arms at his sides. */
+export const IDLE = { clip: 'Idle', freeClip: 'IdleFree' };
+
+/** The clips in miner.glb that hold the tool in both hands; the arm IK keeps the hands on its handle in these alone
+ *  (src/render/arms.ts). The free clips carry it on his back. */
+export const ARMED_CLIPS: ReadonlySet<string> = new Set([IDLE.clip, 'Walk', GAIT.clip, ...Object.values(SWINGS).map(s => s.clip)]);
+
+/** Crossfade between two clips, in seconds. A swap between an armed and a free clip (the tool going between his
+ *  hands and his back) is quicker: the tool is hidden while it happens and the arms pass close to his chest. */
+export const FADE = { normal: 0.18, swap: 0.12 };
