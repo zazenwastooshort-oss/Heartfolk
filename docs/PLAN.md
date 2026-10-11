@@ -268,14 +268,15 @@ Ten tasks take the village prototype to the first playable loop; tick each one o
 - [ ] **Saving and away time.** Progress saves, and your character keeps working while the game is closed, at a fifth of the live rate for up to 2 hours. Done when closing and reopening shows a summary of what they made.
 - [ ] **Test and publish.** Headless simulation, screenshots at three sizes, version 0.1 built and logged. Done when you've played it.
 
-**Parking lot**, not slice 1: helpers who skill alongside you, NPC quests, petitions and blessings as flavour, achievements, prestige, sound, stamina for walking (11 Oct, the owner: maybe later, now that walking is faster), the survival book (12 Oct, the owner): the character washes up with only his book of know-how, which becomes the in-game guide to what he can make and where he learned it, a joke on survival handbooks, and a printed copy could be a Kickstarter reward; to add once crafting exists, a watch showing the time of day, when it gets dark and where north is (11 Oct; possibly an item bought from the merchant, or a sundial on the square).
+**Parking lot**, not slice 1: helpers who skill alongside you, NPC quests, petitions and blessings as flavour, achievements, prestige, sound, stamina for walking (11 Oct, the owner: maybe later, now that walking is faster), a watch showing the time of day, when it gets dark and where north is (11 Oct; possibly an item bought from the merchant, or a sundial on the square).
 
 ## Decision log
 
-Thirty-three decisions so far, newest first; each answered open question is added here with its date.
+Thirty-four decisions so far, newest first; each answered open question is added here with its date.
 
 | Date | Decision |
 | --- | --- |
+| 12 Oct 2026 | The survival book is in from the start: wreckage washes up with him (planks, a tarp, a crate and his book). Picking up the book opens it; its pages are the goals, in order: salvage the wreck, a campfire (planks and stones), a stone axe (branches and stones), firewood, a shelter (tarp, planks, logs), a stone pickaxe, a storage chest. Stones and branches are gathered by hand. A printed copy could still be a Kickstarter reward. |
 | 12 Oct 2026 | The character washes up with nothing: no tools. He gathers branches and stones by hand and makes his first tools from them (a stone axe first); better tools come later. The camp starts bare: tent and campfire appear only when built. |
 | 12 Oct 2026 | The fall was so far that the top of the waterfall is never seen: from the camp there is only water pouring out of the sky down a towering mountain wall. The opening cinematic shows him falling out of the mist with the water into the pool. |
 | 12 Oct 2026 | The camp is at the foot of a waterfall. A new game opens with a short cinematic: the character drifts down the river, goes over the waterfall and washes up in the pool below, where he sets up camp. The village lies far up the river and comes much later. |
