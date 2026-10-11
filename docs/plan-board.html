@@ -1,0 +1,325 @@
+<title>Hearthfolk Plan Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: the game's own look (CLAUDE.md, index.html): parchment panels like the HUD on a village-green ground.
+   One column of sections; questions and notes sit side by side on wide screens. Content comes from the db. */
+:root {
+  --bg: #e6eadb; --panel: #fbf7ec; --ink: #2b2116; --muted: #6b5c48; --line: rgba(43, 33, 22, .13);
+  --accent: #a8641c; --green: #4f8f3e; --ground: #2c4a26; --ground-ink: #f1e8d4;
+  --c-done: #d9ecd0; --c-done-ink: #245a18; --c-built: #e7f1dc; --c-built-ink: #36692a;
+  --c-now: #fbe3c4; --c-now-ink: #8a4b0f; --c-next: #e1e9f4; --c-next-ink: #2c4f7a;
+  --c-plan: #efe9dd; --c-plan-ink: #6b5c48; --c-new: #fbe3c4; --c-new-ink: #8a4b0f;
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
+  --body: "Karla", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #18221a; --panel: #222d23; --ink: #efe6d2; --muted: #b3a78f; --line: rgba(239, 230, 210, .12);
+    --accent: #e0954f; --green: #8fd36e; --ground: #2c4a26; --ground-ink: #f1e8d4;
+    --c-done: #23401c; --c-done-ink: #b8e6a3; --c-built: #2a3d22; --c-built-ink: #a9d995;
+    --c-now: #4a3418; --c-now-ink: #f3c48c; --c-next: #22324a; --c-next-ink: #a9c6ee;
+    --c-plan: #2e2f27; --c-plan-ink: #c9bda5; --c-new: #4a3418; --c-new-ink: #f3c48c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #18221a; --panel: #222d23; --ink: #efe6d2; --muted: #b3a78f; --line: rgba(239, 230, 210, .12);
+  --accent: #e0954f; --green: #8fd36e; --ground: #2c4a26; --ground-ink: #f1e8d4;
+  --c-done: #23401c; --c-done-ink: #b8e6a3; --c-built: #2a3d22; --c-built-ink: #a9d995;
+  --c-now: #4a3418; --c-now-ink: #f3c48c; --c-next: #22324a; --c-next-ink: #a9c6ee;
+  --c-plan: #2e2f27; --c-plan-ink: #c9bda5; --c-new: #4a3418; --c-new-ink: #f3c48c;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); }
+.wrap { max-width: 940px; margin: 0 auto; padding-inline: 16px; padding-block: 0 48px; display: grid; gap: 22px; }
+
+header.top { background: var(--ground); color: var(--ground-ink); padding-inline: 16px; padding-block: 22px 20px; }
+header.top .in { max-width: 940px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: flex-end; justify-content: space-between; }
+h1 { font: 700 clamp(1.6rem, 4vw, 2.2rem)/1.05 var(--display); margin: 0; text-wrap: balance; }
+.sub { margin: 6px 0 0; opacity: .85; max-width: 60ch; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fact { background: rgba(241, 232, 212, .12); border: 1px solid rgba(241, 232, 212, .22); border-radius: 999px; padding: 4px 11px; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fact b { font-weight: 700; }
+a.play { color: var(--ground); background: var(--ground-ink); border-radius: 999px; padding: 6px 14px; font-weight: 700; text-decoration: none; font-size: 14px; white-space: nowrap; }
+a.play:hover, a.play:focus-visible { background: #fff; outline: none; box-shadow: 0 0 0 3px rgba(241, 232, 212, .5); }
+
+section { display: grid; gap: 10px; min-width: 0; }
+h2 { font: 700 1.15rem/1.2 var(--display); margin: 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+h2 small { font: 500 13px/1.3 var(--body); color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+
+.chip { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+.chip.done { background: var(--c-done); color: var(--c-done-ink); }
+.chip.built { background: var(--c-built); color: var(--c-built-ink); }
+.chip.now { background: var(--c-now); color: var(--c-now-ink); }
+.chip.next { background: var(--c-next); color: var(--c-next-ink); }
+.chip.plan { background: var(--c-plan); color: var(--c-plan-ink); }
+.chip.new { background: var(--c-new); color: var(--c-new-ink); }
+.tag { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* building now: a row of cards that wraps */
+.now { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.card { padding: 14px 16px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.card .head { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.card h3 { margin: 0; font: 700 1rem/1.3 var(--body); }
+.card p { margin: 0; color: var(--muted); }
+
+/* slice steps: a numbered sequence (the build order really is one) */
+.progress { display: flex; gap: 4px; }
+.progress i { flex: 1; height: 6px; border-radius: 3px; background: var(--c-plan); }
+.progress i.done { background: var(--green); }
+.progress i.built { background: color-mix(in srgb, var(--green) 55%, var(--c-plan)); }
+.progress i.now { background: var(--accent); }
+ol.steps { list-style: none; margin: 0; padding: 0; }
+ol.steps li { display: grid; grid-template-columns: 2.2rem 1fr auto; gap: 4px 12px; padding: 12px 16px; border-top: 1px solid var(--line); align-items: start; }
+ol.steps li:first-child { border-top: 0; }
+.num { font: 700 1.1rem/1.4 var(--display); color: var(--muted); font-variant-numeric: tabular-nums; }
+li.built .num, li.done .num { color: var(--green); }
+li.now .num { color: var(--accent); }
+.step-title { font-weight: 700; }
+.step-detail { color: var(--muted); grid-column: 2 / 4; margin: 0; min-width: 0; }
+.step-meta { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+@media (max-width: 760px) { .two { grid-template-columns: 1fr; } }
+
+ul.rows { list-style: none; margin: 0; padding: 0; }
+ul.rows li { padding: 11px 16px; border-top: 1px solid var(--line); display: grid; gap: 3px; min-width: 0; }
+ul.rows li:first-child { border-top: 0; }
+.row-head { display: flex; gap: 10px; justify-content: space-between; align-items: baseline; }
+.row-title { font-weight: 700; min-width: 0; }
+.row-detail { color: var(--muted); margin: 0; }
+.ver { font: 700 13px/1.4 var(--body); color: var(--accent); font-variant-numeric: tabular-nums; }
+
+/* notes */
+form.note { display: grid; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+form.note label { font-weight: 700; font-size: 14px; }
+textarea { width: 100%; min-height: 72px; resize: vertical; border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; font: inherit; color: var(--ink); background: var(--bg); }
+textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.form-foot { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.hint { font-size: 13px; color: var(--muted); }
+button { font: 700 14px/1 var(--body); border: 0; border-radius: 999px; padding: 9px 16px; cursor: pointer; background: var(--accent); color: #fff; }
+button:disabled { opacity: .5; cursor: default; }
+button.link { background: none; color: var(--muted); padding: 2px 4px; font-weight: 500; font-size: 13px; text-decoration: underline; }
+.reply { margin: 4px 0 0; padding: 7px 10px; border-radius: 8px; background: var(--bg); color: var(--ink); font-size: 14px; }
+.reply b { color: var(--accent); }
+
+details.more summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 10px 16px; border-top: 1px solid var(--line); list-style: none; }
+details.more summary::-webkit-details-marker { display: none; }
+details.more summary::before { content: "+ "; }
+details.more[open] summary::before { content: "− "; }
+
+.empty { padding: 16px; color: var(--muted); }
+.cols { columns: 2 240px; column-gap: 0; }
+.cols li { break-inside: avoid; }
+@media (prefers-reduced-motion: no-preference) { .card, ol.steps li, ul.rows li { transition: background-color .2s; } }
+</style>
+
+<header class="top">
+  <div class="in">
+    <div>
+      <h1>Hearthfolk plan board</h1>
+      <p class="sub" id="goal">What we're building, what's next and what's still open. Kept up to date as we work.</p>
+    </div>
+    <div class="facts" id="facts">
+      <span class="fact" id="slice">Slice 1: the loop</span>
+      <span class="fact">Live <b id="live">–</b></span>
+      <span class="fact">Updated <b id="updated">–</b></span>
+      <a class="play" id="play" href="https://claude.ai/artifact/7YuS2GDUio87zA4RkMKQa7" target="_blank" rel="noopener">Play the game</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section aria-labelledby="h-now">
+    <h2 id="h-now">Building now</h2>
+    <div class="now" id="now"><div class="panel empty">Loading the plan…</div></div>
+  </section>
+
+  <section aria-labelledby="h-steps">
+    <h2 id="h-steps">Slice 1 steps <small id="steps-sum"></small></h2>
+    <div class="progress" id="progress" aria-hidden="true"></div>
+    <div class="panel"><ol class="steps" id="steps"><li class="empty">Loading…</li></ol></div>
+  </section>
+
+  <div class="two">
+    <section aria-labelledby="h-q">
+      <h2 id="h-q">Open questions <small>for you, when they come up</small></h2>
+      <div class="panel"><ul class="rows" id="questions"><li class="empty">Loading…</li></ul></div>
+    </section>
+    <section aria-labelledby="h-notes">
+      <h2 id="h-notes">Your notes <small>Claude reads these</small></h2>
+      <div class="panel">
+        <form class="note" id="note-form">
+          <label for="note-text">Jot down an idea or something to fix</label>
+          <textarea id="note-text" maxlength="2000" placeholder="For example: the bank trip feels long from the oaks"></textarea>
+          <div class="form-foot">
+            <span class="hint" id="note-hint">Saved to this board.</span>
+            <button type="submit" id="note-add">Add note</button>
+          </div>
+        </form>
+        <ul class="rows" id="notes"><li class="empty">No notes yet.</li></ul>
+      </div>
+    </section>
+  </div>
+
+  <section aria-labelledby="h-ver">
+    <h2 id="h-ver">Recent versions</h2>
+    <div class="panel"><ul class="rows" id="versions"><li class="empty">Loading…</li></ul></div>
+  </section>
+
+  <section aria-labelledby="h-dec">
+    <h2 id="h-dec">Decisions <small>newest first</small></h2>
+    <div class="panel"><ul class="rows" id="decisions"><li class="empty">Loading…</li></ul></div>
+  </section>
+
+  <section aria-labelledby="h-later">
+    <h2 id="h-later">Later <small>ideas parked outside this slice</small></h2>
+    <div class="panel"><ul class="rows cols" id="later"><li class="empty">Loading…</li></ul></div>
+  </section>
+</main>
+
+<script>
+const STATUS = {
+  done: ['Done', 'done'], built: ['Ready to play', 'built'], building: ['Building now', 'now'],
+  next: ['Next', 'next'], planned: ['Planned', 'plan'], open: ['Open', 'plan'],
+};
+const NOTE_STATE = { new: ['New', 'new'], seen: ['Seen by Claude', 'next'], done: ['Done', 'done'] };
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const chip = (map, key) => { const [label, cls] = map[key] || [key || '', 'plan']; return el('span', 'chip ' + cls, label); };
+const $ = id => document.getElementById(id);
+
+let board = null, meta = null, notes = [], db = null, canWrite = null;
+
+function fill(listId, items, make, emptyText) {
+  const list = $(listId); list.replaceChildren();
+  if (!items.length) { list.append(el('li', 'empty', emptyText)); return; }
+  for (const it of items) list.append(make(it));
+}
+
+function render() {
+  if (meta) {
+    $('live').textContent = meta.live || '–';
+    $('updated').textContent = meta.updated || '–';
+    if (meta.slice) $('slice').textContent = meta.slice;
+    if (meta.goal) $('goal').textContent = meta.goal;
+    if (meta.gameUrl) $('play').href = meta.gameUrl;
+  }
+  if (!board) return;
+  const of = kind => board.filter(b => b.kind === kind);
+
+  const now = $('now'); now.replaceChildren();
+  const nowItems = of('now');
+  if (!nowItems.length) now.append(el('div', 'panel empty', 'Nothing in progress right now.'));
+  for (const it of nowItems) {
+    const card = el('article', 'panel card'), head = el('div', 'head');
+    head.append(el('h3', null, it.title), chip(STATUS, it.status));
+    card.append(head);
+    if (it.detail) card.append(el('p', null, it.detail));
+    if (it.tag) card.append(el('span', 'tag', it.tag));
+    now.append(card);
+  }
+
+  const steps = of('step');
+  const counts = s => steps.filter(x => x.status === s).length;
+  $('steps-sum').textContent = steps.length
+    ? `${counts('done')} done · ${counts('built')} ready to play · ${steps.length} in all` : '';
+  const bar = $('progress'); bar.replaceChildren();
+  for (const s of steps) bar.append(el('i', (STATUS[s.status] || [, 'plan'])[1]));
+  fill('steps', steps, (s, i) => {
+    const li = el('li', (STATUS[s.status] || [, 'plan'])[1]);
+    li.append(el('span', 'num', String(steps.indexOf(s) + 1)), el('span', 'step-title', s.title));
+    const m = el('span', 'step-meta');
+    if (s.tag) m.append(el('span', 'tag', s.tag));
+    m.append(chip(STATUS, s.status));
+    li.append(m);
+    if (s.detail) li.append(el('p', 'step-detail', s.detail));
+    return li;
+  }, 'No steps yet.');
+
+  const row = (it, right) => {
+    const li = el('li'), head = el('div', 'row-head');
+    head.append(el('span', 'row-title', it.title));
+    if (right) head.append(right);
+    li.append(head);
+    if (it.detail) li.append(el('p', 'row-detail', it.detail));
+    return li;
+  };
+  fill('questions', of('question'), q => row(q, q.tag ? el('span', 'tag', q.tag) : null), 'No open questions.');
+  fill('versions', of('version'), v => {
+    const li = el('li'), head = el('div', 'row-head');
+    head.append(el('span', 'row-title', v.title), el('span', 'ver', v.tag || ''));
+    li.append(head);
+    if (v.detail) li.append(el('p', 'row-detail', v.detail));
+    return li;
+  }, 'No versions yet.');
+
+  const decisions = of('decision'), list = $('decisions'); list.replaceChildren();
+  if (!decisions.length) list.append(el('li', 'empty', 'No decisions yet.'));
+  decisions.slice(0, 8).forEach(d => list.append(row(d, d.tag ? el('span', 'tag', d.tag) : null)));
+  if (decisions.length > 8) {
+    const more = el('details', 'more'), sum = el('summary', null, `${decisions.length - 8} earlier decisions`), inner = el('ul', 'rows');
+    decisions.slice(8).forEach(d => inner.append(row(d, d.tag ? el('span', 'tag', d.tag) : null)));
+    more.append(sum, inner); const li = el('li'); li.style.padding = '0'; li.append(more); list.append(li);
+  }
+
+  fill('later', of('later'), l => row(l, null), 'Nothing parked.');
+  renderNotes();
+}
+
+function renderNotes() {
+  fill('notes', notes, n => {
+    const li = el('li'), head = el('div', 'row-head');
+    head.append(el('span', 'row-title', n.text), chip(NOTE_STATE, n.state || 'new'));
+    li.append(head);
+    const when = n.at ? new Date(n.at) : null;
+    const foot = el('div', 'row-head');
+    foot.append(el('span', 'tag', when && !isNaN(when) ? when.toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''));
+    if (canWrite !== false && db) {
+      const del = el('button', 'link', 'Remove'); del.type = 'button';
+      del.addEventListener('click', async () => { del.disabled = true; try { await db.doc('notes/' + n.id).delete(); } catch { del.disabled = false; } });
+      foot.append(del);
+    }
+    if (n.reply) { const r = el('p', 'reply'); r.append(el('b', null, 'Claude: '), document.createTextNode(n.reply)); li.append(r); }
+    li.append(foot);
+    return li;
+  }, 'No notes yet. Anything you add here, Claude picks up next time it looks.');
+}
+
+$('note-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const box = $('note-text'), text = box.value.trim(), btn = $('note-add'), hint = $('note-hint');
+  if (!text || !db) return;
+  btn.disabled = true;
+  try {
+    await db.collection('notes').add({ text, at: new Date().toISOString(), state: 'new' });
+    box.value = ''; hint.textContent = 'Saved. Claude will see it.';
+  } catch (err) {
+    hint.textContent = err && err.code === 'invalid_argument' ? 'Only the board’s owner can add notes.' : 'Couldn’t save just now. Try again in a moment.';
+    if (err && err.code === 'invalid_argument') canWrite = false;
+  } finally { btn.disabled = false; }
+});
+
+function offline(text) {
+  for (const id of ['steps', 'questions', 'versions', 'decisions', 'later']) $(id).replaceChildren(el('li', 'empty', text));
+  $('now').replaceChildren(el('div', 'panel empty', text));
+  $('note-add').disabled = true; $('note-hint').textContent = 'Notes need the board open in Claude.';
+}
+
+(async () => {
+  const c = window.claude;
+  db = c && c.use ? await c.use('db') : null;
+  if (!db) { offline('The plan shows here when the board is opened in Claude while signed in.'); return; }
+  const fail = () => offline('The plan couldn’t load. Reopen the board to try again.');
+  db.collection('board').orderBy('order').onSnapshot(s => { board = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
+  db.doc('meta/board').onSnapshot(s => { meta = s.exists ? s.data() : null; render(); }, () => {});
+  db.collection('notes').orderBy('at', 'desc').limit(200).onSnapshot(s => { notes = s.docs.map(d => ({ id: d.id, ...d.data() })); renderNotes(); }, () => {});
+  const user = c.use ? await c.use('user') : null;
+  if (user) { try { canWrite = await user.can('data.write'); } catch { canWrite = null; } }
+  if (canWrite === false) { $('note-add').disabled = true; $('note-hint').textContent = 'Only the board’s owner can add notes.'; renderNotes(); }
+})();
+</script>
