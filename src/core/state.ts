@@ -3,7 +3,7 @@ import type { SkillId } from '../data/skills';
 import type { Layout, Vec2 } from '../world/layout';
 import { DAY_SECONDS } from './clock';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 /** gather: working a rock or a tree; progress runs 0..1 through one swing of that skill's tool. `mayMoveOn` is set
  *  when the node runs out while he works it, so he can move on to another; a node that was already down when he got
@@ -13,12 +13,19 @@ export type Task = { kind: 'idle' } | { kind: 'walk' } | { kind: 'gather'; nodeI
 /** What the player is walking towards: a resource node to work, or a place to visit (a building or land). */
 export type Pending = { kind: 'node'; id: string } | { kind: 'visit'; id: string } | null;
 
+/** On the way to the bank to empty a full backpack; afterwards he goes back to work at `nodeId` (or the nearest free
+ *  node like it). `leaveAt` is set at the bank once the backpack is empty: he heads back when the clock reaches it.
+ *  Saved, so a trip carries on after a reload. */
+export interface Trip { nodeId: string; leaveAt?: number }
+
 export interface PlayerState {
   pos: Vec2;
   heading: number;              // radians; 0 faces +x, positive turns towards -z
   path: Vec2[];                 // waypoints still to walk
   task: Task;
   pending: Pending;
+  backpack: Record<string, number>;   // items carried, one per slot (BACKPACK_SLOTS in data/hauling)
+  trip: Trip | null;
 }
 
 export interface NodeState { id: string; depletedUntil: number }   // 0 when available
@@ -30,7 +37,7 @@ export interface GameState {
   seed: number;
   player: PlayerState;
   skills: Record<SkillId, number>;   // xp per skill
-  bank: Record<string, number>;      // items gathered (the backpack and bank split comes in slice 1)
+  bank: Record<string, number>;      // items stored at the bank
   nodes: Record<string, NodeState>;
   parcels: Record<string, ParcelState>;
 }
@@ -40,7 +47,7 @@ export function createState(layout: Layout, seed = 1): GameState {
     version: SAVE_VERSION,
     time: DAY_SECONDS * 0.32,   // start mid-morning (about 7:40)
     seed,
-    player: { pos: { ...layout.start }, heading: Math.PI / 2, path: [], task: { kind: 'idle' }, pending: null },
+    player: { pos: { ...layout.start }, heading: Math.PI / 2, path: [], task: { kind: 'idle' }, pending: null, backpack: {}, trip: null },
     skills: { mining: 0, woodcutting: 0 },
     bank: {},
     nodes: Object.fromEntries(layout.nodes.map(n => [n.id, { id: n.id, depletedUntil: 0 }])),

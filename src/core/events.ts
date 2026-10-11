@@ -4,7 +4,10 @@ import type { SkillId } from '../data/skills';
 
 export type GameEvent =
   | { type: 'strike'; nodeId: string }
-  | { type: 'itemGained'; item: string; count: number }
+  | { type: 'itemGained'; item: string; count: number }          // into the backpack
+  | { type: 'backpackFull' }                                     // a trip to the bank starts
+  | { type: 'banked'; items: Record<string, number> }            // the backpack was emptied into the bank
+  | { type: 'nothingToBank' }                                    // at the bank with an empty backpack
   | { type: 'xpGained'; skill: SkillId; amount: number }
   | { type: 'levelUp'; skill: SkillId; level: number }
   | { type: 'nodeDepleted'; nodeId: string }

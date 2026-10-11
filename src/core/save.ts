@@ -2,6 +2,7 @@
 import { SAVE_VERSION, createState, type GameState } from './state';
 import type { Layout } from '../world/layout';
 import { navFor } from '../world/nav';
+import { ITEMS, SKILLS, type SkillId } from '../data/skills';
 
 export interface Storage { get(key: string): string | null; set(key: string, value: string): void }
 
@@ -20,9 +21,31 @@ const migrations: Record<number, (s: any) => any> = {
     const task = s.player?.task;
     return task?.kind === 'mine' ? { ...s, player: { ...s.player, task: { ...task, kind: 'gather' } } } : s;
   },
+  // 0.0.9: the backpack. Gathering fills it and he carries it to the bank; what was gathered before stays banked.
+  3: (s) => ({ ...s, player: { ...s.player, backpack: {}, trip: null } }),
 };
 
 export function serialize(state: GameState): string { return JSON.stringify(state); }
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** The items kept from a saved backpack or bank: known items only (ITEMS), each a whole number above 0. Anything else,
+ *  from a damaged or hand-edited save, is dropped, so it can't break the backpack or spread into the bank. An item
+ *  the game renames gets a migration, like any other format change. */
+function savedItems(v: unknown): Record<string, number> {
+  if (!isRecord(v)) return {};
+  return Object.fromEntries(Object.entries(v).filter(([id, n]) => Object.hasOwn(ITEMS, id) && Number.isSafeInteger(n) && (n as number) > 0)) as Record<string, number>;
+}
+
+/** XP per skill: a known skill keeps its saved XP if it is a number of 0 or more; anything else starts from 0. */
+function savedSkills(v: unknown, fresh: Record<SkillId, number>): Record<SkillId, number> {
+  const skills = { ...fresh };
+  if (isRecord(v)) for (const id of Object.keys(SKILLS) as SkillId[]) {
+    const xp = v[id];
+    if (typeof xp === 'number' && Number.isFinite(xp) && xp >= 0) skills[id] = xp;
+  }
+  return skills;
+}
 
 export function deserialize(raw: string, layout: Layout): GameState {
   let data = JSON.parse(raw);
@@ -37,19 +60,24 @@ export function deserialize(raw: string, layout: Layout): GameState {
   const fresh = createState(layout, data.seed ?? 1);
   const state: GameState = {
     ...fresh, ...data,
-    player: { ...fresh.player, ...data.player },
-    skills: { ...fresh.skills, ...data.skills },
+    player: { ...fresh.player, ...data.player, backpack: savedItems(data.player?.backpack) },
+    skills: savedSkills(data.skills, fresh.skills),
+    bank: savedItems(data.bank),
     parcels: { ...fresh.parcels, ...Object.fromEntries(Object.entries(data.parcels ?? {}).filter(([id]) => id in fresh.parcels)) },
   };
   state.nodes = { ...fresh.nodes, ...Object.fromEntries(Object.entries(data.nodes ?? {}).filter(([id]) => id in fresh.nodes)) } as GameState['nodes'];
   // a position that is broken, or now inside a building or off the land, goes back to the start
   const p = state.player;
   if (!Number.isFinite(p.pos?.x) || !Number.isFinite(p.pos?.z) || !navFor(layout).walkable(p.pos)) {
-    p.pos = { ...layout.start }; p.path = []; p.task = { kind: 'idle' }; p.pending = null;
+    p.pos = { ...layout.start }; p.path = []; p.task = { kind: 'idle' }; p.pending = null; p.trip = null;
   }
   // a task or destination pointing at something that no longer exists is dropped
   if (p.task.kind === 'gather' && !(p.task.nodeId in state.nodes)) p.task = { kind: 'idle' };
   if (p.pending?.kind === 'node' && !(p.pending.id in state.nodes)) { p.pending = null; p.path = []; if (p.task.kind === 'walk') p.task = { kind: 'idle' }; }
+  // a trip only makes sense on the way to the bank or waiting at its door, back to a node that still exists
+  const trip = p.trip;
+  if (trip && trip.leaveAt !== undefined && !Number.isFinite(trip.leaveAt)) delete trip.leaveAt;
+  if (trip && (!(trip.nodeId in state.nodes) || (p.pending?.kind !== 'visit' && trip.leaveAt === undefined))) p.trip = null;
   return state;
 }
 

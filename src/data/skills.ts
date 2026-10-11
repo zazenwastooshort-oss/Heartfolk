@@ -32,12 +32,13 @@ export const RESOURCES: Record<string, ResourceDef> = {
   oak_tree:    { id: 'oak_tree', skill: 'woodcutting', name: 'Oak tree', item: 'oak_logs', level: 10, time: 2.8, xp: 22, value: 6, deplete: 0.12, respawn: 9, moveOnAfter: 1.0, color: '#c9a066', model: 'TreeOak', stump: 'StumpOak' },
 };
 
-export interface ItemDef { id: string; name: string; value: number }
+/** `one`: the name for a single one, where it differs ("Birch log" against "Birch logs") */
+export interface ItemDef { id: string; name: string; one?: string; value: number }
 
 export const ITEMS: Record<string, ItemDef> = {
   copper_ore: { id: 'copper_ore', name: 'Copper ore', value: 3 },
   tin_ore: { id: 'tin_ore', name: 'Tin ore', value: 4 },
   iron_ore: { id: 'iron_ore', name: 'Iron ore', value: 9 },
-  birch_logs: { id: 'birch_logs', name: 'Birch logs', value: 2 },
-  oak_logs: { id: 'oak_logs', name: 'Oak logs', value: 6 },
+  birch_logs: { id: 'birch_logs', name: 'Birch logs', one: 'Birch log', value: 2 },
+  oak_logs: { id: 'oak_logs', name: 'Oak logs', one: 'Oak log', value: 6 },
 };

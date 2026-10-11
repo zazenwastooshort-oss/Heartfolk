@@ -25,6 +25,8 @@ function setup(layout = TEST_LAYOUT) {
   events.on(e => log.push(e));
   return { state, events, log, ctx: { layout, rng: createRng(5), events } };
 }
+/** Everything gathered of an item so far: what he carries plus what he has banked. */
+const gathered = (s: ReturnType<typeof setup>, item: string) => (s.state.player.backpack[item] ?? 0) + (s.state.bank[item] ?? 0);
 const run = (s: ReturnType<typeof setup>, seconds: number) => { for (let t = 0; t < seconds; t += STEP) step(s.state, STEP, s.ctx); };
 /** Step until `done` (or `max` seconds pass). */
 const runUntil = (s: ReturnType<typeof setup>, done: () => boolean, max: number) => {
@@ -62,7 +64,7 @@ describe('level requirements', () => {
     run(s, 10);
     expect(s.state.player.task.kind).toBe('idle');
     expect(s.state.player.pos).toEqual(start);
-    expect(s.state.bank.tin_ore ?? 0).toBe(0);
+    expect(gathered(s, 'tin_ore')).toBe(0);
     expect(s.log).toContainEqual({ type: 'levelTooLow', skill: 'mining', need: tinLevel, what: 'Tin rock' });
   });
 
@@ -71,7 +73,7 @@ describe('level requirements', () => {
     s.state.skills.mining = XP_TABLE[tinLevel]!;
     applyCommands(s.state, TEST_LAYOUT, queue, s.events);
     run(s, 70);
-    expect(s.state.bank.tin_ore ?? 0).toBeGreaterThan(0);
+    expect(gathered(s, 'tin_ore')).toBeGreaterThan(0);
   });
 
   it('stops an old save that was already mining a rock above the player level', () => {
@@ -79,7 +81,7 @@ describe('level requirements', () => {
     s.state.player.task = { kind: 'gather', nodeId: 'testTin', progress: 0 };
     run(s, 5);
     expect(s.state.player.task.kind).toBe('idle');
-    expect(s.state.bank.tin_ore ?? 0).toBe(0);
+    expect(gathered(s, 'tin_ore')).toBe(0);
   });
 });
 
@@ -100,7 +102,7 @@ describe('woodcutting levels', () => {
     s.state.skills.woodcutting = XP_TABLE[oakLevel]!;
     applyCommands(s.state, VILLAGE, queue, s.events);
     run(s, 90);
-    expect(s.state.bank.oak_logs ?? 0).toBeGreaterThan(0);
+    expect(gathered(s, 'oak_logs')).toBeGreaterThan(0);
   });
 });
 
@@ -110,7 +112,7 @@ describe('land not yet claimed', () => {
     applyCommands(s.state, VILLAGE, queue, s.events);
     run(s, 60);
     expect(s.log).toContainEqual({ type: 'visited', id: 'east' });
-    expect(s.state.bank.tin_ore ?? 0).toBe(0);
+    expect(gathered(s, 'tin_ore')).toBe(0);
     expect(inArea(VILLAGE.village, s.state.player.pos)).toBe(true);
     expect(navFor(VILLAGE).walkable(s.state.player.pos)).toBe(true);
   });
@@ -145,7 +147,7 @@ describe('moving on', () => {
       step(s.state, STEP, s.ctx);
       const p = s.state.player;
       if (p.task.kind === 'gather') targets.add(p.task.nodeId);
-      if (p.pending) targets.add(p.pending.id);
+      if (p.pending?.kind === 'node') targets.add(p.pending.id);     // trips to the bank aside
     }
     expect(falls(s, 'edgeBirch')).toBeGreaterThan(2);
     expect([...targets]).toEqual(['edgeBirch']);

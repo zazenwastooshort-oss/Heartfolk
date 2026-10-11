@@ -61,7 +61,12 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
 .bar { height: 6px; background: rgba(43, 33, 22, .15); border-radius: 3px; overflow: hidden; }
 .bar i { display: block; height: 100%; width: 0; background: var(--xp); transition: width .25s ease-out; }
 .skill small { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-.bank { font-size: 12px; }
+.pack { display: flex; align-items: center; gap: 8px; padding-top: 6px; border-top: 1px solid rgba(43, 33, 22, .12); }
+.pack .bar { flex: 1; }
+.pack .bar i { background: var(--accent); }
+.pack.full small { color: var(--accent); font-weight: 700; }
+.bank { font-size: 12px; line-height: 1.3; }
+.bank .name { font-size: 12px; }
 
 .msg { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; text-align: center; color: var(--chip-text); }
 @media (prefers-reduced-motion: reduce) { .bar i, .hint, .notice { transition: none; } }
@@ -75,13 +80,14 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
     <div class="clock" id="clock">07:40</div>
   </div>
   <div class="hint" id="hint">
-    <span class="touch"><b>Tap the grass</b> to walk, <b>a rock</b> to mine, <b>a tree</b> to chop, <b>a building</b> to visit. Drag to turn, pinch to zoom.</span>
-    <span class="mouse"><b>Click the grass</b> to walk, <b>a rock</b> to mine, <b>a tree</b> to chop, <b>a building</b> to visit. Drag or arrow keys to turn, scroll to zoom.</span>
+    <span class="touch"><b>Tap the grass</b> to walk, <b>a rock</b> to mine, <b>a tree</b> to chop, <b>the bank</b> to empty your backpack. Drag to turn, pinch to zoom.</span>
+    <span class="mouse"><b>Click the grass</b> to walk, <b>a rock</b> to mine, <b>a tree</b> to chop, <b>the bank</b> to empty your backpack. Drag or arrow keys to turn, scroll to zoom.</span>
   </div>
   <div class="notice" id="notice" role="status"></div>
   <div class="skill" aria-live="polite">
     <div class="skills" id="skills"></div>
-    <div class="bank" id="bank">Nothing gathered yet</div>
+    <div class="pack" id="pack"><span class="name">Backpack</span><div class="bar"><i id="packBar"></i></div><small id="packCount">0 / 28</small></div>
+    <div class="bank"><span class="name">Bank</span> <span id="bank">empty</span></div>
   </div>
 </div>
 <script type="module" src="/src/main.ts"></script>

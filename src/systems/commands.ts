@@ -27,6 +27,10 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
       else if (levelOf(state, res.skill) < res.level) { events.emit({ type: 'levelTooLow', skill: res.skill, need: res.level, what: res.name }); continue; }
       else ok = goWork(state, layout, c.nodeId);
     }
-    if (!ok) events.emit({ type: 'noPath' });
+    if (!ok) { events.emit({ type: 'noPath' }); continue; }
+    // the player's command wins over a trip to the bank (the backpack keeps its items), unless it sends him to the
+    // bank anyway. Sent to work with a full backpack, hauling starts a new trip at once.
+    const toBank = c.type === 'visit' && layout.buildings.find(b => b.id === c.id)?.kind === 'bank';
+    if (!toBank) state.player.trip = null;
   }
 }

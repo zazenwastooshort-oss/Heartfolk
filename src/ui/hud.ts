@@ -1,5 +1,5 @@
-// The panels laid over the game: each skill's level and XP, what has been gathered, the clock, hover text, notices
-// and floating "+xp" numbers. Reads state and listens to events; never changes the game.
+// The panels laid over the game: each skill's level and XP, the backpack and the bank, the clock, hover text,
+// notices and floating "+xp" numbers. Reads state and listens to events; never changes the game.
 import * as THREE from 'three';
 import type { GameState } from '../core/state';
 import type { EventBus } from '../core/events';
@@ -8,10 +8,16 @@ import type { SkillId } from '../data/skills';
 import type { BuildingKind, Layout } from '../world/layout';
 import { levelFor, levelBounds } from '../data/xp';
 import { ITEMS, SKILLS } from '../data/skills';
+import { BACKPACK_SLOTS } from '../data/hauling';
 import { clockLabel } from '../core/clock';
 
 const $ = (id: string) => document.getElementById(id)!;
 const el = (tag: string, className: string, text = '') => { const e = document.createElement(tag); e.className = className; e.textContent = text; return e; };
+/** "28 birch logs"; several are joined by commas, the last by `last` ("20 birch logs and 8 copper ore") */
+const itemList = (items: Record<string, number>, last = ', ') => {
+  const parts = Object.entries(items).filter(([, n]) => n > 0).map(([id, n]) => `${n.toLocaleString()} ${((n === 1 && ITEMS[id]?.one) || ITEMS[id]?.name)?.toLowerCase() ?? id}`);
+  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')}${last}${parts.at(-1)}` : parts[0] ?? '';
+};
 
 interface SkillRow { row: HTMLElement; lvl: HTMLElement; bar: HTMLElement; text: HTMLElement }
 
@@ -37,7 +43,10 @@ export class Hud {
     }
     events.on(e => {
       if (e.type === 'xpGained') { this.pendingXp += e.amount; this.active = e.skill; }
-      else if (e.type === 'visited') this.notice(this.visitText(e.id));
+      else if (e.type === 'visited') { const text = this.visitText(e.id); if (text) this.notice(text); }
+      else if (e.type === 'backpackFull') this.notice('Backpack full: off to the bank.');
+      else if (e.type === 'banked') this.notice(`Banked ${itemList(e.items, ' and ')}.`);
+      else if (e.type === 'nothingToBank') this.notice('Your backpack is empty.');
       else if (e.type === 'noPath') this.notice("He can't find a way there.");
       else if (e.type === 'levelUp') this.pendingLevel = { skill: e.skill, level: e.level };
       else if (e.type === 'levelTooLow') {
@@ -55,12 +64,13 @@ export class Hud {
     const b = document.createElement('b'); b.textContent = thing ?? ''; el.append(b);
   }
 
-  /** What a building or a piece of land says when the miner arrives, while it has no use yet. */
-  private visitText(id: string): string {
+  /** What a building or a piece of land says when the miner arrives, while it has no use yet. The bank has one: its
+   *  notice says what was banked. */
+  private visitText(id: string): string | null {
     const b = this.layout.buildings.find(x => x.id === id);
     if (!b) return 'Unexplored land. You will be able to claim it at the city hall in a later update.';
-    const text: Record<BuildingKind, string> = {
-      bank: 'The bank opens in a later update. Until then, everything you gather is kept for you.',
+    const text: Record<BuildingKind, string | null> = {
+      bank: null,
       cityhall: 'The city hall will handle land claims in a later update.',
       forge: 'The forge is cold for now. Smithing comes in a later update.',
       stall: "The merchant hasn't arrived yet.",
@@ -101,8 +111,11 @@ export class Hud {
       r.text.textContent = `${Math.floor(xp).toLocaleString()} / ${hi.toLocaleString()} xp`;
       r.row.classList.toggle('active', id === this.active);
     }
-    const items = Object.entries(state.bank).filter(([, n]) => n > 0);
-    $('bank').textContent = items.length ? items.map(([id, n]) => `${n} ${ITEMS[id]?.name.toLowerCase() ?? id}`).join(', ') : 'Nothing gathered yet';
+    const carried = Object.values(state.player.backpack).reduce((a, n) => a + n, 0);
+    $('packCount').textContent = `${carried} / ${BACKPACK_SLOTS}`;
+    $('packBar').style.width = `${Math.min(100, carried / BACKPACK_SLOTS * 100)}%`;
+    $('pack').classList.toggle('full', carried >= BACKPACK_SLOTS);
+    $('bank').textContent = itemList(state.bank) || 'empty';
     $('clock').textContent = clockLabel(state.time);
     const b = this.view.renderer.domElement.getBoundingClientRect();
     for (let i = this.floats.length - 1; i >= 0; i--) {

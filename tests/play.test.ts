@@ -8,7 +8,10 @@ import { VILLAGE, type NodeSpot } from '../src/world/layout';
 import { navFor } from '../src/world/nav';
 import { walkTo, goWork, reachFor } from '../src/actors/player';
 import { serialize, deserialize } from '../src/core/save';
+import { applyCommands } from '../src/systems/commands';
+import { backpackCount, backpackFull } from '../src/systems/backpack';
 import { RESOURCES } from '../src/data/skills';
+import { BACKPACK_SLOTS } from '../src/data/hauling';
 import { SWINGS } from '../src/data/animation';
 import { XP_TABLE } from '../src/data/xp';
 
@@ -24,6 +27,8 @@ const runUntil = (s: ReturnType<typeof setup>, done: () => boolean, max: number)
   for (; t < max && !done(); t += STEP) step(s.state, STEP, s.ctx);
   return t;
 };
+/** Everything gathered of an item so far: what he carries plus what he has banked. */
+const gathered = (s: ReturnType<typeof setup>, item: string) => (s.state.player.backpack[item] ?? 0) + (s.state.bank[item] ?? 0);
 const copper = VILLAGE.nodes.find(n => n.id === 'copper1')!;
 const birch = VILLAGE.nodes.find(n => n.id === 'birch1')!;
 /** Swinging at a node that hasn't run out, whichever node it is (he moves on from trees that fall). */
@@ -75,12 +80,13 @@ describe('mining', () => {
     expect(s.state.player.task.kind).toBe('gather');
     expect(Math.hypot(s.state.player.pos.x - copper.pos.x, s.state.player.pos.z - copper.pos.z)).toBeCloseTo(reachFor(copper), 1);
   });
-  it('produces ore at roughly the prototype rate, with xp to match', () => {
+  it('produces ore at roughly the prototype rate, trips to the bank included, with xp to match', () => {
     const s = setup(3);
     goWork(s.state, VILLAGE, 'copper1');
     run(s, 40);
     run(s, 600);                                    // ten minutes of play
-    const ore = s.state.bank.copper_ore ?? 0;
+    const ore = gathered(s, 'copper_ore');
+    expect(s.state.bank.copper_ore ?? 0).toBeGreaterThan(0);
     const r = RESOURCES.copper_rock!;
     expect(ore).toBeGreaterThan(600 / r.time * 0.6);
     expect(ore).toBeLessThan(600 / r.time * 1.3);
@@ -106,12 +112,13 @@ describe('woodcutting', () => {
     const oak = VILLAGE.nodes.find(n => n.id === 'oak1')!;
     expect(reachFor(oak)).toBeGreaterThan(reachFor(birch));
   });
-  it('chops logs at roughly the prototype rate, for Woodcutting xp only, and trees fall and grow back', () => {
+  it('chops logs at roughly the prototype rate, trips to the bank included, for Woodcutting xp only, and trees fall and grow back', () => {
     const s = setup(4);
     goWork(s.state, VILLAGE, 'birch1');
     run(s, 40);
     run(s, 600);
-    const logs = s.state.bank.birch_logs ?? 0, r = RESOURCES.birch_tree!;
+    const logs = gathered(s, 'birch_logs'), r = RESOURCES.birch_tree!;
+    expect(s.state.bank.birch_logs ?? 0).toBeGreaterThan(0);
     expect(logs).toBeGreaterThan(600 / r.time * 0.55);
     expect(logs).toBeLessThan(600 / r.time * 1.3);
     expect(s.state.skills.woodcutting).toBe(logs * r.xp);
@@ -156,12 +163,14 @@ describe('moving on', () => {
     expect(s.state.nodes[id]!.depletedUntil).toBeGreaterThan(0);        // got there before the first one grew back
   });
 
+  // These two are about moving on between nodes, so the backpack is kept empty (as if it had no bottom): trips to the
+  // bank have their own tests in hauling.test.ts.
   it('spends little of ten minutes chopping waiting at stumps or walking, and never wanders between trees', () => {
     const s = setup(4), r = RESOURCES.birch_tree!;
     goWork(s.state, VILLAGE, 'birch1');
     runUntil(s, () => s.state.player.task.kind === 'gather', 40);
     const count = (type: GameEvent['type']) => s.log.filter(e => e.type === type).length;
-    const falls0 = count('nodeDepleted'), arrivals0 = count('arrived');
+    const falls0 = count('nodeDepleted'), arrivals0 = count('arrived'), items0 = count('itemGained');
     let waiting = 0, walking = 0;
     const worked = new Set<string>();
     for (let t = 0; t < 600; t += STEP) {
@@ -170,11 +179,13 @@ describe('moving on', () => {
         worked.add(task.nodeId);
         if (s.state.nodes[task.nodeId]!.depletedUntil > 0) waiting += STEP;
       } else if (task.kind === 'walk') walking += STEP;
+      s.state.player.backpack = {};
       step(s.state, STEP, s.ctx);
     }
+    expect(count('backpackFull')).toBe(0);
     expect(waiting / 600).toBeLessThan(0.12);
     expect(walking / 600).toBeLessThan(0.08);         // about 5%; going to a farther tree first would be over 10%
-    expect(s.state.bank.birch_logs ?? 0).toBeGreaterThan(600 / r.time * 0.7);
+    expect(count('itemGained') - items0).toBeGreaterThan(600 / r.time * 0.7);
     expect([...worked].every(id => VILLAGE.nodes.find(n => n.id === id)!.resource === 'birch_tree')).toBe(true);
     expect(worked.size).toBeGreaterThan(1);
     // every walk follows a tree falling: no going back and forth between trees
@@ -186,7 +197,7 @@ describe('moving on', () => {
     goWork(s.state, VILLAGE, 'copper1');
     runUntil(s, () => s.state.player.task.kind === 'gather', 40);
     const count = (type: GameEvent['type']) => s.log.filter(e => e.type === type).length;
-    const falls0 = count('nodeDepleted'), arrivals0 = count('arrived'), worked = new Set<string>();
+    const falls0 = count('nodeDepleted'), arrivals0 = count('arrived'), items0 = count('itemGained'), worked = new Set<string>();
     let waiting = 0;
     for (let t = 0; t < 300; t += STEP) {
       const task = s.state.player.task;
@@ -194,15 +205,17 @@ describe('moving on', () => {
         worked.add(task.nodeId);
         if (s.state.nodes[task.nodeId]!.depletedUntil > 0) waiting += STEP;
       }
+      s.state.player.backpack = {};
       step(s.state, STEP, s.ctx);
     }
+    expect(count('backpackFull')).toBe(0);
     expect(count('nodeDepleted') - falls0).toBeGreaterThan(10);
     expect(worked.size).toBeGreaterThan(1);                     // the nearest free rock each time: often just two of the three
     expect([...worked].every(id => id.startsWith('copper'))).toBe(true);
     expect(waiting / 300).toBeLessThan(0.15);
     // every walk follows a rock running out: no going back and forth for nothing
     expect(count('arrived') - arrivals0).toBeLessThanOrEqual(count('nodeDepleted') - falls0);
-    expect(s.state.bank.copper_ore ?? 0).toBeGreaterThan(300 / r.time * 0.7);
+    expect(count('itemGained') - items0).toBeGreaterThan(300 / r.time * 0.7);
   });
 });
 
@@ -232,6 +245,8 @@ describe('saving', () => {
     expect(s.version).toBe(SAVE_VERSION);
     expect(s.skills.mining).toBe(1234);
     expect(s.bank).toEqual({ copper_ore: 40, tin_ore: 3 });
+    expect(s.player.backpack).toEqual({});
+    expect(s.player.trip).toBeNull();
     expect(s.player.task.kind).toBe('idle');          // rock1 no longer exists
     expect(s.player.pending).toBeNull();
     expect(Object.keys(s.nodes).sort()).toEqual(VILLAGE.nodes.map(n => n.id).sort());
@@ -252,26 +267,62 @@ describe('saving', () => {
     expect(s.player.task).toEqual({ kind: 'gather', nodeId: 'copper1', progress: 0.25 });
     expect(s.skills).toEqual({ mining: 900, woodcutting: 0 });
     expect(s.bank).toEqual({ copper_ore: 12 });
+    expect(s.player.backpack).toEqual({});
     expect(s.nodes.birch1).toEqual({ id: 'birch1', depletedUntil: 0 });
+  });
+  it('upgrades a version 3 save (before the backpack): the bank keeps everything, the backpack starts empty, work carries on', () => {
+    const s0 = setup(4);
+    goWork(s0.state, VILLAGE, 'birch1'); run(s0, 30);
+    const { backpack: _b, trip: _t, ...player } = s0.state.player;
+    const v3 = { ...s0.state, version: 3, player, bank: { birch_logs: 120, copper_ore: 40 } };
+    const s = deserialize(JSON.stringify(v3), VILLAGE);
+    expect(SAVE_VERSION).toBe(4);
+    expect(s.version).toBe(SAVE_VERSION);
+    expect(s.bank).toEqual({ birch_logs: 120, copper_ore: 40 });
+    expect(s.player.backpack).toEqual({});
+    expect(s.player.trip).toBeNull();
+    expect(s.player.task).toEqual(s0.state.player.task);
+    expect(s.skills).toEqual(s0.state.skills);
   });
 });
 
 describe('long run (headless)', () => {
-  it('keeps the character mining and chopping round the village for two hours of real time with no broken state', () => {
+  it('keeps the character mining, chopping and banking round the village for two hours of real time with nothing broken or stuck', () => {
     const s = setup(11), nav = navFor(VILLAGE);
-    let t = 0, nextOrder = 0, orders = 0;
+    const inBank = () => Object.values(s.state.bank).reduce((a, n) => a + n, 0);
+    let t = 0, nextOrder = 0, orders = 0, idle = 0, lastItem = 0, longestGap = 0, before = 0;
+    const growth: number[] = [];                    // what reached the bank in each ten minutes
     const ids = VILLAGE.nodes.filter(n => !n.parcel && RESOURCES[n.resource]!.level === 1).map(n => n.id);
+    s.events.on(e => { if (e.type === 'itemGained') { longestGap = Math.max(longestGap, t - lastItem); lastItem = t; } });
     while (t < 7200) {
-      if (t >= nextOrder) { goWork(s.state, VILLAGE, ids[orders++ % ids.length]!); nextOrder += 300; }
+      // the player sends him to another rock or tree every five minutes, the way a tap does
+      if (t >= nextOrder) { applyCommands(s.state, VILLAGE, [{ type: 'work', nodeId: ids[orders++ % ids.length]! }], s.events); nextOrder += 300; }
       step(s.state, STEP, s.ctx); t += STEP;
-      const p = s.state.player.pos;
-      if (!Number.isFinite(p.x) || !Number.isFinite(p.z)) throw new Error(`position broke at ${t.toFixed(1)}s`);
-      if (!nav.walkable(p)) throw new Error(`walked into something at ${t.toFixed(1)}s: ${p.x.toFixed(2)}, ${p.z.toFixed(2)}`);
+      const p = s.state.player;
+      if (!Number.isFinite(p.pos.x) || !Number.isFinite(p.pos.z)) throw new Error(`position broke at ${t.toFixed(1)}s`);
+      if (!nav.walkable(p.pos)) throw new Error(`walked into something at ${t.toFixed(1)}s: ${p.pos.x.toFixed(2)}, ${p.pos.z.toFixed(2)}`);
+      if (backpackCount(s.state) > BACKPACK_SLOTS) throw new Error(`backpack over capacity at ${t.toFixed(1)}s`);
+      // a full backpack is always on its way to the bank
+      if (backpackFull(s.state) && !p.trip) throw new Error(`full backpack with no trip at ${t.toFixed(1)}s (${p.task.kind})`);
+      if (p.task.kind === 'idle' && p.trip?.leaveAt === undefined) idle += STEP;   // the moment at the bank door is meant
+      if (t >= (growth.length + 1) * 600) { growth.push(inBank() - before); before = inBank(); }
     }
-    // still at work: gathering, or walking on to the next tree of the kind
-    const { task, pending } = s.state.player;
-    expect(task.kind === 'gather' || pending?.kind === 'node', `ended ${task.kind}`).toBe(true);
-    expect(s.state.bank.copper_ore ?? 0).toBeGreaterThan(400);
-    expect(s.state.bank.birch_logs ?? 0).toBeGreaterThan(400);
+    // still at work: gathering, walking on to the next node, or on the way to the bank
+    const { task, pending, trip } = s.state.player;
+    expect(task.kind === 'gather' || pending?.kind === 'node' || trip !== null, `ended ${task.kind}`).toBe(true);
+    // never stuck: never standing idle, never long without gathering something (a trip to the bank and back included)
+    expect(idle).toBeLessThan(1);
+    expect(longestGap).toBeLessThan(45);           // about 30 s at most
+    // the bank grows every ten minutes, a full backpack at a time
+    expect(growth).toHaveLength(12);
+    expect(Math.min(...growth)).toBeGreaterThan(150);  // about 200 to 250
+    const trips = s.log.filter(e => e.type === 'banked');
+    expect(trips.length).toBeGreaterThan(60);
+    for (const e of trips) expect(Object.values(e.items).reduce((a, n) => a + n, 0)).toBe(BACKPACK_SLOTS);
+    expect(s.state.bank.copper_ore ?? 0).toBeGreaterThan(600);
+    expect(s.state.bank.birch_logs ?? 0).toBeGreaterThan(1000);
+    // nothing lost or made up on the way: everything gathered is in the bank or the backpack
+    const gained = s.log.reduce((a, e) => a + (e.type === 'itemGained' ? e.count : 0), 0);
+    expect(inBank() + backpackCount(s.state)).toBe(gained);
   });
 });

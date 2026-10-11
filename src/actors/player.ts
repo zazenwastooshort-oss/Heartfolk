@@ -65,11 +65,13 @@ function angleToward(a: number, b: number, t: number): number {
   return a + d * Math.min(1, t);
 }
 
-export function updatePlayer(state: GameState, layout: Layout, dt: number, events: EventBus): void {
+/** Walks and turns the character. Returns the id of the building or land he reached this step, if any, so the system
+ *  that runs it (the bank now, the merchant later) can act in the same step. */
+export function updatePlayer(state: GameState, layout: Layout, dt: number, events: EventBus): string | null {
   const p = state.player;
   if (p.task.kind === 'walk') {
     const target = p.path[0];
-    if (!target) { p.task = { kind: 'idle' }; return; }
+    if (!target) { p.task = { kind: 'idle' }; return null; }
     const d = sub(target, p.pos), dist = len(d), step = WALK_SPEED * dt;
     if (dist > 1e-6) p.heading = angleToward(p.heading, headingOf(d), TURN_RATE * dt);
     if (dist <= step) {
@@ -84,6 +86,7 @@ export function updatePlayer(state: GameState, layout: Layout, dt: number, event
             const b = layout.buildings.find(x => x.id === pending.id);
             if (b) p.heading = headingOf(sub(b.pos, p.pos));      // face the building
             events.emit({ type: 'visited', id: pending.id });
+            return pending.id;
           }
         }
       }
@@ -94,4 +97,5 @@ export function updatePlayer(state: GameState, layout: Layout, dt: number, event
     const id = p.task.nodeId, node = layout.nodes.find(n => n.id === id);
     if (node) p.heading = angleToward(p.heading, headingOf(sub(node.pos, p.pos)), TURN_RATE * dt);
   }
+  return null;
 }
