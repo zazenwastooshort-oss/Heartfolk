@@ -268,7 +268,7 @@ Ten tasks take the village prototype to the first playable loop; tick each one o
 - [ ] **Saving and away time.** Progress saves, and your character keeps working while the game is closed, at a fifth of the live rate for up to 2 hours. Done when closing and reopening shows a summary of what they made.
 - [ ] **Test and publish.** Headless simulation, screenshots at three sizes, version 0.1 built and logged. Done when you've played it.
 
-**Parking lot**, not slice 1: helpers who skill alongside you, NPC quests, petitions and blessings as flavour, achievements, prestige, sound, stamina for walking (11 Oct, the owner: maybe later, now that walking is faster), a look at the mining wind-up once the bending elbows are in (11 Oct: the hands now pass in front of the face instead of above the head; the owner will judge it when it is finished), a watch showing the time of day, when it gets dark and where north is (11 Oct; possibly an item bought from the merchant, or a sundial on the square).
+**Parking lot**, not slice 1: helpers who skill alongside you, NPC quests, petitions and blessings as flavour, achievements, prestige, sound, stamina for walking (11 Oct, the owner: maybe later, now that walking is faster), a watch showing the time of day, when it gets dark and where north is (11 Oct; possibly an item bought from the merchant, or a sundial on the square).
 
 ## Decision log
 
