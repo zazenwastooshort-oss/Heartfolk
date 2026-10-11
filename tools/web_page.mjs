@@ -1,7 +1,8 @@
 // Turns the web build (dist-web/index.html) into a page an artifact link can host:
 //  - the host supplies <html>, <head>, <body>, the charset and the viewport, so those come out
 //  - the <title> moves to the very top (the host only scans the first 8 KB for it)
-// Writes dist-web/hearthfolk.html (publish this) and dist-web/preview.html (the same page inside a stand-in
+// Writes dist-web/hearthfolk-camp.html (publish this to the camp game's link; the village build's old link came from
+// dist-web/hearthfolk.html, which is no longer written, so it can't be overwritten by accident) and dist-web/preview.html (the same page inside a stand-in
 // for the host's skeleton, for testing locally). Run by `npm run build:web`.
 import { readFileSync, writeFileSync } from 'node:fs';
 
@@ -23,7 +24,7 @@ html = html
   .replace(/\n\s*\n+/g, '\n');
 html = html.replace(/\u0000(\d+)\u0000/g, (_, i) => scripts[Number(i)]);
 const page = `${title}\n${html.trim()}\n`;
-writeFileSync(new URL('hearthfolk.html', dir), page);
+writeFileSync(new URL('hearthfolk-camp.html', dir), page);
 
 const preview = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -32,4 +33,4 @@ const preview = `<!doctype html>
 ${page}</body></html>
 `;
 writeFileSync(new URL('preview.html', dir), preview);
-console.log(`hearthfolk.html ${Math.round(page.length / 1024)} KB (title first: ${page.startsWith('<title>')})`);
+console.log(`hearthfolk-camp.html ${Math.round(page.length / 1024)} KB (title first: ${page.startsWith('<title>')})`);
