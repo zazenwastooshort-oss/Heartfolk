@@ -72,9 +72,11 @@ export interface Layout {
   /** the model drawn at the hearth: the village's big Hearth when not given, or null for nothing there yet (the camp,
    *  whose campfire is built there: siteOf, data/making.ts). With nothing there, nothing is in the way either. */
   hearthModel?: string | null;
-  /** the camp a new game starts at: where its tent will stand once it is built (later updates; nothing stands there
-   *  until then, and the campfire will be at `hearth`) */
-  camp?: { tent: { pos: Vec2; rot: number } };
+  /** the camp a new game starts at: the spot where his shelter, a tent, is built (siteOf 'tent'; nothing stands there
+   *  until then): its middle, which way its door faces (towards the fire), how far round it it reaches (its ring, and
+   *  where he stands to build it), and its width and depth, which are in the way once it stands. The campfire is
+   *  built at `hearth`. */
+  camp?: { tent: Required<Site> };
   falls?: Falls;
   /** things lying on the ground to pick up by hand (the camp's wreck, stones and branches) */
   pickups?: PickupSpot[];
@@ -111,11 +113,19 @@ export function doorOf(b: BuildingSpot): Vec2 {
 
 export const inArea = (a: Area, p: Vec2) => p.x >= a.minX && p.x <= a.maxX && p.z >= a.minZ && p.z <= a.maxZ;
 
+/** A place where something is built: its middle; how far round it the thing built there reaches (the ring drawn
+ *  round it until then; he stands just beyond it to build); which way it faces (rot as for buildings: 0 faces +z;
+ *  none for the round campfire); and for a thing with corners (the tent), its width across and depth along that way.
+ *  Once built it is in the way (world/nav.ts): a round thing out to its radius, one with corners by its w x d. */
+export interface Site { pos: Vec2; radius: number; rot?: number; w?: number; d?: number }
+
 /** Where something is built (MAKES' `at` in data/making.ts) in this layout: the camp's hearth, where nothing stands
- *  until its campfire is built (the village's already has its big Hearth), or null where this layout has no such
- *  place. A structure built there stands on it and is in the way (world/nav.ts). */
-export function siteOf(layout: Layout, id: SiteId): { pos: Vec2; radius: number } | null {
+ *  until its campfire is built (the village's already has its big Hearth), and the camp's tent spot, where his
+ *  shelter goes; or null where this layout has no such place. A structure built there stands on it and is in the way
+ *  (world/nav.ts). */
+export function siteOf(layout: Layout, id: SiteId): Site | null {
   if (id === 'hearth') return layout.hearthModel === null ? layout.hearth : null;
+  if (id === 'tent') return layout.camp?.tent ?? null;
   return null;
 }
 

@@ -71,6 +71,31 @@ describe('the pages of his book', () => {
     }
   });
 
+  it('has pages for the shelter, the stone pickaxe, copper ore and the storage chest (0.0.18), shown as he reaches them', () => {
+    const s = setup();
+    s.state.goalsDone = ['salvage', 'campfire', 'stone_axe', 'firewood', 'shelter'];
+    s.state.built = ['campfire', 'shelter']; s.state.tools.axe = true;
+    let pages = bookPages(s.state);
+    expect(pages.map(p => p.title)).toEqual(['Salvage the wreck', 'A fire for the night', 'A stone axe', 'Firewood', 'A shelter', 'A stone pickaxe']);
+    expect(pages.at(-1)).toMatchObject({ goal: 'stone_pickaxe', number: 6, current: true, done: false, text: GOALS[5]!.page });
+    expect(pages.at(-1)!.lines).toEqual([{ id: 'branch', need: 2, got: 0, done: false }, { id: 'stone', need: 3, got: 0, done: false }]);
+    // with the pick made, copper ore is next; with 3 ore, the chest (its lines: logs and ore)
+    s.state.tools.pick = true; s.state.goalsDone.push('stone_pickaxe');
+    pages = bookPages(s.state);
+    expect(pages.at(-1)).toMatchObject({ goal: 'copper', title: 'Copper ore', current: true, hint: GOALS[6]!.hint });
+    expect(pages.at(-1)!.text).toMatch(/copper/);
+    s.state.player.backpack = { copper_ore: 3 }; s.state.goalsDone.push('copper');
+    pages = bookPages(s.state);
+    expect(pages).toHaveLength(8);
+    expect(pages.at(-1)).toMatchObject({ goal: 'chest', title: 'A storage chest', current: true, done: false, text: GOALS[7]!.page });
+    expect(pages.at(-1)!.lines).toEqual([{ id: 'birch_logs', need: 10, got: 0, done: false }, { id: 'copper_ore', need: 3, got: 3, done: true }]);
+    // with everything there the page says the chest comes in the next update, as the card does
+    s.state.player.backpack.birch_logs = 10;
+    expect(bookPages(s.state).at(-1)!.hint).toMatch(/next update/);
+    // every page has words of its own
+    expect(new Set(GOALS.map(g => g.page)).size).toBe(GOALS.length);
+  });
+
   it('with every goal finished, the last page is the current one, and done', () => {
     const s = setup();
     s.state.goalsDone = GOALS.map(g => g.id);

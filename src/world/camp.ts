@@ -2,7 +2,7 @@
 // that its top is never seen: the water pours out of the mist down a towering mountain wall to the north, into a pool,
 // and flows on to the south-west. He washes up on the pool's bank with nothing, and wreckage washed up with him:
 // planks, a torn tarp, a smashed crate and his book, strewn along the bank. Stones and branches lie round the clearing.
-// The camp starts bare: the tent and the campfire have their spots here and are built later. The village lies far up
+// The camp starts bare: the campfire and the shelter (a tent) have their spots here and are built later. The village lies far up
 // the river and comes much later (world/layout.ts, VILLAGE).
 // Data only, like the village: x east, z south, in metres; the camera starts looking north at the falls.
 import type { Area, Falls, Layout, NodeSpot, PickupSpot, TreeKind, TreeSpot, Vec2 } from './layout';
@@ -21,8 +21,10 @@ const rock = (id: string, resource: string, x: number, z: number): NodeSpot => (
 
 function seeded(seed: number) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
-// where the campfire (data/making.ts) and the tent will be built: nothing stands there at the start
-const FIRE = W(2.4, 3.0), TENT = W(-1.6, 5.8);
+// where the campfire and the shelter, a tent, are built (data/making.ts): nothing stands there at the start. Once it
+// stands, the tent (village.glb's Tent) is in the way by its canvas, 1.9 m wide and 2.4 deep; its ring, and where he
+// stands to build it, reach round its corners and pegs (1.53 m from its middle).
+const FIRE = W(2.4, 3.0), TENT = W(-1.6, 5.8), TENT_SIZE = { w: 1.9, d: 2.4, radius: 1.55 };
 
 // the river from the pool south-west past the sandy bank, and the falls pouring into the pool
 const RIVER = { points: [W(-14, -11.2), W(-15.6, -2), W(-16.6, 8), W(-18.2, 20), W(-19.4, 36)], width: 3.4 };
@@ -76,7 +78,7 @@ export const CAMP: Layout = {
   river: RIVER,
   paths: [],                            // nobody has worn a track here yet
   parcels: [],
-  camp: { tent: { pos: TENT, rot: facing(TENT, FIRE) } },
+  camp: { tent: { pos: TENT, rot: facing(TENT, FIRE), ...TENT_SIZE } },   // the shelter's spot (siteOf)
   falls: FALLS,
   pickups: pickups([
     // the wreck, strewn along the bank where he washes up: the book beside him, planks at the water's edge

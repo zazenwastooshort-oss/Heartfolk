@@ -6,6 +6,14 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.18', date: '12 Oct 2026', notes: [
+      'Build your shelter. Once you have the firewood, tap Build the shelter on the goal card, or tap the shelter spot by the fire. It takes the tarp, 4 planks and 10 logs, and your tent stays up when you come back.',
+      'Then make a stone pickaxe from 2 branches and 3 stones, right where you stand, and mine 3 copper ore from the grey rocks with orange lumps.',
+      'If you already had a pickaxe from an earlier version, you keep it, and the stone pickaxe goal is done for you.',
+      'After the copper comes a storage chest. Building it comes in the next update. Your book has a page for each new goal.',
+    ],
+  },
+  {
     version: '0.0.17', date: '12 Oct 2026', notes: [
       'Your book opens when you pick it up on the shore. It has a page for each goal: a few words about it, what you need with a tick for each thing you have, and a hint.',
       'Once you have your book, tap the goal card to open it at your current goal. Turn the pages with Previous and Next, or the arrow keys, and close it with the cross or Esc.',

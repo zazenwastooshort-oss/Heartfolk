@@ -2,10 +2,11 @@
 // asks for things he has: items carried or banked, and 'book' (BOOK), which counts 1 once he has found his book
 // (GameState.hasBook). A goal finished stays finished (GameState.goalsDone, since 0.0.15), so using things up for the
 // next one never sends the card back. Gathering goals finish once their needs are all there; making goals (`makes`)
-// once the thing is made (a tool once he owns it: an old save that kept its axe has the stone axe goal done). The goal
-// card shows the first goal not finished. Since 0.0.16: salvage, the campfire, the stone axe, firewood, then the
-// shelter, which waits on its ready text until a later update adds it to data/making.ts. Since 0.0.17 each goal is a
-// page in his book (core/book.ts, ui/book.ts), with a few words of its own (`page`).
+// once the thing is made (a tool once he owns it: an old save that kept its axe and pick has the stone axe and stone
+// pickaxe goals done). The goal card shows the first goal not finished. Since 0.0.18: salvage, the campfire, the
+// stone axe, firewood, the shelter, the stone pickaxe, copper ore, then the storage chest, which waits on its ready
+// text until the next update adds it to data/making.ts. Since 0.0.17 each goal is a page in his book (core/book.ts,
+// ui/book.ts), with a few words of its own (`page`).
 import { MAKES } from './making';
 
 /** needs: what it asks for (the goal card counts them). ready: what the card says once they are all there.
@@ -38,5 +39,17 @@ export const GOALS: Goal[] = [
   { id: 'shelter', title: 'A shelter',
     page: 'The torn tarp, a few planks and a frame of logs will keep the rain off. Somewhere dry to sleep at last.',
     hint: 'Chop birch trees for logs.',
-    ready: 'You have it all. Building the shelter comes in a later update.', needs: { tarp: 1, plank: 4, birch_logs: 10 }, makes: 'shelter' },
+    ready: 'You have it all. Tap Build, or tap the shelter spot by the fire.', needs: MAKES.shelter.needs, makes: 'shelter' },
+  { id: 'stone_pickaxe', title: 'A stone pickaxe',
+    page: 'A heavier stone with a point, lashed to a branch, will break rock. The boulders here hide more than moss.',
+    hint: 'Gather branches and stones from the ground.',
+    ready: 'You have it all. Tap Make.', needs: MAKES.stone_pickaxe.needs, makes: 'stone_pickaxe' },
+  { id: 'copper', title: 'Copper ore',
+    page: 'The orange lumps in those grey rocks are copper. Soft enough for a stone pick, and good for better tools one day.',
+    hint: 'Tap a grey rock with orange lumps to mine it.',
+    ready: 'You have enough copper ore.', needs: { copper_ore: 3 } },
+  { id: 'chest', title: 'A storage chest',
+    page: 'Everything you own is on your back. A sturdy chest by the shelter would keep it safe and dry.',
+    hint: 'Chop birch trees for logs, and keep 3 copper ore. If your backpack is full, open it and drop some spare ore.',
+    ready: 'You have it all. Building the chest comes in the next update.', needs: { birch_logs: 10, copper_ore: 3 }, makes: 'chest' },
 ];

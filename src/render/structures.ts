@@ -1,9 +1,10 @@
 // What he builds (data/making.ts), drawn at its site in the layout: the campfire, a ring of stones round three planks
 // leaned together, with flickering flames, a little smoke and a warm light that matters at night (the village's
-// hearth light, smaller). Until it is built its site shows a faint ring on the ground with a faint ring of stones
-// inside, and an invisible, finger-sized hit area tagged with its id (userData.makeId) for the input; while he builds,
-// the ring fills up. Models from assets/models/village.glb: CampfireCold's stones and ash, the wreck's Plank, the
-// village Hearth's flames. Reads state; never changes it.
+// hearth light, smaller); the shelter, the canvas Tent, its door facing the fire (0.0.18). Until one is built its
+// site shows a faint ring on the ground with a faint outline of it inside (the campfire's stones, the tent), and an
+// invisible, finger-sized hit area tagged with its id (userData.makeId) for the input; while he builds, the ring fills
+// up. Models from assets/models/village.glb: CampfireCold's stones and ash, the wreck's Plank, the village Hearth's
+// flames, the Tent. Reads state; never changes it.
 import * as THREE from 'three';
 import type { GameState } from '../core/state';
 import type { Layout, Vec2 } from '../world/layout';
@@ -11,7 +12,7 @@ import { siteOf } from '../world/layout';
 import { MAKES, type MakeDef, type MakeId } from '../data/making';
 
 const RING = { width: 0.08, gap: 0.12, segments: 48, color: 0xf1e8d4 };   // the ring round a site not built yet
-const PLAN_OPACITY = 0.3;          // how faint the stones inside it are
+const PLAN_OPACITY = 0.3;          // how faint the outline inside it is
 const POP = 0.5;                   // seconds a structure takes to settle in once built
 const SMOKE = { puffs: 7, life: 3.6, rise: 2.4, drift: 0.5 };            // the campfire's smoke
 
@@ -49,22 +50,21 @@ export class StructuresView {
       if (def.gives.kind !== 'structure' || def.at === 'here' || !build) continue;
       const site = siteOf(layout, def.at);
       if (!site) continue;
-      // before it is built: a faint ring of stones inside a ring on the ground, which fills up while he builds
+      const { model, flames, plan: outline } = build(proto);
+      // before it is built: a faint outline of it inside a ring on the ground, which fills up while he builds
       const plan = new THREE.Group(); plan.position.set(site.pos.x, 0, site.pos.z);
-      const stones = proto('CampfireCold').clone(true);
-      stones.traverse(o => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = planMat; });
-      stones.children.filter(o => !/^stone/i.test(o.name)).forEach(o => o.removeFromParent());
+      outline.rotation.y = site.rot ?? 0;
+      outline.traverse(o => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = planMat; });
       const inner = site.radius + RING.gap;
       const ring = new THREE.RingGeometry(inner, inner + RING.width, RING.segments, 1, -Math.PI / 2).rotateX(Math.PI / 2);
       const track = new THREE.Mesh(ring, ringMat(0.32)), fill = new THREE.Mesh(ring.clone(), ringMat(0.85));
       track.position.y = 0.03; fill.position.y = 0.035; fill.visible = false;
-      plan.add(stones, track, fill); scene.add(plan);
+      plan.add(outline, track, fill); scene.add(plan);
       const hit = new THREE.Mesh(new THREE.CylinderGeometry(inner + 0.25, inner + 0.25, 0.8, 12), new THREE.MeshBasicMaterial({ visible: false }));
       hit.position.set(site.pos.x, 0.4, site.pos.z); hit.userData.makeId = def.id;
       scene.add(hit); this.pickables.push(hit);
       // once built
-      const { model, flames } = build(proto);
-      model.position.set(site.pos.x, 0, site.pos.z); model.visible = false;
+      model.position.set(site.pos.x, 0, site.pos.z); model.rotation.y = site.rot ?? 0; model.visible = false;
       model.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = !flames.includes(m); m.receiveShadow = true; } });
       scene.add(model);
       // a fire gives light (always in the scene, dark until it is lit, so lighting it costs no shader rebuild) and smoke
@@ -123,11 +123,16 @@ export class StructuresView {
   }
 }
 
-/** How each structure is drawn once built: its model at the site's centre, and its flames (which flicker), if any.
- *  Tools (the stone axe) have none: the view draws them on him. */
-const BUILD: Partial<Record<MakeId, (proto: (name: string) => THREE.Object3D) => { model: THREE.Group; flames: THREE.Object3D[] }>> = {
+/** How each structure is drawn once built: its model at the site's centre (turned to face the site's way), and its
+ *  flames (which flicker), if any; and the outline drawn faintly at its site until then. Tools (the stone axe and
+ *  pickaxe) have none: the view draws them on him. */
+type Built = { model: THREE.Group; flames: THREE.Object3D[]; plan: THREE.Object3D };
+const BUILD: Partial<Record<MakeId, (proto: (name: string) => THREE.Object3D) => Built>> = {
   campfire: proto => {
     const model = new THREE.Group(), flames: THREE.Object3D[] = [];
+    // until it is built: the ring of stones, faint
+    const plan = proto('CampfireCold').clone(true);
+    plan.children.filter(o => !/^stone/i.test(o.name)).forEach(o => o.removeFromParent());
     // the cold campfire's ring of stones and its ash, without its logs: the fire burns the planks it was built with
     const ring = proto('CampfireCold').clone(true);
     ring.children.filter(o => /^log/i.test(o.name)).forEach(o => o.removeFromParent());
@@ -150,6 +155,12 @@ const BUILD: Partial<Record<MakeId, (proto: (name: string) => THREE.Object3D) =>
       flame.position.set(0, 0, 0);
       fire.add(flame); flames.push(flame);
     }
-    return { model, flames };
+    return { model, flames, plan };
+  },
+  // the shelter: the canvas tent from the tarp, on its poles, pegged down; until it is built, the whole tent faint
+  shelter: proto => {
+    const model = new THREE.Group();
+    model.add(proto('Tent').clone(true));
+    return { model, flames: [], plan: proto('Tent').clone(true) };
   },
 };

@@ -1,13 +1,14 @@
 // Things he makes (game 0.0.15), as tables only: what each needs, where it is made, how long he works at it and what
-// it gives. The campfire came first, then the stone axe (0.0.16). The shelter, the stone pickaxe and the storage chest
-// come in later updates, each a row here plus a goal in data/goals.ts that makes it. systems/making.ts does the work.
+// it gives. The campfire came first, then the stone axe (0.0.16), then the shelter at the tent's spot and the stone
+// pickaxe (0.0.18). The storage chest comes in a later update: a row here plus its goal in data/goals.ts, which
+// already makes it. systems/making.ts does the work.
 import type { ToolId } from './skills';
 
-/** Places in a layout where something is built (siteOf in world/layout.ts): 'hearth' is the camp's fire spot. A new
- *  site (the tent's spot for the shelter, one for the storage chest) is a name here and a line in siteOf. */
-export type SiteId = 'hearth';
+/** Places in a layout where something is built (siteOf in world/layout.ts): 'hearth' is the camp's fire spot, 'tent'
+ *  the camp's tent spot. A new site (one for the storage chest) is a name here and a line in siteOf. */
+export type SiteId = 'hearth' | 'tent';
 
-export type MakeId = 'campfire' | 'stone_axe';
+export type MakeId = 'campfire' | 'stone_axe' | 'shelter' | 'stone_pickaxe';
 
 /** name: what it is called ("Campfire"). verb: what making it is called, for the hover text over its site
  *  ("Build|Campfire") and the goal card's button ("Build the campfire", "Make the stone axe").
@@ -16,7 +17,7 @@ export type MakeId = 'campfire' | 'stone_axe';
  *  time: seconds he works at it.
  *  gives: a structure, which stands at its site from then on (GameState.built) and is in the way like the village's
  *  hearth, or a tool he owns from then on (GameState.tools). Either is made once: a tool he already owns (the
- *  village's axe, or an old camp save's) isn't made again.
+ *  village's axe and pick, or an old camp save's) isn't made again.
  *  done: the notice once it is made. */
 export interface MakeDef {
   id: MakeId; name: string; verb: string;
@@ -36,6 +37,16 @@ export const MAKES: Record<MakeId, MakeDef> = {
   stone_axe: {
     id: 'stone_axe', name: 'Stone axe', verb: 'Make', needs: { branch: 2, stone: 2 }, at: 'here', time: 3,
     gives: { kind: 'tool', tool: 'axe' }, done: 'You made a stone axe.',
+  },
+  // the tarp over a frame of logs, the planks for a floor, at the tent's spot facing the fire
+  shelter: {
+    id: 'shelter', name: 'Shelter', verb: 'Build', needs: { tarp: 1, plank: 4, birch_logs: 10 }, at: 'tent', time: 6,
+    gives: { kind: 'structure' }, done: 'Your shelter is up. Somewhere dry to sleep at last.',
+  },
+  // like the axe, with a heavier, pointed stone for breaking rock
+  stone_pickaxe: {
+    id: 'stone_pickaxe', name: 'Stone pickaxe', verb: 'Make', needs: { branch: 2, stone: 3 }, at: 'here', time: 3,
+    gives: { kind: 'tool', tool: 'pick' }, done: 'You made a stone pickaxe.',
   },
 };
 

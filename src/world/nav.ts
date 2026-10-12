@@ -1,10 +1,11 @@
 // Walking: a grid over the village marking where a person can stand, A* paths across it, and smoothing so the
 // paths are straight lines between corners. Buildings, fenced gardens, rocks, tree trunks, the hearth (when one
-// stands there), what he has built (the campfire: GameState.built), lantern posts, props (the well, benches, crates), the water (the river and the pool below the falls,
-// one shape: world/water.ts), the bigger rocks at the foot of the camp's wall (world/falls.ts) and the wreck's debris
-// block; things lying on the ground to pick up, and rubble, don't. The forest and land not yet claimed lie outside the
+// stands there), what he has built (GameState.built: the campfire, round, and the tent, by its own shape), lantern
+// posts, props (the well, benches, crates), the water (the river and the pool below the falls, one shape:
+// world/water.ts), the bigger rocks at the foot of the camp's wall (world/falls.ts) and the wreck's debris block;
+// things lying on the ground to pick up, and rubble, don't. The forest and land not yet claimed lie outside the
 // walkable area.
-import type { Area, Layout, Vec2 } from './layout';
+import type { Area, Layout, Site, Vec2 } from './layout';
 import { inArea, siteOf } from './layout';
 import { makeDef } from '../data/making';
 import { waterOf } from './water';
@@ -33,12 +34,16 @@ export class NavGrid {
     this.nx = Math.ceil((area.maxX - area.minX) / CELL);
     this.nz = Math.ceil((area.maxZ - area.minZ) / CELL);
     this.blocked = new Uint8Array(this.nx * this.nz);
+    // what he has built: a round thing (the campfire) blocks out to its radius, one with corners (the tent) by its
+    // own width and depth, turned its way, like a building
+    const sites = built.flatMap(id => {
+      const def = makeDef(id), site = def && def.at !== 'here' ? siteOf(layout, def.at) : null;
+      return site ? [site] : [];
+    });
+    const square = (s: Site): s is Site & { w: number; d: number } => s.w !== undefined && s.d !== undefined;
     const circles: [Vec2, number][] = [
       ...(layout.hearthModel !== null ? [[layout.hearth.pos, layout.hearth.radius] as [Vec2, number]] : []),
-      ...built.flatMap(id => {
-        const def = makeDef(id), site = def && def.at !== 'here' ? siteOf(layout, def.at) : null;
-        return site ? [[site.pos, site.radius] as [Vec2, number]] : [];
-      }),
+      ...sites.filter(s => !square(s)).map(s => [s.pos, s.radius] as [Vec2, number]),
       ...layout.nodes.map(n => [n.pos, n.radius * 0.8] as [Vec2, number]),
       ...layout.trees.map(t => [t.pos, (t.kind === 'oak' ? 0.4 : 0.3) * t.size] as [Vec2, number]),
       ...layout.bushes.map(b => [b, 0.45] as [Vec2, number]),
@@ -56,6 +61,7 @@ export class NavGrid {
     const rects = [
       ...layout.buildings.map(b => ({ pos: b.pos, rot: b.rot, hw: b.w / 2 + MARGIN, hd: b.d / 2 + MARGIN })),
       ...layout.gardens.map(g => ({ pos: g.pos, rot: g.rot, hw: g.w / 2 + 0.3 + MARGIN, hd: g.d / 2 + 0.3 + MARGIN })),
+      ...sites.filter(square).map(s => ({ pos: s.pos, rot: s.rot ?? 0, hw: s.w / 2 + MARGIN, hd: s.d / 2 + MARGIN })),
     ];
     for (let iz = 0; iz < this.nz; iz++) for (let ix = 0; ix < this.nx; ix++) {
       const p = this.center(ix, iz);
