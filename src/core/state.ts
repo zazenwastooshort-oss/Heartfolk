@@ -12,7 +12,8 @@ export const SAVE_VERSION = 5;
  *  when the node runs out while he works it, so he can move on to another; a node that was already down when he got
  *  there (the player tapped a stump) is one he was sent to, so he waits at it.
  *  pickup: standing beside something on the ground (layout.pickups) a moment; at `doneAt` (in-game seconds) it goes
- *  into his backpack. */
+ *  into his backpack. A stone or branch that isn't back yet he waits beside, `doneAt` a moment after it comes back.
+ *  Gathering (0.0.14) needs nothing more saved: what he picks up says which group he goes on with (PICKUPS' gather). */
 export type Task = { kind: 'idle' } | { kind: 'walk' } | { kind: 'gather'; nodeId: string; progress: number; mayMoveOn?: boolean }
   | { kind: 'pickup'; id: string; doneAt: number };
 
@@ -21,9 +22,9 @@ export type Task = { kind: 'idle' } | { kind: 'walk' } | { kind: 'gather'; nodeI
 export type Pending = { kind: 'node'; id: string } | { kind: 'visit'; id: string } | { kind: 'pickup'; id: string } | null;
 
 /** On the way to the bank to empty a full backpack; afterwards he goes back to work at `nodeId` (or the nearest free
- *  node like it). `leaveAt` is set at the bank once the backpack is empty: he heads back when the clock reaches it.
- *  Saved, so a trip carries on after a reload. */
-export interface Trip { nodeId: string; leaveAt?: number }
+ *  node like it), or (0.0.14) back to gathering things on the ground like `pickupId`. `leaveAt` is set at the bank once
+ *  the backpack is empty: he heads back when the clock reaches it. Saved, so a trip carries on after a reload. */
+export type Trip = ({ nodeId: string } | { pickupId: string }) & { leaveAt?: number };
 
 export interface PlayerState {
   pos: Vec2;

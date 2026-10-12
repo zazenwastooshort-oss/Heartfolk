@@ -1,5 +1,6 @@
 // The backpack and trips to the bank (docs/PLAN.md, Hauling): gathering fills the backpack, a full one is carried to
-// the bank and emptied there, then he goes back to work. Tapping the bank empties it too; the player's commands win.
+// the bank and emptied there, then he goes back to work (or to gathering things off the ground). Tapping the bank
+// empties it too; the player's commands win.
 import { describe, expect, it } from 'vitest';
 import { createState } from '../src/core/state';
 import { EventBus, type GameEvent } from '../src/core/events';
@@ -8,6 +9,7 @@ import { STEP } from '../src/core/loop';
 import { step } from '../src/sim';
 import { VILLAGE, doorOf, type Layout, type Vec2 } from '../src/world/layout';
 import { reachFor } from '../src/actors/player';
+import { navFor } from '../src/world/nav';
 import { applyCommands, type Command } from '../src/systems/commands';
 import { addToBackpack, backpackCount } from '../src/systems/backpack';
 import { serialize, deserialize } from '../src/core/save';
@@ -37,7 +39,7 @@ function fillUp(s: Setup) {
   send(s, { type: 'work', nodeId: 'birch1' });
   runUntil(s, () => count(s, 'backpackFull') > 0, 600);
   expect(count(s, 'backpackFull')).toBe(1);
-  return s.state.player.trip!;
+  return s.state.player.trip as { nodeId: string; leaveAt?: number };   // a trip back to a node
 }
 
 describe('the backpack', () => {
@@ -201,6 +203,64 @@ describe('tapping the bank', () => {
     expect(p.trip).toBeNull();
     expect(p.task.kind).toBe('idle');
     expect(dist(p.pos, to)).toBeLessThan(0.5);
+  });
+});
+
+describe('gathering off the ground where there is a bank (0.0.14)', () => {
+  // the village has nothing to pick up yet: four stones on the open ground by the bank, in a layout of its own
+  const nav = navFor(VILLAGE);
+  const open = [[3, 3], [-3, 3], [0, 6], [4, 7], [-4, 7], [6, 2], [-6, 2], [2, 10]]
+    .map(([dx, dz]) => ({ x: door.x + dx!, z: door.z + dz! })).filter(p => nav.walkable(p)).slice(0, 4);
+  const STONY: Layout = { ...VILLAGE, pickups: open.map((pos, i) => ({ id: `stone${i + 1}`, kind: 'stone' as const, pos, rot: 0 })) };
+
+  it('with no room for the next one, empties the backpack at the bank and goes back to gathering', () => {
+    expect(open).toHaveLength(4);
+    const s = setup(STONY), p = s.state.player;
+    p.backpack = { copper_ore: BACKPACK_SLOTS - 2 };
+    send(s, { type: 'pickup', id: 'stone1' });
+    runUntil(s, () => count(s, 'backpackFull') > 0, 120);
+    expect(p.backpack).toEqual({ copper_ore: BACKPACK_SLOTS - 2, stone: 2 });
+    expect(p.pending).toEqual({ kind: 'visit', id: bank.id });
+    const trip = p.trip as { pickupId: string };
+    expect(trip.pickupId).toMatch(/^stone/);
+    expect(s.state.taken[trip.pickupId]).toBeUndefined();         // the one he was going for, still lying there
+    // a save on the way keeps the trip
+    expect(deserialize(serialize(s.state), STONY).player.trip).toEqual(p.trip);
+    runUntil(s, () => count(s, 'banked') > 0, 120);
+    expect(s.state.bank).toEqual({ copper_ore: BACKPACK_SLOTS - 2, stone: 2 });
+    run(s, BANK_PAUSE + 2 * STEP);
+    expect(p.trip).toBeNull();
+    expect(p.pending?.kind).toBe('pickup');
+    // back to gathering: the two left, then he waits for the first to come back
+    runUntil(s, () => (p.backpack.stone ?? 0) >= 3, 300);
+    expect(p.backpack).toEqual({ stone: 3 });
+    expect(count(s, 'noStorage') + count(s, 'allGathered') + count(s, 'noRoom')).toBe(0);
+  });
+
+  it('tapping a stone with a full backpack goes to the bank first, as a tree does, then gathers', () => {
+    const s = setup(STONY), p = s.state.player;
+    p.backpack = { copper_ore: BACKPACK_SLOTS };
+    send(s, { type: 'pickup', id: 'stone1' });
+    expect(count(s, 'noRoom')).toBe(0);
+    step(s.state, STEP, s.ctx);
+    expect(count(s, 'backpackFull')).toBe(1);
+    expect(p.pending).toEqual({ kind: 'visit', id: bank.id });
+    expect(p.trip).toEqual({ pickupId: 'stone1' });
+    runUntil(s, () => count(s, 'banked') > 0, 120);
+    expect(s.state.bank).toEqual({ copper_ore: BACKPACK_SLOTS });
+    runUntil(s, () => (p.backpack.stone ?? 0) >= 1, 120);
+    expect(p.backpack).toEqual({ stone: 1 });
+    expect(count(s, 'noStorage') + count(s, 'allGathered') + count(s, 'noRoom')).toBe(0);
+  });
+
+  it('drops a trip back to gathering something the layout no longer has', () => {
+    const s = setup(STONY), raw = JSON.parse(serialize(s.state));
+    raw.player.trip = { pickupId: 'stone1' }; raw.player.pending = { kind: 'visit', id: bank.id }; raw.player.path = [door];
+    raw.player.task = { kind: 'walk' };
+    expect(deserialize(JSON.stringify(raw), STONY).player.trip).toEqual({ pickupId: 'stone1' });
+    expect(deserialize(JSON.stringify(raw), VILLAGE).player.trip).toBeNull();
+    raw.player.trip = { pickupId: 7 };
+    expect(deserialize(JSON.stringify(raw), STONY).player.trip).toBeNull();
   });
 });
 

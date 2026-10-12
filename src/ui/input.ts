@@ -1,11 +1,11 @@
 // Taps and drags on the scene: a tap sends a command (walk here, work this rock or tree, visit this building or land,
-// pick this up); a drag turns the camera. Wheel and pinch zoom. Arrow keys turn the camera too.
+// gather these or pick this up); a drag turns the camera. Wheel and pinch zoom. Arrow keys turn the camera too.
 import * as THREE from 'three';
 import type { View } from '../render/view';
 import type { Command } from '../systems/commands';
 import type { Layout } from '../world/layout';
 import { RESOURCES, SKILLS } from '../data/skills';
-import { PICKUPS } from '../data/pickups';
+import { GATHERS, PICKUPS } from '../data/pickups';
 
 type Target =
   | { kind: 'node'; id: string; point: THREE.Vector3 }
@@ -55,7 +55,11 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
       const res = RESOURCES[layout.nodes.find(n => n.id === t.id)!.resource]!;
       return `${SKILLS[res.skill].verb}|${res.name}`;
     }
-    if (t.kind === 'pickup') return `Pick up|${PICKUPS[layout.pickups!.find(p => p.id === t.id)!.kind].name}`;
+    if (t.kind === 'pickup') {
+      // what tapping it starts: gathering all of its group ("Gather|Planks"), or picking up just that one
+      const def = PICKUPS[layout.pickups!.find(p => p.id === t.id)!.kind];
+      return def.gather ? `Gather|${GATHERS[def.gather].name}` : `Pick up|${def.name}`;
+    }
     if (t.kind === 'building') return `Visit|${layout.buildings.find(b => b.id === t.id)!.name}`;
     return `Explore|${layout.parcels.find(p => p.id === t.id)!.name}`;
   }

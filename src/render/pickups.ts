@@ -2,7 +2,9 @@
 // assets/models/village.glb, each model merged into one mesh coloured per vertex so a phone draws each pickup in one
 // call. Taken ones are hidden; a stone or branch that lies there again pops back. Each has an
 // invisible, finger-sized hit area tagged with its id (userData.pickupId) for the input to find, and a soft glint
-// twinkles over it now and then so it can be spotted on a phone. Reads state; never changes it.
+// twinkles over it now and then so it can be spotted on a phone. While he walks to, or waits beside, a stone or branch
+// that isn't back yet, a faint one stands at its spot inside a cream ring that fills up as it comes back, so he plainly
+// waits for something (like at a stump) rather than standing about on bare grass. Reads state; never changes it.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { GameState } from '../core/state';
@@ -15,8 +17,10 @@ const HIT_RADIUS = 0.6;           // metres round each pickup that a tap counts 
 const POP = 0.4;                  // seconds to pop back up when one lies there again
 const GLINT_EVERY = 2.8;          // seconds between one pickup's glints...
 const GLINT_FOR = 0.55;           // ...each lasting this long
+const GHOST = [0.2, 0.55];        // how see-through the one he waits for is: just taken .. about to lie there again
+const RING = { inner: 0.36, outer: 0.44, segments: 48, color: 0xf1e8d4 };   // the ring round it, filling up clockwise
 
-interface PickupView { spot: PickupSpot; root: THREE.Object3D; hit: THREE.Mesh; top: number; shown: boolean | null; pop: number; phase: number }
+interface PickupView { spot: PickupSpot; root: THREE.Mesh; hit: THREE.Mesh; top: number; shown: boolean | null; pop: number; phase: number }
 
 /** One geometry for a whole model, its parts placed and each coloured with its material's colour. */
 function flatten(proto: THREE.Object3D): THREE.BufferGeometry {
@@ -51,6 +55,11 @@ export class PickupsView {
   readonly pickables: THREE.Object3D[] = [];
   private views: PickupView[] = [];
   private glints: THREE.InstancedMesh;
+  // the stone or branch he walks to or waits beside while it isn't back yet: a faint one and a ring that fills up
+  private wait = new THREE.Group();
+  private ghost = new THREE.Mesh(undefined, new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.85, metalness: 0, transparent: true, opacity: GHOST[0], depthWrite: false }));
+  private fill: THREE.Mesh;
   private m = new THREE.Matrix4(); private v = new THREE.Vector3(); private sc = new THREE.Vector3(); private c = new THREE.Color();
 
   constructor(scene: THREE.Scene, layout: Layout, models: THREE.Object3D) {
@@ -79,10 +88,32 @@ export class PickupsView {
     this.glints.frustumCulled = false; this.glints.renderOrder = 5; this.glints.count = 0;
     this.glints.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, this.views.length) * 3), 3);
     scene.add(this.glints);
+    const ring = new THREE.RingGeometry(RING.inner, RING.outer, RING.segments, 1, -Math.PI / 2).rotateX(Math.PI / 2);
+    const ringMat = (opacity: number) => new THREE.MeshBasicMaterial({ color: RING.color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide });
+    this.fill = new THREE.Mesh(ring, ringMat(0.75));
+    const track = new THREE.Mesh(ring.clone(), ringMat(0.22));
+    track.position.y = this.fill.position.y = 0.03;
+    this.wait.add(this.ghost, track, this.fill); this.wait.visible = false;
+    scene.add(this.wait);                                  // not pickable: a tap there goes to the grass
+  }
+
+  /** The stone or branch he walks to or waits beside while it isn't back yet: a faint one at its spot, fading in, and
+   *  the ring round it filling up, as it comes back. */
+  private updateWaiting(state: GameState): void {
+    const p = state.player, id = p.task.kind === 'pickup' ? p.task.id : p.pending?.kind === 'pickup' ? p.pending.id : null;
+    const back = id ? state.taken[id] : undefined, view = this.views.find(v => v.spot.id === id);
+    this.wait.visible = typeof back === 'number' && !!view;
+    if (typeof back !== 'number' || !view) return;
+    const respawn = PICKUPS[view.spot.kind].respawn ?? 1, near = Math.min(1, Math.max(0, 1 - (back - state.time) / respawn));
+    this.wait.position.copy(view.root.position);
+    this.ghost.geometry = view.root.geometry; this.ghost.rotation.y = view.spot.rot;
+    this.ghost.material.opacity = GHOST[0]! + (GHOST[1]! - GHOST[0]!) * near;
+    this.fill.geometry.setDrawRange(0, Math.ceil(near * RING.segments) * 6);
   }
 
   /** t: seconds; night: 0 by day .. 1 at night (the glint shows more in the dark). */
   update(state: GameState, t: number, dt: number, camera: THREE.Camera, night: number): void {
+    this.updateWaiting(state);
     let k = 0;
     for (const view of this.views) {
       const there = !(view.spot.id in state.taken);

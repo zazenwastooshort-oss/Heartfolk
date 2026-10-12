@@ -10,6 +10,7 @@ import { levelFor, levelBounds } from '../data/xp';
 import { ITEMS, SKILLS, TOOLS } from '../data/skills';
 import { BACKPACK_SLOTS } from '../data/hauling';
 import { BOOK } from '../data/goals';
+import { GATHERS } from '../data/pickups';
 import { clockLabel } from '../core/clock';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -58,6 +59,7 @@ export class Hud {
       else if (e.type === 'noStorage') this.notice("Your backpack is full, and there's nowhere to store it yet. Open the backpack to drop something.");
       else if (e.type === 'levelUp') this.pendingLevel = { skill: e.skill, level: e.level };
       else if (e.type === 'needTool') { const t = TOOLS[e.tool]; this.notice(`You need ${t.a} to ${t.use}.`); }
+      else if (e.type === 'allGathered') this.notice(`That's all the ${GATHERS[e.gather].name.toLowerCase()}.`);
       else if (e.type === 'noRoom') this.notice('Your backpack is full. Open the backpack to drop something.');
       else if (e.type === 'dropped') this.notice(`Dropped ${itemList({ [e.item]: e.count })}.`);
       else if (e.type === 'cantDrop') this.notice(`You won't find more ${itemName(e.item, 2)}, so you keep them.`);

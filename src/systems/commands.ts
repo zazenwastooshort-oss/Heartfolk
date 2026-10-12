@@ -6,7 +6,7 @@ import { walkTo, goWork, goVisit, goPickup } from '../actors/player';
 import { RESOURCES } from '../data/skills';
 import { SWINGS } from '../data/animation';
 import { levelOf } from './skills';
-import { onGround, roomFor } from './pickups';
+import { gatherOf, onGround, roomFor } from './pickups';
 import { drop } from './backpack';
 
 export type Command =
@@ -14,7 +14,8 @@ export type Command =
   | { type: 'work'; nodeId: string }
   /** a building (by id), or land that isn't the player's yet (parcel id, with where it was tapped) */
   | { type: 'visit'; id: string; at?: Vec2 }
-  /** something lying on the ground (layout.pickups, by id): walk over and pick it up */
+  /** something lying on the ground (layout.pickups, by id): walk over and pick it up; a plank, stone or branch starts
+   *  gathering more like it (systems/pickups) */
   | { type: 'pickup'; id: string }
   /** drop `count` of an item from the backpack (all of it when `count` is more than he carries) */
   | { type: 'drop'; item: string; count: number };
@@ -30,7 +31,10 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     else if (c.type === 'visit') ok = goVisit(state, layout, c.id, c.at);
     else if (c.type === 'pickup') {
       if (!onGround(state, layout, c.id)) continue;
-      if (!roomFor(state, layout, c.id)) { events.emit({ type: 'noRoom' }); continue; }
+      // no room for it: where there is a bank, gathering starts with a trip to empty the backpack (systems/hauling),
+      // as working a tree does; otherwise he says so and stays put
+      const toBankFirst = !!gatherOf(layout, c.id) && layout.buildings.some(b => b.kind === 'bank');
+      if (!roomFor(state, layout, c.id) && !toBankFirst) { events.emit({ type: 'noRoom' }); continue; }
       ok = goPickup(state, layout, c.id);
     } else {
       const spot = layout.nodes.find(n => n.id === c.nodeId);
@@ -45,7 +49,7 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     }
     if (!ok) { events.emit({ type: 'noPath' }); continue; }
     // the player's command wins over a trip to the bank (the backpack keeps its items), unless it sends him to the
-    // bank anyway. Sent to work with a full backpack, hauling starts a new trip at once.
+    // bank anyway. Sent to work (or to gather) with a full backpack, hauling starts a new trip at once.
     const toBank = c.type === 'visit' && layout.buildings.find(b => b.id === c.id)?.kind === 'bank';
     if (!toBank) state.player.trip = null;
   }

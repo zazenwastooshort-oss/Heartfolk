@@ -3,6 +3,7 @@ import { SAVE_VERSION, createState, type GameState } from './state';
 import type { Layout } from '../world/layout';
 import { navFor } from '../world/nav';
 import { ITEMS, SKILLS, TOOL_IDS, type SkillId, type ToolId } from '../data/skills';
+import { PICKUPS } from '../data/pickups';
 
 export interface Storage { get(key: string): string | null; set(key: string, value: string): void }
 
@@ -92,17 +93,21 @@ export function deserialize(raw: string, layout: Layout): GameState {
   if (!Number.isFinite(p.pos?.x) || !Number.isFinite(p.pos?.z) || !navFor(layout).walkable(p.pos)) {
     p.pos = { ...layout.start }; p.path = []; p.task = { kind: 'idle' }; p.pending = null; p.trip = null;
   }
-  // a task or destination pointing at something that no longer exists (or a pickup already taken) is dropped
-  const onGround = (id: string) => (layout.pickups ?? []).some(x => x.id === id) && !(id in state.taken);
+  // a task or destination pointing at something that no longer exists (or a pickup taken for good) is dropped; a
+  // stone or branch that isn't back yet is kept: gathering, he walks to it or waits beside it
+  const pickupThere = (id: string) => (layout.pickups ?? []).some(x => x.id === id) && (!(id in state.taken) || state.taken[id] !== null);
   if (p.task.kind === 'gather' && !(p.task.nodeId in state.nodes)) p.task = { kind: 'idle' };
-  if (p.task.kind === 'pickup' && (!onGround(p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
-  if ((p.pending?.kind === 'node' && !(p.pending.id in state.nodes)) || (p.pending?.kind === 'pickup' && !onGround(p.pending.id))) {
+  if (p.task.kind === 'pickup' && (!pickupThere(p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
+  if ((p.pending?.kind === 'node' && !(p.pending.id in state.nodes)) || (p.pending?.kind === 'pickup' && !pickupThere(p.pending.id))) {
     p.pending = null; p.path = []; if (p.task.kind === 'walk') p.task = { kind: 'idle' };
   }
-  // a trip only makes sense on the way to the bank or waiting at its door, back to a node that still exists
-  const trip = p.trip;
+  // a trip only makes sense on the way to the bank or waiting at its door, back to a node that still exists or to
+  // gathering pickups the layout still has
+  const trip = p.trip as Partial<{ nodeId: unknown; pickupId: unknown; leaveAt: unknown }> | null;
   if (trip && trip.leaveAt !== undefined && !Number.isFinite(trip.leaveAt)) delete trip.leaveAt;
-  if (trip && (!(trip.nodeId in state.nodes) || (p.pending?.kind !== 'visit' && trip.leaveAt === undefined))) p.trip = null;
+  const gathered = (id: string) => { const spot = layout.pickups?.find(x => x.id === id); return !!spot && PICKUPS[spot.kind].gather !== null; };
+  const backTo = !!trip && (typeof trip.pickupId === 'string' ? gathered(trip.pickupId) : typeof trip.nodeId === 'string' && trip.nodeId in state.nodes);
+  if (trip && (!backTo || (p.pending?.kind !== 'visit' && trip.leaveAt === undefined))) p.trip = null;
   return state;
 }
 

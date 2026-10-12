@@ -1,7 +1,7 @@
 // Modules announce what happened instead of calling into each other. The renderer, the HUD and later
 // sound and the chronicle subscribe. Events carry plain data only.
 import type { SkillId, ToolId } from '../data/skills';
-import type { PickupKind } from '../data/pickups';
+import type { GatherId, PickupKind } from '../data/pickups';
 
 export type GameEvent =
   | { type: 'strike'; nodeId: string }
@@ -20,6 +20,8 @@ export type GameEvent =
   | { type: 'pickedUp'; id: string; kind: PickupKind; item: string | null; count: number }
   /** a stone or branch lies at its spot again */
   | { type: 'pickupBack'; id: string }
+  /** gathering `gather` (GATHERS in data/pickups), he picked up the last one there is, so he stops */
+  | { type: 'allGathered'; gather: GatherId }
   /** no room in the backpack for what he was sent to pick up */
   | { type: 'noRoom' }
   /** `count` of `item` dropped from the backpack, gone for good */

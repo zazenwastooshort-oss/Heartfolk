@@ -272,10 +272,11 @@ Ten tasks take the village prototype to the first playable loop; tick each one o
 
 ## Decision log
 
-Thirty-four decisions so far, newest first; each answered open question is added here with its date.
+Thirty-five decisions so far, newest first; each answered open question is added here with its date.
 
 | Date | Decision |
 | --- | --- |
+| 12 Oct 2026 | The idle feel starts at the camp: tapping something to pick up starts an activity that keeps going, like woodcutting. A plank (or the crate) gathers all the wreck's planks, nearest first, then stops; a stone or a branch keeps gathering that kind, waiting beside the next to come back, until the backpack is full (then the bank where there is one). The tarp and the book are picked up on their own. Built as game 0.0.14. |
 | 12 Oct 2026 | The survival book is in from the start: wreckage washes up with him (planks, a tarp, a crate and his book). Picking up the book opens it; its pages are the goals, in order: salvage the wreck, a campfire (planks and stones), a stone axe (branches and stones), firewood, a shelter (tarp, planks, logs), a stone pickaxe, a storage chest. Stones and branches are gathered by hand. A printed copy could still be a Kickstarter reward. |
 | 12 Oct 2026 | The character washes up with nothing: no tools. He gathers branches and stones by hand and makes his first tools from them (a stone axe first); better tools come later. The camp starts bare: tent and campfire appear only when built. |
 | 12 Oct 2026 | The fall was so far that the top of the waterfall is never seen: from the camp there is only water pouring out of the sky down a towering mountain wall. The opening cinematic shows him falling out of the mist with the water into the pool. |

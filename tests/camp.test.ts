@@ -38,13 +38,27 @@ type Setup = ReturnType<typeof setup>;
 const send = (s: Setup, c: Command) => applyCommands(s.state, CAMP, [c], s.events);
 const run = (s: Setup, seconds: number) => { for (let t = 0; t < seconds; t += STEP) step(s.state, STEP, s.ctx); };
 const runUntil = (s: Setup, done: () => boolean, max: number) => { for (let t = 0; t < max && !done(); t += STEP) step(s.state, STEP, s.ctx); };
-/** Tap a pickup and wait until it is in his backpack (or a minute passes). */
+/** Tap a pickup, wait until it is in his backpack (or a minute passes), then tap the grass where he stands, so he
+ *  picks up just that one (a plank, stone or branch would start him gathering more like it). */
 function pickUp(s: Setup, id: string): void {
+  const from = s.log.length;
   send(s, { type: 'pickup', id });
-  runUntil(s, () => s.log.some(e => e.type === 'pickedUp' && e.id === id) && s.state.player.task.kind === 'idle', 60);
+  runUntil(s, () => s.log.slice(from).some(e => e.type === 'pickedUp' && e.id === id), 60);
+  send(s, { type: 'walk', to: { ...s.state.player.pos } });
+  runUntil(s, () => s.state.player.task.kind === 'idle', 5);
 }
-/** Pick up every piece of the wreck, one after another. */
-const salvage = (s: Setup) => { for (const kind of WRECK) for (const p of ofKind(kind)) pickUp(s, p.id); };
+/** Tap a pickup and let him gather until he stops by himself (or `max` seconds pass). */
+function gather(s: Setup, id: string, max = 600): void {
+  const from = s.log.length;
+  send(s, { type: 'pickup', id });
+  runUntil(s, () => s.log.slice(from).some(e => e.type === 'allGathered' || e.type === 'noStorage' || e.type === 'noRoom'), max);
+}
+/** Salvage what is left of the wreck as a player would: tap a plank (he gathers them all), then the tarp and the book. */
+const salvage = (s: Setup) => {
+  const plank = [...ofKind('plank'), ...ofKind('crate')].find(p => !(p.id in s.state.taken));
+  if (plank) gather(s, plank.id);
+  for (const p of [...ofKind('tarp'), ...ofKind('book')]) if (!(p.id in s.state.taken)) pickUp(s, p.id);
+};
 
 describe('the camp below the falls', () => {
   it('starts him on open ground by the pool, with a level-1 tree and rock to work', () => {
@@ -205,7 +219,7 @@ describe('the wreck, stones and branches', () => {
     }
   });
 
-  it('picking one up walks him over, stops him a moment beside it, and puts it in his backpack', () => {
+  it('picking one up walks him over, stops him a moment beside it, puts it in his backpack, and he goes on', () => {
     const s = setup(), plank = ofKind('plank')[0]!;
     send(s, { type: 'pickup', id: plank.id });
     expect(s.state.player.pending).toEqual({ kind: 'pickup', id: plank.id });
@@ -220,10 +234,12 @@ describe('the wreck, stones and branches', () => {
     expect(s.state.taken[plank.id]).toBeNull();                 // gone from the ground, for good
     expect(s.log).toContainEqual({ type: 'pickedUp', id: plank.id, kind: 'plank', item: 'plank', count: 1 });
     expect(s.log).toContainEqual({ type: 'itemGained', item: 'plank', count: 1 });
-    // it isn't there to pick up again
+    // straight on to the next plank (systems/pickups gathering; tested below)
+    expect(s.state.player.pending?.kind).toBe('pickup');
+    // it isn't there to pick up again: tapping where it lay changes nothing
+    const next = s.state.player.pending;
     send(s, { type: 'pickup', id: plank.id });
-    expect(s.state.player.task.kind).toBe('idle');
-    expect(s.state.player.pending).toBeNull();
+    expect(s.state.player.pending).toEqual(next);
   });
 
   it('the smashed crate gives planks, and every pickup gives a known item', () => {
@@ -341,12 +357,10 @@ describe('the wreck, stones and branches', () => {
   it('a backpack filled with stones and branches before the wreck can be made room in, and the wreck salvaged', () => {
     const s = setup();
     pickUp(s, ofKind('plank')[0]!.id); pickUp(s, ofKind('tarp')[0]!.id);
-    // gather every stone and branch, again and again as they come back, until the backpack is full
-    const loose = [...ofKind('stone'), ...ofKind('branch')];
-    for (let round = 0; round < 6 && backpackCount(s.state) < BACKPACK_SLOTS; round++) {
-      for (const p of loose) if (backpackCount(s.state) < BACKPACK_SLOTS) pickUp(s, p.id);
-      run(s, Math.max(PICKUPS.stone.respawn!, PICKUPS.branch.respawn!) + 1);
-    }
+    // gather branches, then stones, again and again as they come back, until the backpack is full
+    pickUp(s, ofKind('branch')[0]!.id);
+    gather(s, ofKind('stone')[0]!.id, 3600);
+    expect(s.log.at(-1)).toEqual({ type: 'noStorage' });
     expect(backpackCount(s.state)).toBe(BACKPACK_SLOTS);
     // full: the next plank is refused and he stays put
     const at = { ...s.state.player.pos };
@@ -366,6 +380,175 @@ describe('the wreck, stones and branches', () => {
     const open = pickups.filter(p => nav.walkable(p.pos));
     expect(open.length).toBeGreaterThan(pickups.length / 2);
     for (const p of open) expect(nav.findPath(CAMP.start, p.pos), p.id).not.toBeNull();
+  });
+});
+
+describe('gathering by hand (0.0.14)', () => {
+  /** Where he stood each time he picked something up, and what it was. */
+  function picks(s: Setup) {
+    const out: { id: string; at: Vec2; time: number }[] = [];
+    s.events.on(e => { if (e.type === 'pickedUp') out.push({ id: e.id, at: { ...s.state.player.pos }, time: s.state.time }); });
+    return out;
+  }
+  const planks = () => pickups.filter(p => PICKUPS[p.kind].gather === 'planks');
+
+  it('tapping a plank gathers every plank, the smashed crate too, nearest first, then he stops and says so', () => {
+    const s = setup(), got = picks(s), first = ofKind('plank')[0]!;
+    expect(PICKUPS.crate.gather).toBe('planks');
+    send(s, { type: 'pickup', id: first.id });
+    runUntil(s, () => s.log.some(e => e.type === 'allGathered'), 600);
+    expect(s.state.player.backpack).toEqual({ plank: 7 });               // 5 loose and 2 from the crate
+    expect(got.map(g => g.id).sort()).toEqual(planks().map(p => p.id).sort());
+    expect(got[0]!.id).toBe(first.id);
+    // each next one was the nearest still lying there
+    for (let i = 1; i < got.length; i++) {
+      const left = planks().filter(p => !got.slice(0, i).some(g => g.id === p.id));
+      const nearest = left.reduce((a, b) => dist(b.pos, got[i - 1]!.at) < dist(a.pos, got[i - 1]!.at) ? b : a);
+      expect(got[i]!.id, `pick ${i}`).toBe(nearest.id);
+    }
+    expect(s.log.filter(e => e.type === 'allGathered')).toEqual([{ type: 'allGathered', gather: 'planks' }]);
+    expect(s.state.player.task.kind).toBe('idle');
+    expect(s.state.player.pending).toBeNull();
+    // the tarp and the book are left for him to pick up himself
+    expect('tarp1' in s.state.taken || 'book1' in s.state.taken).toBe(false);
+    run(s, 30);
+    expect(s.state.player.backpack).toEqual({ plank: 7 });
+    expect(s.state.player.task.kind).toBe('idle');
+  });
+
+  it("with one slot left he takes a loose plank before the crate's two, then stops with the backpack full", () => {
+    const s = setup(), got = picks(s), crate = ofKind('crate')[0]!;
+    s.state.player.backpack = { stone: BACKPACK_SLOTS - 2 };
+    gather(s, 'plank1');
+    expect(got.map(g => g.id)).toEqual(['plank1', expect.stringMatching(/^plank/)]);
+    // the crate was nearer, but its two planks wouldn't fit
+    const loose = pickups.find(p => p.id === got[1]!.id)!;
+    expect(dist(crate.pos, got[0]!.at)).toBeLessThan(dist(loose.pos, got[0]!.at));
+    expect(backpackCount(s.state)).toBe(BACKPACK_SLOTS);
+    expect(s.state.player.backpack).toEqual({ stone: BACKPACK_SLOTS - 2, plank: 2 });
+    expect(s.log.filter(e => e.type === 'noStorage')).toHaveLength(1);
+    expect(s.log.some(e => e.type === 'allGathered' || e.type === 'noRoom')).toBe(false);
+    expect(s.state.player.task.kind).toBe('idle');
+  });
+
+  it('tapping the tarp or the book picks up just that one', () => {
+    for (const id of ['tarp1', 'book1']) {
+      const s = setup();
+      send(s, { type: 'pickup', id });
+      run(s, 40);
+      expect(Object.keys(s.state.taken)).toEqual([id]);
+      expect(s.state.player.task.kind).toBe('idle');
+      expect(s.log.some(e => e.type === 'allGathered')).toBe(false);
+    }
+  });
+
+  it('tapping a stone gathers every stone, waits beside the first to come back, and goes on until the backpack is full', () => {
+    const s = setup(), got = picks(s), stones = ofKind('stone');
+    send(s, { type: 'pickup', id: stones[0]!.id });
+    runUntil(s, () => got.length === stones.length, 300);
+    expect(got.map(g => g.id).sort()).toEqual(stones.map(p => p.id).sort());
+    // none left on the ground: he walks to the one that comes back soonest (the first he took) and waits beside it
+    const soonest = got[0]!.id, spot = pickups.find(p => p.id === soonest)!;
+    expect(s.state.player.pending).toEqual({ kind: 'pickup', id: soonest });
+    runUntil(s, () => s.state.player.task.kind === 'pickup', 60);
+    expect(s.state.player.task).toMatchObject({ kind: 'pickup', id: soonest });
+    expect(s.state.taken[soonest]).toBeGreaterThan(s.state.time);       // not back yet
+    const waitAt = { ...s.state.player.pos };
+    expect(dist(waitAt, spot.pos)).toBeLessThanOrEqual(PICKUP_REACH.at(-1)! + 1e-6);
+    runUntil(s, () => s.log.some(e => e.type === 'pickupBack' && e.id === soonest), 120);
+    expect(s.state.player.pos).toEqual(waitAt);                          // stood there waiting
+    const backAt = s.state.time;
+    runUntil(s, () => got.length > stones.length, 5);
+    expect(got.at(-1)!.id).toBe(soonest);                               // picked up a moment after it came back
+    expect(s.state.time - backAt).toBeCloseTo(PICKUP_PAUSE, 1);
+    // on and on until the backpack is full; then, with nowhere to store it, he stops and says so
+    runUntil(s, () => s.log.some(e => e.type === 'noStorage'), 3600);
+    expect(s.state.player.backpack).toEqual({ stone: BACKPACK_SLOTS });
+    expect(s.log.filter(e => e.type === 'noStorage')).toHaveLength(1);
+    expect(s.log.some(e => e.type === 'allGathered' || e.type === 'noRoom')).toBe(false);
+    expect(got.every(g => g.id.startsWith('stone'))).toBe(true);        // stones only
+    expect(s.state.player.task.kind).toBe('idle');
+    run(s, 300);
+    expect(s.state.player.task.kind).toBe('idle');
+    expect(s.log.filter(e => e.type === 'noStorage')).toHaveLength(1);
+  });
+
+  it('tapping a branch gathers branches, not stones', () => {
+    const s = setup(), got = picks(s);
+    send(s, { type: 'pickup', id: ofKind('branch')[2]!.id });
+    runUntil(s, () => got.length === ofKind('branch').length + 1, 600);
+    expect(got.every(g => g.id.startsWith('branch'))).toBe(true);
+    expect(s.state.player.backpack).toEqual({ branch: ofKind('branch').length + 1 });
+  });
+
+  it('tapping the grass, anything else, or another kind stops or changes what he gathers', () => {
+    // the grass: he walks there and stays
+    const s = setup(), got = picks(s);
+    send(s, { type: 'pickup', id: ofKind('plank')[0]!.id });
+    runUntil(s, () => got.length === 1, 60);
+    send(s, { type: 'walk', to: { x: 2, z: 0 } });
+    run(s, 60);
+    expect(got).toHaveLength(1);
+    expect(s.state.player.task.kind).toBe('idle');
+    expect(dist(s.state.player.pos, { x: 2, z: 0 })).toBeLessThan(0.5);
+    expect(s.log.some(e => e.type === 'allGathered')).toBe(false);
+    // the tarp, mid-planks: he picks it up, and that's all
+    const t = setup(), tGot = picks(t);
+    send(t, { type: 'pickup', id: ofKind('plank')[0]!.id });
+    runUntil(t, () => tGot.length === 1, 60);
+    send(t, { type: 'pickup', id: 'tarp1' });
+    run(t, 60);
+    expect(tGot.map(g => g.id)).toEqual([ofKind('plank')[0]!.id, 'tarp1']);
+    expect(t.state.player.task.kind).toBe('idle');
+    // a stone, mid-planks: he gathers stones instead
+    const u = setup(), uGot = picks(u);
+    send(u, { type: 'pickup', id: ofKind('plank')[0]!.id });
+    runUntil(u, () => uGot.length === 1, 60);
+    send(u, { type: 'pickup', id: ofKind('stone')[0]!.id });
+    runUntil(u, () => uGot.length === 4, 120);
+    expect(uGot.slice(1).every(g => g.id.startsWith('stone'))).toBe(true);
+    // a tree (he has an axe): he chops it
+    const v = setup(), vGot = picks(v);
+    v.state.tools.axe = true;
+    send(v, { type: 'pickup', id: ofKind('branch')[0]!.id });
+    runUntil(v, () => vGot.length === 1, 60);
+    send(v, { type: 'work', nodeId: 'camp_birch1' });
+    run(v, 30);
+    expect(vGot).toHaveLength(1);
+    expect(v.state.player.task).toMatchObject({ kind: 'gather', nodeId: 'camp_birch1' });
+  });
+
+  it('a save and reload part way through carries on gathering', () => {
+    const s = setup(), got = picks(s);
+    send(s, { type: 'pickup', id: ofKind('plank')[0]!.id });
+    runUntil(s, () => got.length === 3, 120);
+    run(s, 0.2);                                                         // on the way to the next
+    const back = deserialize(serialize(s.state), CAMP);
+    expect(back).toEqual(s.state);
+    const loaded = { ...setup(), state: back };
+    runUntil(loaded, () => loaded.log.some(e => e.type === 'allGathered'), 600);
+    expect(loaded.state.player.backpack).toEqual({ plank: 7 });
+    // waiting beside a stone that isn't back yet: still waiting after loading, and picks it up when it comes back
+    const w = setup(), wGot = picks(w);
+    send(w, { type: 'pickup', id: ofKind('stone')[0]!.id });
+    runUntil(w, () => wGot.length === ofKind('stone').length, 300);
+    runUntil(w, () => w.state.player.task.kind === 'pickup', 60);
+    const waiting = w.state.player.task as { kind: 'pickup'; id: string };
+    expect(w.state.taken[waiting.id]).toBeGreaterThan(w.state.time);
+    const again = { ...setup(), state: deserialize(serialize(w.state), CAMP) };
+    expect(again.state.player.task).toEqual(w.state.player.task);
+    const againGot = picks(again);
+    runUntil(again, () => againGot.length === 2, 200);
+    expect(againGot[0]!.id).toBe(waiting.id);
+    expect(again.state.player.backpack.stone).toBe(ofKind('stone').length + 2);
+    // and on the way to one that isn't back yet
+    const walking = setup(), walkingGot = picks(walking);
+    send(walking, { type: 'pickup', id: ofKind('stone')[0]!.id });
+    runUntil(walking, () => walkingGot.length === ofKind('stone').length, 300);
+    expect(walking.state.player.pending?.kind).toBe('pickup');
+    const third = deserialize(serialize(walking.state), CAMP);
+    expect(third.player.pending).toEqual(walking.state.player.pending);
+    expect(third.player.path).toEqual(walking.state.player.path);
   });
 });
 
@@ -435,6 +618,11 @@ describe('saving the camp', () => {
     expect(back.hasBook).toBe(false);
     expect(back.taken).toEqual({ plank1: null, stone1: 120 });
     expect(back.player.task.kind).toBe('idle');
+    // waiting beside a stone that comes back is kept; a pickup that never comes back is not waited for
+    raw.player.task = { kind: 'pickup', id: 'stone1', doneAt: 120.6 };
+    expect(deserialize(JSON.stringify(raw), CAMP).player.task).toEqual(raw.player.task);
+    raw.player.task = { kind: 'walk' }; raw.player.path = [{ x: -10, z: -6 }]; raw.player.pending = { kind: 'pickup', id: 'plank1' };
+    expect(deserialize(JSON.stringify(raw), CAMP).player).toMatchObject({ task: { kind: 'idle' }, pending: null, path: [] });
     for (const bad of [null, 'junk', [1]]) {
       const b = JSON.parse(serialize(createState(CAMP, 4))); b.tools = bad; b.taken = bad;
       const s = deserialize(JSON.stringify(b), CAMP);

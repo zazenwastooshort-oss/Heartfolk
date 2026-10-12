@@ -6,6 +6,14 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.14', date: '12 Oct 2026', notes: [
+      'Tap a plank and you pick up every plank on the bank, one after another, the two in the smashed crate too. When they are all in your backpack, you stop.',
+      'Tap a stone or a branch and you keep gathering them, nearest first. When none are left, you wait beside the next one to come back, until your backpack is full. While you wait, a ring on the ground fills up until it is back.',
+      'The torn tarp and your book are picked up on their own, as before.',
+      'Tap the grass, or anything else, to stop or do something different.',
+    ],
+  },
+  {
     version: '0.0.13', date: '12 Oct 2026', notes: [
       'The pool below the falls and the river are one stretch of water now, with a natural shoreline and a pebbly sandy bank all the way round.',
       'The river winds a little, its banks gently curving and its width changing as it goes, and it flows on out of sight instead of stopping.',
