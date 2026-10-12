@@ -17,10 +17,10 @@ export function missingFor(state: GameState, def: MakeDef): Record<string, numbe
   return out;
 }
 
-/** Whether `def` can be made in this layout: its site is here (or it is made anywhere), and a structure isn't built
- *  yet. */
+/** Whether `def` can be made in this layout: its site is here (or it is made anywhere), and it isn't made yet: a
+ *  structure not built, a tool he doesn't own (the village's axe, or one an old camp save kept). */
 export const canMake = (state: GameState, layout: Layout, def: MakeDef) =>
-  (def.at === 'here' || siteOf(layout, def.at) !== null) && !(def.gives.kind === 'structure' && made(state, def.id));
+  (def.at === 'here' || siteOf(layout, def.at) !== null) && !made(state, def.id);
 
 export function updateMaking(state: GameState, layout: Layout, events: EventBus): void {
   const p = state.player, task = p.task;

@@ -45,7 +45,8 @@ export class StructuresView {
     const ringMat = (opacity: number) => new THREE.MeshBasicMaterial({ color: RING.color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide });
     const puffs = puffTexture();
     for (const def of Object.values(MAKES)) {
-      if (def.gives.kind !== 'structure' || def.at === 'here') continue;
+      const build = BUILD[def.id];
+      if (def.gives.kind !== 'structure' || def.at === 'here' || !build) continue;
       const site = siteOf(layout, def.at);
       if (!site) continue;
       // before it is built: a faint ring of stones inside a ring on the ground, which fills up while he builds
@@ -62,7 +63,7 @@ export class StructuresView {
       hit.position.set(site.pos.x, 0.4, site.pos.z); hit.userData.makeId = def.id;
       scene.add(hit); this.pickables.push(hit);
       // once built
-      const { model, flames } = BUILD[def.id](proto);
+      const { model, flames } = build(proto);
       model.position.set(site.pos.x, 0, site.pos.z); model.visible = false;
       model.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = !flames.includes(m); m.receiveShadow = true; } });
       scene.add(model);
@@ -122,8 +123,9 @@ export class StructuresView {
   }
 }
 
-/** How each structure is drawn once built: its model at the site's centre, and its flames (which flicker), if any. */
-const BUILD: Record<MakeId, (proto: (name: string) => THREE.Object3D) => { model: THREE.Group; flames: THREE.Object3D[] }> = {
+/** How each structure is drawn once built: its model at the site's centre, and its flames (which flicker), if any.
+ *  Tools (the stone axe) have none: the view draws them on him. */
+const BUILD: Partial<Record<MakeId, (proto: (name: string) => THREE.Object3D) => { model: THREE.Group; flames: THREE.Object3D[] }>> = {
   campfire: proto => {
     const model = new THREE.Group(), flames: THREE.Object3D[] = [];
     // the cold campfire's ring of stones and its ash, without its logs: the fire burns the planks it was built with

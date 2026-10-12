@@ -92,12 +92,12 @@ function savedGoals(v: unknown): string[] {
   return [...new Set(v.filter(id => typeof id === 'string' && GOALS.some(g => g.id === id)))] as string[];
 }
 
-/** Whether `id` can be made here at all (data/making.ts): it exists, its site is in this layout, and it isn't built
- *  yet. */
+/** Whether `id` can be made here at all (data/making.ts): it exists, its site is in this layout, and it isn't made
+ *  yet (a structure built, a tool owned). */
 function makeable(state: GameState, layout: Layout, id: unknown): boolean {
   const def = typeof id === 'string' ? makeDef(id) : null;
   if (!def || (def.at !== 'here' && !siteOf(layout, def.at))) return false;
-  return def.gives.kind !== 'structure' || !made(state, def.id);
+  return !made(state, def.id);
 }
 
 export function deserialize(raw: string, layout: Layout): GameState {

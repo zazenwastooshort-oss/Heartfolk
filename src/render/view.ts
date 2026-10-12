@@ -1,5 +1,6 @@
 // Draws the game: the ground and river, the village, fog over unclaimed land, the rocks and trees, things lying on the
-// ground to pick up, what he builds (the campfire), and the character with the tool for the job (pick or axe) and the matching animation, placed
+// ground to pick up, what he builds (the campfire), and the character with the tool for the job (pick or axe; at the
+// camp the axe is the stone axe he made) and the matching animation, placed
 // from the game state every frame, plus effects (chips, the click cross). It reads state; it never changes it. The
 // tool is in his hands while he works and on his back otherwise, every walk included (toolInHand picks the armed or
 // the free clip), hidden for the moment it moves between the two. A tool he doesn't own is never drawn: with none he
@@ -29,6 +30,11 @@ import { ArmIK, armedWeight, toolInHand, toolInTransit } from './arms';
 
 /** While he builds something: a placeholder motion, bowing down to it and back up, `rate` bows a second. */
 const BUILD_BOW = { lean: 0.42, dip: 0.08, rate: 1.3 };
+
+/** The camp's axe is the stone axe he makes (data/making.ts): miner.glb's axe with its blade turned into a chunky grey
+ *  stone (`thick` times as thick) and the iron block behind it into the lashing that ties it to the handle. The
+ *  village's axe stays iron. */
+const STONE_AXE = { stone: '#8f8c86', lashing: '#b39867', thick: 1.8 };
 
 type Tool = Swing['tool'];
 
@@ -114,6 +120,12 @@ export class View {
       axe: { parts: [find('axe_head'), find('axe_blade')], tip: find('AxeTip') },
     };
     this.handle = find('pick_handle');
+    if (this.layout.camp) {
+      const blade = find('axe_blade') as THREE.Mesh, lashing = find('axe_head') as THREE.Mesh;
+      blade.material = new THREE.MeshStandardMaterial({ color: STONE_AXE.stone, roughness: 0.95, flatShading: true });
+      blade.scale.z *= STONE_AXE.thick;
+      lashing.material = new THREE.MeshStandardMaterial({ color: STONE_AXE.lashing, roughness: 1 });
+    }
     this.showTool(null);                 // until draw() knows which tools he owns
     this.nodes = new NodesView(this.scene, this.layout, find('Rock'), village.scene);
     this.pickables.push(...this.nodes.pickables);

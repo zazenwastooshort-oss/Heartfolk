@@ -43,7 +43,7 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
       ok = goPickup(state, layout, c.id);
     } else if (c.type === 'make') {
       const def = makeDef(c.id), task = state.player.task;
-      // not here, already built, or already at work on it: nothing to do
+      // not here, already made (built, or a tool he owns), or already at work on it: nothing to do
       if (!def || !canMake(state, layout, def) || (task.kind === 'make' && task.id === def.id)) continue;
       // the camp's goals come in order: the campfire waits until the wreck is salvaged
       const first = layout.camp ? goalFirst(state, def.id) : null;

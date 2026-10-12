@@ -1,7 +1,8 @@
 // Making things (game 0.0.15; data/making.ts, systems/making.ts): building the campfire at the camp's fire spot, the
-// goals remembering they are finished (systems/goals.ts), saving it all, and the old saves' migration.
+// goals remembering they are finished (systems/goals.ts), saving it all, and the old saves' migration. Since 0.0.16
+// the stone axe, made where he stands, then firewood chopped with it, and old saves that kept their axe.
 import { describe, expect, it } from 'vitest';
-import { createState, currentGoal, goalFirst, goalMet, made, owned, SAVE_VERSION } from '../src/core/state';
+import { createState, currentGoal, goalFinished, goalFirst, goalMet, made, owned, SAVE_VERSION } from '../src/core/state';
 import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
 import { STEP } from '../src/core/loop';
@@ -12,12 +13,13 @@ import { VILLAGE, siteOf, type Layout, type Vec2 } from '../src/world/layout';
 import { navFor } from '../src/world/nav';
 import { applyCommands, type Command } from '../src/systems/commands';
 import { GOALS } from '../src/data/goals';
-import { BUILD_REACH, MAKES, type MakeDef, type MakeId } from '../src/data/making';
+import { BUILD_REACH, MAKES, makeDef, type MakeDef } from '../src/data/making';
 import type { PickupKind } from '../src/data/pickups';
 
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.z - b.z);
 const FIRE = CAMP.hearth.pos;
-const CAMPFIRE = MAKES.campfire;
+const CAMPFIRE = MAKES.campfire, STONE_AXE = MAKES.stone_axe;
+const goal = (id: string) => GOALS.find(g => g.id === id)!;
 const ofKind = (kind: PickupKind) => CAMP.pickups!.filter(p => p.kind === kind);
 
 function setup(layout: Layout = CAMP, seed = 3) {
@@ -71,17 +73,28 @@ describe('the things to make (data/making.ts)', () => {
     expect(siteOf(VILLAGE, 'hearth')).toBeNull();               // the village's hearth already has its big Hearth
   });
 
-  it('every making goal that can be made asks for what its thing needs; the stone axe comes next update', () => {
+  it('has the stone axe: branches and stones, made where he stands in a few seconds, gives the axe', () => {
+    expect(STONE_AXE).toMatchObject({ name: 'Stone axe', verb: 'Make', needs: { branch: 2, stone: 2 }, at: 'here', gives: { kind: 'tool', tool: 'axe' } });
+    expect(STONE_AXE.time).toBeGreaterThan(1);
+    expect(STONE_AXE.time).toBeLessThan(10);
+    expect(STONE_AXE.done).toBe('You made a stone axe.');
+  });
+
+  it('the goals: salvage, the fire, the stone axe, firewood, then the shelter, which comes in a later update', () => {
+    expect(GOALS.map(g => g.id)).toEqual(['salvage', 'campfire', 'stone_axe', 'firewood', 'shelter']);
+    // every making goal that can be made asks for what its thing needs
     for (const g of GOALS) {
       if (!g.makes) continue;
       const def = (MAKES as Record<string, MakeDef>)[g.makes];
       if (def) expect(g.needs, g.id).toEqual(def.needs);
     }
-    const axe = GOALS.find(g => g.id === 'stone_axe')!;
-    expect(GOALS.at(-1)).toBe(axe);
-    expect(axe).toMatchObject({ title: 'A stone axe', needs: { branch: 2, stone: 2 }, makes: 'stone_axe' });
-    expect(axe.ready).toMatch(/next update/);
-    expect(GOALS.map(g => g.id)).toEqual(['salvage', 'campfire', 'stone_axe']);
+    expect(goal('stone_axe')).toMatchObject({ title: 'A stone axe', needs: { branch: 2, stone: 2 }, makes: 'stone_axe' });
+    expect(goal('firewood')).toMatchObject({ title: 'Firewood', needs: { birch_logs: 10 } });
+    expect(goal('firewood').makes).toBeUndefined();
+    expect(goal('firewood').hint).toMatch(/birch/);
+    expect(goal('shelter')).toMatchObject({ title: 'A shelter', needs: { tarp: 1, plank: 4, birch_logs: 10 }, makes: 'shelter' });
+    expect(makeDef('shelter')).toBeNull();
+    expect(goal('shelter').ready).toMatch(/later update/);
   });
 });
 
@@ -341,52 +354,191 @@ describe('saving the campfire and the goals', () => {
   });
 });
 
-describe('the stone axe goal and what comes next', () => {
-  it('with everything for the stone axe the card waits on it: it can\'t be made until the next update', () => {
-    const s = setup();
-    s.state.goalsDone = ['salvage', 'campfire'];
-    s.state.built = ['campfire'];
-    s.state.player.backpack = { branch: 2, stone: 2 };
-    run(s, 1);
+/** A fresh camp game played through commands up to the stone axe: the wreck salvaged, the campfire built, then two
+ *  branches and two stones picked up by hand. */
+function readyForAxe(): Setup {
+  const s = readyForFire();
+  build(s);
+  for (const p of ofKind('branch').slice(0, STONE_AXE.needs.branch!)) pickUp(s, p.id);
+  // stones the fire didn't take: those are still to come back
+  for (const p of ofKind('stone').slice(CAMPFIRE.needs.stone!, CAMPFIRE.needs.stone! + STONE_AXE.needs.stone!)) pickUp(s, p.id);
+  return s;
+}
+/** Send him to make the stone axe and wait until it is made (or refused). */
+function makeAxe(s: Setup): void {
+  const from = s.log.length;
+  send(s, { type: 'make', id: 'stone_axe' });
+  runUntil(s, () => since(s, from).some(e => e.type === 'made' || e.type === 'missing' || e.type === 'goalFirst'), 30);
+}
+/** A camp game with the wreck salvaged and the fire built, carrying what the campfire left. */
+function fireLit(): Setup {
+  const s = setup();
+  s.state.goalsDone = ['salvage', 'campfire']; s.state.built = ['campfire'];
+  s.state.player.backpack = { plank: 4, tarp: 1 }; s.state.hasBook = true;
+  return s;
+}
+
+describe('making the stone axe', () => {
+  it('on a fresh camp game: made where he stands, then birches chopped for firewood, and the card moves on to the shelter', () => {
+    const s = readyForAxe();
+    expect(s.state.built).toEqual(['campfire']);
+    expect(s.state.player.backpack).toEqual({ plank: 4, tarp: 1, branch: 2, stone: 2 });
     expect(currentGoal(s.state).id).toBe('stone_axe');
     expect(goalMet(s.state, currentGoal(s.state))).toBe(true);
-    expect(s.state.goalsDone).toEqual(['salvage', 'campfire']);
-    expect(made(s.state, 'stone_axe')).toBe(false);
+    // without the axe a birch is refused
+    send(s, { type: 'work', nodeId: 'camp_birch1' });
+    expect(s.log.at(-1)).toEqual({ type: 'needTool', tool: 'axe', skill: 'woodcutting' });
+    // he makes it right where he stands, a few seconds' work; nothing is used up until it is made
+    const at = { ...s.state.player.pos }, from = s.log.length;
+    send(s, { type: 'make', id: 'stone_axe' });
+    runUntil(s, () => s.state.player.task.kind === 'make', 0.2);
+    expect(s.state.player.task).toMatchObject({ kind: 'make', id: 'stone_axe' });
+    const started = s.state.time;
+    run(s, STONE_AXE.time - 0.3);
+    expect(s.state.tools.axe).toBe(false);
+    expect(owned(s.state, 'branch')).toBe(2);
+    runUntil(s, () => s.state.tools.axe, 2);
+    expect(s.state.time - started).toBeCloseTo(STONE_AXE.time, 1);
+    expect(since(s, from)).toContainEqual({ type: 'made', make: 'stone_axe' });
+    // he owns the axe, the branches and stones are gone, he never moved, nothing was built, the card is on firewood
+    expect(s.state.tools).toEqual({ axe: true, pick: false });
+    expect(s.state.player.backpack).toEqual({ plank: 4, tarp: 1 });
+    expect(s.state.player.pos).toEqual(at);
+    expect(s.state.player.task.kind).toBe('idle');
+    expect(s.state.built).toEqual(['campfire']);
+    run(s, 0.1);
+    expect(s.state.goalsDone).toEqual(['salvage', 'campfire', 'stone_axe']);
+    expect(currentGoal(s.state).id).toBe('firewood');
+    // asked again, nothing happens: he has his axe
+    const after = s.log.length;
+    s.state.player.backpack = { plank: 4, tarp: 1, branch: 2, stone: 2 };
+    send(s, { type: 'make', id: 'stone_axe' });
+    run(s, STONE_AXE.time + 1);
+    expect(since(s, after)).toEqual([]);
+    expect(owned(s.state, 'branch')).toBe(2);
+    s.state.player.backpack = { plank: 4, tarp: 1 };
+    // tap a birch: he chops it, moving on to the next birch when one falls, until he has 10 logs
+    send(s, { type: 'work', nodeId: 'camp_birch1' });
+    runUntil(s, () => owned(s.state, 'birch_logs') >= 10, 900);
+    expect(owned(s.state, 'birch_logs')).toBeGreaterThanOrEqual(10);
+    expect(s.state.skills.woodcutting).toBeGreaterThan(0);
+    run(s, 0.1);
+    expect(s.state.goalsDone).toContain('firewood');
+    expect(currentGoal(s.state).id).toBe('shelter');
+    // he has all the shelter asks for, but it can't be built yet: the card waits on it
+    send(s, { type: 'walk', to: { ...s.state.player.pos } });
+    run(s, 1);
+    expect(goalMet(s.state, currentGoal(s.state))).toBe(true);
+    expect(goalFinished(s.state, goal('shelter'))).toBe(false);
+    expect(currentGoal(s.state).id).toBe('shelter');
   });
 
-  it('something made where he stands, giving a tool, works the same way (the stone axe next update)', () => {
-    const table = MAKES as Record<string, MakeDef>;
-    table.test_tool = { id: 'test_tool' as MakeId, name: 'Test axe', verb: 'Make', needs: { branch: 2, stone: 2 }, at: 'here', time: 2,
-      gives: { kind: 'tool', tool: 'axe' }, done: 'Made.' };
-    try {
-      const s = setup(), start = { ...s.state.player.pos };
-      s.state.player.backpack = { branch: 3, stone: 2 };
-      send(s, { type: 'make', id: 'test_tool' as MakeId });
-      run(s, 0.1);
-      expect(s.state.player.task).toMatchObject({ kind: 'make', id: 'test_tool' });
-      run(s, 2.1);
-      expect(s.state.tools.axe).toBe(true);
-      expect(made(s.state, 'test_tool')).toBe(true);
-      expect(s.state.player.backpack).toEqual({ branch: 1 });
-      expect(s.state.player.pos).toEqual(start);
-      expect(s.state.built).toEqual([]);
-      expect(s.log).toContainEqual({ type: 'made', make: 'test_tool' });
-    } finally { delete table.test_tool; }
+  it('without everything it is refused, saying what is still missing, and he stays put', () => {
+    const s = fireLit(), start = { ...s.state.player.pos };
+    send(s, { type: 'make', id: 'stone_axe' });
+    expect(s.log.at(-1)).toEqual({ type: 'missing', make: 'stone_axe', items: { branch: 2, stone: 2 } });
+    s.state.player.backpack = { plank: 4, tarp: 1, branch: 3, stone: 1 };
+    send(s, { type: 'make', id: 'stone_axe' });
+    expect(s.log.at(-1)).toEqual({ type: 'missing', make: 'stone_axe', items: { stone: 1 } });
+    expect(s.state.player.pending).toBeNull();
+    run(s, STONE_AXE.time + 1);
+    expect(s.state.player.task.kind).toBe('idle');
+    expect(s.state.player.pos).toEqual(start);
+    expect(s.state.tools.axe).toBe(false);
+    expect(s.state.player.backpack).toEqual({ plank: 4, tarp: 1, branch: 3, stone: 1 });
+    // with the last stone banked (a storage chest one day) it works, taking from the backpack first, then the bank
+    s.state.bank = { stone: 1 };
+    makeAxe(s);
+    expect(s.state.tools.axe).toBe(true);
+    expect(s.state.player.backpack).toEqual({ plank: 4, tarp: 1, branch: 1 });
+    expect(s.state.bank).toEqual({});
+  });
+
+  it('waits for the campfire: with branches and stones but no fire yet, it is refused', () => {
+    const s = setup();
+    s.state.goalsDone = ['salvage'];
+    s.state.player.backpack = { plank: 7, tarp: 1, branch: 2, stone: 2 }; s.state.hasBook = true;
+    send(s, { type: 'make', id: 'stone_axe' });
+    expect(s.log.at(-1)).toEqual({ type: 'goalFirst', make: 'stone_axe', goal: 'campfire' });
+    run(s, STONE_AXE.time + 1);
+    expect(s.state.tools.axe).toBe(false);
+    expect(s.state.player.backpack).toEqual({ plank: 7, tarp: 1, branch: 2, stone: 2 });
+  });
+
+  it('a save made while he works on it carries on and finishes after a reload', () => {
+    const s = fireLit();
+    s.state.player.backpack = { plank: 4, tarp: 1, branch: 2, stone: 2 };
+    send(s, { type: 'make', id: 'stone_axe' });
+    run(s, 1);
+    const back = deserialize(serialize(s.state), CAMP);
+    expect(back.player.task).toEqual(s.state.player.task);
+    const loaded = { ...setup(), state: back };
+    run(loaded, STONE_AXE.time);
+    expect(loaded.state.tools.axe).toBe(true);
+    expect(loaded.state.player.backpack).toEqual({ plank: 4, tarp: 1 });
+    // and once made, a save keeps it
+    const again = deserialize(serialize(loaded.state), CAMP);
+    expect(again.tools.axe).toBe(true);
+    expect(currentGoal(again).id).toBe('firewood');
+    // a save that owns the axe but says he is still making one (hand-edited) has him just standing
+    const raw = JSON.parse(serialize(loaded.state)); raw.player.task = { kind: 'make', id: 'stone_axe', doneAt: 5 };
+    expect(deserialize(JSON.stringify(raw), CAMP).player.task.kind).toBe('idle');
+  });
+});
+
+describe('old saves that already have an axe', () => {
+  it('a 0.0.11 camp save (format 4, before owned tools) keeps its axe, so the stone axe goal is done', () => {
+    const s = setup();
+    pickUp(s, 'book1');
+    const { tools: _t, hasBook: _h, taken: _k, built: _b, goalsDone: _g, ...rest } = JSON.parse(serialize(s.state));
+    const back = deserialize(JSON.stringify({ ...rest, version: 4 }), CAMP);
+    expect(back.tools).toEqual({ axe: true, pick: true });
+    expect(made(back, 'stone_axe')).toBe(true);
+    expect(goalFinished(back, goal('stone_axe'))).toBe(true);
+    expect(currentGoal(back).id).toBe('salvage');               // the goals before it still come first
+    const loaded = { ...setup(), state: back };
+    run(loaded, 0.1);
+    expect(loaded.state.goalsDone).toContain('stone_axe');
+    // once the wreck is salvaged and the fire built, the card skips the stone axe and goes to firewood
+    loaded.state.goalsDone.push('salvage', 'campfire'); loaded.state.built = ['campfire'];
+    expect(currentGoal(loaded.state).id).toBe('firewood');
+    // asked to make one anyway, nothing happens and nothing is used up
+    loaded.state.player.backpack = { branch: 2, stone: 2 };
+    const from = loaded.log.length;
+    send(loaded, { type: 'make', id: 'stone_axe' });
+    run(loaded, STONE_AXE.time + 1);
+    expect(since(loaded, from)).toEqual([]);
+    expect(loaded.state.player.backpack).toEqual({ branch: 2, stone: 2 });
+  });
+
+  it('a 0.0.15 camp save that owns an axe has the stone axe goal done, and can chop for firewood at once', () => {
+    const raw = JSON.parse(serialize(fireLit().state)); raw.tools = { axe: true, pick: true };
+    const loaded = { ...setup(), state: deserialize(JSON.stringify(raw), CAMP) };
+    expect(currentGoal(loaded.state).id).toBe('firewood');
+    send(loaded, { type: 'work', nodeId: 'camp_birch2' });
+    runUntil(loaded, () => owned(loaded.state, 'birch_logs') >= 10, 900);
+    run(loaded, 0.1);
+    expect(loaded.state.goalsDone).toEqual(['salvage', 'campfire', 'stone_axe', 'firewood']);
+    expect(currentGoal(loaded.state).id).toBe('shelter');
   });
 });
 
 describe('the village is unchanged', () => {
-  it('has no campfire to build, the same walking grid and hearth, and no goals written down', () => {
+  it('has no campfire or stone axe to make, the same walking grid and hearth, and no goals written down', () => {
     expect(navFor(VILLAGE, [])).toBe(navFor(VILLAGE));
     expect(navFor(VILLAGE).walkable(VILLAGE.hearth.pos)).toBe(false);
     const s = setup(VILLAGE);
     s.state.player.backpack = { plank: 7, stone: 4, tarp: 1 }; s.state.hasBook = true;
     send(s, { type: 'make', id: 'campfire' });
+    // he has the village's iron axe already, so a stone axe isn't made either
+    s.state.player.backpack.branch = 2;
+    send(s, { type: 'make', id: 'stone_axe' });
     expect(s.log).toEqual([]);
     expect(s.state.player.task.kind).toBe('idle');
     run(s, 5);
     expect(s.state.built).toEqual([]);
     expect(s.state.goalsDone).toEqual([]);
-    expect(s.state.player.backpack).toEqual({ plank: 7, stone: 4, tarp: 1 });
+    expect(s.state.tools).toEqual({ axe: true, pick: true });
+    expect(s.state.player.backpack).toEqual({ plank: 7, stone: 4, tarp: 1, branch: 2 });
   });
 });

@@ -6,6 +6,14 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.16', date: '12 Oct 2026', notes: [
+      'Make your stone axe. Once the campfire is lit and you have 2 branches and 2 stones, tap Make the stone axe on the goal card. You work on it a few seconds, right where you stand.',
+      'Then tap a birch tree to chop it. The next goal is Firewood: 10 birch logs.',
+      'If you already had an axe from an earlier version, you keep it, and the stone axe goal is done for you.',
+      'After the firewood comes a shelter. Building it comes in a later update.',
+    ],
+  },
+  {
     version: '0.0.15', date: '12 Oct 2026', notes: [
       'Build your campfire. Once the wreck is salvaged and you have 3 planks and 4 stones, tap Build on the goal card, or tap the fire spot (the ring on the bare earth in the middle of the camp).',
       'You work there a few seconds, and the fire is lit: it flickers, smokes a little, and lights up the camp at night. It stays lit when you come back.',
