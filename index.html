@@ -174,7 +174,9 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
 .bar { height: 6px; background: var(--track); border-radius: 3px; overflow: hidden; }
 .bar i { display: block; height: 100%; width: 0; background: var(--xp); transition: width .25s ease-out; }
 .skill small { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-/* the backpack row opens what's in it (src/ui/backpack.ts), with buttons to drop things */
+/* the backpack row opens what's in it (src/ui/backpack.ts), with buttons to drop things (and eat food: the panel is a
+   little wider while the list is open, so a name like "Cooked fish" fits beside three buttons) */
+.skill.wide { width: min(280px, calc(100% - 2 * var(--edge))); }
 .pack { display: flex; align-items: center; gap: 8px; width: 100%; margin: 0; padding: 6px 0 0; border: 0; border-top: 1px solid var(--line);
   background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; pointer-events: auto; }
 .pack:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }

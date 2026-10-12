@@ -3,7 +3,8 @@
 // and flows on to the south-west. He washes up on the pool's bank with nothing, and wreckage washed up with him:
 // planks, a torn tarp, a smashed crate and his book, strewn along the bank. Stones and branches lie round the clearing.
 // The camp starts bare: the campfire, the firewood pile, the shelter (a tent), the storage chest and (0.0.22) the
-// training dummy have their spots here and are built later. The village lies far up the river and comes much later
+// training dummy have their spots here and are built later. Since chapter 2 berry bushes grow in a patch east of the
+// fire, and fish rise in the pool and along the river. The village lies far up the river and comes much later
 // (world/layout.ts, VILLAGE).
 // Data only, like the village: x east, z south, in metres; the camera starts looking north at the falls.
 import type { Area, Falls, Layout, NodeSpot, PickupSpot, TreeKind, TreeSpot, Vec2 } from './layout';
@@ -19,6 +20,8 @@ const TRUNK: Record<string, number> = { birch_tree: 0.115, oak_tree: 0.2 };
 const tree = (id: string, resource: string, x: number, z: number, size = 1): NodeSpot =>
   ({ id, resource, pos: { x, z }, radius: TRUNK[resource]! * size, size });
 const rock = (id: string, resource: string, x: number, z: number): NodeSpot => ({ id, resource, pos: { x, z }, radius: 0.95 });
+/** A fishing spot (chapter 2): fish rising out in the water, worked from the bank (SWINGS.fishing's reach). */
+const fish = (id: string, x: number, z: number): NodeSpot => ({ id, resource: 'fishing_spot', pos: { x, z }, radius: 0.4 });
 
 function seeded(seed: number) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
@@ -86,6 +89,10 @@ export const CAMP: Layout = {
     tree('camp_birch5', 'birch_tree', -5.8, 10.4, 0.9),
     // copper in boulders that came down off the mountain
     rock('camp_copper1', 'copper_rock', 9.8, -10.4), rock('camp_copper2', 'copper_rock', 13.8, -8.2),
+    // chapter 2: fish rising in the pool below the falls and along the river, each out of reach of the bank but for a
+    // rod, with dry ground on the bank to stand on
+    fish('camp_fish1', -12.1, -10.0), fish('camp_fish2', -13.7, -7.4),
+    fish('camp_fish3', -15.1, -3.4), fish('camp_fish4', -16.4, 5.0), fish('camp_fish5', -17.0, 10.6),
   ],
   trees: woods(),
   bushes: [W(-10.6, 3.2), W(14.6, 12.4), W(1.8, 13.6), W(-9.4, 12.6), W(15.2, 1.2)],
@@ -113,6 +120,8 @@ export const CAMP: Layout = {
     // branches fallen under the birches and the bushes
     ['branch', 7.0, -6.6, 0.4], ['branch', 10.4, -1.4, 2.2], ['branch', 11.2, 7.6, 1.3], ['branch', -4.6, 9.4, 2.9],
     ['branch', -9.6, 4.2, 0.7], ['branch', 2.4, 12.4, 1.8],
+    // chapter 2: berry bushes in a patch east of the fire, between the ways to the birches, with room to walk between
+    ['bush', 7.3, 1.9, 0.3], ['bush', 8.9, 0.8, 2.1], ['bush', 9.0, 3.1, 4.0], ['bush', 10.6, 1.9, 1.2], ['bush', 10.4, 4.1, 5.3],
   ]),
   // broken ribs of the wrecked boat, washed up at the water's edge (the pool's, by the start, and the river's)
   debris: [

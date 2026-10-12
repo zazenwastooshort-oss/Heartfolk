@@ -433,7 +433,7 @@ describe('making the stone axe', () => {
     expect(s.state.time - started).toBeCloseTo(STONE_AXE.time, 1);
     expect(since(s, from)).toContainEqual({ type: 'made', make: 'stone_axe' });
     // he owns the axe, the branches and stones are gone, he never moved, nothing was built, the card is on firewood
-    expect(s.state.tools).toEqual({ axe: true, pick: false });
+    expect(s.state.tools).toEqual({ axe: true, pick: false, rod: false });
     expect(s.state.player.backpack).toEqual({ plank: 4, tarp: 1 });
     expect(s.state.player.pos).toEqual(at);
     expect(s.state.player.task.kind).toBe('idle');
@@ -531,7 +531,7 @@ describe('old saves that already have an axe', () => {
     pickUp(s, 'book1');
     const { tools: _t, hasBook: _h, taken: _k, built: _b, goalsDone: _g, ...rest } = JSON.parse(serialize(s.state));
     const back = deserialize(JSON.stringify({ ...rest, version: 4 }), CAMP);
-    expect(back.tools).toEqual({ axe: true, pick: true });
+    expect(back.tools).toEqual({ axe: true, pick: true, rod: false });
     expect(made(back, 'stone_axe')).toBe(true);
     expect(goalFinished(back, goal('stone_axe'))).toBe(true);
     expect(currentGoal(back).id).toBe('salvage');               // the goals before it still come first
@@ -777,7 +777,7 @@ describe('the stone pickaxe and copper ore', () => {
     runUntil(s, () => s.state.tools.pick, 2);
     expect(s.state.time - started).toBeCloseTo(STONE_PICK.time, 1);
     expect(since(s, from)).toContainEqual({ type: 'made', make: 'stone_pickaxe' });
-    expect(s.state.tools).toEqual({ axe: true, pick: true });
+    expect(s.state.tools).toEqual({ axe: true, pick: true, rod: false });
     expect(owned(s.state, 'branch')).toBe(0);
     expect(owned(s.state, 'stone')).toBe(0);
     expect(s.state.player.pos).toEqual(at);
@@ -927,7 +927,7 @@ describe('old saves that already have a pick', () => {
     const s = setup();
     const { tools: _t, hasBook: _h, taken: _k, built: _b, goalsDone: _g, ...rest } = JSON.parse(serialize(s.state));
     const back = deserialize(JSON.stringify({ ...rest, version: 4 }), CAMP);
-    expect(back.tools).toEqual({ axe: true, pick: true });
+    expect(back.tools).toEqual({ axe: true, pick: true, rod: false });
     expect(goalFinished(back, goal('stone_pickaxe'))).toBe(true);
     back.goalsDone = ['salvage', 'campfire', 'stone_axe', 'firewood', 'shelter']; back.built = ['campfire', 'shelter'];
     expect(currentGoal(back).id).toBe('copper');
@@ -951,7 +951,7 @@ describe('the village is unchanged', () => {
     run(s, 5);
     expect(s.state.built).toEqual([]);
     expect(s.state.goalsDone).toEqual([]);
-    expect(s.state.tools).toEqual({ axe: true, pick: true });
+    expect(s.state.tools).toEqual({ axe: true, pick: true, rod: true });
     expect(s.state.player.backpack).toEqual({ plank: 7, stone: 4, tarp: 1, branch: 2, birch_logs: 10 });
     // a shelter in a village save is dropped: the village has nowhere to put it
     const v = JSON.parse(serialize(createState(VILLAGE, 2))); v.built = ['shelter', 'campfire'];

@@ -137,7 +137,7 @@ export function buildWorld(scene: THREE.Scene, layout: Layout): WorldView {
   }
   for (const b of layout.buildings) { const d = doorOf(b); dirt(d.x, d.z, 1.4, 1.4, 900); }
   // a quarry floor round each rock; a smaller trampled patch where the woodcutter stands round a tree
-  for (const n of layout.nodes) if (isRock(n)) dirt(n.pos.x, n.pos.z, 2.0, 1.7, 2600); else dirt(n.pos.x, n.pos.z, 1.5, 1.5, 900);
+  for (const n of layout.nodes) if (isRock(n)) dirt(n.pos.x, n.pos.z, 2.0, 1.7, 2600); else if (RESOURCES[n.resource]!.model !== 'Ripples') dirt(n.pos.x, n.pos.z, 1.5, 1.5, 900);
   // land not yet claimed lies a little darker under its fog
   for (const p of layout.parcels) { g.fillStyle = 'rgba(20,40,25,0.18)'; g.fillRect(X(p.area.minX), Z(p.area.minZ), (p.area.maxX - p.area.minX) * px, (p.area.maxZ - p.area.minZ) * px); }
   // flowers in the grass, none on the bank or the stones

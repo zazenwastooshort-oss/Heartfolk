@@ -9,7 +9,7 @@
 // 0.0.21 he sets off again once he has nothing to do, the same night (the owner, 12 Oct 2026); a tap on the pile or the
 // chest while he is on his way there for the logs only sends him on. A tap on the built pile stacks the logs he
 // carries on it. It runs every step, so catching up (time in a background tab, or away time while the game was closed)
-// stokes once a night, as playing does.
+// stokes once a night, as playing does. Cooking at the campfire (chapter 2) is left like anything else, and gone back to.
 import { owned, type Back, type GameState, type Stoke } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Layout } from '../world/layout';
@@ -34,11 +34,13 @@ function logsFrom(state: GameState, layout: Layout): 'woodpile' | 'chest' | null
   return (state.player.backpack[STOKE.item] ?? 0) > 0 ? null : false;
 }
 
-/** What he is doing, to go back to after stoking: on a trip to the chest, back to what the trip goes back to; working
- *  or on the way to work; gathering or picking something up; on the way to make something; walking to a spot;
- *  (0.0.22) practising on the training dummy or on the way to it. Null for nothing (he stays by the fire). */
+/** What he is doing, to go back to after stoking: cooking at the campfire (chapter 2); on a trip to the chest, back to
+ *  what the trip goes back to; working or on the way to work; gathering or picking something up; on the way to make
+ *  something; walking to a spot; (0.0.22) practising on the training dummy or on the way to it. Null for nothing (he
+ *  stays by the fire). */
 function backOf(state: GameState): Back | null {
   const p = state.player, task = p.task, pending = p.pending;
+  if (p.cook) return { cook: true };
   if (p.trip) return 'nodeId' in p.trip ? { nodeId: p.trip.nodeId } : { pickupId: p.trip.pickupId };
   if (task.kind === 'gather') return { nodeId: task.nodeId };
   if (task.kind === 'pickup') return { pickupId: task.id };
@@ -105,19 +107,20 @@ function setOff(state: GameState, layout: Layout, events: EventBus): void {
   const p = state.player, from = logsFrom(state, layout);
   if (from === false) { burnLow(state, events); return; }
   const back = backOf(state);
-  // a full backpack on its way to the chest is emptied there on the way (not one just emptied, as he stands at it)
-  const empty = from === 'chest' && ((!!p.trip && p.trip.leaveAt === undefined) || (p.pending?.kind === 'visit' && isStore(state, layout, p.pending.id)));
+  // a full backpack on its way to the chest is emptied there on the way (not one just emptied, as he stands at it; nor
+  // one on its way there for raw fish to cook, which isn't a trip to store things)
+  const empty = from === 'chest' && ((!!p.trip && p.trip.leaveAt === undefined) || (p.pending?.kind === 'visit' && isStore(state, layout, p.pending.id) && !p.cook));
   const was = { task: p.task, path: p.path, pending: p.pending };
   if (from === null) {
     // nothing in the pile or the chest: the logs come out of his backpack, and he goes straight to the fire
     if (!goVisit(state, layout, 'campfire')) { p.task = was.task; p.path = was.path; p.pending = was.pending; events.emit({ type: 'noPath' }); return; }
     const logs = Math.min(STOKE.logs, p.backpack[STOKE.item] ?? 0);
     useUp(state, { [STOKE.item]: logs });
-    p.trip = null;
+    p.trip = null; p.cook = null;
     p.stoke = { back, logs, empty: false, from: null };
   } else {
     if (!goVisit(state, layout, from)) { p.task = was.task; p.path = was.path; p.pending = was.pending; events.emit({ type: 'noPath' }); return; }
-    p.trip = null;
+    p.trip = null; p.cook = null;
     p.stoke = { back, logs: 0, empty, from };
   }
   events.emit({ type: 'stokeOff' });

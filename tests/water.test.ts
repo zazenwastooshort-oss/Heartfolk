@@ -18,7 +18,7 @@ describe.each([['the camp', CAMP], ['the village', VILLAGE]] as [string, Layout]
   it('keeps every tree, bush and rock to work out of the water and off its bank', () => {
     for (const t of layout.trees) expect(water.edge(t.pos), `${t.kind} at ${t.pos.x.toFixed(1)}, ${t.pos.z.toFixed(1)}`).toBeGreaterThan(SHORE_CLEAR);
     for (const b of layout.bushes) expect(water.edge(b), `bush at ${b.x}, ${b.z}`).toBeGreaterThan(SHORE_CLEAR);
-    for (const n of layout.nodes) expect(water.edge(n.pos), n.id).toBeGreaterThan(SHORE_CLEAR);
+    for (const n of layout.nodes.filter(n => n.resource !== 'fishing_spot')) expect(water.edge(n.pos), n.id).toBeGreaterThan(SHORE_CLEAR);
   });
 
   it('keeps everything to pick up on dry land', () => {

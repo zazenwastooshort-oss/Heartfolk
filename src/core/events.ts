@@ -64,6 +64,12 @@ export type GameEvent =
   /** fighting, the skill he trains reached the level the camp's current goal asks for it, and the goal still asks for
    *  another (0.0.22): he carries on, and the player may choose another to train */
   | { type: 'goalLevel'; skill: SkillId; level: number; goal: string }
+  /** a fish came off the campfire (chapter 2, systems/cooking.ts): cooked (Cooking XP), or `burnt` */
+  | { type: 'cooked'; burnt: boolean }
+  /** asked to cook with no raw fish in the backpack or the chest: he stays put */
+  | { type: 'cantCook' }
+  /** cooking, he has cooked every raw fish he had, carried or in the chest, so he stops */
+  | { type: 'cookedAll' }
   | { type: 'arrived' };
 
 type Handler = (e: GameEvent) => void;

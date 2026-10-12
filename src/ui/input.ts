@@ -1,6 +1,7 @@
 // Taps and drags on the scene: a tap sends a command (walk here, work this rock or tree, visit this building or land,
-// gather these or pick this up, build here, empty the backpack into the storage chest, practise on the training
-// dummy); a drag turns the camera. Wheel and pinch zoom. Arrow keys turn the camera too.
+// gather these or pick this up, build here, empty the backpack into the storage chest; since chapter 2 fish here, pick
+// these berries, cook at the campfire, practise on the training dummy); a drag turns the camera. Wheel and pinch zoom.
+// Arrow keys turn the camera too.
 import * as THREE from 'three';
 import type { View } from '../render/view';
 import type { Command } from '../systems/commands';
@@ -18,6 +19,8 @@ type Target =
   | { kind: 'store'; id: MakeId; point: THREE.Vector3 }
   /** the training dummy once it is built (0.0.22): tapping it sends him to practise on it */
   | { kind: 'fight'; id: MakeId; point: THREE.Vector3 }
+  /** the campfire once it is built (chapter 2): tapping it cooks his raw fish */
+  | { kind: 'cook'; id: MakeId; point: THREE.Vector3 }
   | { kind: 'building'; id: string; point: THREE.Vector3 }
   | { kind: 'parcel'; id: string; point: THREE.Vector3 }
   | { kind: 'ground'; point: THREE.Vector3 }
@@ -43,7 +46,7 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
     ndc.set((e.clientX - b.left) / b.width * 2 - 1, -(e.clientY - b.top) / b.height * 2 + 1);
     ray.setFromCamera(ndc, view.cam.camera);
     // something already picked up, or a site already built on, is hidden, but still in the scene: it can't be tapped
-    const hit = ray.intersectObjects(view.pickables, false).find(h => !(h.object.userData.pickupId || h.object.userData.makeId || h.object.userData.storeId || h.object.userData.fightId) || shown(h.object));
+    const hit = ray.intersectObjects(view.pickables, false).find(h => !(h.object.userData.pickupId || h.object.userData.makeId || h.object.userData.storeId || h.object.userData.fightId || h.object.userData.cookId) || shown(h.object));
     const ground = ray.intersectObjects(view.ground, false)[0];
     if (hit && (!ground || hit.distance <= ground.distance + 0.01)) {
       const u = hit.object.userData;
@@ -57,6 +60,7 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
       if (u.makeId) return { kind: 'make', id: u.makeId, point: hit.point };
       if (u.storeId) return { kind: 'store', id: u.storeId, point: hit.point };
       if (u.fightId) return { kind: 'fight', id: u.fightId, point: hit.point };
+      if (u.cookId) return { kind: 'cook', id: u.cookId, point: hit.point };
       if (u.buildingId) return { kind: 'building', id: u.buildingId, point: hit.point };
       if (u.parcelId) return { kind: 'parcel', id: u.parcelId, point: hit.point };
     }
@@ -66,17 +70,19 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
   function label(t: Target): string | null {
     if (!t || t.kind === 'ground') return null;
     if (t.kind === 'node') {
-      const res = RESOURCES[layout.nodes.find(n => n.id === t.id)!.resource]!;
-      return `${SKILLS[res.skill].verb}|${res.name}`;
+      // "Chop|Birch tree"; a fishing spot (chapter 2) has its own words, "Catch|Fish"
+      const res = RESOURCES[layout.nodes.find(n => n.id === t.id)!.resource]!, words = res.hover;
+      return words ? `${words.verb}|${words.name}` : `${SKILLS[res.skill].verb}|${res.name}`;
     }
     if (t.kind === 'pickup') {
       // what tapping it starts: gathering all of its group ("Gather|Planks"), or picking up just that one
       const def = PICKUPS[layout.pickups!.find(p => p.id === t.id)!.kind];
-      return def.gather ? `Gather|${GATHERS[def.gather].name}` : `Pick up|${def.name}`;
+      return def.gather ? `${GATHERS[def.gather].verb ?? 'Gather'}|${GATHERS[def.gather].name}` : `Pick up|${def.name}`;
     }
     if (t.kind === 'make') return `${MAKES[t.id].verb}|${MAKES[t.id].name}`;
     if (t.kind === 'store') return t.id === 'woodpile' ? 'Stack logs on|Firewood pile' : 'Store in|Chest';
     if (t.kind === 'fight') return `Practise on|${MAKES[t.id].name}`;
+    if (t.kind === 'cook') return 'Cook at|Campfire';
     if (t.kind === 'building') return `Visit|${layout.buildings.find(b => b.id === t.id)!.name}`;
     return `Explore|${layout.parcels.find(p => p.id === t.id)!.name}`;
   }
@@ -120,6 +126,7 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
     else if (t.kind === 'make') { view.showMarker(t.point, true); queue.push({ type: 'make', id: t.id }); }
     else if (t.kind === 'store') { view.showMarker(t.point, true); queue.push({ type: 'visit', id: t.id }); }
     else if (t.kind === 'fight') { view.showMarker(t.point, true); queue.push({ type: 'fight', target: t.id }); }
+    else if (t.kind === 'cook') { view.showMarker(t.point, true); queue.push({ type: 'cook' }); }
     else if (t.kind === 'building') { view.showMarker(t.point, true); queue.push({ type: 'visit', id: t.id }); }
     else if (t.kind === 'parcel') { view.showMarker(t.point, true); queue.push({ type: 'visit', id: t.id, at }); }
     else { view.showMarker(t.point, false); queue.push({ type: 'walk', to: at }); }

@@ -60,7 +60,7 @@ function campSet(seed = 7): Setup {
   const s = setup(CAMP, seed);
   s.state.goalsDone = before('dummy');
   s.state.built = ['campfire', 'woodpile', 'shelter', 'chest'];
-  s.state.tools = { axe: true, pick: true };
+  s.state.tools = { axe: true, pick: true, rod: false };
   s.state.hasBook = true;
   s.state.time = clock(0, 8);
   return s;

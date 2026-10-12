@@ -73,7 +73,8 @@ describe('the camp below the falls', () => {
   it('can reach a working spot beside every tree and rock from where he starts', () => {
     for (const n of CAMP.nodes) {
       expect(RESOURCES[n.resource], n.id).toBeDefined();
-      expect(inArea(CAMP.village, n.pos), n.id).toBe(true);
+      // (a fishing spot lies out in the water, often past the land's edge; where he stands to fish is on it)
+      if (RESOURCES[n.resource]!.skill !== 'fishing') expect(inArea(CAMP.village, n.pos), n.id).toBe(true);
       let found = false;
       for (let k = 0; k < 36 && !found; k++) {
         const a = k / 36 * Math.PI * 2, r = reachFor(n), stand = { x: n.pos.x + Math.cos(a) * r, z: n.pos.z + Math.sin(a) * r };
@@ -107,7 +108,7 @@ describe('the camp below the falls', () => {
       expect(wet(p)).toBeLessThan(0);
       expect(nav.walkable(p), `${p.x}, ${p.z}`).toBe(false);
     }
-    for (const n of CAMP.nodes) expect(wet(n.pos), n.id).toBeGreaterThan(n.radius + 0.5);
+    for (const n of CAMP.nodes.filter(n => RESOURCES[n.resource]!.skill !== 'fishing')) expect(wet(n.pos), n.id).toBeGreaterThan(n.radius + 0.5);
   });
 
   it('sent across the river, he walks to the near bank opposite where was tapped', () => {
@@ -136,7 +137,7 @@ describe('the camp below the falls', () => {
 
   it('starts bare: no tent, campfire or chest in the way, their spots kept for later, and no tools', () => {
     const state = createState(CAMP);
-    expect(state.tools).toEqual({ axe: false, pick: false });
+    expect(state.tools).toEqual({ axe: false, pick: false, rod: false });
     expect(state.hasBook).toBe(false);
     expect(CAMP.hearthModel).toBeNull();
     expect(nav.walkable(CAMP.hearth.pos)).toBe(true);
@@ -152,7 +153,7 @@ describe('the camp below the falls', () => {
     const { tent, chest } = CAMP.camp!;
     expect(dist(tent.pos, chest.pos)).toBeGreaterThan(tent.radius + chest.radius + 2 * 0.37);
     // the village keeps its tools and its hearth
-    expect(createState(VILLAGE).tools).toEqual({ axe: true, pick: true });
+    expect(createState(VILLAGE).tools).toEqual({ axe: true, pick: true, rod: true });
     expect(navFor(VILLAGE).walkable(VILLAGE.hearth.pos)).toBe(false);
   });
 
@@ -580,14 +581,14 @@ describe('saving the camp', () => {
 
   it('gives a version 4 save (before tools) both tools, no book and nothing taken; work carries on', () => {
     const s = setup();
-    s.state.tools = { axe: true, pick: true };
+    s.state.tools = { ...s.state.tools, axe: true, pick: true };
     send(s, { type: 'work', nodeId: 'camp_birch2' });
     run(s, 15);
     const { tools: _t, hasBook: _b, taken: _k, ...rest } = JSON.parse(serialize(s.state));
     const back = deserialize(JSON.stringify({ ...rest, version: 4 }), CAMP);
     expect(SAVE_VERSION).toBe(10);
     expect(back.version).toBe(SAVE_VERSION);
-    expect(back.tools).toEqual({ axe: true, pick: true });
+    expect(back.tools).toEqual({ axe: true, pick: true, rod: false });
     expect(back.hasBook).toBe(false);
     expect(back.taken).toEqual({});
     expect(back.player.task).toEqual(s.state.player.task);
@@ -595,13 +596,13 @@ describe('saving the camp', () => {
     // and the village's old saves too
     const v4 = JSON.parse(serialize(createState(VILLAGE, 2)));
     delete v4.tools; delete v4.hasBook; delete v4.taken; v4.version = 4;
-    expect(deserialize(JSON.stringify(v4), VILLAGE).tools).toEqual({ axe: true, pick: true });
+    expect(deserialize(JSON.stringify(v4), VILLAGE).tools).toEqual({ axe: true, pick: true, rod: true });
   });
 
   it('a version 4 camp save left chopping until the backpack was full can drop the logs and salvage the wreck', () => {
     // 0.0.11: he chopped at the camp until the 28-slot backpack was full, then stood still with nowhere to store it
     const old = setup();
-    old.state.tools = { axe: true, pick: true };
+    old.state.tools = { ...old.state.tools, axe: true, pick: true };
     send(old, { type: 'work', nodeId: 'camp_birch1' });
     runUntil(old, () => old.log.some(e => e.type === 'noStorage'), 900);
     expect(old.state.player.backpack).toEqual({ birch_logs: BACKPACK_SLOTS });
@@ -625,7 +626,7 @@ describe('saving the camp', () => {
     raw.taken = { plank1: null, stone1: 120, ghost: null, branch1: 'soon', stone2: true };
     raw.player.task = { kind: 'pickup', id: 'plank1', doneAt: 10 };     // already taken
     const back = deserialize(JSON.stringify(raw), CAMP);
-    expect(back.tools).toEqual({ axe: false, pick: true });
+    expect(back.tools).toEqual({ axe: false, pick: true, rod: false });
     expect(back.hasBook).toBe(false);
     expect(back.taken).toEqual({ plank1: null, stone1: 120 });
     expect(back.player.task.kind).toBe('idle');
@@ -637,7 +638,7 @@ describe('saving the camp', () => {
     for (const bad of [null, 'junk', [1]]) {
       const b = JSON.parse(serialize(createState(CAMP, 4))); b.tools = bad; b.taken = bad;
       const s = deserialize(JSON.stringify(b), CAMP);
-      expect(s.tools).toEqual({ axe: false, pick: false });
+      expect(s.tools).toEqual({ axe: false, pick: false, rod: false });
       expect(s.taken).toEqual({});
     }
   });

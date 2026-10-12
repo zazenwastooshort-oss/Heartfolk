@@ -5,7 +5,7 @@
 // once the thing is made (a tool once he owns it: an old save that kept its axe and pick has the stone axe and stone
 // pickaxe goals done). The goal card shows the first goal not finished. Since 0.0.18: salvage, the campfire, the
 // stone axe, firewood (since 0.0.21 a pile stacked beside the fire), the shelter, the stone pickaxe, copper ore, then
-// the storage chest (built since 0.0.19). With
+// the storage chest (built since 0.0.19); chapter 2 adds food: berries, a fishing rod, fish and a cooked meal. With
 // all of them finished the camp is set up: the card and the last page of his book say so (CAMP_DONE). Since 0.0.17
 // each goal is a page in his book (core/book.ts, ui/book.ts), with a few words of its own (`page`). Chapter 2, holding
 // the camp (0.0.22), goes on after the chest: a training dummy, a stone club (his first weapon), then practice on the
@@ -73,6 +73,23 @@ export const GOALS: Goal[] = [
     page: 'Swing at the dummy until it feels natural. Learn to aim true, to hit hard, and to keep your guard up.',
     hint: 'Tap the training dummy to practise. Choose what to train in the panel.',
     ready: 'Well practised.', needs: {}, levels: { attack: 3, strength: 3, defence: 3 } },
+  // then food: berries by the camp, a rod, fish from the pool and the river, and a meal cooked at the campfire
+  { id: 'berries', title: 'Berries',
+    page: 'Red berries grow on the bushes by the camp, and come back after you pick them. A handful will keep you going.',
+    hint: 'Tap a berry bush by the camp to pick it.',
+    ready: 'You have enough berries.', needs: { berries: 10 } },
+  { id: 'rod', title: 'A fishing rod',
+    page: "Fish rise in the pool below the falls. A few long branches make a rod, and the tarp's frayed edge gives thread for a line.",
+    hint: 'Gather branches from the ground.',
+    ready: 'You have it all. Tap Make.', needs: MAKES.rod.needs, makes: 'rod' },
+  { id: 'fish', title: 'Fish',
+    page: 'Stand on the bank where the water ripples, and cast your line. Be patient, and the fish will come.',
+    hint: 'Tap the ripples in the pool or the river to fish.',
+    ready: 'You have enough fish.', needs: { raw_fish: 5 } },
+  { id: 'meal', title: 'A cooked meal',
+    page: 'Cook your fish slowly over the fire. A few may burn at first, but you will soon get the knack of it.',
+    hint: 'Tap the campfire to cook your fish. If some burn, catch a few more.',
+    ready: 'You have a cooked meal.', needs: { cooked_fish: 5 } },
 ];
 
 /** What the goal card says once every goal is finished (allGoalsDone in core/state), and the last page of his book

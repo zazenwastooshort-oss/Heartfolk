@@ -2,8 +2,8 @@
 // it gives. The campfire came first, then the stone axe (0.0.16), then the shelter at the tent's spot and the stone
 // pickaxe (0.0.18), then the storage chest beside the shelter (0.0.19), the camp's storage like the village's bank,
 // and the firewood pile beside the fire (0.0.21), stacked with logs he stokes the fire from at night. Chapter 2 (0.0.22):
-// the training dummy beside the camp, and the stone club, his first weapon, which he wears (gear: data/combat.ts).
-// systems/making.ts does the work.
+// the training dummy beside the camp, the stone club, his first weapon, which he wears (gear: data/combat.ts), and the
+// fishing rod, made where he stands. systems/making.ts does the work.
 import type { ToolId } from './skills';
 import type { GearId } from './combat';
 
@@ -13,7 +13,7 @@ import type { GearId } from './combat';
  *  siteOf. */
 export type SiteId = 'hearth' | 'tent' | 'chest' | 'woodpile' | 'dummy';
 
-export type MakeId = 'campfire' | 'stone_axe' | 'woodpile' | 'shelter' | 'stone_pickaxe' | 'chest' | 'dummy' | 'stone_club';
+export type MakeId = 'campfire' | 'stone_axe' | 'woodpile' | 'shelter' | 'stone_pickaxe' | 'chest' | 'dummy' | 'stone_club' | 'rod';
 
 /** name: what it is called ("Campfire"). verb: what making it is called, for the hover text over its site
  *  ("Build|Campfire") and the goal card's button ("Build the campfire", "Make the stone axe").
@@ -80,6 +80,12 @@ export const MAKES: Record<MakeId, MakeDef> = {
   stone_club: {
     id: 'stone_club', name: 'Stone club', verb: 'Make', needs: { branch: 2, stone: 2 }, at: 'here', time: 3,
     gives: { kind: 'gear', gear: 'stone_club' }, done: 'You made a stone club. Tap the training dummy to practise with it.',
+  },
+  // chapter 2: long branches bound end to end, the line threads pulled from the tarp's frayed edge, so branches are all
+  // it uses up; made where he stands, like the stone tools
+  rod: {
+    id: 'rod', name: 'Fishing rod', verb: 'Make', needs: { branch: 3 }, at: 'here', time: 3,
+    gives: { kind: 'tool', tool: 'rod' }, done: "You made a fishing rod, its line pulled from the tarp's frayed edge.",
   },
 };
 

@@ -68,6 +68,7 @@ export class PickupsView {
     const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 });
     const shapes = new Map<string, THREE.BufferGeometry>();
     for (const spot of layout.pickups ?? []) {
+      if (PICKUPS[spot.kind].plant) continue;          // the berry bushes are render/bushes.ts's (chapter 2)
       const name = PICKUPS[spot.kind].model;
       let geo = shapes.get(name);
       if (!geo) {

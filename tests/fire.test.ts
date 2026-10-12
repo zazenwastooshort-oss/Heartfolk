@@ -36,7 +36,7 @@ function campSet(seed = 5): Setup {
   const s = setup(CAMP, seed);
   s.state.goalsDone = GOALS.map(g => g.id);
   s.state.built = ['campfire', 'woodpile', 'shelter', 'chest'];
-  s.state.tools = { axe: true, pick: true };
+  s.state.tools = { ...s.state.tools, axe: true, pick: true };
   s.state.hasBook = true;
   return s;
 }

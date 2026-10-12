@@ -4,7 +4,7 @@
 // card with its Build button (tapping the card opens his book: ui/book.ts), which says the camp is set up once every
 // goal is done. Reads state and listens to events; never changes the game (the Build button sends a command).
 import * as THREE from 'three';
-import { allGoalsDone, currentGoal, made, type GameState } from '../core/state';
+import { allGoalsDone, currentGoal, made, maxHealth, type GameState } from '../core/state';
 import { goalLines, type BookLine } from '../core/book';
 import type { EventBus } from '../core/events';
 import type { Command } from '../systems/commands';
@@ -17,10 +17,13 @@ import { BACKPACK_SLOTS } from '../data/hauling';
 import { BOOK, CAMP_DONE, GOALS } from '../data/goals';
 import { GATHERS } from '../data/pickups';
 import { MAKES, makeDef } from '../data/making';
-import { SWINGS } from '../data/animation';
 import { clockLabel } from '../core/clock';
 
 const $ = (id: string) => document.getElementById(id)!;
+/** The skills shown from the start; the others (chapter 2: combat, fishing, cooking) once they have XP. */
+const FIRST_SKILLS: ReadonlySet<SkillId> = new Set(['mining', 'woodcutting']);
+/** One of an item, with its article: "a berry", "a cooked fish". */
+const oneOf = (id: string) => { const name = itemName(id, 1); return `${/^[aeiou]/.test(name) ? 'an' : 'a'} ${name}`; };
 const el = (tag: string, className: string, text = '') => { const e = document.createElement(tag); e.className = className; e.textContent = text; return e; };
 /** What `n` of an item are called: "birch logs", "1 birch log" (ITEMS' `one`); his book is "book". */
 export const itemName = (id: string, n: number) => id === BOOK ? 'book' : ((n === 1 && ITEMS[id]?.one) || ITEMS[id]?.name)?.toLowerCase() ?? id;
@@ -51,6 +54,8 @@ export class Hud {
 
   private buildFor: string | null = null;     // what the goal card's Build button makes, while it shows
   private hasBank: boolean;
+  /** his health at most, as of the last frame, for the notice when he eats (chapter 2) */
+  private maxHealth = 0;
   /** what the place things are stored is called in notices: the bank, or at the camp the chest */
   private store: string;
 
@@ -103,6 +108,13 @@ export class Hud {
       }
       else if (e.type === 'goalFirst') this.notice(`Finish "${GOALS.find(g => g.id === e.goal)?.title ?? e.goal}" first.`);
       else if (e.type === 'made') this.notice(MAKES[e.make].done);
+      // chapter 2: eating, and cooking at the campfire (each fish off the fire floats up over him)
+      else if (e.type === 'ate') this.notice(`You eat ${oneOf(e.item)}. Health ${e.health} / ${this.maxHealth || e.health}.`);
+      else if (e.type === 'cantEat') this.notice(e.reason === 'full' ? 'Your health is full. Keep it for later.'
+        : e.reason === 'none' ? `You have no ${itemName(e.item, 2)} left.` : `You can't eat ${itemName(e.item, 2)}.`);
+      else if (e.type === 'cantCook') this.notice('You have no raw fish to cook. Catch some first.');
+      else if (e.type === 'cookedAll') this.notice("That's all your fish cooked.");
+      else if (e.type === 'cooked') { const out = e.burnt ? 'burnt_fish' : 'cooked_fish'; this.pendingItems[out] = (this.pendingItems[out] ?? 0) + 1; }
       // picking up his book opens it instead of a notice (ui/book.ts)
       else if (e.type === 'pickedUp' && e.item) this.pendingItems[e.item] = (this.pendingItems[e.item] ?? 0) + e.count;
       else if (e.type === 'levelTooLow') {
@@ -203,14 +215,15 @@ export class Hud {
       r.bar.style.width = `${lvl >= 99 ? 100 : (xp - lo) / (hi - lo) * 100}%`;
       r.text.textContent = `${Math.floor(xp).toLocaleString()} / ${hi.toLocaleString()} xp`;
       r.row.classList.toggle('active', id === this.active);
-      // the gathering skills from the start; the others (chapter 2: combat, fishing, cooking) once they have XP; the
+      // the first gathering skills from the start; the others (chapter 2: combat, fishing, cooking) once they have XP; the
       // skill gaining XP as its whole row, the others by name and level in the line under it
-      const shown = xp > 0 || id in SWINGS;
+      const shown = xp > 0 || FIRST_SKILLS.has(id);
       r.row.hidden = !shown || id !== this.active;
       r.chip.hidden = !shown || id === this.active;
       r.chipLvl.textContent = String(lvl);
     }
     this.chips.hidden = [...this.rows.values()].every(r => r.chip.hidden);
+    this.maxHealth = maxHealth(state);
     const carried = Object.values(state.player.backpack).reduce((a, n) => a + n, 0);
     $('packCount').textContent = `${carried} / ${BACKPACK_SLOTS}`;
     $('packBar').style.width = `${Math.min(100, carried / BACKPACK_SLOTS * 100)}%`;
