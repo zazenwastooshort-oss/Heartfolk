@@ -85,8 +85,8 @@ export class Book {
     $('bookText').textContent = page.text;
     $('bookNeeds').replaceChildren(...page.lines.map(line => this.line(line)));
     $('bookHint').textContent = page.hint;
-    $('bookHint').hidden = !page.hint;    // a finished page has none: its ticks and Done mark say it all
-    $('bookStuck').hidden = !page.current;
+    $('bookHint').hidden = !page.hint;    // a finished page has none (its ticks and Done mark say it all), but the last says the camp is set up
+    $('bookStuck').hidden = !page.current || page.done;   // with every goal done, nothing is stuck any more
     ($('bookPrev') as HTMLButtonElement).disabled = this.at === 0;
     ($('bookNext') as HTMLButtonElement).disabled = this.at === pages.length - 1;
   }

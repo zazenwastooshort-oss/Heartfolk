@@ -6,6 +6,15 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.19', date: '12 Oct 2026', notes: [
+      'Build your storage chest beside the shelter. Once you have 10 logs and 3 copper ore, tap Build the storage chest on the goal card, or tap the chest spot.',
+      "The chest is your camp's storage. When your backpack fills up, he carries it to the chest, empties it and goes back to work. Tap the chest to empty your backpack into it yourself. The panel shows what is in the chest, and it counts for your goals.",
+      'At nightfall (20:00) he takes a few logs from the chest, or from his backpack, and stokes the campfire, then goes back to what he was doing. Once a night.',
+      'With no logs at all, the fire burns low that night. Nothing is lost, and it burns brightly again once he stokes it.',
+      'With the chest built, your camp is set up. More comes in later updates.',
+    ],
+  },
+  {
     version: '0.0.18', date: '12 Oct 2026', notes: [
       'Build your shelter. Once you have the firewood, tap Build the shelter on the goal card, or tap the shelter spot by the fire. It takes the tarp, 4 planks and 10 logs, and your tent stays up when you come back.',
       'Then make a stone pickaxe from 2 branches and 3 stones, right where you stand, and mine 3 copper ore from the grey rocks with orange lumps.',

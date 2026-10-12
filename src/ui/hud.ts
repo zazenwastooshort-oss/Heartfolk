@@ -1,8 +1,9 @@
-// The panels laid over the game: each skill's level and XP, the backpack and the bank, the clock, hover text,
-// notices and floating "+xp" numbers, and the goal card with its Build button (tapping the card opens his book:
-// ui/book.ts). Reads state and listens to events; never changes the game (the Build button sends a command).
+// The panels laid over the game: each skill's level and XP, the backpack and what is stored (the bank, or at the
+// camp the storage chest once it is built), the clock, hover text, notices and floating "+xp" numbers, and the goal
+// card with its Build button (tapping the card opens his book: ui/book.ts), which says the camp is set up once every
+// goal is done. Reads state and listens to events; never changes the game (the Build button sends a command).
 import * as THREE from 'three';
-import { currentGoal, made, type GameState } from '../core/state';
+import { allGoalsDone, currentGoal, made, type GameState } from '../core/state';
 import { goalLines } from '../core/book';
 import type { EventBus } from '../core/events';
 import type { Command } from '../systems/commands';
@@ -12,7 +13,7 @@ import type { BuildingKind, Layout } from '../world/layout';
 import { levelFor, levelBounds } from '../data/xp';
 import { ITEMS, SKILLS, TOOLS } from '../data/skills';
 import { BACKPACK_SLOTS } from '../data/hauling';
-import { BOOK, GOALS } from '../data/goals';
+import { BOOK, CAMP_DONE, GOALS } from '../data/goals';
 import { GATHERS } from '../data/pickups';
 import { MAKES, makeDef } from '../data/making';
 import { clockLabel } from '../core/clock';
@@ -42,10 +43,17 @@ export class Hud {
   private active: SkillId | null = null;
 
   private buildFor: string | null = null;     // what the goal card's Build button makes, while it shows
+  private hasBank: boolean;
+  /** what the place things are stored is called in notices: the bank, or at the camp the chest */
+  private store: string;
 
   constructor(private view: View, events: EventBus, private layout: Layout, queue: Command[]) {
-    // the bank line only where there is a bank; the goal card only at the camp (it leads a new player on)
-    $('bankRow').hidden = !layout.buildings.some(b => b.kind === 'bank');
+    // the storage line where there is a bank, or at the camp once the chest is built (update); the goal card only at
+    // the camp (it leads a new player on)
+    this.hasBank = layout.buildings.some(b => b.kind === 'bank');
+    this.store = this.hasBank ? 'bank' : 'chest';
+    $('bankName').textContent = this.hasBank ? 'Bank' : 'Chest';
+    $('bankRow').hidden = !this.hasBank;
     $('goal').hidden = !layout.camp;
     $('goalBuild').addEventListener('click', () => {
       const def = this.buildFor && makeDef(this.buildFor);
@@ -62,8 +70,10 @@ export class Hud {
     events.on(e => {
       if (e.type === 'xpGained') { this.pendingXp += e.amount; this.active = e.skill; }
       else if (e.type === 'visited') { const text = this.visitText(e.id); if (text) this.notice(text); }
-      else if (e.type === 'backpackFull') this.notice('Backpack full: off to the bank.');
-      else if (e.type === 'banked') this.notice(`Banked ${itemList(e.items, ' and ')}.`);
+      else if (e.type === 'backpackFull') this.notice(`Backpack full: off to the ${this.store}.`);
+      else if (e.type === 'banked') this.notice(this.hasBank ? `Banked ${itemList(e.items, ' and ')}.` : `Stored ${itemList(e.items, ' and ')} in the chest.`);
+      else if (e.type === 'stokeOff') this.notice('Nightfall: off to stoke the fire.');
+      else if (e.type === 'fireLow') this.notice('No logs to stoke the fire tonight. It burns low.');
       else if (e.type === 'nothingToBank') this.notice('Your backpack is empty.');
       else if (e.type === 'noPath') this.notice("He can't find a way there.");
       else if (e.type === 'noStorage') this.notice("Your backpack is full, and there's nowhere to store it yet. Open the backpack to drop something.");
@@ -100,6 +110,16 @@ export class Hud {
    *  (carried or banked; the book once found), counted by goalLines like his book's pages. A making goal with everything there shows the Build button (or says he
    *  is on his way or working on it, while he is); one whose thing can't be made yet says so in its ready text. */
   private updateGoal(state: GameState): void {
+    if (allGoalsDone(state)) {
+      // the camp is set up: the card says so, and that more comes later
+      $('goalTitle').textContent = CAMP_DONE.title;
+      $('goalCount').textContent = '';
+      ($('goalBar') as HTMLElement).style.width = '100%';
+      $('goalHint').textContent = CAMP_DONE.text;
+      $('goal').classList.add('ready');
+      this.buildFor = null; ($('goalBuild') as HTMLButtonElement).hidden = true;
+      return;
+    }
     const goal = currentGoal(state);
     const parts = goalLines(state, goal);
     const got = parts.reduce((a, p) => a + p.got, 0), need = parts.reduce((a, p) => a + p.need, 0), ready = got >= need;
@@ -120,10 +140,10 @@ export class Hud {
   }
 
   /** What a building or a piece of land says when the miner arrives, while it has no use yet. The bank has one: its
-   *  notice says what was banked. */
+   *  notice says what was banked; so does the camp's chest, and the campfire he stokes says nothing. */
   private visitText(id: string): string | null {
     const b = this.layout.buildings.find(x => x.id === id);
-    if (!b) return 'Unexplored land. You will be able to claim it at the city hall in a later update.';
+    if (!b) return this.layout.parcels.some(x => x.id === id) ? 'Unexplored land. You will be able to claim it at the city hall in a later update.' : null;
     const text: Record<BuildingKind, string | null> = {
       bank: null,
       cityhall: 'The city hall will handle land claims in a later update.',
@@ -172,6 +192,7 @@ export class Hud {
     $('packCount').textContent = `${carried} / ${BACKPACK_SLOTS}`;
     $('packBar').style.width = `${Math.min(100, carried / BACKPACK_SLOTS * 100)}%`;
     $('pack').classList.toggle('full', carried >= BACKPACK_SLOTS);
+    $('bankRow').hidden = !this.hasBank && !(this.layout.camp && state.built.includes('chest'));
     $('bank').textContent = itemList(state.bank) || 'empty';
     $('clock').textContent = clockLabel(state.time);
     if (this.layout.camp) this.updateGoal(state);

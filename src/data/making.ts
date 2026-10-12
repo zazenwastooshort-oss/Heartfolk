@@ -1,14 +1,15 @@
 // Things he makes (game 0.0.15), as tables only: what each needs, where it is made, how long he works at it and what
 // it gives. The campfire came first, then the stone axe (0.0.16), then the shelter at the tent's spot and the stone
-// pickaxe (0.0.18). The storage chest comes in a later update: a row here plus its goal in data/goals.ts, which
-// already makes it. systems/making.ts does the work.
+// pickaxe (0.0.18), then the storage chest beside the shelter (0.0.19), the camp's storage like the village's bank.
+// systems/making.ts does the work.
 import type { ToolId } from './skills';
 
 /** Places in a layout where something is built (siteOf in world/layout.ts): 'hearth' is the camp's fire spot, 'tent'
- *  the camp's tent spot. A new site (one for the storage chest) is a name here and a line in siteOf. */
-export type SiteId = 'hearth' | 'tent';
+ *  the camp's tent spot, 'chest' the camp's chest spot beside the shelter. A new site is a name here and a line in
+ *  siteOf. */
+export type SiteId = 'hearth' | 'tent' | 'chest';
 
-export type MakeId = 'campfire' | 'stone_axe' | 'shelter' | 'stone_pickaxe';
+export type MakeId = 'campfire' | 'stone_axe' | 'shelter' | 'stone_pickaxe' | 'chest';
 
 /** name: what it is called ("Campfire"). verb: what making it is called, for the hover text over its site
  *  ("Build|Campfire") and the goal card's button ("Build the campfire", "Make the stone axe").
@@ -47,6 +48,12 @@ export const MAKES: Record<MakeId, MakeDef> = {
   stone_pickaxe: {
     id: 'stone_pickaxe', name: 'Stone pickaxe', verb: 'Make', needs: { branch: 2, stone: 3 }, at: 'here', time: 3,
     gives: { kind: 'tool', tool: 'pick' }, done: 'You made a stone pickaxe.',
+  },
+  // a box of split logs with copper straps, beside the shelter: the camp's storage (systems/hauling: a full backpack is
+  // emptied into it, as at the village's bank)
+  chest: {
+    id: 'chest', name: 'Storage chest', verb: 'Build', needs: { birch_logs: 10, copper_ore: 3 }, at: 'chest', time: 5,
+    gives: { kind: 'structure' }, done: 'Your storage chest is built. A full backpack is emptied into it now.',
   },
 };
 

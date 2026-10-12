@@ -1,10 +1,26 @@
 // The backpack and the bank: what the character carries, one item per slot (BACKPACK_SLOTS in data/hauling), and
-// what the bank keeps. Gathering fills the backpack; it is emptied into the bank when he reaches the bank
-// (systems/hauling decides when he goes). Where there is no bank yet (the camp) a full backpack is made room in by
-// dropping things he can find again (canDrop).
+// what is stored (GameState.bank): at the village's bank, or at the camp in the storage chest once it is built
+// (0.0.19). Gathering fills the backpack; it is emptied into storage when he reaches the bank or the chest
+// (systems/hauling decides when he goes). Where there is nowhere to store things yet (the camp before its chest) a
+// full backpack is made room in by dropping things he can find again (canDrop); dropping always works.
 import { canDrop, type GameState } from '../core/state';
 import type { EventBus } from '../core/events';
+import type { Layout, Vec2 } from '../world/layout';
+import { doorOf, siteOf } from '../world/layout';
 import { BACKPACK_SLOTS } from '../data/hauling';
+import { STOKE } from '../data/fire';
+
+/** The places he can empty his backpack, by id, with where he stands to do it: each bank's door (the village), and
+ *  the camp's storage chest once it stands ('chest', the id of what he built; he stands beside it). */
+export function stores(state: GameState, layout: Layout): { id: string; pos: Vec2 }[] {
+  const out = layout.buildings.filter(b => b.kind === 'bank').map(b => ({ id: b.id, pos: doorOf(b) }));
+  const chest = siteOf(layout, 'chest');
+  if (chest && state.built.includes('chest')) out.push({ id: 'chest', pos: chest.pos });
+  return out;
+}
+
+/** Whether `id` (a building, or something he built) is somewhere to empty the backpack: a bank, or the built chest. */
+export const isStore = (state: GameState, layout: Layout, id: string) => stores(state, layout).some(x => x.id === id);
 
 /** Slots in use. */
 export const backpackCount = (state: GameState) => Object.values(state.player.backpack).reduce((a, n) => a + n, 0);
@@ -29,12 +45,13 @@ export function drop(state: GameState, item: string, count: number, events: Even
   events.emit({ type: 'dropped', item, count: n });
 }
 
-/** Use up `items` (item id: count), from the backpack first, then the bank. The caller checks they are all there
- *  (owned in core/state); whatever isn't there is skipped. */
-export function useUp(state: GameState, items: Record<string, number>): void {
+/** Use up `items` (item id: count), from the backpack first, then the bank (the chest); or with `storedFirst`, from
+ *  the bank (the chest) first, then the backpack. The caller checks they are all there (owned in core/state);
+ *  whatever isn't there is skipped. */
+export function useUp(state: GameState, items: Record<string, number>, storedFirst = false): void {
   for (const [item, n] of Object.entries(items)) {
     let left = n;
-    for (const store of [state.player.backpack, state.bank]) {
+    for (const store of storedFirst ? [state.bank, state.player.backpack] : [state.player.backpack, state.bank]) {
       const have = Object.hasOwn(store, item) ? store[item]! : 0, take = Math.min(have, left);
       if (take <= 0) continue;
       if (take === have) delete store[item]; else store[item] = have - take;
@@ -43,7 +60,7 @@ export function useUp(state: GameState, items: Record<string, number>): void {
   }
 }
 
-/** Empty the backpack into the bank and say what was banked, or that there was nothing to bank. */
+/** Empty the backpack into the bank (the chest) and say what was stored, or that there was nothing to store. */
 export function deposit(state: GameState, events: EventBus): void {
   const items: Record<string, number> = {};
   for (const [item, n] of Object.entries(state.player.backpack)) {
@@ -51,4 +68,13 @@ export function deposit(state: GameState, events: EventBus): void {
   }
   state.player.backpack = {};
   events.emit(Object.keys(items).length ? { type: 'banked', items } : { type: 'nothingToBank' });
+}
+
+/** Stop stoking the fire (systems/fire.ts), when the player sends him elsewhere: the logs he carries from the chest
+ *  go back into it, so nothing is lost. */
+export function stopStoking(state: GameState): void {
+  const stoke = state.player.stoke;
+  if (!stoke) return;
+  if (stoke.logs > 0) state.bank[STOKE.item] = (state.bank[STOKE.item] ?? 0) + stoke.logs;
+  state.player.stoke = null;
 }

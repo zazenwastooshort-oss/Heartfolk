@@ -4,7 +4,7 @@
 // the shelter built at the tent spot, the stone pickaxe, copper ore mined with it, the storage chest waiting for the
 // next update, and old saves that kept their pick.
 import { describe, expect, it } from 'vitest';
-import { createState, currentGoal, goalFinished, goalFirst, goalMet, made, owned, SAVE_VERSION } from '../src/core/state';
+import { allGoalsDone, createState, currentGoal, goalFinished, goalFirst, goalMet, made, owned, SAVE_VERSION } from '../src/core/state';
 import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
 import { STEP } from '../src/core/loop';
@@ -21,8 +21,8 @@ import { onGround } from '../src/systems/pickups';
 
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.z - b.z);
 const FIRE = CAMP.hearth.pos;
-const CAMPFIRE = MAKES.campfire, STONE_AXE = MAKES.stone_axe, SHELTER = MAKES.shelter, STONE_PICK = MAKES.stone_pickaxe;
-const TENT = CAMP.camp!.tent.pos;
+const CAMPFIRE = MAKES.campfire, STONE_AXE = MAKES.stone_axe, SHELTER = MAKES.shelter, STONE_PICK = MAKES.stone_pickaxe, CHEST = MAKES.chest;
+const TENT = CAMP.camp!.tent.pos, CHEST_SPOT = CAMP.camp!.chest;
 const goal = (id: string) => GOALS.find(g => g.id === id)!;
 const ofKind = (kind: PickupKind) => CAMP.pickups!.filter(p => p.kind === kind);
 
@@ -84,7 +84,7 @@ describe('the things to make (data/making.ts)', () => {
     expect(STONE_AXE.done).toBe('You made a stone axe.');
   });
 
-  it('the goals: salvage, the fire, the stone axe, firewood, the shelter, the stone pickaxe, copper, then the chest, which comes in the next update', () => {
+  it('the goals: salvage, the fire, the stone axe, firewood, the shelter, the stone pickaxe, copper, then the chest', () => {
     expect(GOALS.map(g => g.id)).toEqual(['salvage', 'campfire', 'stone_axe', 'firewood', 'shelter', 'stone_pickaxe', 'copper', 'chest']);
     // every making goal that can be made asks for what its thing needs
     for (const g of GOALS) {
@@ -101,14 +101,14 @@ describe('the things to make (data/making.ts)', () => {
     expect(goal('copper')).toMatchObject({ title: 'Copper ore', needs: { copper_ore: 3 } });
     expect(goal('copper').makes).toBeUndefined();
     expect(goal('copper').hint).toMatch(/orange lumps/);           // as the copper rocks look (render/nodes.ts)
-    // the chest is a making goal whose thing comes in the next update: the card waits on its ready text
+    // the chest is a making goal, built since 0.0.19
     expect(goal('chest')).toMatchObject({ title: 'A storage chest', needs: { birch_logs: 10, copper_ore: 3 }, makes: 'chest' });
-    expect(makeDef('chest')).toBeNull();
-    expect(goal('chest').ready).toMatch(/next update/);
+    expect(makeDef('chest')).toBe(MAKES.chest);
+    expect(goal('chest').ready).toBe('You have it all. Tap Build, or tap the chest spot beside the shelter.');
     // he keeps mining after the copper goal until his backpack is full, so the hint says to make room for the logs
     expect(goal('chest').hint).toMatch(/If your backpack is full, open it and drop some spare ore/);
-    // every other making goal can be made now
-    expect(GOALS.filter(g => g.makes && !makeDef(g.makes)).map(g => g.id)).toEqual(['chest']);
+    // every making goal can be made now
+    expect(GOALS.filter(g => g.makes && !makeDef(g.makes)).map(g => g.id)).toEqual([]);
   });
 
   it('has the shelter: the tarp, planks and logs, built at the camp tent spot in a few seconds, a structure', () => {
@@ -350,7 +350,7 @@ describe('saving the campfire and the goals', () => {
   });
 
   it('a version 5 save that already salvaged the wreck counts it done, and building the fire keeps it done', () => {
-    expect(SAVE_VERSION).toBe(6);
+    expect(SAVE_VERSION).toBe(7);
     const s = readyForFire();
     const { built: _b, goalsDone: _g, ...rest } = JSON.parse(serialize(s.state));
     const v5 = { ...rest, version: 5 };
@@ -575,7 +575,7 @@ function readyForShelter(): Setup {
   return s;
 }
 /** Send him to make `id` and wait until it is made (or refused). */
-function makeIt(s: Setup, id: 'shelter' | 'stone_pickaxe'): void {
+function makeIt(s: Setup, id: 'shelter' | 'stone_pickaxe' | 'chest'): void {
   const from = s.log.length;
   send(s, { type: 'make', id });
   runUntil(s, () => since(s, from).some(e => e.type === 'made' || e.type === 'missing' || e.type === 'goalFirst'), 60);
@@ -770,7 +770,7 @@ describe('the stone pickaxe and copper ore', () => {
     expect(s.state.skills.mining).toBeGreaterThan(0);
     run(s, 0.1);
     expect(s.state.goalsDone).toEqual(['salvage', 'campfire', 'stone_axe', 'firewood', 'shelter', 'stone_pickaxe', 'copper']);
-    // the card is on the storage chest: it wants 10 more logs (the shelter took them), and can't be built yet
+    // the card is on the storage chest: it wants 10 more logs (the shelter took them)
     send(s, { type: 'walk', to: { ...s.state.player.pos } });
     run(s, 1);
     expect(currentGoal(s.state).id).toBe('chest');
@@ -804,6 +804,72 @@ describe('the stone pickaxe and copper ore', () => {
     expect(s.state.tools.pick).toBe(false);
     expect(owned(s.state, 'stone')).toBe(3);
     expect(currentGoal(s.state).id).toBe('shelter');
+  });
+});
+
+describe('building the storage chest (0.0.19)', () => {
+  it('has the chest: logs and copper ore, built at the camp chest spot beside the shelter in a few seconds, a structure', () => {
+    expect(CHEST).toMatchObject({ name: 'Storage chest', verb: 'Build', needs: { birch_logs: 10, copper_ore: 3 }, at: 'chest', gives: { kind: 'structure' } });
+    expect(CHEST.time).toBeGreaterThan(1);
+    expect(CHEST.time).toBeLessThan(10);
+    expect(siteOf(CAMP, 'chest')).toEqual(CHEST_SPOT);
+    expect(siteOf(VILLAGE, 'chest')).toBeNull();                // the village has its bank
+    // near the shelter and the fire, but clear of both once all three stand, with room to walk between them
+    expect(dist(CHEST_SPOT.pos, TENT)).toBeLessThan(3);
+    expect(dist(CHEST_SPOT.pos, FIRE)).toBeLessThan(5);
+    const all = navFor(CAMP, ['campfire', 'shelter', 'chest']);
+    expect(all.walkable(CHEST_SPOT.pos)).toBe(false);
+    expect(navFor(CAMP, ['campfire', 'shelter']).walkable(CHEST_SPOT.pos)).toBe(true);
+    // a path from the tent's door side to behind the chest, and from the fire round to the tent's far side
+    expect(all.findPath(FIRE.x > 0 ? { x: FIRE.x, z: FIRE.z + 1.4 } : FIRE, { x: CHEST_SPOT.pos.x - 0.4, z: CHEST_SPOT.pos.z + 1.3 })).not.toBeNull();
+    expect(all.findPath(CAMP.start, { x: TENT.x - 2.2, z: TENT.z + 1 })).not.toBeNull();
+  });
+
+  it('on a fresh camp game, after copper ore: logs chopped, built beside the shelter, the materials gone, every goal done', () => {
+    const s = readyForShelter();
+    makeIt(s, 'shelter');
+    pickUpSome(s, 'branch', STONE_PICK.needs.branch!);
+    pickUpSome(s, 'stone', STONE_PICK.needs.stone!);
+    makeIt(s, 'stone_pickaxe');
+    send(s, { type: 'work', nodeId: 'camp_copper1' });
+    runUntil(s, () => owned(s.state, 'copper_ore') >= 3, 300);
+    send(s, { type: 'work', nodeId: 'camp_birch2' });
+    runUntil(s, () => owned(s.state, 'birch_logs') >= CHEST.needs.birch_logs!, 900);
+    send(s, { type: 'walk', to: { ...s.state.player.pos } });
+    run(s, 1);
+    expect(currentGoal(s.state).id).toBe('chest');
+    expect(goalMet(s.state, currentGoal(s.state))).toBe(true);
+    const ore = owned(s.state, 'copper_ore'), logs = owned(s.state, 'birch_logs'), from = s.log.length;
+    send(s, { type: 'make', id: 'chest' });
+    runUntil(s, () => s.state.player.task.kind === 'make', 60);
+    const started = s.state.time;
+    expect(dist(s.state.player.pos, CHEST_SPOT.pos)).toBeCloseTo(CHEST_SPOT.radius + BUILD_REACH, 0);
+    runUntil(s, () => made(s.state, 'chest'), 10);
+    expect(s.state.time - started).toBeCloseTo(CHEST.time, 1);
+    expect(since(s, from)).toContainEqual({ type: 'made', make: 'chest' });
+    expect(s.state.built).toEqual(['campfire', 'shelter', 'chest']);
+    expect(owned(s.state, 'copper_ore')).toBe(ore - 3);
+    expect(owned(s.state, 'birch_logs')).toBe(logs - 10);
+    run(s, 0.1);
+    expect(s.state.goalsDone).toEqual(GOALS.map(g => g.id));
+    expect(allGoalsDone(s.state)).toBe(true);
+    // he stands on open ground beside it; the chest itself is in the way, and stays built after a reload
+    expect(navFor(CAMP, s.state.built).walkable(s.state.player.pos)).toBe(true);
+    expect(navFor(CAMP, s.state.built).walkable(CHEST_SPOT.pos)).toBe(false);
+    expect(deserialize(serialize(s.state), CAMP).built).toEqual(['campfire', 'shelter', 'chest']);
+  });
+
+  it('waits for the copper: with logs and ore but the copper goal not written down yet, it is refused', () => {
+    const s = shelterUp();
+    s.state.tools.pick = true; s.state.goalsDone.push('stone_pickaxe');
+    // the copper goal finishes as soon as a step sees the ore; before that the chest waits for it
+    s.state.player.backpack = { birch_logs: 10, copper_ore: 3 };
+    s.state.goalsDone = s.state.goalsDone.filter(g => g !== 'copper');
+    expect(goalFirst(s.state, 'chest')).toBeNull();             // the ore is there, so the copper goal is finished
+    s.state.player.backpack = { birch_logs: 10 };
+    send(s, { type: 'make', id: 'chest' });
+    expect(s.log.at(-1)).toEqual({ type: 'goalFirst', make: 'chest', goal: 'copper' });
+    expect(s.state.player.pending).toBeNull();
   });
 });
 

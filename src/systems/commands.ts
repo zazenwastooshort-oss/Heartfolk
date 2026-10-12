@@ -8,13 +8,14 @@ import { SWINGS } from '../data/animation';
 import { makeDef, type MakeId } from '../data/making';
 import { levelOf } from './skills';
 import { gatherOf, onGround, roomFor } from './pickups';
-import { drop } from './backpack';
+import { drop, isStore, stopStoking, stores } from './backpack';
 import { canMake, missingFor } from './making';
 
 export type Command =
   | { type: 'walk'; to: Vec2 }
   | { type: 'work'; nodeId: string }
-  /** a building (by id), or land that isn't the player's yet (parcel id, with where it was tapped) */
+  /** a building (by id), something he built (the storage chest, to empty the backpack into it), or land that isn't
+   *  the player's yet (parcel id, with where it was tapped) */
   | { type: 'visit'; id: string; at?: Vec2 }
   /** something lying on the ground (layout.pickups, by id): walk over and pick it up; a plank, stone or branch starts
    *  gathering more like it (systems/pickups) */
@@ -29,16 +30,17 @@ export const isClaimed = (state: GameState, parcelId: string | undefined) => !pa
 
 export function applyCommands(state: GameState, layout: Layout, queue: Command[], events: EventBus): void {
   for (const c of queue.splice(0)) {
-    // dropping something doesn't send him anywhere: whatever he is doing carries on, a trip to the bank included
+    // dropping something doesn't send him anywhere: whatever he is doing carries on, a trip to the bank (the chest)
+    // or stoking the fire included
     if (c.type === 'drop') { drop(state, c.item, c.count, events); continue; }
     let ok = true;
     if (c.type === 'walk') ok = walkTo(state, layout, c.to);
     else if (c.type === 'visit') ok = goVisit(state, layout, c.id, c.at);
     else if (c.type === 'pickup') {
       if (!onGround(state, layout, c.id)) continue;
-      // no room for it: where there is a bank, gathering starts with a trip to empty the backpack (systems/hauling),
-      // as working a tree does; otherwise he says so and stays put
-      const toBankFirst = !!gatherOf(layout, c.id) && layout.buildings.some(b => b.kind === 'bank');
+      // no room for it: where there is a bank (or the camp's chest), gathering starts with a trip to empty the
+      // backpack (systems/hauling), as working a tree does; otherwise he says so and stays put
+      const toBankFirst = !!gatherOf(layout, c.id) && stores(state, layout).length > 0;
       if (!roomFor(state, layout, c.id) && !toBankFirst) { events.emit({ type: 'noRoom' }); continue; }
       ok = goPickup(state, layout, c.id);
     } else if (c.type === 'make') {
@@ -63,9 +65,13 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
       else ok = goWork(state, layout, c.nodeId);
     }
     if (!ok) { events.emit({ type: 'noPath' }); continue; }
-    // the player's command wins over a trip to the bank (the backpack keeps its items), unless it sends him to the
-    // bank anyway. Sent to work (or to gather) with a full backpack, hauling starts a new trip at once.
-    const toBank = c.type === 'visit' && layout.buildings.find(b => b.id === c.id)?.kind === 'bank';
-    if (!toBank) state.player.trip = null;
+    // the player's command wins over a trip to the bank or the chest (the backpack keeps its items), unless it sends
+    // him there anyway. Sent to work (or to gather) with a full backpack, hauling starts a new trip at once. It wins
+    // over stoking the fire too (systems/fire.ts): logs he carries go back into the chest. A tap on the chest while
+    // he is on his way there for the logs sends him where he was going: he empties the backpack there and stokes on.
+    const toStore = c.type === 'visit' && isStore(state, layout, c.id), stoke = state.player.stoke;
+    if (!toStore) state.player.trip = null;
+    if (toStore && c.id === 'chest' && stoke && stoke.logs === 0) stoke.empty = true;
+    else stopStoking(state);
   }
 }

@@ -134,18 +134,23 @@ describe('the camp below the falls', () => {
     expect(wet(end)).toBeLessThan(1);
   });
 
-  it('starts bare: no tent and no campfire in the way, their spots kept for later, and no tools', () => {
+  it('starts bare: no tent, campfire or chest in the way, their spots kept for later, and no tools', () => {
     const state = createState(CAMP);
     expect(state.tools).toEqual({ axe: false, pick: false });
     expect(state.hasBook).toBe(false);
     expect(CAMP.hearthModel).toBeNull();
     expect(nav.walkable(CAMP.hearth.pos)).toBe(true);
     expect(nav.walkable(CAMP.camp!.tent.pos)).toBe(true);
+    expect(nav.walkable(CAMP.camp!.chest.pos)).toBe(true);
     // the spots stay clear of trees, rocks and things to pick up, ready for building on
-    for (const spot of [CAMP.hearth.pos, CAMP.camp!.tent.pos]) {
+    for (const spot of [CAMP.hearth.pos, CAMP.camp!.tent.pos, CAMP.camp!.chest.pos]) {
       for (const n of CAMP.nodes) expect(dist(n.pos, spot), n.id).toBeGreaterThan(2);
       for (const p of pickups) expect(dist(p.pos, spot), p.id).toBeGreaterThan(1.4);
     }
+    // the chest's ring and tap area stay clear of the tent's (render/structures.ts: a ring reaches 0.2 m past its
+    // spot's radius, a tap area 0.37 m)
+    const { tent, chest } = CAMP.camp!;
+    expect(dist(tent.pos, chest.pos)).toBeGreaterThan(tent.radius + chest.radius + 2 * 0.37);
     // the village keeps its tools and its hearth
     expect(createState(VILLAGE).tools).toEqual({ axe: true, pick: true });
     expect(navFor(VILLAGE).walkable(VILLAGE.hearth.pos)).toBe(false);
@@ -580,7 +585,7 @@ describe('saving the camp', () => {
     run(s, 15);
     const { tools: _t, hasBook: _b, taken: _k, ...rest } = JSON.parse(serialize(s.state));
     const back = deserialize(JSON.stringify({ ...rest, version: 4 }), CAMP);
-    expect(SAVE_VERSION).toBe(6);
+    expect(SAVE_VERSION).toBe(7);
     expect(back.version).toBe(SAVE_VERSION);
     expect(back.tools).toEqual({ axe: true, pick: true });
     expect(back.hasBook).toBe(false);

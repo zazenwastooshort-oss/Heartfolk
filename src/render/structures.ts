@@ -1,15 +1,20 @@
 // What he builds (data/making.ts), drawn at its site in the layout: the campfire, a ring of stones round three planks
 // leaned together, with flickering flames, a little smoke and a warm light that matters at night (the village's
-// hearth light, smaller); the shelter, the canvas Tent, its door facing the fire (0.0.18). Until one is built its
-// site shows a faint ring on the ground with a faint outline of it inside (the campfire's stones, the tent), and an
+// hearth light, smaller); the shelter, the canvas Tent, its door facing the fire (0.0.18); the storage chest, a
+// wooden box with copper straps facing the fire (0.0.19, built here in code). Until one is built its site shows a
+// faint ring on the ground with a faint outline of it inside (the campfire's stones, the tent, the chest), and an
 // invisible, finger-sized hit area tagged with its id (userData.makeId) for the input; while he builds, the ring fills
-// up. Models from assets/models/village.glb: CampfireCold's stones and ash, the wreck's Plank, the village Hearth's
-// flames, the Tent. Reads state; never changes it.
+// up. Once the chest stands, a hit area tagged userData.storeId lets a tap empty the backpack into it. Since 0.0.19
+// the fire flares up while he stokes it and settles back after, and burns low (smaller flames, dimmer light) on a
+// night there were no logs, until it is stoked again (FIRE_LOOK in data/fire.ts). Models from
+// assets/models/village.glb: CampfireCold's stones and ash, the wreck's Plank, the village Hearth's flames, the Tent.
+// Reads state; never changes it.
 import * as THREE from 'three';
 import type { GameState } from '../core/state';
 import type { Layout, Vec2 } from '../world/layout';
 import { siteOf } from '../world/layout';
 import { MAKES, type MakeDef, type MakeId } from '../data/making';
+import { FIRE_LOOK } from '../data/fire';
 
 const RING = { width: 0.08, gap: 0.12, segments: 48, color: 0xf1e8d4 };   // the ring round a site not built yet
 const PLAN_OPACITY = 0.3;          // how faint the outline inside it is
@@ -18,9 +23,11 @@ const SMOKE = { puffs: 7, life: 3.6, rise: 2.4, drift: 0.5 };            // the 
 
 interface Puff { sprite: THREE.Sprite; age: number }
 interface SiteView {
-  def: MakeDef; pos: Vec2; plan: THREE.Group; fill: THREE.Mesh; hit: THREE.Mesh;
+  def: MakeDef; pos: Vec2; plan: THREE.Group; fill: THREE.Mesh; hit: THREE.Mesh; storeHit: THREE.Mesh | null;
   model: THREE.Group; flames: THREE.Object3D[]; light: THREE.PointLight | null; smoke: Puff[];
   shown: boolean | null; pop: number;
+  /** the fire: how far it has flared up from being stoked (0..1), and how low it burns (0 normal .. 1 low) */
+  flare: number; low: number;
 }
 
 /** A soft round puff, for the smoke. */
@@ -50,7 +57,7 @@ export class StructuresView {
       if (def.gives.kind !== 'structure' || def.at === 'here' || !build) continue;
       const site = siteOf(layout, def.at);
       if (!site) continue;
-      const { model, flames, plan: outline } = build(proto);
+      const { model, flames, plan: outline, store } = build(proto);
       // before it is built: a faint outline of it inside a ring on the ground, which fills up while he builds
       const plan = new THREE.Group(); plan.position.set(site.pos.x, 0, site.pos.z);
       outline.rotation.y = site.rot ?? 0;
@@ -63,6 +70,13 @@ export class StructuresView {
       const hit = new THREE.Mesh(new THREE.CylinderGeometry(inner + 0.25, inner + 0.25, 0.8, 12), new THREE.MeshBasicMaterial({ visible: false }));
       hit.position.set(site.pos.x, 0.4, site.pos.z); hit.userData.makeId = def.id;
       scene.add(hit); this.pickables.push(hit);
+      // once built, something to store things in (the chest) can be tapped to empty the backpack into it
+      let storeHit: THREE.Mesh | null = null;
+      if (store) {
+        storeHit = new THREE.Mesh(new THREE.CylinderGeometry(site.radius + 0.2, site.radius + 0.2, 0.9, 12), new THREE.MeshBasicMaterial({ visible: false }));
+        storeHit.position.set(site.pos.x, 0.45, site.pos.z); storeHit.userData.storeId = def.id; storeHit.visible = false;
+        scene.add(storeHit); this.pickables.push(storeHit);
+      }
       // once built
       model.position.set(site.pos.x, 0, site.pos.z); model.rotation.y = site.rot ?? 0; model.visible = false;
       model.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = !flames.includes(m); m.receiveShadow = true; } });
@@ -78,7 +92,7 @@ export class StructuresView {
           smoke.push({ sprite, age: i / SMOKE.puffs * SMOKE.life });
         }
       }
-      this.views.push({ def, pos: site.pos, plan, fill, hit, model, flames, light, smoke, shown: null, pop: 1 });
+      this.views.push({ def, pos: site.pos, plan, fill, hit, storeHit, model, flames, light, smoke, shown: null, pop: 1, flare: 0, low: 0 });
     }
   }
 
@@ -90,6 +104,7 @@ export class StructuresView {
       if (built !== v.shown) {
         if (built && v.shown === false) v.pop = 0;               // just built: it settles in
         v.plan.visible = v.hit.visible = !built; v.model.visible = built;
+        if (v.storeHit) v.storeHit.visible = built;
         for (const pt of v.smoke) pt.sprite.visible = built;
         v.shown = built;
       }
@@ -109,14 +124,19 @@ export class StructuresView {
         v.model.scale.setScalar(0.7 + 0.3 * (1 - Math.pow(1 - v.pop, 3)));
       }
       const flick = 0.85 + Math.sin(t * 13) * 0.08 + Math.sin(t * 7.3 + 1.7) * 0.07;
-      for (const [i, f] of v.flames.entries()) f.scale.set(1, (flick + (i ? 0.08 : 0)) * v.pop, 1);
-      if (v.light) v.light.intensity = (0.8 + night * 7) * flick;
+      // stoking: the flames flare up while he stokes, then settle back; with no logs at nightfall they burn low
+      v.flare = task.kind === 'stoke' ? Math.min(1, v.flare + dt / FIRE_LOOK.rise) : Math.max(0, v.flare - dt / FIRE_LOOK.settle);
+      v.low += ((state.fireLow ? 1 : 0) - v.low) * Math.min(1, dt * FIRE_LOOK.lowEase);
+      const size = (1 + (FIRE_LOOK.low - 1) * v.low) * (1 + (FIRE_LOOK.flare - 1) * v.flare);
+      const wide = 1 + FIRE_LOOK.widen * (size - 1);
+      for (const [i, f] of v.flames.entries()) f.scale.set(wide, (flick + (i ? 0.08 : 0)) * v.pop * size, wide);
+      if (v.light) v.light.intensity = (0.8 + night * 7) * flick * (1 + (FIRE_LOOK.lowLight - 1) * v.low) * (1 + FIRE_LOOK.flareLight * v.flare);
       for (const pt of v.smoke) {
         pt.age = (pt.age + dt) % SMOKE.life;
         const k = pt.age / SMOKE.life;
         pt.sprite.position.set(v.pos.x + k * SMOKE.drift + Math.sin(t * 0.7 + pt.age * 2) * 0.06, 0.55 + k * SMOKE.rise, v.pos.z - k * SMOKE.drift * 0.4);
         pt.sprite.scale.setScalar(0.22 + k * 0.75);
-        pt.sprite.material.opacity = Math.sin(Math.PI * k) * 0.32 * v.pop;
+        pt.sprite.material.opacity = Math.sin(Math.PI * k) * 0.32 * v.pop * Math.min(FIRE_LOOK.smokeMax, size);
         pt.sprite.material.color.setScalar(1 - night * 0.7);
       }
     }
@@ -124,9 +144,30 @@ export class StructuresView {
 }
 
 /** How each structure is drawn once built: its model at the site's centre (turned to face the site's way), and its
- *  flames (which flicker), if any; and the outline drawn faintly at its site until then. Tools (the stone axe and
- *  pickaxe) have none: the view draws them on him. */
-type Built = { model: THREE.Group; flames: THREE.Object3D[]; plan: THREE.Object3D };
+ *  flames (which flicker), if any; the outline drawn faintly at its site until then; and whether things are stored in
+ *  it (the chest: a tap empties the backpack into it). Tools (the stone axe and pickaxe) have none: the view draws
+ *  them on him. */
+type Built = { model: THREE.Group; flames: THREE.Object3D[]; plan: THREE.Object3D; store?: boolean };
+
+/** The storage chest's look (0.0.19): a box of split-log boards under a lid, two copper straps over it and a copper
+ *  latch at the front (+z, which faces the fire), in metres. */
+const CHEST = { w: 0.9, d: 0.56, boards: 3, board: 0.14, lid: 0.12, wood: ['#80583a', '#73502f'], lidWood: '#644428', copper: '#e8904e' };
+
+/** The chest, built from boxes (a placeholder, quick to change). */
+function chestModel(): THREE.Group {
+  const g = new THREE.Group();
+  const mat = (color: string, metal = 0) => new THREE.MeshStandardMaterial({ color, roughness: metal ? 0.5 : 0.9, metalness: metal, flatShading: true });
+  const box = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number) => {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); g.add(b); return b;
+  };
+  const woods = CHEST.wood.map(c => mat(c)), body = CHEST.boards * CHEST.board;
+  for (let i = 0; i < CHEST.boards; i++) box(CHEST.w, CHEST.board, CHEST.d, woods[i % woods.length]!, 0, CHEST.board * (i + 0.5), 0);
+  box(CHEST.w + 0.04, CHEST.lid, CHEST.d + 0.04, mat(CHEST.lidWood), 0, body + CHEST.lid / 2, 0);
+  const copper = mat(CHEST.copper, 0.25), high = body + CHEST.lid;
+  for (const x of [-0.29, 0.29]) box(0.08, high + 0.016, CHEST.d + 0.07, copper, x, (high + 0.016) / 2, 0);
+  box(0.12, 0.13, 0.03, copper, 0, body, CHEST.d / 2 + 0.04);
+  return g;
+}
 const BUILD: Partial<Record<MakeId, (proto: (name: string) => THREE.Object3D) => Built>> = {
   campfire: proto => {
     const model = new THREE.Group(), flames: THREE.Object3D[] = [];
@@ -163,4 +204,6 @@ const BUILD: Partial<Record<MakeId, (proto: (name: string) => THREE.Object3D) =>
     model.add(proto('Tent').clone(true));
     return { model, flames: [], plan: proto('Tent').clone(true) };
   },
+  // the storage chest beside the shelter; until it is built, the whole chest faint
+  chest: () => ({ model: chestModel(), flames: [], plan: chestModel(), store: true }),
 };

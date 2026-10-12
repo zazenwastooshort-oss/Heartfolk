@@ -72,11 +72,11 @@ export interface Layout {
   /** the model drawn at the hearth: the village's big Hearth when not given, or null for nothing there yet (the camp,
    *  whose campfire is built there: siteOf, data/making.ts). With nothing there, nothing is in the way either. */
   hearthModel?: string | null;
-  /** the camp a new game starts at: the spot where his shelter, a tent, is built (siteOf 'tent'; nothing stands there
-   *  until then): its middle, which way its door faces (towards the fire), how far round it it reaches (its ring, and
-   *  where he stands to build it), and its width and depth, which are in the way once it stands. The campfire is
-   *  built at `hearth`. */
-  camp?: { tent: Required<Site> };
+  /** the camp a new game starts at: the spots where his shelter, a tent, and his storage chest are built (siteOf
+   *  'tent' and 'chest'; nothing stands there until then): each one's middle, which way it faces (towards the fire),
+   *  how far round it it reaches (its ring, and where he stands to build it), and its width and depth, which are in
+   *  the way once it stands. The campfire is built at `hearth`. */
+  camp?: { tent: Required<Site>; chest: Required<Site> };
   falls?: Falls;
   /** things lying on the ground to pick up by hand (the camp's wreck, stones and branches) */
   pickups?: PickupSpot[];
@@ -120,12 +120,13 @@ export const inArea = (a: Area, p: Vec2) => p.x >= a.minX && p.x <= a.maxX && p.
 export interface Site { pos: Vec2; radius: number; rot?: number; w?: number; d?: number }
 
 /** Where something is built (MAKES' `at` in data/making.ts) in this layout: the camp's hearth, where nothing stands
- *  until its campfire is built (the village's already has its big Hearth), and the camp's tent spot, where his
- *  shelter goes; or null where this layout has no such place. A structure built there stands on it and is in the way
- *  (world/nav.ts). */
+ *  until its campfire is built (the village's already has its big Hearth), the camp's tent spot, where his shelter
+ *  goes, and the camp's chest spot beside it; or null where this layout has no such place. A structure built there
+ *  stands on it and is in the way (world/nav.ts). */
 export function siteOf(layout: Layout, id: SiteId): Site | null {
   if (id === 'hearth') return layout.hearthModel === null ? layout.hearth : null;
   if (id === 'tent') return layout.camp?.tent ?? null;
+  if (id === 'chest') return layout.camp?.chest ?? null;
   return null;
 }
 

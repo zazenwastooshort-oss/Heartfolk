@@ -4,9 +4,9 @@
 // next one never sends the card back. Gathering goals finish once their needs are all there; making goals (`makes`)
 // once the thing is made (a tool once he owns it: an old save that kept its axe and pick has the stone axe and stone
 // pickaxe goals done). The goal card shows the first goal not finished. Since 0.0.18: salvage, the campfire, the
-// stone axe, firewood, the shelter, the stone pickaxe, copper ore, then the storage chest, which waits on its ready
-// text until the next update adds it to data/making.ts. Since 0.0.17 each goal is a page in his book (core/book.ts,
-// ui/book.ts), with a few words of its own (`page`).
+// stone axe, firewood, the shelter, the stone pickaxe, copper ore, then the storage chest (built since 0.0.19). With
+// all of them finished the camp is set up: the card and the last page of his book say so (CAMP_DONE). Since 0.0.17
+// each goal is a page in his book (core/book.ts, ui/book.ts), with a few words of its own (`page`).
 import { MAKES } from './making';
 
 /** needs: what it asks for (the goal card counts them). ready: what the card says once they are all there.
@@ -49,7 +49,11 @@ export const GOALS: Goal[] = [
     hint: 'Tap a grey rock with orange lumps to mine it.',
     ready: 'You have enough copper ore.', needs: { copper_ore: 3 } },
   { id: 'chest', title: 'A storage chest',
-    page: 'Everything you own is on your back. A sturdy chest by the shelter would keep it safe and dry.',
+    page: 'Everything you own is on your back. A sturdy chest by the shelter will keep it safe, and logs in it keep the fire going at night.',
     hint: 'Chop birch trees for logs, and keep 3 copper ore. If your backpack is full, open it and drop some spare ore.',
-    ready: 'You have it all. Building the chest comes in the next update.', needs: { birch_logs: 10, copper_ore: 3 }, makes: 'chest' },
+    ready: 'You have it all. Tap Build, or tap the chest spot beside the shelter.', needs: MAKES.chest.needs, makes: 'chest' },
 ];
+
+/** What the goal card says once every goal is finished (allGoalsDone in core/state), and the last page of his book
+ *  under its words. */
+export const CAMP_DONE = { title: 'Your camp', text: 'Your camp is set up. More comes in later updates.' };

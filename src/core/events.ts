@@ -7,9 +7,9 @@ import type { MakeId } from '../data/making';
 export type GameEvent =
   | { type: 'strike'; nodeId: string }
   | { type: 'itemGained'; item: string; count: number }          // into the backpack
-  | { type: 'backpackFull' }                                     // a trip to the bank starts
-  | { type: 'banked'; items: Record<string, number> }            // the backpack was emptied into the bank
-  | { type: 'nothingToBank' }                                    // at the bank with an empty backpack
+  | { type: 'backpackFull' }                                     // a trip to the bank (the camp's chest) starts
+  | { type: 'banked'; items: Record<string, number> }            // the backpack was emptied into the bank (the chest)
+  | { type: 'nothingToBank' }                                    // at the bank (the chest) with an empty backpack
   | { type: 'xpGained'; skill: SkillId; amount: number }
   | { type: 'levelUp'; skill: SkillId; level: number }
   | { type: 'nodeDepleted'; nodeId: string }
@@ -31,7 +31,7 @@ export type GameEvent =
   | { type: 'cantDrop'; item: string }
   | { type: 'visited'; id: string }
   | { type: 'noPath' }
-  /** the backpack is full and there is nowhere to store it yet (the camp, before its storage chest) */
+  /** the backpack is full and there is nowhere to store it yet (the camp, before its storage chest is built) */
   | { type: 'noStorage' }
   /** asked to make something (data/making.ts) without everything it needs: `items` is what is still missing */
   | { type: 'missing'; make: MakeId; items: Record<string, number> }
@@ -41,6 +41,12 @@ export type GameEvent =
   | { type: 'made'; make: MakeId }
   /** a goal (data/goals.ts) is finished, for good */
   | { type: 'goalDone'; goal: string }
+  /** nightfall: he sets off to the storage chest for logs to stoke the fire (systems/fire.ts) */
+  | { type: 'stokeOff' }
+  /** he stoked the fire with `logs` logs: its flames flare up */
+  | { type: 'stoked'; logs: number }
+  /** nightfall, and no logs in the chest or the backpack: the fire burns low until it is next stoked */
+  | { type: 'fireLow' }
   | { type: 'arrived' };
 
 type Handler = (e: GameEvent) => void;

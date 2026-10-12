@@ -9,6 +9,7 @@ import { updateHauling } from './systems/hauling';
 import { updatePickups } from './systems/pickups';
 import { updateMaking } from './systems/making';
 import { updateGoals } from './systems/goals';
+import { updateFire } from './systems/fire';
 
 export interface SimContext { layout: Layout; rng: Rng; events: EventBus }
 
@@ -20,6 +21,9 @@ export function step(state: GameState, dt: number, ctx: SimContext): void {
   // the camp's goals are written down as they finish, before making uses anything up
   if (ctx.layout.camp) updateGoals(state, ctx.events);
   updateMaking(state, ctx.layout, ctx.events);
-  // after gathering, so the item that fills the backpack sends him to the bank in the same step
-  updateHauling(state, ctx.layout, visited, ctx.events);
+  // the camp's fire at night: at nightfall he leaves what he is doing to stoke it (hauling waits meanwhile); reaching
+  // the chest for logs is stoking's to see to, so hauling doesn't empty the backpack there again in the same step
+  const stoking = ctx.layout.camp ? updateFire(state, ctx.layout, visited, ctx.events) : false;
+  // after gathering, so the item that fills the backpack sends him to the bank (the chest) in the same step
+  updateHauling(state, ctx.layout, stoking ? null : visited, ctx.events);
 }

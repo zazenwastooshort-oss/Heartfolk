@@ -1,11 +1,12 @@
 // Saving: versioned JSON with a migration for every format change, so an update never wipes a village.
-import { SAVE_VERSION, createState, made, type GameState } from './state';
+import { SAVE_VERSION, createState, made, type Back, type GameState, type Stoke } from './state';
 import { siteOf, type Layout } from '../world/layout';
 import { navFor } from '../world/nav';
 import { ITEMS, SKILLS, TOOL_IDS, type SkillId, type ToolId } from '../data/skills';
 import { PICKUPS } from '../data/pickups';
 import { BOOK, GOALS } from '../data/goals';
 import { makeDef, type MakeId } from '../data/making';
+import { STOKE } from '../data/fire';
 
 export interface Storage { get(key: string): string | null; set(key: string, value: string): void }
 
@@ -38,6 +39,9 @@ const migrations: Record<number, (s: any) => any> = {
     const met = GOALS.filter(g => !g.makes && Object.entries(g.needs).every(([id, n]) => have(id) >= n));
     return { ...s, built: [], goalsDone: met.map(g => g.id) };
   },
+  // 0.0.19: the storage chest, and stoking the fire at night. No chest stood before, so no night has been seen to
+  // and the fire burns as it always did; he isn't off stoking it.
+  6: (s) => ({ ...s, stokedNight: -1, fireLow: false, player: { ...s.player, stoke: null } }),
 };
 
 export function serialize(state: GameState): string { return JSON.stringify(state); }
@@ -92,6 +96,26 @@ function savedGoals(v: unknown): string[] {
   return [...new Set(v.filter(id => typeof id === 'string' && GOALS.some(g => g.id === id)))] as string[];
 }
 
+/** Where he goes back to after stoking the fire: a node this layout has, a pickup it has, something he can still
+ *  make here, or a spot (finite numbers); anything else is null (he stays by the fire). */
+function savedBack(v: unknown, state: GameState, layout: Layout): Back | null {
+  if (!isRecord(v)) return null;
+  if (typeof v.nodeId === 'string') return v.nodeId in state.nodes ? { nodeId: v.nodeId } : null;
+  if (typeof v.pickupId === 'string') return (layout.pickups ?? []).some(x => x.id === v.pickupId) ? { pickupId: v.pickupId } : null;
+  if (typeof v.make === 'string') return makeable(state, layout, v.make) ? { make: v.make as MakeId } : null;
+  const to = v.to as { x?: unknown; z?: unknown } | undefined;
+  if (isRecord(to) && Number.isFinite(to.x) && Number.isFinite(to.z)) return { to: { x: to.x as number, z: to.z as number } };
+  return null;
+}
+
+/** Stoking the fire (0.0.19), as saved: only where the fire is his to stoke, with a whole number of logs carried (none
+ *  before the chest). Anything else is null. */
+function savedStoke(v: unknown, state: GameState, layout: Layout): Stoke | null {
+  if (!isRecord(v) || !state.built.includes('campfire') || !state.built.includes('chest') || !siteOf(layout, 'chest')) return null;
+  const logs = Number.isSafeInteger(v.logs) && (v.logs as number) > 0 ? Math.min(v.logs as number, STOKE.logs) : 0;
+  return { back: savedBack(v.back, state, layout), logs, empty: v.empty === true };
+}
+
 /** Whether `id` can be made here at all (data/making.ts): it exists, its site is in this layout, and it isn't made
  *  yet (a structure built, a tool owned). */
 function makeable(state: GameState, layout: Layout, id: unknown): boolean {
@@ -121,6 +145,8 @@ export function deserialize(raw: string, layout: Layout): GameState {
     taken: savedTaken(data.taken, layout),
     built: savedBuilt(data.built, layout),
     goalsDone: savedGoals(data.goalsDone),
+    stokedNight: Number.isSafeInteger(data.stokedNight) ? data.stokedNight : -1,
+    fireLow: data.fireLow === true,
     parcels: { ...fresh.parcels, ...Object.fromEntries(Object.entries(data.parcels ?? {}).filter(([id]) => id in fresh.parcels)) },
   };
   state.nodes = { ...fresh.nodes, ...Object.fromEntries(Object.entries(data.nodes ?? {}).filter(([id]) => id in fresh.nodes)) } as GameState['nodes'];
@@ -147,6 +173,15 @@ export function deserialize(raw: string, layout: Layout): GameState {
   const gathered = (id: string) => { const spot = layout.pickups?.find(x => x.id === id); return !!spot && PICKUPS[spot.kind].gather !== null; };
   const backTo = !!trip && (typeof trip.pickupId === 'string' ? gathered(trip.pickupId) : typeof trip.nodeId === 'string' && trip.nodeId in state.nodes);
   if (trip && (!backTo || (p.pending?.kind !== 'visit' && trip.leaveAt === undefined))) p.trip = null;
+  // stoking the fire (0.0.19) carries on only on the way to the chest (no logs yet), with the logs on the way to the
+  // fire, or stoking it; otherwise it stops, and logs he carried go back into the chest. A stoke task needs it.
+  const stoke = savedStoke(p.stoke, state, layout);
+  const goingTo = p.pending?.kind === 'visit' ? p.pending.id : null;
+  const onTrack = !!stoke && (p.task.kind === 'stoke' ? stoke.logs > 0 && Number.isFinite(p.task.doneAt) : goingTo === (stoke.logs ? 'campfire' : 'chest'));
+  p.stoke = onTrack ? stoke : null;
+  if (stoke && !onTrack && stoke.logs > 0) state.bank[STOKE.item] = (state.bank[STOKE.item] ?? 0) + stoke.logs;
+  if (p.task.kind === 'stoke' && !p.stoke) p.task = { kind: 'idle' };
+  if (p.stoke) p.trip = null;
   return state;
 }
 

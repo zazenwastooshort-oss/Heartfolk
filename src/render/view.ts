@@ -201,8 +201,9 @@ export class View {
       if (task.kind === 'walk') this.play(armed ? GAIT.clip : GAIT.freeClip);
       else if (task.kind === 'gather' && !waiting && swing && armed) { this.play(swing.clip); this.actions[swing.clip]!.time = task.progress * swing.cycle; }
       else this.play(armed ? IDLE.clip : IDLE.freeClip);
-      // building: he bows down to it and back up, over and over (a placeholder until there is a clip for it)
-      const bow = task.kind === 'make' ? Math.max(0, Math.sin(this.clock * Math.PI * 2 * BUILD_BOW.rate)) : 0;
+      // building, or stoking the fire: he bows down to it and back up, over and over (a placeholder until there is a
+      // clip for it)
+      const bow = task.kind === 'make' || task.kind === 'stoke' ? Math.max(0, Math.sin(this.clock * Math.PI * 2 * BUILD_BOW.rate)) : 0;
       this.miner.rotation.z = -bow * BUILD_BOW.lean;
       this.miner.position.y = -bow * BUILD_BOW.dip;
       this.mixer.update(dt);

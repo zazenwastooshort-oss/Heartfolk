@@ -10,7 +10,7 @@ import { bookPages, goalLines, opensBook } from '../src/core/book';
 import { step } from '../src/sim';
 import { CAMP } from '../src/world/camp';
 import { applyCommands, type Command } from '../src/systems/commands';
-import { GOALS } from '../src/data/goals';
+import { CAMP_DONE, GOALS } from '../src/data/goals';
 import { MAKES } from '../src/data/making';
 import type { PickupKind } from '../src/data/pickups';
 
@@ -89,19 +89,22 @@ describe('the pages of his book', () => {
     expect(pages).toHaveLength(8);
     expect(pages.at(-1)).toMatchObject({ goal: 'chest', title: 'A storage chest', current: true, done: false, text: GOALS[7]!.page });
     expect(pages.at(-1)!.lines).toEqual([{ id: 'birch_logs', need: 10, got: 0, done: false }, { id: 'copper_ore', need: 3, got: 3, done: true }]);
-    // with everything there the page says the chest comes in the next update, as the card does
+    // with everything there the page says to build it, as the card does (0.0.19)
     s.state.player.backpack.birch_logs = 10;
-    expect(bookPages(s.state).at(-1)!.hint).toMatch(/next update/);
+    expect(bookPages(s.state).at(-1)!.hint).toBe('You have it all. Tap Build, or tap the chest spot beside the shelter.');
     // every page has words of its own
     expect(new Set(GOALS.map(g => g.page)).size).toBe(GOALS.length);
   });
 
-  it('with every goal finished, the last page is the current one, and done', () => {
+  it('with every goal finished, the last page is the current one, done, and says the camp is set up (0.0.19)', () => {
     const s = setup();
     s.state.goalsDone = GOALS.map(g => g.id);
     const pages = bookPages(s.state);
     expect(pages).toHaveLength(GOALS.length);
-    expect(pages.at(-1)).toMatchObject({ current: true, done: true, hint: '' });
+    expect(pages.at(-1)).toMatchObject({ goal: 'chest', current: true, done: true, hint: 'Your camp is set up. More comes in later updates.' });
+    expect(CAMP_DONE.text).toBe('Your camp is set up. More comes in later updates.');
+    // the pages before it have no hint, as finished pages never do
+    expect(pages.slice(0, -1).every(p => p.done && !p.current && p.hint === '')).toBe(true);
   });
 
   it('a finished page stays done, every line ticked, after its things are used up: the campfire takes planks', () => {
