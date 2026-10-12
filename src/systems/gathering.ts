@@ -14,6 +14,7 @@ import { goWork, reachFor, WALK_SPEED } from '../actors/player';
 import { addXp, levelOf } from './skills';
 import { isClaimed } from './commands';
 import { addToBackpack, backpackFull } from './backpack';
+import { restedFactor } from './sleep';
 
 // He pauses RESOURCES[...].moveOnAfter seconds after a node runs out (a tree is seen to land), then looks for another.
 export const MOVE_ON_EVERY = 0.5;     // then look again this often while still waiting; cheap when time is caught up
@@ -68,7 +69,7 @@ export function updateGathering(state: GameState, layout: Layout, dt: number, rn
   const crossed = before < impact ? task.progress >= impact || task.progress < before : task.progress < before && task.progress >= impact;
   if (!crossed) return;
   events.emit({ type: 'strike', nodeId: node.id });
-  if (rng.next() < yieldChance(res.id, levelOf(state, res.skill))) {
+  if (rng.next() < Math.min(0.95, yieldChance(res.id, levelOf(state, res.skill)) * restedFactor(state))) {
     addToBackpack(state, res.item);
     events.emit({ type: 'itemGained', item: res.item, count: 1 });
     addXp(state, res.skill, res.xp, events);

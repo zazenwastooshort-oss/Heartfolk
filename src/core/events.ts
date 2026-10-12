@@ -53,6 +53,14 @@ export type GameEvent =
   | { type: 'stoked'; logs: number }
   /** nightfall, and no logs in the pile, the chest or the backpack: the fire burns low until it is next stoked */
   | { type: 'fireLow' }
+  /** asked to sleep by day: he isn't tired yet (systems/sleep.ts) */
+  | { type: 'cantSleep' }
+  /** asked to sleep while off to stoke the fire: he stokes it first, then goes to bed */
+  | { type: 'bedLater' }
+  /** he lay down in the shelter for the night */
+  | { type: 'fellAsleep' }
+  /** dawn: he got up after a full night's sleep, well rested */
+  | { type: 'awake' }
   /** he ate one `item` from his backpack (chapter 2, 0.0.22): it healed `healed`, and his health is now `health` */
   | { type: 'ate'; item: string; healed: number; health: number }
   /** asked to eat `item`: it isn't food ('notFood'), he carries none ('none'), or his health is full ('full') */

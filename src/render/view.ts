@@ -290,6 +290,7 @@ export class View {
       const dh = ((p.heading - this.shown.heading + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
       this.shown.heading += dh * Math.min(1, dt * 20);
       this.miner.position.copy(this.shown.pos); this.miner.rotation.y = this.shown.heading;
+      this.miner.visible = p.task.kind !== 'sleep';               // asleep, he is inside the shelter
       const task = p.task;
       let lean = 0;
       // the node being worked, or the one he is walking to: its tool rides on his back on the way, out once he is there

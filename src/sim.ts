@@ -17,6 +17,7 @@ import { updateCombat } from './systems/combat';
 import { restockIfOut, updateRats } from './systems/rats';
 import { updateGoblins } from './systems/goblins';
 import { updateCooking } from './systems/cooking';
+import { updateSleep } from './systems/sleep';
 import { closedFor, emptySummary, openFor, tally, type Away, type AwaySummary } from './systems/away';
 
 export interface SimContext { layout: Layout; rng: Rng; events: EventBus }
@@ -38,6 +39,8 @@ export function step(state: GameState, dt: number, ctx: SimContext): void {
   const stoking = ctx.layout.camp ? updateFire(state, ctx.layout, visited, ctx.events) : false;
   // cooking at the campfire (chapter 2): reaching the chest for raw fish is cooking's to see to, as for stoking
   const cooking = ctx.layout.camp ? updateCooking(state, ctx.layout, stoking ? null : visited, ctx.rng, ctx.events) : false;
+  // to bed in the shelter at night, and up at dawn, well rested
+  if (ctx.layout.camp) updateSleep(state, ctx.layout, visited, ctx.events);
   // after gathering, so the item that fills the backpack sends him to the bank (the chest) in the same step
   updateHauling(state, ctx.layout, stoking || cooking ? null : visited, ctx.events);
 }

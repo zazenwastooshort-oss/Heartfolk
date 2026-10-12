@@ -3,7 +3,7 @@ import type { SkillId, ToolId } from '../data/skills';
 import { RESOURCES, SKILLS, TOOL_IDS } from '../data/skills';
 import { HEALTH, SLOTS, type CombatStyle, type GearId, type Slot } from '../data/combat';
 import { levelFor } from '../data/xp';
-import type { Layout, Vec2 } from '../world/layout';
+import { siteOf, type Layout, type Vec2 } from '../world/layout';
 import { BOOK, GOALS, type Goal } from '../data/goals';
 import { PICKUPS } from '../data/pickups';
 import { makeDef, type MakeId } from '../data/making';
@@ -35,7 +35,9 @@ export const SAVE_VERSION = 11;
 export type Task = { kind: 'idle' } | { kind: 'walk' } | { kind: 'gather'; nodeId: string; progress: number; mayMoveOn?: boolean }
   | { kind: 'pickup'; id: string; doneAt: number } | { kind: 'make'; id: MakeId; doneAt: number } | { kind: 'stoke'; doneAt: number }
   | { kind: 'cook'; doneAt: number } | { kind: 'fight'; target: string; progress: number }
-  | { kind: 'knockedOut'; wakeAt: number; by: string };
+  | { kind: 'knockedOut'; wakeAt: number; by: string }
+  /** asleep in the shelter until dawn (systems/sleep.ts) */
+  | { kind: 'sleep' };
 
 /** What the player is walking towards: a resource node to work, a place to visit (a building or land), something
  *  on the ground to pick up, where he makes something (data/making.ts), or (0.0.22) something to fight. */
@@ -53,7 +55,8 @@ export type Trip = ({ nodeId: string } | { pickupId: string } | { fight: string;
 /** What he goes back to after stoking the fire (0.0.19): working a node (or the nearest free one like it), gathering
  *  things off the ground like `pickupId` (or picking up that one), making something, walking on to a spot, or (chapter
  *  2, 0.0.22) cooking at the campfire or fighting something (practising on the training dummy). */
-export type Back = { nodeId: string } | { pickupId: string } | { make: MakeId } | { to: Vec2 } | { cook: true } | { fight: string };
+export type Back = { nodeId: string } | { pickupId: string } | { make: MakeId } | { to: Vec2 } | { cook: true } | { fight: string }
+  | { sleep: true };
 
 /** Stoking the fire (0.0.19; systems/fire.ts): at nightfall he left what he was doing (`back`, null for nothing),
  *  walks to where he takes the logs (`from`: the firewood pile since 0.0.21, or the storage chest; null when he took
@@ -148,7 +151,13 @@ export interface GameState {
   goblins: Record<string, GoblinState>;
   /** (chapter 2) the goblin camp: the chief out of his tent, the camp cleared */
   goblinCamp: GoblinCamp;
+  /** the in-game time he stays well rested until, after a full night's sleep in the shelter (systems/sleep.ts); 0 for
+   *  not rested */
+  restedUntil: number;
 }
+
+/** Whether there is a shelter to sleep in (systems/sleep.ts): built at this layout's tent spot (never in the village). */
+export const canSleep = (state: GameState, layout: Layout) => !!siteOf(layout, 'tent') && state.built.includes('shelter');
 
 /** His health at most (0.0.22): HEALTH in data/combat.ts, by his Vitality level. */
 export const maxHealth = (state: GameState) => HEALTH.base + (levelFor(state.skills.vitality) - 1) * HEALTH.perLevel;
@@ -236,5 +245,6 @@ export function createState(layout: Layout, seed = 1): GameState {
     rats: freshRats(layout, DAY_SECONDS * 0.32),
     goblins: freshGoblins(layout, DAY_SECONDS * 0.32),
     goblinCamp: { chiefOut: false, cleared: false },
+    restedUntil: 0,
   };
 }

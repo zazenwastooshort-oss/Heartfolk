@@ -22,6 +22,8 @@ type Target =
   | { kind: 'fight'; id: string; point: THREE.Vector3 }
   /** the campfire once it is built (chapter 2): tapping it cooks his raw fish */
   | { kind: 'cook'; id: MakeId; point: THREE.Vector3 }
+  /** the shelter once it is built: tapping it sends him to bed at night */
+  | { kind: 'sleep'; id: MakeId; point: THREE.Vector3 }
   | { kind: 'building'; id: string; point: THREE.Vector3 }
   | { kind: 'parcel'; id: string; point: THREE.Vector3 }
   | { kind: 'ground'; point: THREE.Vector3 }
@@ -47,7 +49,7 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
     ndc.set((e.clientX - b.left) / b.width * 2 - 1, -(e.clientY - b.top) / b.height * 2 + 1);
     ray.setFromCamera(ndc, view.cam.camera);
     // something already picked up, or a site already built on, is hidden, but still in the scene: it can't be tapped
-    const hit = ray.intersectObjects(view.pickables, false).find(h => !(h.object.userData.pickupId || h.object.userData.makeId || h.object.userData.storeId || h.object.userData.fightId || h.object.userData.cookId) || shown(h.object));
+    const hit = ray.intersectObjects(view.pickables, false).find(h => !(h.object.userData.pickupId || h.object.userData.makeId || h.object.userData.storeId || h.object.userData.fightId || h.object.userData.cookId || h.object.userData.sleepId) || shown(h.object));
     const ground = ray.intersectObjects(view.ground, false)[0];
     if (hit && (!ground || hit.distance <= ground.distance + 0.01)) {
       const u = hit.object.userData;
@@ -62,6 +64,7 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
       if (u.storeId) return { kind: 'store', id: u.storeId, point: hit.point };
       if (u.fightId) return { kind: 'fight', id: u.fightId, point: hit.point };
       if (u.cookId) return { kind: 'cook', id: u.cookId, point: hit.point };
+      if (u.sleepId) return { kind: 'sleep', id: u.sleepId, point: hit.point };
       if (u.buildingId) return { kind: 'building', id: u.buildingId, point: hit.point };
       if (u.parcelId) return { kind: 'parcel', id: u.parcelId, point: hit.point };
     }
@@ -84,6 +87,7 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
     if (t.kind === 'store') return t.id === 'woodpile' ? 'Stack logs on|Firewood pile' : 'Store in|Chest';
     if (t.kind === 'fight') return fightLabel(layout, t.id);
     if (t.kind === 'cook') return 'Cook at|Campfire';
+    if (t.kind === 'sleep') return 'Sleep in|Shelter';
     if (t.kind === 'building') return `Visit|${layout.buildings.find(b => b.id === t.id)!.name}`;
     return `Explore|${layout.parcels.find(p => p.id === t.id)!.name}`;
   }
@@ -128,6 +132,7 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
     else if (t.kind === 'store') { view.showMarker(t.point, true); queue.push({ type: 'visit', id: t.id }); }
     else if (t.kind === 'fight') { view.showMarker(t.point, true); queue.push({ type: 'fight', target: t.id }); }
     else if (t.kind === 'cook') { view.showMarker(t.point, true); queue.push({ type: 'cook' }); }
+    else if (t.kind === 'sleep') { view.showMarker(t.point, true); queue.push({ type: 'sleep' }); }
     else if (t.kind === 'building') { view.showMarker(t.point, true); queue.push({ type: 'visit', id: t.id }); }
     else if (t.kind === 'parcel') { view.showMarker(t.point, true); queue.push({ type: 'visit', id: t.id, at }); }
     else { view.showMarker(t.point, false); queue.push({ type: 'walk', to: at }); }

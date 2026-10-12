@@ -1,5 +1,5 @@
 // Saving: versioned JSON with a migration for every format change, so an update never wipes a village.
-import { SAVE_VERSION, createState, made, maxHealth, owned, type Back, type Cook, type GameState, type Stoke } from './state';
+import { SAVE_VERSION, canSleep, createState, made, maxHealth, owned, type Back, type Cook, type GameState, type Stoke } from './state';
 import { siteOf, type Layout } from '../world/layout';
 import { navFor } from '../world/nav';
 import { ITEMS, SKILLS, TOOL_IDS, type SkillId, type ToolId } from '../data/skills';
@@ -7,6 +7,8 @@ import { PICKUPS } from '../data/pickups';
 import { BOOK, GOALS } from '../data/goals';
 import { makeDef, type MakeId } from '../data/making';
 import { STOKE, WOODPILE } from '../data/fire';
+import { SLEEP } from '../data/sleep';
+import { isNight } from './clock';
 import { SLOTS, STYLES, gearDef, type CombatStyle, type GearId, type Slot } from '../data/combat';
 import { targetOf } from './targets';
 import { savedRats } from './rats';
@@ -156,6 +158,7 @@ function savedBack(v: unknown, state: GameState, layout: Layout): Back | null {
   if (typeof v.make === 'string') return makeable(state, layout, v.make) ? { make: v.make as MakeId } : null;
   if (typeof v.fight === 'string') return targetOf(state, layout, v.fight) && state.equipment.weapon ? { fight: v.fight } : null;
   if (v.cook === true) return savedCook({ fetch: false }, state, layout) ? { cook: true } : null;
+  if (v.sleep === true) return canSleep(state, layout) ? { sleep: true } : null;
   const to = v.to as { x?: unknown; z?: unknown } | undefined;
   if (isRecord(to) && Number.isFinite(to.x) && Number.isFinite(to.z)) return { to: { x: to.x as number, z: to.z as number } };
   return null;
@@ -243,6 +246,9 @@ export function readSave(raw: string, layout: Layout): Loaded {
   state.goblinCamp = { chiefOut: !!layout.goblinCamp && !cleared && camp.chiefOut === true, cleared };
   state.goblins = savedGoblins(data.goblins, state, layout);
   // his health: a number above 0 up to his most; anything else (none saved, from before 0.0.22, or damaged) is full
+  // well rested: a finite time, never more than a full day's rest from now
+  state.restedUntil = typeof data.restedUntil === 'number' && Number.isFinite(data.restedUntil) && data.restedUntil > state.time
+    ? Math.min(data.restedUntil, state.time + SLEEP.rested) : 0;
   const max = maxHealth(state);
   state.health = typeof data.health === 'number' && Number.isFinite(data.health) && data.health > 0 ? Math.min(data.health, max) : max;
   // the firewood pile's logs: a whole number up to what it holds, and none unless it stands
@@ -260,6 +266,8 @@ export function readSave(raw: string, layout: Layout): Loaded {
   if (p.task.kind === 'pickup' && (!pickupThere(p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
   // making something: only something that can still be made here, with a time it is done
   if (p.task.kind === 'make' && (!makeable(state, layout, p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
+  // asleep: only in a shelter that stands, and only at night (a save from the morning finds him up)
+  if (p.task.kind === 'sleep' && (!canSleep(state, layout) || !isNight(state.time))) p.task = { kind: 'idle' };
   // knocked out (chapter 2's rats): he wakes when it says, but no later than a knock-out now would give (at once if that
   // is broken), and lies there with the 0 health he was knocked out with
   if (p.task.kind === 'knockedOut') {

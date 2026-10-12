@@ -7,6 +7,8 @@ export interface Release { version: string; date: string; notes: string[] }
 export const CHANGELOG: Release[] = [
   {
     version: '0.0.26', date: '12 Oct 2026', notes: [
+      'Tap the shelter at night and he goes to bed. The night speeds by, and he wakes up well rested: gathering goes faster until nightfall.',
+      'A day and night dial beside the clock shows how far the day has gone.',
       'New buttons at the edge of the screen open your backpack, skills, book and settings. Close one with its x or the same button.',
       'Your backpack shows all 28 slots, with a picture for everything in it. Tap a thing to eat it or drop it.',
       "See what you're wearing and your bonuses, and what's in the chest and the firewood pile.",

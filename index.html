@@ -53,6 +53,11 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .hover b { color: #00ffff; }
 .top-right { position: absolute; top: 0; right: 0; display: flex; align-items: center; gap: 8px; }
 .clock { font: 700 0.875rem/1.2 var(--body); text-shadow: 1px 1px 0 #000; font-variant-numeric: tabular-nums; }
+/* the day and night dial beside the clock, and Rested after a full night's sleep (src/ui/sleep.ts) */
+.dial { width: 22px; height: 22px; flex: none; }
+.dial svg { display: block; width: 100%; height: 100%; filter: drop-shadow(1px 1px 0 rgba(0, 0, 0, .55)); }
+.rested { font: 600 0.6875rem/1 var(--body); padding: 4px 8px; border-radius: 999px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); }
+.rested[hidden] { display: none; }
 .ver { position: relative; pointer-events: auto; border: 0; border-radius: 999px; padding: 5px 9px; background: var(--chip); color: var(--chip-text);
   font: 600 0.75rem/1 var(--body); cursor: pointer; white-space: nowrap; }
 /* the button looks small, but a finger finds it: its tap area is 44 px tall */
@@ -346,7 +351,7 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
         <span class="goal-bar" aria-hidden="true"><i id="goalBar"></i></span>
       </div>
     </div>
-    <div class="top-right"><button class="ver" id="ver" type="button">What's new</button><div class="clock" id="clock">07:40</div></div>
+    <div class="top-right"><button class="ver" id="ver" type="button">What's new</button><span class="rested" id="rested" title="Well rested: gathering goes faster until nightfall" hidden>Rested</span><div class="dial" id="dial" aria-hidden="true"></div><div class="clock" id="clock">07:40</div></div>
   </div>
   <div class="hint" id="hint">
     <span class="touch"><b>Tap a plank or a stone</b> to gather them one after another, <b>the grass</b> to walk. Drag to turn, pinch to zoom.</span>

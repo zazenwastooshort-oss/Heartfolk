@@ -207,6 +207,9 @@ export class Hud {
     const el = $('notice'); el.textContent = text; el.classList.add('show'); this.noticeTimer = 3;
   }
 
+  /** A word drifting up from a spot in the world, like the floating XP (the "z" over the tent while he sleeps). */
+  drift(text: string, at: { x: number; z: number }): void { this.float(text, false, at); }
+
   private float(text: string, big: boolean, at: { x: number; z: number }): void {
     if (this.floats.length > 8) this.floats.shift()!.el.remove();
     const el = document.createElement('div'); el.className = 'float' + (big ? ' big' : ''); el.textContent = text;

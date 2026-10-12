@@ -37,6 +37,8 @@ interface SiteView {
   cook: boolean;
   /** once built, the hit area that sends him to fight it (the training dummy), and the part that wobbles when struck */
   fightHit: THREE.Mesh | null; sway: THREE.Object3D | null; wobble: Wobble | null;
+  /** once built, the hit area that sends him to bed in it (the shelter) */
+  sleepHit: THREE.Mesh | null;
   model: THREE.Group; flames: THREE.Object3D[]; light: THREE.PointLight | null; smoke: Puff[];
   /** the firewood pile's logs, bottom row first: as many show as it holds */
   logs: THREE.Object3D[] | null;
@@ -72,7 +74,7 @@ export class StructuresView {
       if (def.gives.kind !== 'structure' || def.at === 'here' || !build) continue;
       const site = siteOf(layout, def.at);
       if (!site) continue;
-      const { model, flames, plan: outline, store, cook, logs, fight, sway } = build(proto);
+      const { model, flames, plan: outline, store, cook, logs, fight, sway, sleep } = build(proto);
       // before it is built: a faint outline of it inside a ring on the ground, which fills up while he builds
       const plan = new THREE.Group(); plan.position.set(site.pos.x, 0, site.pos.z);
       outline.rotation.y = site.rot ?? 0;
@@ -100,6 +102,13 @@ export class StructuresView {
         fightHit.position.set(site.pos.x, 0.85, site.pos.z); fightHit.userData.fightId = def.id; fightHit.visible = false;
         scene.add(fightHit); this.pickables.push(fightHit);
       }
+      // once built, the shelter can be tapped to send him to bed in it
+      let sleepHit: THREE.Mesh | null = null;
+      if (sleep) {
+        sleepHit = new THREE.Mesh(new THREE.CylinderGeometry(site.radius, site.radius, 1.6, 12), new THREE.MeshBasicMaterial({ visible: false }));
+        sleepHit.position.set(site.pos.x, 0.8, site.pos.z); sleepHit.userData.sleepId = def.id; sleepHit.visible = false;
+        scene.add(sleepHit); this.pickables.push(sleepHit);
+      }
       // once built
       model.position.set(site.pos.x, 0, site.pos.z); model.rotation.y = site.rot ?? 0; model.visible = false;
       model.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = !flames.includes(m); m.receiveShadow = true; } });
@@ -115,7 +124,7 @@ export class StructuresView {
           smoke.push({ sprite, age: i / SMOKE.puffs * SMOKE.life });
         }
       }
-      this.views.push({ def, pos: site.pos, rot: site.rot ?? 0, plan, fill, hit, storeHit, cook: !store && !!cook, fightHit, sway: sway ?? null, wobble: null,
+      this.views.push({ def, pos: site.pos, rot: site.rot ?? 0, plan, fill, hit, storeHit, cook: !store && !!cook, fightHit, sway: sway ?? null, wobble: null, sleepHit,
         model, flames, light, smoke, logs: logs ?? null, shown: null, pop: 1, flare: 0, low: 0 });
     }
   }
@@ -140,6 +149,7 @@ export class StructuresView {
         v.plan.visible = v.hit.visible = !built; v.model.visible = built;
         if (v.storeHit) v.storeHit.visible = built;
         if (v.fightHit) v.fightHit.visible = built;
+        if (v.sleepHit) v.sleepHit.visible = built;
         for (const pt of v.smoke) pt.sprite.visible = built;
         v.shown = built;
       }
@@ -197,6 +207,8 @@ type Built = {
   model: THREE.Group; flames: THREE.Object3D[]; plan: THREE.Object3D; store?: boolean; cook?: boolean; logs?: THREE.Object3D[];
   /** it can be fought (the training dummy): a tap on it sends him to strike it; `sway` is the part that wobbles */
   fight?: boolean; sway?: THREE.Object3D;
+  /** he sleeps in it (the shelter): a tap on it at night sends him to bed */
+  sleep?: boolean;
 };
 
 /** The training dummy's look (0.0.22), in metres: a post on two crossed feet, crossbar arms wrapped at the ends, a
@@ -312,7 +324,7 @@ const BUILD: Partial<Record<MakeId, (proto: (name: string) => THREE.Object3D) =>
   shelter: proto => {
     const model = new THREE.Group();
     model.add(proto('Tent').clone(true));
-    return { model, flames: [], plan: proto('Tent').clone(true) };
+    return { model, flames: [], plan: proto('Tent').clone(true), sleep: true };
   },
   // the storage chest beside the shelter; until it is built, the whole chest faint
   chest: () => ({ model: chestModel(), flames: [], plan: chestModel(), store: true }),

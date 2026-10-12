@@ -16,6 +16,7 @@ import { mayFight, setStyle } from './combat';
 import { setOffToFight } from './rats';
 import type { CombatStyle } from '../data/combat';
 import { canCook, fishToCook, goCook } from './cooking';
+import { canSleep, goToBed } from './sleep';
 
 export type Command =
   | { type: 'walk'; to: Vec2 }
@@ -42,7 +43,10 @@ export type Command =
   /** cook at the campfire (chapter 2, a tap on it once it stands): he cooks his raw fish one after another, fetching
    *  them from the chest when he carries none; with none anywhere he says so and stays put, or before he owns a rod,
    *  walks beside the fire */
-  | { type: 'cook' };
+  | { type: 'cook' }
+  /** to bed in the shelter (a tap on it at night): off to stoke the fire, he stokes it first; by day he says he isn't
+   *  tired yet */
+  | { type: 'sleep' };
 
 export const isClaimed = (state: GameState, parcelId: string | undefined) => !parcelId || !!state.parcels[parcelId]?.claimed;
 
@@ -81,6 +85,13 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
       if (!mayFight(state, layout, c.target, events)) continue;
       // (chapter 2) to fight the rats with no food on him, he goes by the chest for some first: a trip it sets
       ok = setOffToFight(state, layout, c.target, events);
+    } else if (c.type === 'sleep') {
+      const p = state.player;
+      if (!canSleep(state, layout) || p.task.kind === 'sleep') continue;
+      if (!isNight(state.time)) { events.emit({ type: 'cantSleep' }); continue; }
+      // off to stoke the fire: he finishes that, then goes to bed (systems/fire.ts goes back to { sleep })
+      if (p.stoke) { p.stoke.back = { sleep: true }; events.emit({ type: 'bedLater' }); continue; }
+      ok = goToBed(state, layout);
     } else if (c.type === 'cook') {
       // no campfire here, or already cooking: nothing to do
       if (!canCook(state, layout) || state.player.cook) continue;
