@@ -18,6 +18,7 @@ import { Intro } from './ui/intro';
 import { BackpackList } from './ui/backpack';
 import { Book } from './ui/book';
 import { AwayNote } from './ui/away';
+import { AWAY } from './data/away';
 
 // An artifact viewer can swap in a new version of the page while it is open and hand the game's snapshot
 // to the new version, so play carries on. Everywhere else `hot` is absent, hence the optional chaining.
@@ -87,14 +88,18 @@ function start(data: HotData): void {
   view.resize(stage.clientWidth, stage.clientHeight);
 
   // When frames arrive slowly or stop (a background tab, a busy phone, the screen off), the game still counts as open:
-  // the simulation catches up on the real time that passed, at full speed (up to 2 hours at once: openFor in
-  // systems/away.ts; a phone's time asleep comes from the wall clock: FrameClock). After at least a minute, the note
-  // says what he did meanwhile (not in a brand-new game's first session: the welcome is theirs).
+  // the simulation catches up on the real time that passed, at full speed, all of it (openFor in systems/away.ts; a
+  // phone's time asleep comes from the wall clock: FrameClock). That is just play, so no note (0.0.21: the note is for
+  // coming back after the game was closed). A long catch-up is spread over frames (AWAY.chunk), so the page never
+  // freezes: what is left waits in `behind`.
+  let behind = 0;
   function simulate(seconds: number): void {
-    if (seconds <= 0.25) { loop.advance(seconds); return; }
+    behind += openFor(seconds).game;
+    if (behind <= 0.25) { loop.advance(behind); behind = 0; return; }
     applyCommands(state, layout, queue, events);
-    const away = openFor(seconds);
-    tell(away, catchUp(state, away.game, ctx));
+    const now = Math.min(behind, AWAY.chunk);
+    behind -= now;
+    catchUp(state, now, ctx);
   }
 
   let sinceSave = 0;
@@ -117,7 +122,8 @@ function start(data: HotData): void {
   // wall clock if that says more time passed; the save says the game was played up to the last frame, so if the page
   // is closed now, the time since counts as closed time when it is opened again.
   document.addEventListener('visibilitychange', () => { if (document.hidden) { clock.hide(); save(browserStorage, state, clock.playedTo); } });
-  window.addEventListener('pagehide', () => { clock.hide(); save(browserStorage, state, clock.playedTo); });
+  // closed (or reloaded): the time hidden before this still counted as open, so the save says when it closed
+  window.addEventListener('pagehide', () => { clock.hide(); save(browserStorage, state, clock.playedTo, Date.now()); });
 }
 
 if (hot?.ready) hot.ready(start); else start(hot?.data ?? {});

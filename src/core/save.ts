@@ -61,14 +61,18 @@ const migrations: Record<number, (s: any) => any> = {
 
 /** The game as saved text. `savedAt` (since 0.0.20): the real time the game had been played up to when it was saved,
  *  in ms since 1970 (Date.now()), from which away time is counted when it is opened again (sim.ts, catchUpAway).
- *  Left out, as in the artifact viewer's hand-over of a running game, it is none. */
-export function serialize(state: GameState, savedAt?: number): string {
-  return JSON.stringify(savedAt === undefined ? state : { ...state, savedAt });
+ *  Left out, as in the artifact viewer's hand-over of a running game, it is none. `closedAt` (since 0.0.21): the real
+ *  time the page was closed, when it was saved on closing: from `savedAt` to then the game was still open (hidden),
+ *  which counts at full speed; only from then on is it away time. */
+export function serialize(state: GameState, savedAt?: number, closedAt?: number): string {
+  if (savedAt === undefined) return JSON.stringify(state);
+  return JSON.stringify(closedAt === undefined ? { ...state, savedAt } : { ...state, savedAt, closedAt });
 }
 
-/** A save read back: the game, and the real time it had been played up to when it was saved (ms since 1970), or null
- *  when the save doesn't say (from before 0.0.20, or a hand-over of a running game) or says something broken. */
-export interface Loaded { state: GameState; savedAt: number | null }
+/** A save read back: the game, the real time it had been played up to when it was saved (ms since 1970), or null when
+ *  the save doesn't say (from before 0.0.20, or a hand-over of a running game) or says something broken; and when the
+ *  page was closed, if it was saved on closing (0.0.21), or null. */
+export interface Loaded { state: GameState; savedAt: number | null; closedAt: number | null }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -169,7 +173,9 @@ export function readSave(raw: string, layout: Layout): Loaded {
   // when it was saved goes beside the game, not into it; a time from a damaged or hand-edited save (not a number, not
   // after 1970, infinite) is none, so no away time is counted from it
   const savedAt: number | null = typeof data.savedAt === 'number' && Number.isFinite(data.savedAt) && data.savedAt > 0 ? data.savedAt : null;
-  delete data.savedAt;
+  // when the page was closed: only with a time it was played up to, and not before it
+  const closedAt: number | null = savedAt !== null && typeof data.closedAt === 'number' && Number.isFinite(data.closedAt) && data.closedAt >= savedAt ? data.closedAt : null;
+  delete data.savedAt; delete data.closedAt;
   // fill anything missing (for example a rock added to the layout since the save was made)
   const fresh = createState(layout, data.seed ?? 1);
   const state: GameState = {
@@ -228,7 +234,7 @@ export function readSave(raw: string, layout: Layout): Loaded {
   }
   if (p.task.kind === 'stoke' && !p.stoke) p.task = { kind: 'idle' };
   if (p.stoke) p.trip = null;
-  return { state, savedAt };
+  return { state, savedAt, closedAt };
 }
 
 /** The saved game and when it was saved, or null when there is none (or it can't be read). */
@@ -239,9 +245,10 @@ export function load(storage: Storage, layout: Layout): Loaded | null {
   } catch { return null; }
 }
 
-/** Save the game, saying it had been played up to `savedAt` (real time, ms since 1970: see serialize). */
-export function save(storage: Storage, state: GameState, savedAt: number): boolean {
-  try { storage.set(SAVE_KEY, serialize(state, savedAt)); return true; } catch { return false; }
+/** Save the game, saying it had been played up to `savedAt` (real time, ms since 1970: see serialize), and, saved
+ *  as the page closes, when that was (`closedAt`). */
+export function save(storage: Storage, state: GameState, savedAt: number, closedAt?: number): boolean {
+  try { storage.set(SAVE_KEY, serialize(state, savedAt, closedAt)); return true; } catch { return false; }
 }
 
 /** Browser storage, failing quietly where it's blocked (private windows, previews). */

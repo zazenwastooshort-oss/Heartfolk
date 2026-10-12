@@ -13,7 +13,7 @@ import { updatePickups } from './systems/pickups';
 import { updateMaking } from './systems/making';
 import { updateGoals } from './systems/goals';
 import { updateFire } from './systems/fire';
-import { closedFor, emptySummary, tally, type Away, type AwaySummary } from './systems/away';
+import { closedFor, emptySummary, openFor, tally, type Away, type AwaySummary } from './systems/away';
 
 export interface SimContext { layout: Layout; rng: Rng; events: EventBus }
 
@@ -42,12 +42,14 @@ export function catchUp(state: GameState, seconds: number, ctx: SimContext): Awa
   return summary;
 }
 
-/** Opening a saved game: the game was closed from `savedAt` (the real time its save had been played up to, ms since
- *  1970) until `now`, and he kept working at a fifth of his speed for at most 2 hours of that (closedFor in
- *  systems/away.ts). Caught up at once, before the first frame: at most 24 minutes of play, which takes well under a
- *  second. */
-export function catchUpAway(state: GameState, savedAt: number | null, now: number, ctx: SimContext): { away: Away; summary: AwaySummary } {
-  const away = closedFor(savedAt, now);
+/** Opening a saved game: it was played up to `savedAt` (real time, ms since 1970). If its page was then hidden and
+ *  closed at `closedAt` (0.0.21), the time in between was still open: caught up at full speed, as play, and not told.
+ *  From when it was closed (or, not knowing, from `savedAt`) until `now` it was away, and he kept working at a fifth of
+ *  his speed for at most 2 hours of that (closedFor in systems/away.ts): at most 24 minutes of play, well under a
+ *  second. Both before the first frame. What he did while away is returned, for the note. */
+export function catchUpAway(state: GameState, savedAt: number | null, now: number, ctx: SimContext, closedAt: number | null = null): { away: Away; summary: AwaySummary } {
+  if (savedAt !== null && closedAt !== null && closedAt > savedAt) catchUp(state, openFor((closedAt - savedAt) / 1000).game, ctx);
+  const away = closedFor(closedAt ?? savedAt, now);
   return { away, summary: catchUp(state, away.game, ctx) };
 }
 
@@ -55,5 +57,5 @@ export function catchUpAway(state: GameState, savedAt: number | null, now: numbe
  *  page having been opened or reloaded. None for a new game (no save), and none when the artifact viewer's hot swap
  *  handed over the running game (`handedOver`): it never stopped. */
 export function awayOnOpening(loaded: Loaded | null, handedOver: boolean, now: number, ctx: SimContext): { away: Away; summary: AwaySummary } | null {
-  return loaded && !handedOver ? catchUpAway(loaded.state, loaded.savedAt, now, ctx) : null;
+  return loaded && !handedOver ? catchUpAway(loaded.state, loaded.savedAt, now, ctx, loaded.closedAt) : null;
 }

@@ -97,9 +97,10 @@ describe('how much play time away is worth', () => {
     expect(closedFor(NOW - HOUR, NaN).game).toBe(0);
   });
 
-  it('open in a background tab: all of it at full speed, up to 2 hours at once; nothing for a broken time', () => {
+  it('open in a background tab: all of it at full speed, with no limit (0.0.21); nothing for a broken time', () => {
     expect(openFor(600)).toEqual({ real: 600, counted: 600, game: 600, open: true });
-    expect(openFor(5 * 3600)).toEqual({ real: 5 * 3600, counted: AWAY.openMax, game: AWAY.openMax, open: true });
+    expect(AWAY.openMax).toBe(Infinity);
+    expect(openFor(5 * 3600)).toEqual({ real: 5 * 3600, counted: 5 * 3600, game: 5 * 3600, open: true });
     for (const bad of [0, -5, NaN, Infinity]) expect(openFor(bad).game, String(bad)).toBe(0);
   });
 });
@@ -276,7 +277,7 @@ describe('a game left open in a background tab', () => {
     expect(summary).toEqual(ref.summary);
     expect(worthNoting(away, summary)).toBe(true);
     expect(awayText([away], summary).lead).toBe('Away 10 min. The game was still open, so he worked all that time at full speed.');
-    expect(awayText([openFor(5 * 3600)], summary).lead).toBe('Away 5 h. The game was still open, so he worked for 2 h at full speed.');
+    expect(awayText([openFor(5 * 3600)], summary).lead).toBe('Away 5 h. The game was still open, so he worked all that time at full speed.');
   });
 });
 
@@ -296,8 +297,8 @@ describe('the real time between frames (FrameClock: main.ts reads both clocks at
     const real = clock.frame(2016, NOW);                            // 3 hours on, of which the steady clock ran 2 seconds
     expect(real).toBe(3 * 3600);
     const away = openFor(real);
-    expect(away).toEqual({ real: 3 * 3600, counted: AWAY.openMax, game: AWAY.openMax, open: true });
-    expect(awayText([away], emptySummary()).lead).toBe('Away 3 h. The game was still open, so he worked for 2 h at full speed.');
+    expect(away).toEqual({ real: 3 * 3600, counted: 3 * 3600, game: 3 * 3600, open: true });
+    expect(awayText([away], emptySummary()).lead).toBe('Away 3 h. The game was still open, so he worked all that time at full speed.');
     expect(clock.playedTo).toBe(NOW);
     expect(clock.frame(2032, NOW + 16)).toBeCloseTo(0.016);         // then the steady clock again
   });
@@ -402,8 +403,8 @@ describe('the "While you were away" note', () => {
       .toBe('Away 3 h. He worked for 2 h at a fifth of his speed. Then 10 min more with the game open, and he worked all that time at full speed.');
     // with only open stretches, one sentence
     const open = addSpan(addSpan([], openFor(90)), openFor(5 * 3600));
-    expect(open).toEqual([{ real: 90 + 5 * 3600, counted: 90 + AWAY.openMax, game: 90 + AWAY.openMax, open: true }]);
-    expect(awayText(open, emptySummary()).lead).toBe('Away 5 h 1 min. The game was still open, so he worked for 2 h 1 min at full speed.');
+    expect(open).toEqual([{ real: 90 + 5 * 3600, counted: 90 + 5 * 3600, game: 90 + 5 * 3600, open: true }]);
+    expect(awayText(open, emptySummary()).lead).toBe('Away 5 h 1 min. The game was still open, so he worked all that time at full speed.');
     // a closed stretch never joins an open one
     expect(addSpan([openFor(90)], closedFor(NOW - HOUR, NOW))).toHaveLength(2);
   });
@@ -468,5 +469,37 @@ describe('the "While you were away" note', () => {
     expect(duration(47 * 3600)).toBe('47 h');
     expect(duration(50 * 3600)).toBe('2 days');
     expect(duration(400 * 24 * 3600)).toBe('more than a year');
+  });
+});
+
+describe('hidden, then closed (0.0.21)', () => {
+  it('the time hidden before the game closed counts at full speed and isn’t told; only the time closed is away time', () => {
+    const s = working();
+    // played up to 3 hours ago, then hidden; the page closed an hour ago
+    const loaded = readSave(serialize(s.state, NOW - 3 * HOUR, NOW - HOUR), CAMP);
+    expect(loaded.closedAt).toBe(NOW - HOUR);
+    const r = catchUpAway(loaded.state, loaded.savedAt, NOW, { ...s.ctx, rng: createRng(5) }, loaded.closedAt);
+    expect(r.away).toEqual(closedFor(NOW - HOUR, NOW));
+    expect(r.away.game).toBeCloseTo(12 * 60);
+    // the same as playing on for the 2 hours hidden and then 12 minutes
+    const ref = playedOn(s.state, 2 * 3600 + 12 * 60, CAMP, 5), open = playedOn(s.state, 2 * 3600, CAMP, 5);
+    expect(loaded.state).toEqual(ref.state);
+    // the note tells only what he did in the 12 minutes after it closed
+    const logs = (x: { summary: ReturnType<typeof emptySummary> }) => x.summary.items.birch_logs ?? 0;
+    expect(r.summary.items.birch_logs ?? 0).toBe(logs(ref) - logs(open));
+    expect(r.summary.items.birch_logs ?? 0).toBeGreaterThan(0);
+  });
+
+  it('a save made on closing says when; a closing time before the save time, or without one, is none', () => {
+    const st = createState(CAMP, 2);
+    expect(readSave(serialize(st, NOW - HOUR, NOW), CAMP).closedAt).toBe(NOW);
+    expect(readSave(serialize(st, NOW - HOUR), CAMP).closedAt).toBeNull();
+    expect(readSave(serialize(st, NOW, NOW - HOUR), CAMP).closedAt).toBeNull();
+    const raw = JSON.parse(serialize(st)); raw.closedAt = NOW;
+    expect(readSave(JSON.stringify(raw), CAMP).closedAt).toBeNull();
+    const mem = memory();
+    save(mem, st, NOW - HOUR, NOW);
+    expect(load(mem, CAMP)?.closedAt).toBe(NOW);
+    expect(load(mem, CAMP)?.state).toEqual(st);
   });
 });

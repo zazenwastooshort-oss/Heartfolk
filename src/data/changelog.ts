@@ -13,6 +13,7 @@ export const CHANGELOG: Release[] = [
       'The shelter needs its own 10 logs now, since the firewood stays in the pile.',
       'Hopping to the next tree or rock, he keeps his axe or pick in his hands.',
       'If you send him somewhere while he is off to stoke the fire, he goes back to it once he has nothing to do.',
+      'With the game open in another tab or your screen off, time simply counts as play, at full speed and with no limit. The "While you were away" note is only for coming back after closing the game.',
     ],
   },
   {
