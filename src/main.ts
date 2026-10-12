@@ -15,6 +15,7 @@ import { bindInput } from './ui/input';
 import { News } from './ui/news';
 import { Intro } from './ui/intro';
 import { BackpackList } from './ui/backpack';
+import { Book } from './ui/book';
 
 // An artifact viewer can swap in a new version of the page while it is open and hand the game's snapshot
 // to the new version, so play carries on. Everywhere else `hot` is absent, hence the optional chaining.
@@ -46,6 +47,7 @@ function start(data: HotData): void {
   events.on(e => { if (e.type === 'strike') view.strike(e.nodeId); });     // chips fly where the tool lands
   bindInput(view, layout, queue, label => hud.hover(label));
   const pack = new BackpackList(queue);                             // what's in the backpack, to drop things
+  const book = new Book(state, events, layout);                     // his book: a page per goal, opened from the goal card
   new News(saved !== null);                                         // a returning player sees what changed since
   new Intro(saved === null);                                        // a new one is told what the game is about
   // For checking a running game from the browser console: hearthfolk.state, hearthfolk.view
@@ -73,6 +75,7 @@ function start(data: HotData): void {
       view.draw(state, dt);
       hud.update(state, dt);
       pack.update(state);
+      book.update();
       sinceSave += dt; if (sinceSave > 10) { sinceSave = 0; save(browserStorage, state); }
     });
   }).catch(err => {

@@ -6,6 +6,13 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.17', date: '12 Oct 2026', notes: [
+      'Your book opens when you pick it up on the shore. It has a page for each goal: a few words about it, what you need with a tick for each thing you have, and a hint.',
+      'Once you have your book, tap the goal card to open it at your current goal. Turn the pages with Previous and Next, or the arrow keys, and close it with the cross or Esc.',
+      'Finished goals stay ticked and marked Done. The pages after your current goal are still stuck together from the river.',
+    ],
+  },
+  {
     version: '0.0.16', date: '12 Oct 2026', notes: [
       'Make your stone axe. Once the campfire is lit and you have 2 branches and 2 stones, tap Make the stone axe on the goal card. You work on it a few seconds, right where you stand.',
       'Then tap a birch tree to chop it. The next goal is Firewood: 10 birch logs.',

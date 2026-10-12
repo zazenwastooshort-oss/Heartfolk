@@ -70,6 +70,61 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
 .goal .goal-build:hover { background: #4a7a3f; }
 .goal .goal-build:active { background: #345a2c; }
 .goal .goal-build:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* once he has his book, tapping the card opens it (src/ui/book.ts); the small cue says so, and is the button for keyboards */
+.goal.has-book { pointer-events: auto; cursor: pointer; }
+.goal.has-book:hover { background: rgba(38, 64, 34, 0.95); }
+.goal .goal-book { margin: 0; padding: 1px 8px; border: 1px solid rgba(241, 232, 212, .4); border-radius: 999px; background: none; color: var(--ink);
+  font: 600 11px/1.4 var(--body); letter-spacing: .02em; cursor: pointer; }
+.goal .goal-book:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* his book (src/ui/book.ts): one page of soft, muted paper with dark brown text, in a forest-green frame like the
+   other panels; plain, no effects */
+.book { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 5; pointer-events: auto;
+  width: min(440px, calc(100% - 2 * var(--edge)));
+  max-height: calc(100% - 2 * var(--edge) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box; display: flex; flex-direction: column; gap: 8px;
+  background: rgb(30, 52, 27); color: var(--ink); border: 1px solid var(--line); border-radius: 12px;
+  padding: 4px 10px 10px; box-shadow: 0 6px 24px rgba(0, 0, 0, .45); }
+/* it never covers the goal card, so the card's Build or Make button stays in sight: on a phone held upright it sits
+   below the card, and on a mid-size or short screen to the right of it */
+@media (max-width: 600px) {
+  .book { top: auto; bottom: calc(var(--edge) + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+    max-height: calc(100% - 270px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+}
+@media (min-width: 601px) and (max-width: 1040px) {
+  .book { left: auto; right: var(--edge); transform: translateY(-50%); width: min(440px, calc(100% - 270px - 3 * var(--edge))); }
+}
+.book-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-left: 6px; }
+.book-name { font: 700 1.1rem/1.2 var(--display); }
+.book-close { width: 44px; height: 44px; margin-right: -4px; border: 0; border-radius: 999px; background: transparent; color: var(--ink);
+  font: 400 30px/1 var(--body); cursor: pointer; }
+.book-close:hover { background: rgba(241, 232, 212, .1); }
+.book-close:focus-visible, .book-turn button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* the same height on every page where there's room, so the page-turn buttons stay put */
+.page { min-height: min(25rem, 55vh); flex: 0 1 auto; overflow-y: auto; box-sizing: border-box; background: #e6d8bc; color: #3a2a1b; border-radius: 6px; padding: 14px 18px 18px;
+  font: 17px/1.5 Georgia, "Times New Roman", serif; box-shadow: inset 0 0 0 1px rgba(58, 42, 27, .2), inset 0 0 28px rgba(120, 88, 48, .14); }
+.page p { margin: 0; }
+.page .page-lead { margin-bottom: 10px; font-style: italic; color: #5a4632; }
+.page-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 26px;
+  font: 600 14px/1 var(--body); letter-spacing: .06em; text-transform: uppercase; color: #6b5640; }
+.page-done { padding: 5px 10px; border: 1.5px solid #557243; border-radius: 999px; color: #4a6639; letter-spacing: .04em; }
+.page-title { margin: 6px 0 8px; font: 700 1.45rem/1.2 var(--display); color: #33240f; }
+.page-needs { list-style: none; margin: 14px 0; padding: 0; display: grid; gap: 8px; }
+.page-needs li { display: flex; align-items: center; gap: 10px; }
+.page-needs .tick { flex: none; box-sizing: border-box; width: 24px; height: 24px; border: 2px solid rgba(58, 42, 27, .4); border-radius: 50%;
+  display: grid; place-items: center; }
+.page-needs li.done .tick { background: #5b7a46; border-color: #5b7a46; }
+.page-needs li.done .tick::after { content: ''; width: 5px; height: 10px; margin-top: -3px; border: solid #f1e8d4; border-width: 0 2.5px 2.5px 0;
+  transform: rotate(45deg); }
+.page-needs .need-name { flex: 1; }
+.page-needs .need-count { font: 600 16px/1 var(--body); font-variant-numeric: tabular-nums; }
+.page .page-hint { padding-top: 10px; border-top: 1px dashed rgba(58, 42, 27, .3); font-style: italic; color: #574330; }
+.page .page-stuck { margin-top: 16px; text-align: center; font-style: italic; color: #6b5640; }
+.book-turn { display: flex; gap: 8px; }
+.book-turn button { flex: 1; min-height: 46px; border: 1px solid rgba(241, 232, 212, .45); border-radius: 999px; background: #3f6a35;
+  color: var(--ink); font: 700 15px/1 var(--body); cursor: pointer; }
+.book-turn button:hover:not(:disabled) { background: #4a7a3f; }
+.book-turn button:disabled { opacity: .4; cursor: default; }
 
 /* the welcome for a new player (src/ui/intro.ts) */
 .intro { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; pointer-events: auto;
@@ -149,12 +204,25 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
   </div>
   <div class="notice" id="notice" role="status"></div>
   <div class="goal" id="goal" hidden>
-    <div class="goal-head"><span>GOAL</span></div>
+    <div class="goal-head"><span>GOAL</span><button class="goal-book" id="goalBook" type="button" aria-label="Your book" aria-controls="book" aria-expanded="false" hidden>Book &rsaquo;</button></div>
     <div class="goal-title" id="goalTitle">Salvage the wreck</div>
     <div class="bar"><i id="goalBar"></i></div>
     <small class="goal-count" id="goalCount">0 / 7 planks, 0 / 1 tarp, 0 / 1 book</small>
     <div class="goal-hint" id="goalHint">Pick up what washed up along the bank.</div>
     <button class="goal-build" id="goalBuild" type="button" hidden>Build</button>
+  </div>
+  <div class="book" id="book" role="dialog" aria-labelledby="bookTitle" hidden>
+    <div class="book-top"><span class="book-name">Your book</span><button class="book-close" id="bookClose" type="button" aria-label="Close the book">&times;</button></div>
+    <div class="page" id="bookPage">
+      <p class="page-lead" id="bookLead" hidden>Your book! It came down the falls with you.</p>
+      <div class="page-head"><span id="bookNo">Page 1</span><span class="page-done" id="bookDone" hidden>Done</span></div>
+      <h2 class="page-title" id="bookTitle">Salvage the wreck</h2>
+      <p id="bookText"></p>
+      <ul class="page-needs" id="bookNeeds"></ul>
+      <p class="page-hint" id="bookHint"></p>
+      <p class="page-stuck" id="bookStuck" hidden>The rest of the pages are still stuck together from the river.</p>
+    </div>
+    <div class="book-turn"><button type="button" id="bookPrev">&lsaquo; Previous</button><button type="button" id="bookNext">Next &rsaquo;</button></div>
   </div>
   <div class="intro" id="intro" role="dialog" aria-labelledby="introTitle" hidden>
     <h2 id="introTitle">Welcome to Hearthfolk</h2>

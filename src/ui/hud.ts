@@ -1,8 +1,9 @@
 // The panels laid over the game: each skill's level and XP, the backpack and the bank, the clock, hover text,
-// notices and floating "+xp" numbers, and the goal card with its Build button. Reads state and listens to events;
-// never changes the game (the Build button sends a command).
+// notices and floating "+xp" numbers, and the goal card with its Build button (tapping the card opens his book:
+// ui/book.ts). Reads state and listens to events; never changes the game (the Build button sends a command).
 import * as THREE from 'three';
-import { currentGoal, made, owned, type GameState } from '../core/state';
+import { currentGoal, made, type GameState } from '../core/state';
+import { goalLines } from '../core/book';
 import type { EventBus } from '../core/events';
 import type { Command } from '../systems/commands';
 import type { View } from '../render/view';
@@ -19,7 +20,7 @@ import { clockLabel } from '../core/clock';
 const $ = (id: string) => document.getElementById(id)!;
 const el = (tag: string, className: string, text = '') => { const e = document.createElement(tag); e.className = className; e.textContent = text; return e; };
 /** What `n` of an item are called: "birch logs", "1 birch log" (ITEMS' `one`); his book is "book". */
-const itemName = (id: string, n: number) => id === BOOK ? 'book' : ((n === 1 && ITEMS[id]?.one) || ITEMS[id]?.name)?.toLowerCase() ?? id;
+export const itemName = (id: string, n: number) => id === BOOK ? 'book' : ((n === 1 && ITEMS[id]?.one) || ITEMS[id]?.name)?.toLowerCase() ?? id;
 /** "28 birch logs"; several are joined by commas, the last by `last` ("20 birch logs and 8 copper ore") */
 const itemList = (items: Record<string, number>, last = ', ') => {
   const parts = Object.entries(items).filter(([, n]) => n > 0).map(([id, n]) => `${n.toLocaleString()} ${itemName(id, n)}`);
@@ -78,10 +79,8 @@ export class Hud {
       }
       else if (e.type === 'goalFirst') this.notice(`Finish "${GOALS.find(g => g.id === e.goal)?.title ?? e.goal}" first.`);
       else if (e.type === 'made') this.notice(MAKES[e.make].done);
-      else if (e.type === 'pickedUp') {
-        if (e.item) this.pendingItems[e.item] = (this.pendingItems[e.item] ?? 0) + e.count;
-        else this.notice('Your book! It came down the falls with you.');
-      }
+      // picking up his book opens it instead of a notice (ui/book.ts)
+      else if (e.type === 'pickedUp' && e.item) this.pendingItems[e.item] = (this.pendingItems[e.item] ?? 0) + e.count;
       else if (e.type === 'levelTooLow') {
         const s = SKILLS[e.skill];
         this.notice(`You need ${s.name} level ${e.need} to ${s.verb.toLowerCase()} ${e.what.toLowerCase()}s.`);
@@ -98,18 +97,18 @@ export class Hud {
   }
 
   /** The goal card: the goal currentGoal picks (the first not finished), and how much of each thing it needs he has
-   *  (carried or banked; the book once found). A making goal with everything there shows the Build button (or says he
+   *  (carried or banked; the book once found), counted by goalLines like his book's pages. A making goal with everything there shows the Build button (or says he
    *  is on his way or working on it, while he is); one whose thing can't be made yet says so in its ready text. */
   private updateGoal(state: GameState): void {
     const goal = currentGoal(state);
-    const parts = Object.entries(goal.needs).map(([id, n]) => ({ id, n, got: Math.min(n, owned(state, id)) }));
-    const got = parts.reduce((a, p) => a + p.got, 0), need = parts.reduce((a, p) => a + p.n, 0), ready = got >= need;
+    const parts = goalLines(state, goal);
+    const got = parts.reduce((a, p) => a + p.got, 0), need = parts.reduce((a, p) => a + p.need, 0), ready = got >= need;
     const def = goal.makes ? makeDef(goal.makes) : null, task = state.player.task, pending = state.player.pending;
     const building = !!def && task.kind === 'make' && task.id === def.id;
     const going = !!def && pending?.kind === 'make' && pending.id === def.id;
     const offer = !!def && ready && !building && !going && !made(state, def.id);
     $('goalTitle').textContent = goal.title;
-    $('goalCount').textContent = parts.map(p => `${p.got} / ${p.n} ${itemName(p.id, p.n)}`).join(', ');
+    $('goalCount').textContent = parts.map(p => `${p.got} / ${p.need} ${itemName(p.id, p.need)}`).join(', ');
     ($('goalBar') as HTMLElement).style.width = `${need ? got / need * 100 : 100}%`;
     $('goalHint').textContent = building ? `Working on the ${def.name.toLowerCase()}...`
       : going ? `On the way to ${def.verb.toLowerCase()} the ${def.name.toLowerCase()}...` : ready ? goal.ready : goal.hint;
