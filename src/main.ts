@@ -6,7 +6,7 @@ import { createState, type GameState } from './core/state';
 import { EventBus } from './core/events';
 import { createRng } from './core/rng';
 import { FixedLoop } from './core/loop';
-import { load, save, serialize, deserialize, browserStorage } from './core/save';
+import { load, save, serialize, deserialize, browserStorage, clearSave } from './core/save';
 import { awayOnOpening, catchUp, step } from './sim';
 import { applyCommands, type Command } from './systems/commands';
 import { FrameClock, openFor, tellAway, type Away, type AwaySummary, type Told } from './systems/away';
@@ -41,7 +41,10 @@ function start(data: HotData): void {
   const saved = restored ?? loaded?.state ?? null;
   const newGame = saved === null;
   const state = saved ?? createState(layout, (Math.random() * 2 ** 31) | 0);
-  try { hot?.snapshot?.(() => ({ save: serialize(state) })); } catch { /* not an artifact viewer */ }
+  // Start over (the "What's new" panel): once set, nothing saves this game again, the artifact viewer hands nothing over,
+  // and the page reloads into a new game
+  let startingOver = false;
+  try { hot?.snapshot?.(() => (startingOver ? {} : { save: serialize(state) })); } catch { /* not an artifact viewer */ }
 
   const events = new EventBus();
   const rng = createRng(state.seed ^ Math.floor(state.time));
@@ -71,7 +74,7 @@ function start(data: HotData): void {
   showModels(view, layout);                                         // dev only: ?models in the address shows chapter 2's models
   const pack = new BackpackList(queue);                             // what's in the backpack, to drop things
   const book = new Book(state, events, layout);                     // his book: a page per goal, opened from the goal card
-  new News(!newGame);                                               // a returning player sees what changed since
+  new News(!newGame, () => { startingOver = true; clearSave(browserStorage); location.reload(); });   // a returning player sees what changed since
   new Intro(newGame);                                               // a new one is told what the game is about
   const awayNote = new AwayNote();                                  // and what he did while they were away
   // what the note tells until it is closed: a catch-up while it is still up (or waiting) adds to it (tellAway), so
@@ -123,7 +126,7 @@ function start(data: HotData): void {
       pack.update(state);
       book.update();
       awayNote.update();
-      sinceSave += dt; if (sinceSave > 10) { sinceSave = 0; save(browserStorage, state, clock.playedTo); }
+      sinceSave += dt; if (sinceSave > 10 && !startingOver) { sinceSave = 0; save(browserStorage, state, clock.playedTo); }
     });
   }).catch(err => {
     console.error(err);
@@ -132,9 +135,9 @@ function start(data: HotData): void {
   // Hidden (another tab, the screen off) or closed: frames stop and the device may sleep, so the next frame goes by the
   // wall clock if that says more time passed; the save says the game was played up to the last frame, so if the page
   // is closed now, the time since counts as closed time when it is opened again.
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { clock.hide(); save(browserStorage, state, clock.playedTo); } });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && !startingOver) { clock.hide(); save(browserStorage, state, clock.playedTo); } });
   // closed (or reloaded): the time hidden before this still counted as open, so the save says when it closed
-  window.addEventListener('pagehide', () => { clock.hide(); save(browserStorage, state, clock.playedTo, Date.now()); });
+  window.addEventListener('pagehide', () => { if (!startingOver) { clock.hide(); save(browserStorage, state, clock.playedTo, Date.now()); } });
 }
 
 if (hot?.ready) hot.ready(start); else start(hot?.data ?? {});

@@ -10,7 +10,7 @@ import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
 import { STEP } from '../src/core/loop';
 import { DAY_SECONDS, isNight, nightOf } from '../src/core/clock';
-import { deserialize, load, readSave, save, SAVE_KEY, serialize, type Storage } from '../src/core/save';
+import { clearSave, deserialize, load, readSave, save, SAVE_KEY, serialize, type Storage } from '../src/core/save';
 import { awayOnOpening, catchUp, catchUpAway, step } from '../src/sim';
 import { addSpan, closedFor, didSomething, emptySummary, FrameClock, openFor, tally, tellAway, worthNoting } from '../src/systems/away';
 import { applyCommands, type Command } from '../src/systems/commands';
@@ -117,6 +117,14 @@ describe('saves say when they were written (format 8)', () => {
     expect(load(memory(), CAMP)).toBeNull();
     // the artifact viewer's hand-over of a running game doesn't say, so it never counts as away
     expect(readSave(serialize(s.state), CAMP).savedAt).toBeNull();
+  });
+
+  it('Start over erases the save, so the next load begins a new game', () => {
+    const store = memory(), s = working();
+    save(store, s.state, NOW);
+    expect(load(store, CAMP)).not.toBeNull();
+    expect(clearSave(store)).toBe(true);
+    expect(load(store, CAMP)).toBeNull();
   });
 
   it('a version 7 save (0.0.19) loads with no time, so nothing is caught up on its first load; the next save says', () => {

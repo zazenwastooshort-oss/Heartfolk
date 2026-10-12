@@ -52,6 +52,8 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
 .news button { margin-top: 14px; width: 100%; border: 0; border-radius: 999px; padding: 10px; background: var(--button); color: var(--button-ink);
   font: 700 14px/1 var(--body); cursor: pointer; }
 .news button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.news button.reset { margin-top: 8px; padding: 7px; background: transparent; color: var(--muted); border: 1px solid currentColor; font-size: 13px; font-weight: 600; }
+.news button.reset.armed { color: var(--ink); border-color: var(--accent); }
 /* "While you were away" (src/ui/away.ts) looks the same: its lead line says how long, the list what he did */
 .away .lead { margin-bottom: 10px; color: var(--ink); font-size: 14px; }
 
@@ -276,6 +278,7 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
     <h2 id="newsTitle">What's new</h2>
     <div id="newsBody"></div>
     <button type="button" id="newsOk">Got it</button>
+    <button type="button" id="newsReset" class="reset">Start over</button>
   </div>
   <div class="news away" id="away" role="dialog" aria-labelledby="awayTitle" hidden>
     <h2 id="awayTitle">While you were away</h2>

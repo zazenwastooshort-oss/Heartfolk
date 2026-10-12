@@ -11,6 +11,7 @@ export const CHANGELOG: Release[] = [
       'Beaten rats sometimes leave a hide, and come back to their nest after a while.',
       "He eats when he's hurt, fish first, and takes food from the chest if he has none. If a rat knocks him out, he wakes up back at camp with everything he had.",
       'Stitch rat hides into hide armour: a cap, a vest and a shield. Each goes on as soon as you make it and makes you harder to hit; the panel shows what you wear.',
+      "Want a fresh start? Open What's new (top right) and tap Start over, twice to be sure.",
     ],
   },
   {

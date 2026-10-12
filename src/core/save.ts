@@ -306,6 +306,12 @@ export function save(storage: Storage, state: GameState, savedAt: number, closed
   try { storage.set(SAVE_KEY, serialize(state, savedAt, closedAt)); return true; } catch { return false; }
 }
 
+/** Erase the saved game (Start over, in the "What's new" panel: the owner, 12 Oct 2026, for testers): the next load
+ *  finds none and a new game begins. */
+export function clearSave(storage: Storage): boolean {
+  try { storage.set(SAVE_KEY, ''); return true; } catch { return false; }
+}
+
 /** Browser storage, failing quietly where it's blocked (private windows, previews). */
 export const browserStorage: Storage = {
   get(key) { try { return localStorage.getItem(key); } catch { return null; } },

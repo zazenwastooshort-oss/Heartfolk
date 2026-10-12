@@ -1,10 +1,13 @@
 // "What's new": when the game has been updated since this player last played, a short note lists what changed
 // (data/changelog.ts). The version they last saw is remembered in this browser only, like the save. The version
-// button at the top opens the note again. Reads nothing from the game and changes nothing in it.
+// button at the top opens the note again. At its foot, Start over (the owner, 12 Oct 2026, for testers trying new
+// things) erases this browser's game and begins a new one, on a second tap so a stray tap never does. Reads nothing
+// from the game and changes nothing in it: main.ts does the erasing.
 import { CHANGELOG, type Release } from '../data/changelog';
 
 const SEEN_KEY = 'hearthfolk_seen_version';
 const SHOW_AT_MOST = 3;                // versions listed at once; older ones get one line
+const CONFIRM_SECONDS = 6;             // how long Start over waits for the second tap
 
 /** True when version `a` (like "0.0.10") is later than `b`, comparing each part as a number. */
 export function isNewer(a: string, b: string): boolean {
@@ -32,10 +35,13 @@ export class News {
   private panel: HTMLElement;
   private body: HTMLElement;
   private ok: HTMLButtonElement;
+  private reset: HTMLButtonElement;
+  private armedUntil = 0;
   private current = CHANGELOG[0]!.version;
 
-  /** returning: this browser already had a game going (a save was loaded) */
-  constructor(returning: boolean) {
+  /** returning: this browser already had a game going (a save was loaded). startOver: erase this browser's game and
+   *  begin a new one (main.ts), once Start over is tapped twice. */
+  constructor(returning: boolean, startOver: () => void) {
     this.panel = document.getElementById('news')!;
     this.body = document.getElementById('newsBody')!;
     this.ok = document.getElementById('newsOk') as HTMLButtonElement;
@@ -43,6 +49,13 @@ export class News {
     button.textContent = `v${this.current} · What's new`;
     button.addEventListener('click', () => (this.panel.hidden ? this.open(CHANGELOG, false) : this.close()));
     this.ok.addEventListener('click', () => this.close());
+    this.reset = document.getElementById('newsReset') as HTMLButtonElement;
+    this.reset.addEventListener('click', () => {
+      if (performance.now() < this.armedUntil) { startOver(); return; }
+      this.armedUntil = performance.now() + CONFIRM_SECONDS * 1000;
+      this.armReset(true);
+      setTimeout(() => { if (performance.now() >= this.armedUntil) this.armReset(false); }, CONFIRM_SECONDS * 1000 + 50);
+    });
     this.panel.addEventListener('keydown', e => { if (e.key === 'Escape') this.close(); });
     const fresh = unseen(seenStore.get(), returning);
     if (fresh.length) {
@@ -69,7 +82,15 @@ export class News {
     this.ok.focus({ preventScroll: true });
   }
 
+  /** Start over as it first reads, or waiting for the second tap. */
+  private armReset(armed: boolean): void {
+    if (!armed) this.armedUntil = 0;
+    this.reset.textContent = armed ? 'Tap again to erase your camp and start over' : 'Start over';
+    this.reset.classList.toggle('armed', armed);
+  }
+
   private close(): void {
+    this.armReset(false);
     this.panel.hidden = true;
     seenStore.set(this.current);
   }
