@@ -9,14 +9,16 @@ import { isNight } from '../core/clock';
 import type { Layout } from '../world/layout';
 import { goVisit } from '../actors/player';
 import { SLEEP } from '../data/sleep';
+import { restBonus } from '../core/building';
 
 export { canSleep };
 
 /** Whether he is well rested: a full night's sleep, until nightfall. */
 export const isRested = (state: GameState) => state.time < state.restedUntil;
 
-/** How much more often gathering yields: SLEEP.bonus more while he is well rested. */
-export const restedFactor = (state: GameState) => isRested(state) ? 1 + SLEEP.bonus : 1;
+/** How much more often gathering yields while he is well rested: SLEEP.bonus more, or more in a better shelter (the
+ *  lean-to, the log hut: restBonus in core/building.ts). */
+export const restedFactor = (state: GameState) => isRested(state) ? 1 + restBonus(state) : 1;
 
 /** How many times faster than real time play goes: SLEEP.speed while he sleeps, else 1 (main.ts; never in a catch-up). */
 export const playSpeed = (state: GameState) => state.player.task.kind === 'sleep' ? SLEEP.speed : 1;

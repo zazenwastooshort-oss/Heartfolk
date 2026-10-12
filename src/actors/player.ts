@@ -11,6 +11,7 @@ import { GAIT, SWINGS } from '../data/animation';
 import { RESOURCES } from '../data/skills';
 import { pauseFor } from '../data/pickups';
 import { BUILD_REACH, MAKES, makeDef, type MakeId } from '../data/making';
+import { buildSite, placedRects, walkGrid } from '../core/building';
 
 export const WALK_SPEED = GAIT.speed;  // m/s
 const TURN_RATE = 12;                  // how quickly heading catches up with the walking direction
@@ -28,7 +29,7 @@ function setPath(state: GameState, path: Vec2[] | null, pending: GameState['play
 
 /** Walk to the walkable spot nearest the tapped point. */
 export function walkTo(state: GameState, layout: Layout, target: Vec2): boolean {
-  const nav = navFor(layout, state.built);
+  const nav = walkGrid(state, layout);
   return setPath(state, nav.findPath(state.player.pos, nav.nearestWalkable(target)), null);
 }
 
@@ -42,7 +43,7 @@ export function reachFor(spot: NodeSpot): number {
 export function goWork(state: GameState, layout: Layout, nodeId: string): boolean {
   const node = layout.nodes.find(n => n.id === nodeId);
   if (!node) return false;
-  const nav = navFor(layout, state.built), p = state.player, reach = reachFor(node);
+  const nav = walkGrid(state, layout), p = state.player, reach = reachFor(node);
   let d = sub(p.pos, node.pos);
   if (len(d) < 1e-4) d = { x: -1, z: 0 };
   const base = Math.atan2(d.z, d.x);
@@ -60,7 +61,7 @@ export function goWork(state: GameState, layout: Layout, nodeId: string): boolea
  *  (the goblin chief, core/targets.ts): due east or west of it instead, the side nearer him unless there is no room
  *  there, so the camera as it starts (looking north) sees it beside him, not hidden behind him. */
 export function goNear(state: GameState, layout: Layout, at: Vec2, reach: number, pending: GameState['player']['pending'], beside = false): boolean {
-  const nav = navFor(layout, state.built), p = state.player;
+  const nav = walkGrid(state, layout), p = state.player;
   let d = sub(p.pos, at);
   if (beside) {
     const near = d.x < 0 ? -1 : 1;
@@ -86,7 +87,7 @@ export const PICKUP_REACH = [0.55, 0.8, 1.05];
 export function goPickup(state: GameState, layout: Layout, id: string): boolean {
   const spot = layout.pickups?.find(x => x.id === id);
   if (!spot) return false;
-  const nav = navFor(layout, state.built), p = state.player;
+  const nav = walkGrid(state, layout), p = state.player;
   let d = sub(p.pos, spot.pos);
   if (len(d) <= PICKUP_REACH[0]! + 0.1 && nav.walkable(p.pos)) return setPath(state, [{ ...p.pos }], { kind: 'pickup', id });
   if (len(d) < 1e-4) d = { x: -1, z: 0 };
@@ -105,7 +106,7 @@ export function goPickup(state: GameState, layout: Layout, id: string): boolean 
 /** Walk to stand just beyond the edge of a site (BUILD_REACH), on the side nearest him, on ground open in `stands`
  *  (the walking grid once the thing stands there); already there, he stays. */
 function goBeside(state: GameState, layout: Layout, site: Site, stands: NavGrid, pending: GameState['player']['pending']): boolean {
-  const nav = navFor(layout, state.built), p = state.player, reach = site.radius + BUILD_REACH;
+  const nav = walkGrid(state, layout), p = state.player, reach = site.radius + BUILD_REACH;
   let d = sub(p.pos, site.pos);
   if (Math.abs(len(d) - reach) < 0.3 && stands.walkable(p.pos)) return setPath(state, [{ ...p.pos }], pending);
   if (len(d) < 1e-4) d = { x: -1, z: 0 };
@@ -126,7 +127,14 @@ export function goMake(state: GameState, layout: Layout, id: MakeId): boolean {
   if (def.at === 'here') return setPath(state, [{ ...p.pos }], pending);
   const site = siteOf(layout, def.at);
   if (!site) return false;
-  return goBeside(state, layout, site, navFor(layout, [...state.built, id]), pending);
+  return goBeside(state, layout, site, navFor(layout, [...state.built, id], placedRects(state)), pending);
+}
+
+/** Walk to stand beside something built in stages (systems/building.ts: placed by the player, or the shelter's upgrades
+ *  at the tent's spot), on the side nearest him; already there, he stays. It is in the way from when it is begun. */
+export function goBuild(state: GameState, layout: Layout, id: MakeId): boolean {
+  const site = buildSite(state, layout, id);
+  return !!site && goBeside(state, layout, site, walkGrid(state, layout), { kind: 'raise', id });
 }
 
 /** Where he faces while making something: its site, or straight ahead for something made where he stands. */
@@ -143,7 +151,7 @@ export function builtSite(state: GameState, layout: Layout, id: string): Site | 
 /** Walk to a building's door, to stand beside something he has built (since 0.0.19: the storage chest, to empty the
  *  backpack; the campfire, to stoke it), or to the edge of land that isn't the player's yet. */
 export function goVisit(state: GameState, layout: Layout, id: string, at?: Vec2): boolean {
-  const nav = navFor(layout, state.built);
+  const nav = walkGrid(state, layout);
   const b = layout.buildings.find(x => x.id === id), site = b ? null : builtSite(state, layout, id);
   if (site) return goBeside(state, layout, site, nav, { kind: 'visit', id });
   const target = b ? doorOf(b) : at ? nav.nearestWalkable(at) : null;
@@ -178,6 +186,7 @@ export function updatePlayer(state: GameState, layout: Layout, dt: number, event
         }
         else if (pending?.kind === 'make') p.task = { kind: 'make', id: pending.id, doneAt: state.time + MAKES[pending.id].time };
         else if (pending?.kind === 'fight') p.task = { kind: 'fight', target: pending.id, progress: 0 };
+        else if (pending?.kind === 'raise') p.task = { kind: 'raise', id: pending.id };
         else {
           p.task = { kind: 'idle' };
           if (pending?.kind === 'visit') {
@@ -191,12 +200,13 @@ export function updatePlayer(state: GameState, layout: Layout, dt: number, event
     } else {
       p.pos = { x: p.pos.x + d.x / dist * step, z: p.pos.z + d.z / dist * step };
     }
-  } else if (p.task.kind === 'gather' || p.task.kind === 'pickup' || p.task.kind === 'make' || p.task.kind === 'stoke' || p.task.kind === 'cook' || p.task.kind === 'fight') {
+  } else if (p.task.kind === 'gather' || p.task.kind === 'pickup' || p.task.kind === 'make' || p.task.kind === 'stoke' || p.task.kind === 'cook' || p.task.kind === 'fight' || p.task.kind === 'raise') {
     // face what he works, picks up, builds, stokes, cooks at or (0.0.22) strikes
     const task = p.task;
     const at = task.kind === 'gather' ? layout.nodes.find(n => n.id === task.nodeId)?.pos
       : task.kind === 'pickup' ? layout.pickups?.find(x => x.id === task.id)?.pos
       : task.kind === 'make' ? makeAt(layout, task.id) : task.kind === 'fight' ? targetOf(state, layout, task.target)?.pos
+      : task.kind === 'raise' ? buildSite(state, layout, task.id)?.pos
       : siteOf(layout, 'hearth')?.pos;
     if (at && len(sub(at, p.pos)) > 1e-3) p.heading = angleToward(p.heading, headingOf(sub(at, p.pos)), TURN_RATE * dt);
   }

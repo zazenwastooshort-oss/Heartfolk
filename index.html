@@ -329,6 +329,49 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 
 .msg { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; text-align: center; color: var(--chip-text); }
 
+/* the Build window (src/ui/build.ts): what he can build now, each a card with what it needs (what's short in amber), the
+   Carpentry level and how long it takes, or how far along something begun is, and its button */
+.build-lead { margin: 0 0 10px; color: var(--muted); font-size: 0.8125rem; line-height: 1.4; }
+.build-none { margin: 6px 0 0; color: var(--muted); font-size: 0.875rem; }
+.brow { display: grid; gap: 6px; padding: 10px 10px 10px; border-radius: 10px; background: rgba(241, 232, 212, .06); }
+.brow + .brow { margin-top: 8px; }
+.brow.begun { box-shadow: inset 0 0 0 1px rgba(232, 166, 94, .55); }
+.brow-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.brow-head b { font: 700 0.9375rem/1.2 var(--display); }
+.brow-head small { color: var(--muted); font-size: 0.75rem; text-align: right; }
+.brow-blurb, .brow-why { margin: 0; font-size: 0.8125rem; line-height: 1.4; }
+.brow-why { color: var(--accent); }
+.brow-where { margin: 0; color: var(--muted); font-size: 0.75rem; line-height: 1.4; }
+.brow-needs { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.brow-needs li { display: flex; align-items: center; gap: 4px; font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.brow-needs .item-pic { width: 22px; height: 22px; flex: none; }
+.brow-needs li.short span { color: var(--accent); font-weight: 600; }
+.brow-prog { display: grid; gap: 4px; font-size: 0.8125rem; }
+.brow-prog .bar i { background: var(--accent); }
+.brow-go { min-height: 44px; border: 1px solid var(--raised-line); border-radius: 999px; padding: 8px 14px; background: var(--raised); color: var(--ink);
+  font: 700 0.875rem/1 var(--body); cursor: pointer; }
+.brow-go:disabled { opacity: .45; cursor: default; }
+.brow-go:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* placing something from the Build window (src/ui/build.ts): a bar over the bottom of the scene to turn it, place it or
+   cancel, saying whether it fits where its see-through copy stands */
+.placebar { position: absolute; z-index: 4; left: 50%; transform: translateX(-50%); bottom: calc(var(--edge) + env(safe-area-inset-bottom, 0px) + 44px);
+  box-sizing: border-box; width: min(420px, calc(100% - 2 * var(--edge) - var(--rail) - 8px)); display: grid; gap: 8px; padding: 10px 12px 10px;
+  background: var(--window); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 6px 24px rgba(0, 0, 0, .45); }
+.placebar[hidden] { display: none; }
+.place-words { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.place-words b { font: 700 1rem/1.2 var(--display); }
+.place-words small { font-size: 0.8125rem; color: #a9d78f; text-align: right; }
+.place-words small.bad { color: #f0a08f; }
+.place-do { display: flex; gap: 6px; }
+.place-do button { flex: 1 1 0; min-width: 0; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 10px;
+  border: 1px solid rgba(241, 232, 212, .32); border-radius: 999px; background: transparent; color: var(--ink); font: 600 0.875rem/1 var(--body); cursor: pointer; }
+.place-do button .icon { width: 18px; height: 18px; }
+.place-do button.ok { background: var(--button); border-color: var(--button); color: var(--button-ink); font-weight: 700; }
+.place-do button:disabled { opacity: .45; cursor: default; }
+.place-do button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.place-how { color: var(--muted); font-size: 0.75rem; line-height: 1.35; }
+
 /* a phone held upright: the buttons along the bottom, the strip just above them, and one window at a time between the
    goal card and the strip, so the card's Build button stays in sight (src/ui/windows.ts sets --below-card and
    --above-bottom) */
@@ -339,6 +382,7 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
   .wins { top: var(--below-card, calc(110px + env(safe-area-inset-top, 0px))); bottom: var(--above-bottom, calc(84px + env(safe-area-inset-bottom, 0px)));
     left: var(--edge); right: var(--edge); align-items: flex-end; }
   .wins > .win { flex: 1 1 auto; width: auto; }
+  .placebar { width: calc(100% - 2 * var(--edge)); bottom: calc(10px + env(safe-area-inset-bottom, 0px) + 62px + 8px); }
 }
 /* hover looks only with a mouse: on a touch screen a tapped button would keep its hover look until the next tap
    somewhere else, and look chosen. A press shows on every screen (:active) */
@@ -394,6 +438,10 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="13" width="4" height="7" rx="1"/><rect x="10" y="8.5" width="4" height="11.5" rx="1"/><rect x="16" y="4" width="4" height="16" rx="1"/></svg>
       <span>Skills</span>
     </button>
+    <button class="rail-btn" type="button" data-opens="build" aria-controls="buildWin" aria-expanded="false" hidden>
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 19.5 13 11"/><path d="M10.6 7.4l3.6-3.6 6 6-3.6 3.6z"/><path d="M12.4 9.2l3.4 3.4"/></svg>
+      <span>Build</span>
+    </button>
     <button class="rail-btn" type="button" data-opens="book" aria-controls="book" aria-expanded="false" hidden>
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.8C10.2 5.4 7.6 4.8 4 5.2v13.3c3.6-.4 6.2.2 8 1.6 1.8-1.4 4.4-2 8-1.6V5.2c-3.6-.4-6.2.2-8 1.6z"/><path d="M12 6.8v13.3"/></svg>
       <span>Book</span>
@@ -425,6 +473,14 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
         <div class="train" id="trainRow" role="group" aria-labelledby="trainName" hidden><h3 id="trainName">Train</h3><p class="train-says"><span id="trainSays"></span> <span id="trainVit"></span></p></div>
         <div class="skills" id="skills"></div>
         <p class="skills-foot"><span id="skillsTotal">Total level 2</span><span id="skillsMore">More skills show up once you start them.</span></p>
+      </div>
+    </section>
+    <section class="win" id="buildWin" data-win="build" data-width="360" role="dialog" aria-labelledby="buildTitle" hidden>
+      <div class="win-bar"><h2 class="win-title" id="buildTitle">Build</h2><button class="win-x" type="button" aria-label="Close the build window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
+      <div class="win-body">
+        <p class="build-lead">Make the camp your own. Building takes time, and trains Carpentry.</p>
+        <div class="build-list" id="buildList"></div>
+        <p class="build-none" id="buildNone" hidden>Nothing more to build for now.</p>
       </div>
     </section>
     <section class="win" id="book" data-win="book" data-width="440" role="dialog" aria-labelledby="bookName" hidden>
@@ -460,6 +516,15 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
         </section>
       </div>
     </section>
+  </div>
+  <div class="placebar" id="placeBar" role="group" aria-labelledby="placeName" hidden>
+    <div class="place-words"><b id="placeName">Place it</b><small id="placeSays" aria-live="polite">It fits here.</small></div>
+    <div class="place-do">
+      <button type="button" id="placeTurn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.1-5"/><path d="M17.5 3.5v4h-4"/></svg>Turn</button>
+      <button type="button" id="placeCancel">Cancel</button>
+      <button type="button" class="ok" id="placeOk">Place</button>
+    </div>
+    <small class="place-how"><span class="touch">Tap the ground to move it there, or drag it.</span><span class="mouse">Click where it goes. R turns it, Enter places it, Esc cancels.</span></small>
   </div>
   <div class="notice" id="notice" role="status"></div>
   <div class="win note" id="intro" role="dialog" aria-labelledby="introTitle" hidden>

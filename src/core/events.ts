@@ -4,6 +4,7 @@ import type { SkillId, ToolId } from '../data/skills';
 import type { GatherId, PickupKind } from '../data/pickups';
 import type { MakeId } from '../data/making';
 import type { CombatStyle } from '../data/combat';
+import type { Misfit } from './building';
 
 export type GameEvent =
   | { type: 'strike'; nodeId: string }
@@ -110,6 +111,15 @@ export type GameEvent =
   /** a tap on the goal card or his thought: there is nothing to do for the goal just now; `item` is what he waits for
    *  (stones and branches not back yet), or null */
   | { type: 'nothingYet'; item: string | null }
+  /** (building in stages, data/building.ts) he set out to build `make`: what it needs was taken, and he gets to work */
+  | { type: 'begun'; make: MakeId }
+  /** what he builds went up a stage (1: its frame is up, 2: half built; STAGE_NAMES) */
+  | { type: 'buildStage'; make: MakeId; stage: number }
+  /** he can't begin `make`: it isn't to be built yet ('locked'), he needs Carpentry level `need` ('level'), or it
+   *  doesn't fit where it was placed ('fit', and why: core/building.ts) */
+  | { type: 'cantBuild'; make: MakeId; reason: 'locked' | 'level' | 'fit'; need?: number; misfit?: Misfit }
+  /** chopping birch, he peeled a strip of bark off the log too (it went into his backpack: itemGained) */
+  | { type: 'barkPeeled' }
   | { type: 'arrived' };
 
 type Handler = (e: GameEvent) => void;

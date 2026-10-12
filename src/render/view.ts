@@ -33,6 +33,7 @@ import { FallsView } from './waterfall';
 import { NodesView } from './nodes';
 import { PickupsView } from './pickups';
 import { StructuresView } from './structures';
+import { BuildingView } from './building';
 import { BushesView } from './bushes';
 import { FishingView, rodModel } from './fishing';
 import { CookingView } from './cooking';
@@ -129,6 +130,8 @@ export class View {
   private nodes?: NodesView;
   private pickups?: PickupsView;
   private structures?: StructuresView;
+  /** things built in stages, and the Build window's see-through copy (render/building.ts) */
+  readonly building: BuildingView;
   private bushes?: BushesView;
   private fishing?: FishingView;
   private cooking?: CookingView;
@@ -177,6 +180,7 @@ export class View {
       bar.rotation.y = a; this.marker.add(bar);
     }
     this.marker.visible = false; this.scene.add(this.marker);
+    this.building = new BuildingView(this.scene, layout, this.pickables);  // drawn in code; its tap areas come and go in ours
     this.ready = this.load();
   }
 
@@ -328,7 +332,7 @@ export class View {
       else this.play(armed ? IDLE.clip : IDLE.freeClip);
       // building, or stoking the fire: he bows down to it and back up, over and over (a placeholder until there is a
       // clip for it)
-      const bow = task.kind === 'make' || task.kind === 'stoke' ? Math.max(0, Math.sin(this.clock * Math.PI * 2 * BUILD_BOW.rate)) : 0;
+      const bow = task.kind === 'make' || task.kind === 'stoke' || task.kind === 'raise' ? Math.max(0, Math.sin(this.clock * Math.PI * 2 * BUILD_BOW.rate)) : 0;
       // picking a ripe berry bush, he bows into it; cooking, he leans towards the fire (chapter 2 placeholders)
       const bush = task.kind === 'pickup' && !(task.id in state.taken) && this.layout.pickups?.find(x => x.id === task.id)?.kind === 'bush';
       const pick = bush ? Math.max(0, Math.sin(this.clock * Math.PI * 2 * PICK_BOW.rate)) * PICK_BOW.lean : 0;
@@ -348,6 +352,7 @@ export class View {
     this.nodes?.update(state, dt, this.shown.pos);
     this.pickups?.update(state, this.clock, dt, this.cam.camera, this.lighting.night);
     this.structures?.update(state, this.clock, dt, this.lighting.night);
+    this.building.update(state, dt);
     this.bushes?.update(state, this.clock, dt);
     const rodTip = this.tool === 'rod' && !this.toolHidden ? this.tools?.rod?.tip.getWorldPosition(new THREE.Vector3()) ?? null : null;
     this.fishing?.update(state, this.clock, dt, rodTip, this.lighting.night);

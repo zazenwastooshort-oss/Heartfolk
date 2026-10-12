@@ -1,7 +1,6 @@
 // Saving: versioned JSON with a migration for every format change, so an update never wipes a village.
 import { SAVE_VERSION, canSleep, createState, made, maxHealth, owned, type Back, type Cook, type GameState, type Stoke } from './state';
 import { siteOf, type Layout } from '../world/layout';
-import { navFor } from '../world/nav';
 import { ITEMS, SKILLS, TOOL_IDS, type SkillId, type ToolId } from '../data/skills';
 import { PICKUPS } from '../data/pickups';
 import { BOOK, GOALS } from '../data/goals';
@@ -16,6 +15,7 @@ import { savedGoblins } from './goblins';
 import { KNOCKED_OUT } from '../data/rats';
 import { CHIEF } from '../data/goblins';
 import { savedThoughts } from './thoughts';
+import { savedBuilding, walkGrid } from './building';
 
 export interface Storage { get(key: string): string | null; set(key: string, value: string): void }
 
@@ -127,12 +127,13 @@ function savedTaken(v: unknown, layout: Layout): Record<string, number | null> {
   return Object.fromEntries(Object.entries(v).filter(([id, t]) => ids.has(id) && (t === null || (typeof t === 'number' && Number.isFinite(t))))) as Record<string, number | null>;
 }
 
-/** What stands built: things in MAKES that give a structure and whose site this layout has, each once. */
+/** What stands built: things in MAKES that give a structure and whose site this layout has (or, placed by the player,
+ *  at a camp: savedBuilding in core/building.ts checks where), each once. */
 function savedBuilt(v: unknown, layout: Layout): MakeId[] {
   if (!Array.isArray(v)) return [];
   const ok = (id: unknown) => {
     const def = typeof id === 'string' ? makeDef(id) : null;
-    return !!def && def.gives.kind === 'structure' && def.at !== 'here' && siteOf(layout, def.at) !== null;
+    return !!def && def.gives.kind === 'structure' && def.at !== 'here' && (def.at === 'placed' ? !!layout.camp : siteOf(layout, def.at) !== null);
   };
   return [...new Set(v.filter(ok))] as MakeId[];
 }
@@ -160,6 +161,7 @@ function savedBack(v: unknown, state: GameState, layout: Layout): Back | null {
   if (typeof v.fight === 'string') return targetOf(state, layout, v.fight) && state.equipment.weapon ? { fight: v.fight } : null;
   if (v.cook === true) return savedCook({ fetch: false }, state, layout) ? { cook: true } : null;
   if (v.sleep === true) return canSleep(state, layout) ? { sleep: true } : null;
+  if (typeof v.raise === 'string') return Object.hasOwn(state.underway, v.raise) ? { raise: v.raise as MakeId } : null;
   const to = v.to as { x?: unknown; z?: unknown } | undefined;
   if (isRecord(to) && Number.isFinite(to.x) && Number.isFinite(to.z)) return { to: { x: to.x as number, z: to.z as number } };
   return null;
@@ -235,6 +237,8 @@ export function readSave(raw: string, layout: Layout): Loaded {
     equipment: savedEquipment(data.equipment, fresh.equipment),
     combatStyle: STYLES.includes(data.combatStyle) ? data.combatStyle as CombatStyle : fresh.combatStyle,
   };
+  // building in stages: where he placed things, and what he has begun (core/building.ts); none in an older save
+  Object.assign(state, savedBuilding(data, state, layout));
   // the rats round their nests (chapter 2): each keeps what it was doing that matters, or is a fresh one (core/rats.ts)
   state.rats = savedRats(data.rats, state, layout);
   // the goblin camp (chapter 2): cleared for good only with the chief's torn map to show for it (carried, stored, or its
@@ -259,7 +263,7 @@ export function readSave(raw: string, layout: Layout): Loaded {
   state.thoughts = savedThoughts(data.thoughts, state, layout);
   // a position that is broken, or now inside a building or off the land, goes back to the start
   const p = state.player;
-  if (!Number.isFinite(p.pos?.x) || !Number.isFinite(p.pos?.z) || !navFor(layout, state.built).walkable(p.pos)) {
+  if (!Number.isFinite(p.pos?.x) || !Number.isFinite(p.pos?.z) || !walkGrid(state, layout).walkable(p.pos)) {
     p.pos = { ...layout.start }; p.path = []; p.task = { kind: 'idle' }; p.pending = null; p.trip = null;
   }
   // a task or destination pointing at something that no longer exists (or a pickup taken for good) is dropped; a
@@ -269,6 +273,8 @@ export function readSave(raw: string, layout: Layout): Loaded {
   if (p.task.kind === 'pickup' && (!pickupThere(p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
   // making something: only something that can still be made here, with a time it is done
   if (p.task.kind === 'make' && (!makeable(state, layout, p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
+  // building in stages: only something begun and not finished
+  if (p.task.kind === 'raise' && !Object.hasOwn(state.underway, p.task.id)) p.task = { kind: 'idle' };
   // asleep: only in a shelter that stands, and only at night (a save from the morning finds him up)
   if (p.task.kind === 'sleep' && (!canSleep(state, layout) || !isNight(state.time))) p.task = { kind: 'idle' };
   // knocked out (chapter 2's rats): he wakes when it says, but no later than a knock-out now would give (at once if that
@@ -284,6 +290,7 @@ export function readSave(raw: string, layout: Layout): Loaded {
     || !Number.isFinite(p.task.progress) || p.task.progress < 0 || p.task.progress >= 1)) p.task = { kind: 'idle' };
   if ((p.pending?.kind === 'node' && !(p.pending.id in state.nodes)) || (p.pending?.kind === 'pickup' && !pickupThere(p.pending.id))
     || (p.pending?.kind === 'make' && !makeable(state, layout, p.pending.id))
+    || (p.pending?.kind === 'raise' && !Object.hasOwn(state.underway, p.pending.id))
     || (p.pending?.kind === 'fight' && (!targetOf(state, layout, p.pending.id) || !state.equipment.weapon))) {
     p.pending = null; p.path = []; if (p.task.kind === 'walk') p.task = { kind: 'idle' };
   }

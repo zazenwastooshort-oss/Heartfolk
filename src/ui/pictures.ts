@@ -74,6 +74,18 @@ export const ITEM_PICTURES: Record<string, string> = {
     `<path d="M9 10.5c2 3-1 5.5 1.5 8.5s-1 5 1 6.5" fill="none" stroke="#6f9fb4" stroke-width="1.5" stroke-linecap="round"/>` +
     `<path d="M14 21.5c2.4-1.2 3.6-3.6 5.6-4.6s3.4-.2 4.6-2" fill="none" stroke="#7a4a22" stroke-width="1.2" stroke-dasharray="1.6 1.6" stroke-linecap="round"/>` +
     `<path d="M22.6 11.4l2.8 2.8M25.4 11.4l-2.8 2.8" fill="none" stroke="#a8263a" stroke-width="1.6" stroke-linecap="round"/>`,
+  // building materials (data/building.ts): a bundle of reed fibre tied in the middle, a curled strip of birch bark, a
+  // lump of river clay
+  fibre: stick('M9 27c1.5-7 1.5-15-1-22', '#b9c47c', 1.6) + stick('M13 27.5c.5-7 .8-15 .2-22.5', '#a7b56a', 1.6) +
+    stick('M17 27.5c-.2-7.5.3-15.5 1.5-22.5', '#c3cd88', 1.6) + stick('M21.5 27c-1-7-.6-14.5 2.6-21.5', '#a7b56a', 1.6) +
+    `<path d="M7.6 14.6c4.6 1.6 11.6 1.6 16.4-.4l.6 3.4c-5 2-12.2 2-17.4.4z" fill="#8a6a3e" ${lined}/>`,
+  bark: `<path d="M6 9.5c5-3 14-3.6 20-1.5l-1.5 5.5c2 3 1.8 7.5-.5 11-5.2 1.8-13 1.6-17.8-.6-1.4-4.4-1.4-9.6-.2-14.4z" fill="#e9e1cc" ${lined}/>` +
+    `<path d="M24.5 13.5c-5-1.6-12.6-1.4-17.8.4" fill="none" stroke="${INK}" stroke-width="1.2"/>` +
+    `<path d="M24.5 13.5c2 3 1.8 7.5-.5 11-5.2 1.8-13 1.6-17.8-.6-1.4-4.4-1.4-9.6-.2-14.4" fill="#c79a62" ${lined}/>` +
+    `<path d="M9.5 17.5h3M15 20h4M11 22.4h2.5M17.5 16.6h3" fill="none" stroke="#7a5634" stroke-width="1.2" stroke-linecap="round"/>`,
+  clay: `<path d="M5.5 22.5c-.4-6 3.6-11 10.4-11.4 6.8-.4 11 4 10.6 10.4-.2 3.4-4.6 5-10.6 5s-10.2-1.2-10.4-4z" fill="#b0663f" ${lined}/>` +
+    `<path d="M9.6 16.4c2-2.2 5-3.2 8.2-2.8" fill="none" stroke="#d99a72" stroke-width="1.8" stroke-linecap="round"/>` +
+    `<ellipse cx="19.5" cy="19.5" rx="2" ry="1.4" fill="#8f4f2e"/><ellipse cx="13" cy="21.6" rx="1.6" ry="1.1" fill="#8f4f2e"/>`,
 };
 
 /** Every piece of gear (GEAR in data/combat.ts), as the inside of a 32 x 32 SVG. Colours from render/gear.ts. */
@@ -111,7 +123,7 @@ export function picture(id: string, className = 'item-pic'): string {
 }
 
 /** Every skill's icon (SKILLS in data/skills.ts): cream-style lines on a 24 x 24 grid, drawn in the skill's colour by
- *  the page (index.html's .icon). A pickaxe, an axe, a sword, a flexed arm, a shield, a heart, a fish, a pot. */
+ *  the page (index.html's .icon). A pickaxe, an axe, a sword, a flexed arm, a shield, a heart, a fish, a pot, a mallet. */
 export const SKILL_ICONS: Record<SkillId, string> = {
   mining: '<path d="M4 9.5c4.5-4.6 11.5-4.6 16 0"/><path d="M12 6.4V21"/>',
   woodcutting: '<path d="M6 20.5 15.5 7"/><path d="M13.6 5.2c3.4-1.4 7.4.8 7 5.2l-5.2-1.6z"/>',
@@ -121,4 +133,5 @@ export const SKILL_ICONS: Record<SkillId, string> = {
   vitality: '<path d="M12 19.5c-6-4-8-7-8-10C4 7 6 5 8.5 5c1.5 0 2.8.8 3.5 2 .7-1.2 2-2 3.5-2C18 5 20 7 20 9.5c0 3-2 6-8 10z"/>',
   fishing: '<path d="M3.5 12c2.5-4 7.5-5 11.5-3.5l5.5-3v13l-5.5-3c-4 1.5-9 .5-11.5-3.5z"/><circle cx="7.6" cy="11.4" r=".5"/>',
   cooking: '<path d="M5 11h14v4c0 3-2 4.5-4.5 4.5h-5C7 19.5 5 18 5 15z"/><path d="M3 12h2M19 12h2"/><path d="M10 8c-1-1.4 1-2.2 0-3.6M14 8c-1-1.4 1-2.2 0-3.6"/>',
+  carpentry: '<path d="M4.5 19.5 13 11"/><path d="M10.6 7.4l3.6-3.6 6 6-3.6 3.6z"/><path d="M12.4 9.2l3.4 3.4"/>',
 };

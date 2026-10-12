@@ -18,6 +18,7 @@ import type { CombatStyle } from '../data/combat';
 import { canCook, fishToCook, goCook } from './cooking';
 import { canSleep, goToBed } from './sleep';
 import { nextCommands } from './nextstep';
+import { startBuild } from './building';
 
 export type Command =
   | { type: 'walk'; to: Vec2 }
@@ -51,7 +52,11 @@ export type Command =
   /** go do it (the survival book): a tap on the goal card or on his thought sends him off on the current goal's next
    *  step (systems/nextstep.ts), as tapping the right thing in the world would; already on it, or with nothing to do
    *  yet, he says so */
-  | { type: 'next' };
+  | { type: 'next' }
+  /** build something in stages (the Build list, data/building.ts): begin it, placed `at` turned `turn` quarter turns
+   *  for something the player places (what it needs is taken then), or carry on with it once begun (a tap on it). Not
+   *  to be built yet, without the Carpentry level or everything it needs, or not fitting there, he says so and stays */
+  | { type: 'build'; id: MakeId; at?: Vec2; turn?: number };
 
 export const isClaimed = (state: GameState, parcelId: string | undefined) => !parcelId || !!state.parcels[parcelId]?.claimed;
 
@@ -99,6 +104,10 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
       // off to stoke the fire: he finishes that, then goes to bed (systems/fire.ts goes back to { sleep })
       if (p.stoke) { p.stoke.back = { sleep: true }; events.emit({ type: 'bedLater' }); continue; }
       ok = goToBed(state, layout);
+    } else if (c.type === 'build') {
+      const go = startBuild(state, layout, c, events);
+      if (go === null) continue;
+      ok = go;
     } else if (c.type === 'cook') {
       // no campfire here, or already cooking: nothing to do
       if (!canCook(state, layout) || state.player.cook) continue;

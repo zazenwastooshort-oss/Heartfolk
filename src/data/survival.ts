@@ -93,17 +93,22 @@ export const MAKE_NOTES: Partial<Record<MakeId, string>> = {
   hide_cap: 'Two hides stitched into a snug cap.',
   hide_vest: 'Four hides to cover your chest.',
   hide_shield: 'Hides stretched over a frame of branches, strapped to your arm.',
+  log_bench: 'Two logs on short stumps. Somewhere to sit by the fire.',
+  workbench: 'Split logs for a top, log legs, all lashed with fibre. Better than working on your knees.',
+  lean_to: 'A sloping frame of logs, roofed with bark and tied with fibre. Drier than the tarp.',
+  log_hut: 'Log walls with clay pressed into the gaps, a roof and a chimney. A proper home.',
 };
 
-/** Where things are built, for the Making pages ("Built at the fire spot"); 'here' is wherever he stands. A site with
- *  no words here says nothing of where. */
-export const SITE_WHERE: Partial<Record<SiteId | 'here', string>> = {
+/** Where things are built, for the Making pages ("Built at the fire spot"); 'here' is wherever he stands, 'placed'
+ *  wherever the player sets it down. A site with no words here says nothing of where. */
+export const SITE_WHERE: Partial<Record<SiteId | 'here' | 'placed', string>> = {
   hearth: 'Built at the fire spot.',
   tent: 'Built at the shelter spot by the fire.',
   chest: 'Built beside the shelter.',
   woodpile: 'Stacked beside the fire.',
   dummy: 'Built on the grass west of the fire.',
   here: 'Made wherever you stand.',
+  placed: 'Built wherever you set it down.',
 };
 
 /** Journal lines on a page of the book. */

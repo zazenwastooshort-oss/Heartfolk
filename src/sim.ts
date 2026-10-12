@@ -19,6 +19,7 @@ import { updateGoblins } from './systems/goblins';
 import { updateCooking } from './systems/cooking';
 import { updateSleep } from './systems/sleep';
 import { updateThoughts } from './systems/thoughts';
+import { updateBuilding } from './systems/building';
 import { closedFor, emptySummary, openFor, tally, type Away, type AwaySummary } from './systems/away';
 
 export interface SimContext { layout: Layout; rng: Rng; events: EventBus }
@@ -35,6 +36,7 @@ export function step(state: GameState, dt: number, ctx: SimContext): void {
   // the camp's goals are written down as they finish, before making uses anything up
   if (ctx.layout.camp) updateGoals(state, ctx.events);
   updateMaking(state, ctx.layout, ctx.events);
+  updateBuilding(state, ctx.layout, dt, ctx.events);          // building in stages: Carpentry
   // the camp's fire at night: at nightfall he leaves what he is doing to stoke it (hauling waits meanwhile); reaching
   // the chest for logs is stoking's to see to, so hauling doesn't empty the backpack there again in the same step
   const stoking = ctx.layout.camp ? updateFire(state, ctx.layout, visited, ctx.events) : false;

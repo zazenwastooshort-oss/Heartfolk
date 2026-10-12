@@ -21,6 +21,7 @@ import { siteOf } from '../world/layout';
 import { MAKES, type MakeDef, type MakeId } from '../data/making';
 import { FIRE_LOOK, WOODPILE } from '../data/fire';
 import { COOK } from '../data/cooking';
+import { shelterShown } from '../core/building';
 
 const RING = { width: 0.08, gap: 0.12, segments: 48, color: 0xf1e8d4 };   // the ring round a site not built yet
 const PLAN_OPACITY = 0.3;          // how faint the outline inside it is
@@ -153,6 +154,8 @@ export class StructuresView {
         for (const pt of v.smoke) pt.sprite.visible = built;
         v.shown = built;
       }
+      // the shelter gives way to its upgrade once that one's frame is up (render/building.ts draws it); its tap area stays
+      if (v.sleepHit) v.model.visible = built && shelterShown(state) === v.def.id;
       // the campfire's tap area cooks only once there is cooking to do (he owns a rod, or has raw fish); until then a
       // tap on the fire walks him beside it and the hover says nothing, as before there was cooking
       if (v.cook && v.storeHit) v.storeHit.visible = built && (state.tools.rod || owned(state, COOK.raw) > 0);

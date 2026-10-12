@@ -10,6 +10,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { GameState } from '../core/state';
 import type { Layout, PickupSpot } from '../world/layout';
 import { PICKUPS } from '../data/pickups';
+import { codeModel } from './materials';
 
 function seeded(seed: number) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
@@ -72,7 +73,7 @@ export class PickupsView {
       const name = PICKUPS[spot.kind].model;
       let geo = shapes.get(name);
       if (!geo) {
-        const proto = models.getObjectByName(name);
+        const proto = models.getObjectByName(name) ?? codeModel(name);      // (the reeds and the clay: drawn in code)
         if (!proto) throw new Error(`village.glb has no ${name}`);
         geo = flatten(proto); shapes.set(name, geo);
       }

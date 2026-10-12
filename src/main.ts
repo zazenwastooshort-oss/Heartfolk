@@ -30,6 +30,7 @@ import { AWAY } from './data/away';
 import { playSpeed } from './systems/sleep';
 import { SleepHud, sleepNotices } from './ui/sleep';
 import { ThoughtBubble } from './ui/thoughts';
+import { BuildWindow } from './ui/build';
 
 // An artifact viewer can swap in a new version of the page while it is open and hand the game's snapshot
 // to the new version, so play carries on. Everywhere else `hot` is absent, hence the optional chaining.
@@ -82,7 +83,8 @@ function start(data: HotData): void {
   const bubble = new ThoughtBubble(state, view, queue);             // his thoughts over his head; a tap sends him off to do the goal
   events.on(e => { if (e.type === 'strike') view.strike(e.nodeId); });     // chips fly where the tool lands
   events.on(e => { if (e.type === 'hit') view.hit(e.target, e.damage); }); // the training dummy wobbles when struck
-  bindInput(view, layout, queue, label => hud.hover(label));
+  const build = new BuildWindow(windows, view, events, layout, queue, hud);   // the Build window, and placing what it builds
+  bindInput(view, layout, queue, label => hud.hover(label), build.hooks);
   showModels(view, layout);                                         // dev only: ?models in the address shows chapter 2's models
   const pack = new BackpackWindow(windows, queue, layout);           // what's in the backpack, to eat and drop things
   const skills = new SkillsWindow(windows, events);                 // each skill's level, and what he trains
@@ -141,6 +143,7 @@ function start(data: HotData): void {
       showArmour(state);                                            // what he wears, in the Backpack window
       pack.update(state);
       skills.update(state);
+      build.update(state, dt);
       book.update();
       awayNote.update();
       sinceSave += dt; if (sinceSave > 10 && !startingOver) { sinceSave = 0; save(browserStorage, state, clock.playedTo); }
