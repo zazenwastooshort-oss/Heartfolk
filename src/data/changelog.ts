@@ -6,6 +6,17 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.22', date: '12 Oct 2026', notes: [
+      'Chapter 2 begins: once the storage chest is built, new goals help you hold the camp.',
+      'Build a training dummy beside the camp and make a stone club, your first weapon. Tap the dummy and he practises by himself.',
+      'New skills: Attack, Strength and Defence (choose which to train under Train in the panel), and Vitality, which raises his health.',
+      "Your health shows in the panel, and it comes back slowly when you're hurt. Eat berries and cooked fish from your backpack to heal.",
+      'Berry bushes grow by the camp. Tap one and he picks them bush after bush; they grow back in a minute or so.',
+      'Make a fishing rod from branches and fish the pool and the river from the bank. Tap the campfire to cook your fish: some burn at first, fewer as your Cooking gets better.',
+      "The panel is smaller: the skill you're training shows its bar, and your other skills are listed with their levels under it. On a phone held sideways it sits on the right.",
+    ],
+  },
+  {
     version: '0.0.21', date: '12 Oct 2026', notes: [
       'Gathering is slower and calmer: a log or a lump of ore every 7 or 8 seconds to begin with, quicker as he levels.',
       "He stops gathering once your current goal has enough, so your backpack no longer fills up with things you don't need yet.",

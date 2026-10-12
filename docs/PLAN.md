@@ -272,10 +272,14 @@ Ten tasks take the village prototype to the first playable loop; tick each one o
 
 ## Decision log
 
-Thirty-five decisions so far, newest first; each answered open question is added here with its date.
+Thirty-nine decisions so far, newest first; each answered open question is added here with its date.
 
 | Date | Decision |
 | --- | --- |
+| 12 Oct 2026 | Chapter 2, "Holding the camp", comes after the storage chest, in this order: a training dummy, a first weapon, practice on the dummy, food (berry bushes near the camp first, then fishing and cooking at the campfire), rats, hide armour and protection, then the goblins blocking the path up the river. The village comes much later, once he can travel safely with enough food, gear and protection. |
+| 12 Oct 2026 | Combat is OSRS-style: Attack, Strength and Defence. His health comes from Vitality, not Hitpoints, so it differs a bit. Losing a fight isn't punishing: he is knocked out, wakes at the camp, keeps his gear and loses only the food he ate. |
+| 12 Oct 2026 | The first weapon is a stone club (the lead's call, open to the owner): it swings with the axe's Chop clip, so no new animation is needed; a spear needs its own thrust clip and can come later. |
+| 12 Oct 2026 | Several teams may build side by side in their own copies of the project to save time (the owner: "we can implement agents again to work on multiple tasks"); the lead merges and checks the result before anything is published. |
 | 12 Oct 2026 | The idle feel starts at the camp: tapping something to pick up starts an activity that keeps going, like woodcutting. A plank (or the crate) gathers all the wreck's planks, nearest first, then stops; a stone or a branch keeps gathering that kind, waiting beside the next to come back, until the backpack is full (then the bank where there is one). The tarp and the book are picked up on their own. Built as game 0.0.14. |
 | 12 Oct 2026 | The survival book is in from the start: wreckage washes up with him (planks, a tarp, a crate and his book). Picking up the book opens it; its pages are the goals, in order: salvage the wreck, a campfire (planks and stones), a stone axe (branches and stones), firewood, a shelter (tarp, planks, logs), a stone pickaxe, a storage chest. Stones and branches are gathered by hand. A printed copy could still be a Kickstarter reward. |
 | 12 Oct 2026 | The character washes up with nothing: no tools. He gathers branches and stones by hand and makes his first tools from them (a stone axe first); better tools come later. The camp starts bare: tent and campfire appear only when built. |
