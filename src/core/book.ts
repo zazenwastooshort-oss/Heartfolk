@@ -1,6 +1,7 @@
 // His book (0.0.17): one page per goal (data/goals.ts), in order, up to the goal he is on; the pages after it are
-// still stuck together from the river. Headless, so the tests can check what each page shows; ui/book.ts draws it,
-// and the goal card counts with goalLines too, so the card and the book always agree.
+// still stuck together from the river. Headless, so the tests can check what each page shows; the goal card counts
+// with goalLines too, so the card and the book always agree. Since the survival book (core/survival.ts) ui/book.ts no
+// longer draws these goal pages; goalLines (the card's counts, and the Making pages' counting) and opensBook are used.
 import type { GameEvent } from './events';
 import { allGoalsDone, currentGoal, goalFinished, goalMet, owned, type GameState } from './state';
 import { CAMP_DONE, GOALS, type Goal } from '../data/goals';

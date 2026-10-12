@@ -15,6 +15,7 @@ import { savedRats } from './rats';
 import { savedGoblins } from './goblins';
 import { KNOCKED_OUT } from '../data/rats';
 import { CHIEF } from '../data/goblins';
+import { savedThoughts } from './thoughts';
 
 export interface Storage { get(key: string): string | null; set(key: string, value: string): void }
 
@@ -254,6 +255,8 @@ export function readSave(raw: string, layout: Layout): Loaded {
   // the firewood pile's logs: a whole number up to what it holds, and none unless it stands
   if (state.built.includes('woodpile') && Number.isSafeInteger(data.woodpile) && data.woodpile > 0) state.woodpile = Math.min(data.woodpile, WOODPILE.max);
   state.nodes = { ...fresh.nodes, ...Object.fromEntries(Object.entries(data.nodes ?? {}).filter(([id]) => id in fresh.nodes)) } as GameState['nodes'];
+  // his thoughts and the pages of his book (the survival book): checked, or what an older save's progress implies
+  state.thoughts = savedThoughts(data.thoughts, state, layout);
   // a position that is broken, or now inside a building or off the land, goes back to the start
   const p = state.player;
   if (!Number.isFinite(p.pos?.x) || !Number.isFinite(p.pos?.z) || !navFor(layout, state.built).walkable(p.pos)) {

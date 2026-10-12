@@ -11,6 +11,7 @@ import { DAY_SECONDS } from './clock';
 import { freshRats } from './rats';
 import { freshGoblins } from './goblins';
 import { CHIEF } from '../data/goblins';
+import type { Thoughts } from './thoughts';
 
 /** The save format. 10 since 0.0.22: his health, and the combat and food skills. 11 since 0.0.25: "Ready for the
  *  goblins" came in before the goblin camp. */
@@ -154,6 +155,9 @@ export interface GameState {
   /** the in-game time he stays well rested until, after a full night's sleep in the shelter (systems/sleep.ts); 0 for
    *  not rested */
   restedUntil: number;
+  /** (chapter 2, the survival book) his thoughts so far, the journal in his book, and the book's pages come unstuck
+   *  (core/thoughts.ts, systems/thoughts.ts); none in the village */
+  thoughts: Thoughts;
 }
 
 /** Whether there is a shelter to sleep in (systems/sleep.ts): built at this layout's tent spot (never in the village). */
@@ -246,5 +250,6 @@ export function createState(layout: Layout, seed = 1): GameState {
     goblins: freshGoblins(layout, DAY_SECONDS * 0.32),
     goblinCamp: { chiefOut: false, cleared: false },
     restedUntil: 0,
+    thoughts: { journal: [], known: [], last: null, saidAt: null, passingAt: null },
   };
 }

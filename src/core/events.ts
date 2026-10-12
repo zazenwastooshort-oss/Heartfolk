@@ -104,6 +104,12 @@ export type GameEvent =
   | { type: 'fetchFood' }
   /** at the chest on his way to fight, he took `items` of food */
   | { type: 'tookFood'; items: Record<string, number> }
+  /** (the survival book) a tap on the goal card or his thought (systems/nextstep.ts): he is already doing what the goal
+   *  needs. (His thoughts themselves are no events: ui/thoughts.ts sees GameState.thoughts change.) */
+  | { type: 'onIt' }
+  /** a tap on the goal card or his thought: there is nothing to do for the goal just now; `item` is what he waits for
+   *  (stones and branches not back yet), or null */
+  | { type: 'nothingYet'; item: string | null }
   | { type: 'arrived' };
 
 type Handler = (e: GameEvent) => void;

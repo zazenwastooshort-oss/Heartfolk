@@ -1,6 +1,6 @@
 // The always-on screen over the game, kept small so the scene stays in view on a phone (the UI foundation, 12 Oct
-// 2026): the goal card, one line or two (the goal and how many of each thing he has, with a thin bar along its foot;
-// tapping it opens his book, whose page has the how-to hint, or before he has the book shows the hint as a notice),
+// 2026): the goal card (the goal, since the survival book his thought about it in his own words, and how many of each
+// thing he has, with a thin bar along its foot; tapping it sends him off on the goal's next step: systems/nextstep.ts),
 // with its Build or Make button while he can make the thing, so that stays one tap away; and once the camp is set up,
 // saying so. The strip at the foot shows the skill gaining XP, its level and a thin bar (his health beside it:
 // ui/combat.ts). Then the clock, hover text, notices and floating "+xp" numbers. What the panel used to show lives in
@@ -22,6 +22,7 @@ import { BOOK, CAMP_DONE, GOALS } from '../data/goals';
 import { GATHERS } from '../data/pickups';
 import { MAKES, makeDef } from '../data/making';
 import { clockLabel } from '../core/clock';
+import { goalThought } from '../data/thoughts';
 
 const $ = (id: string) => document.getElementById(id)!;
 /** Set an element's text only when it changed (the HUD and the windows are updated every frame). */
@@ -44,11 +45,13 @@ const countOf = (line: BookLine) => line.level ? `${SKILLS[line.id as SkillId]?.
  *  counts them), or that he is on his way to make the thing or working on it; how far along (0 to 1, the bar) and
  *  whether everything is there; the Build or Make button while he can make the thing (what it makes and its words);
  *  and the goal's how-to hint (its ready text once everything is there), which his book's page shows and a tap on
- *  the card says before he has the book. Once every goal is done, the camp is set up (CAMP_DONE). */
-export interface GoalCard { title: string; line: string; progress: number; ready: boolean; build: { id: string; label: string } | null; hint: string }
+ *  the card says before he has the book. Once every goal is done, the camp is set up (CAMP_DONE). Since the survival
+ *  book, `thought`: what he thinks about the goal, in his own words (data/thoughts.ts; the hint for a goal without one),
+ *  shown under the title. */
+export interface GoalCard { title: string; line: string; progress: number; ready: boolean; build: { id: string; label: string } | null; hint: string; thought: string }
 
 export function goalCard(state: GameState): GoalCard {
-  if (allGoalsDone(state)) return { title: CAMP_DONE.title, line: CAMP_DONE.text, progress: 1, ready: true, build: null, hint: CAMP_DONE.text };
+  if (allGoalsDone(state)) return { title: CAMP_DONE.title, line: CAMP_DONE.text, progress: 1, ready: true, build: null, hint: CAMP_DONE.text, thought: '' };
   const goal = currentGoal(state), parts = goalLines(state, goal);
   // (a level line counts the levels gained past 1, so the bar starts empty)
   const got = parts.reduce((a, p) => a + p.got - (p.level ? 1 : 0), 0), need = parts.reduce((a, p) => a + p.need - (p.level ? 1 : 0), 0), ready = got >= need;
@@ -63,6 +66,7 @@ export function goalCard(state: GameState): GoalCard {
     progress: need ? got / need : 1, ready,
     build: offer ? { id: def!.id, label: `${def!.verb} the ${name}` } : null,
     hint: ready ? goal.ready : goal.hint,
+    thought: goalThought(goal.id)?.text ?? goal.hint,
   };
 }
 
@@ -79,7 +83,7 @@ export class Hud {
   private active: SkillId | null = null;
 
   private buildFor: string | null = null;     // what the goal card's Build button makes, while it shows
-  private goalHint = '';                      // the current goal's how-to hint, for a tap on the card before he has his book
+  private allDone = false;                    // every goal is done: a tap on the card opens his book
   private hasBank: boolean;
   /** his health at most, as of the last frame, for the notice when he eats (chapter 2) */
   private maxHealth = 0;
@@ -95,11 +99,11 @@ export class Hud {
       const def = this.buildFor && makeDef(this.buildFor);
       if (def) queue.push({ type: 'make', id: def.id });
     });
-    // tapping the card opens his book, whose page has the how-to hint (or closes it); before he has the book, the hint
-    // shows as a notice
+    // tapping the card sends him off on the goal's next step (the survival book: systems/nextstep.ts); once every goal
+    // is done it opens his book
     $('goalOpen').addEventListener('click', () => {
-      if (windows.isAvailable('book')) windows.toggle('book');
-      else if (this.goalHint) this.notice(this.goalHint);
+      if (!this.allDone) queue.push({ type: 'next' });
+      else if (windows.isAvailable('book')) windows.toggle('book');
     });
     // a window opened: the how-to-play hint would peek out behind it, and the player is finding their way by now
     windows.on((_, open) => { if (open) this.hideHint(); });
@@ -112,6 +116,9 @@ export class Hud {
       else if (e.type === 'fireLow') this.notice('No logs to stoke the fire tonight. It burns low.');
       else if (e.type === 'nothingToBank') this.notice('Your backpack is empty.');
       else if (e.type === 'noPath') this.notice("He can't find a way there.");
+      // (the survival book) a tap on the goal card or his thought, when he is at it already or there's nothing to do yet
+      else if (e.type === 'onIt') this.notice("He's already at it.");
+      else if (e.type === 'nothingYet') this.notice(e.item ? `No ${itemName(e.item, 2)} lying about just now. More turn up in a while.` : 'Nothing to do for that just now.');
       else if (e.type === 'noStorage') this.notice("Your backpack is full, and there's nowhere to store it yet. Open the backpack to drop something.");
       else if (e.type === 'levelUp') this.pendingLevel = { skill: e.skill, level: e.level };
       else if (e.type === 'needTool') { const t = TOOLS[e.tool]; this.notice(`You need ${t.a} to ${t.use}.`); }
@@ -161,12 +168,15 @@ export class Hud {
   private updateGoal(state: GameState): void {
     const card = goalCard(state), button = $('goalBuild') as HTMLButtonElement;
     setText($('goalTitle'), card.title);
+    setText($('goalThought'), card.thought);
     setText($('goalCount'), card.line);
     $('goalCount').hidden = !!card.build;           // the button says it all
     $('goalBar').style.width = `${card.progress * 100}%`;
     $('goal').classList.toggle('ready', card.ready);
     this.buildFor = card.build?.id ?? null;
-    this.goalHint = card.hint;
+    this.allDone = allGoalsDone(state);
+    const label = this.allDone ? `${card.title}. Opens your book.` : `${card.title}. ${card.thought} Tap to set off.`;
+    if ($('goalOpen').getAttribute('aria-label') !== label) $('goalOpen').setAttribute('aria-label', label);
     button.hidden = !card.build;
     if (card.build) setText(button, card.build.label);
   }

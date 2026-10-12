@@ -29,6 +29,7 @@ import { showArmour } from './ui/armour';
 import { AWAY } from './data/away';
 import { playSpeed } from './systems/sleep';
 import { SleepHud, sleepNotices } from './ui/sleep';
+import { ThoughtBubble } from './ui/thoughts';
 
 // An artifact viewer can swap in a new version of the page while it is open and hand the game's snapshot
 // to the new version, so play carries on. Everywhere else `hot` is absent, hence the optional chaining.
@@ -78,6 +79,7 @@ function start(data: HotData): void {
   goblinNotices(events, hud);                                       // (chapter 2) the goblin chief coming out, the camp cleared
   sleepNotices(events, hud);                                        // to bed in the shelter, and up well rested
   const sleepHud = new SleepHud(layout, hud);                       // the day and night dial, Rested, the z over the tent
+  const bubble = new ThoughtBubble(state, view, queue);             // his thoughts over his head; a tap sends him off to do the goal
   events.on(e => { if (e.type === 'strike') view.strike(e.nodeId); });     // chips fly where the tool lands
   events.on(e => { if (e.type === 'hit') view.hit(e.target, e.damage); }); // the training dummy wobbles when struck
   bindInput(view, layout, queue, label => hud.hover(label));
@@ -134,6 +136,7 @@ function start(data: HotData): void {
       hud.update(state, dt);
       combat.update(dt);
       sleepHud.update(state, dt);
+      bubble.update(state, dt);
       rats.update(dt);
       showArmour(state);                                            // what he wears, in the Backpack window
       pack.update(state);

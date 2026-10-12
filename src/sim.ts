@@ -18,6 +18,7 @@ import { restockIfOut, updateRats } from './systems/rats';
 import { updateGoblins } from './systems/goblins';
 import { updateCooking } from './systems/cooking';
 import { updateSleep } from './systems/sleep';
+import { updateThoughts } from './systems/thoughts';
 import { closedFor, emptySummary, openFor, tally, type Away, type AwaySummary } from './systems/away';
 
 export interface SimContext { layout: Layout; rng: Rng; events: EventBus }
@@ -43,6 +44,8 @@ export function step(state: GameState, dt: number, ctx: SimContext): void {
   if (ctx.layout.camp) updateSleep(state, ctx.layout, visited, ctx.events);
   // after gathering, so the item that fills the backpack sends him to the bank (the chest) in the same step
   updateHauling(state, ctx.layout, stoking || cooking ? null : visited, ctx.events);
+  // his thoughts and the pages of his book coming unstuck, once everything else has moved on
+  if (ctx.layout.camp) updateThoughts(state, ctx.layout, dt);
 }
 
 /** Catch up `seconds` of play in whole steps, one after another with nothing drawn in between: time the tab spent in

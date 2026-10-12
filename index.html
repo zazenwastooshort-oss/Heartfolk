@@ -64,22 +64,22 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .ver::after { content: ''; position: absolute; inset: -12px -4px; }
 .ver:focus-visible { background: rgba(30, 52, 27, 1); outline: none; box-shadow: 0 0 0 2px rgba(241, 232, 212, .5); }
 
-/* the goal card (src/data/goals.ts, src/ui/hud.ts): one line or two, the goal and how many of each thing he has, with a
-   thin bar along its foot; tapping it opens his book (which has the how-to hint). Its Build or Make button shows while
-   he can make the thing, so that stays one tap away */
+/* the goal card (src/data/goals.ts, src/ui/hud.ts): the goal, his thought about it in his own words (data/thoughts.ts)
+   and how many of each thing he has, with a thin bar along its foot; tapping it sends him off to do it (the survival
+   book: systems/nextstep.ts). Its Build or Make button shows while he can make the thing, so that stays one tap away */
 .goal { pointer-events: auto; position: relative; box-sizing: border-box; min-width: 190px; max-width: min(340px, 100%);
   display: flex; flex-direction: column; overflow: hidden; background: var(--panel); color: var(--ink);
   border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 2px 10px rgba(0, 0, 0, .3); }
 .goal-open { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 1px 10px; margin: 0; padding: 6px 10px 9px;
-  border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: default; }
-.goal.has-book .goal-open { cursor: pointer; }
+  border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .goal-open:focus-visible { outline: 2px solid var(--ink); outline-offset: -3px; border-radius: 10px; }
 .goal-title { grid-column: 1; font: 700 1rem/1.2 var(--display); }
+.goal-thought { grid-column: 1; font: italic 0.8125rem/1.3 Georgia, "Times New Roman", serif; color: var(--ink); opacity: .9; }
+.goal-thought:empty { display: none; }
 .goal-count { grid-column: 1; font-size: 0.75rem; line-height: 1.3; color: var(--muted); font-variant-numeric: tabular-nums; }
 .goal.ready .goal-count { color: var(--xp); }
-/* once he has his book, a small book on the right says the card opens it */
-.goal-more { display: none; grid-column: 2; grid-row: 1 / span 2; width: 20px; height: 20px; color: var(--muted); }
-.goal.has-book .goal-more { display: block; }
+/* a small arrow on the right says a tap on the card sends him off to do it */
+.goal-more { grid-column: 2; grid-row: 1 / span 3; width: 20px; height: 20px; color: var(--muted); }
 .goal-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--track); }
 .goal-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s ease-out; }
 .goal.ready .goal-bar i { background: var(--xp); }
@@ -107,6 +107,15 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .floats { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .float { position: absolute; transform: translate(-50%, -100%); font: 700 13px/1 var(--body); color: #fff4c8; text-shadow: 1px 1px 0 #000; white-space: nowrap; }
 .float.big { font-size: 16px; color: #ffd34d; }
+/* his thought over his head (src/ui/thoughts.ts): a small, calm bubble, cream on forest green, fading in and out; a tap
+   on it sends him off to do the goal, as the goal card does */
+.thought { position: absolute; z-index: 1; transform: translate(-50%, -100%); max-width: min(240px, 70vw); width: max-content; box-sizing: border-box;
+  padding: 6px 11px 7px; border-radius: 12px; background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+  font: italic 0.8125rem/1.35 Georgia, "Times New Roman", serif; text-align: center; pointer-events: auto; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .3); opacity: 0; transition: opacity .5s ease-out; }
+.thought.show { opacity: 1; }
+.thought::after { content: ''; position: absolute; left: 50%; bottom: -6px; width: 10px; height: 10px; margin-left: -5px; transform: rotate(45deg);
+  background: inherit; border: solid var(--line); border-width: 0 1px 1px 0; }
 .bar { height: 6px; background: var(--track); border-radius: 3px; overflow: hidden; }
 .bar i { display: block; height: 100%; width: 0; background: var(--xp); transition: width .25s ease-out; }
 
@@ -263,8 +272,22 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .set-btn.reset.armed { color: var(--ink); border-color: var(--accent); }
 .seg button:focus-visible, .set-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
-/* his book (src/ui/book.ts) in its window: one page of soft, muted paper with dark brown text; plain, no effects */
+/* his survival book (src/ui/book.ts) in its window: one page of soft, muted paper with dark brown text; plain, no
+   effects. Tabs above the page jump to a section (a dot on one with a page not yet read). */
 #book .win-body { padding: 10px; }
+.book-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.book-tabs button { position: relative; flex: 1 1 auto; min-height: 36px; padding: 6px 10px; border: 1px solid var(--raised-line); border-radius: 999px;
+  background: transparent; color: var(--ink); font: 600 0.8125rem/1 var(--body); cursor: pointer; }
+.book-tabs button[aria-selected="true"] { background: var(--raised); }
+.book-tabs button.new::after { content: ''; position: absolute; top: 4px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.book-tabs button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.page-journal { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; }
+.page-journal .day { font: 600 0.75rem/1 var(--body); letter-spacing: .06em; text-transform: uppercase; color: #6b5640; margin-top: 4px; }
+.page-journal .said { font-style: italic; }
+.page .page-heals { margin-top: 10px; font: 600 0.9375rem/1.3 var(--body); color: #4a6639; }
+.page .page-where { margin-top: 4px; font-style: italic; color: #574330; }
+.book-count { align-self: center; min-width: 4.5em; text-align: center; font: 600 0.8125rem/1 var(--body); color: var(--muted); font-variant-numeric: tabular-nums; }
+.rail-btn.new::after { content: ''; position: absolute; top: 6px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
 /* the same height on every page where there's room, so the page-turn buttons stay put */
 .page { min-height: min(25rem, 50vh); box-sizing: border-box; background: #e6d8bc; color: #3a2a1b; border-radius: 6px; padding: 14px 18px 18px;
   font: 1.0625rem/1.5 Georgia, "Times New Roman", serif; box-shadow: inset 0 0 0 1px rgba(58, 42, 27, .2), inset 0 0 28px rgba(120, 88, 48, .14); }
@@ -321,12 +344,12 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
    somewhere else, and look chosen. A press shows on every screen (:active) */
 @media (hover: hover) {
   .ver:hover { background: rgba(30, 52, 27, 1); box-shadow: 0 0 0 2px rgba(241, 232, 212, .5); }
-  .goal.has-book .goal-open:hover { background: rgba(241, 232, 212, .05); }
+  .goal-open:hover { background: rgba(241, 232, 212, .05); }
   .goal-build:hover, .pick-do button:hover, .set-btn:hover, .book-turn button:hover:not(:disabled) { background: var(--raised-hover); }
   .rail-btn:not(.on):hover, .train button:not(.on):hover { background: rgba(241, 232, 212, .08); }
   .win-x:hover, .pack-slot:hover:not(:disabled) { background: rgba(241, 232, 212, .1); }
 }
-.goal.has-book .goal-open:active { background: rgba(241, 232, 212, .08); }
+.goal-open:active { background: rgba(241, 232, 212, .08); }
 .goal-build:active, .pick-do button:active, .set-btn:active, .book-turn button:active:not(:disabled) { background: var(--raised-down); }
 .rail-btn:not(.on):active, .train button:not(.on):active, .seg button:not([aria-pressed="true"]):active, .win-x:active,
 .pack-slot:active:not(:disabled) { background: rgba(241, 232, 212, .14); }
@@ -342,10 +365,11 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
       <h1 class="brand">Hearthfolk</h1>
       <div class="hover" id="hover">Walk here</div>
       <div class="goal" id="goal" hidden>
-        <button class="goal-open" id="goalOpen" type="button" aria-controls="book">
+        <button class="goal-open" id="goalOpen" type="button">
           <span class="goal-title" id="goalTitle">Salvage the wreck</span>
+          <span class="goal-thought" id="goalThought"></span>
           <span class="goal-count" id="goalCount">0 / 7 planks, 0 / 1 tarp, 0 / 1 book</span>
-          <svg class="icon goal-more" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.8C10.2 5.4 7.6 4.8 4 5.2v13.3c3.6-.4 6.2.2 8 1.6 1.8-1.4 4.4-2 8-1.6V5.2c-3.6-.4-6.2.2-8 1.6z"/><path d="M12 6.8v13.3"/></svg>
+          <svg class="icon goal-more" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13"/><path d="M13 7l5 5-5 5"/></svg>
         </button>
         <button class="goal-build" id="goalBuild" type="button" hidden>Build</button>
         <span class="goal-bar" aria-hidden="true"><i id="goalBar"></i></span>
@@ -404,19 +428,22 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
       </div>
     </section>
     <section class="win" id="book" data-win="book" data-width="440" role="dialog" aria-labelledby="bookName" hidden>
-      <div class="win-bar"><h2 class="win-title" id="bookName">Your book</h2><button class="win-x" type="button" aria-label="Close the book"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
+      <div class="win-bar"><h2 class="win-title" id="bookName">Survival book</h2><button class="win-x" type="button" aria-label="Close the book"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
       <div class="win-body" id="bookBody">
+        <div class="book-tabs" id="bookTabs" role="group" aria-label="Sections"></div>
         <div class="page" id="bookPage">
-          <p class="page-lead" id="bookLead" hidden>Your book! It came down the falls with you.</p>
-          <div class="page-head"><span id="bookNo">Page 1</span><span class="page-done" id="bookDone" hidden>Done</span></div>
-          <h3 class="page-title" id="bookTitle">Salvage the wreck</h3>
+          <p class="page-lead" id="bookLead" hidden>Your survival book. It came down the falls with you.</p>
+          <div class="page-head"><span id="bookNo">Journal</span><span class="page-done" id="bookDone" hidden>Made</span></div>
+          <h3 class="page-title" id="bookTitle">Journal</h3>
           <p id="bookText"></p>
+          <p class="page-heals" id="bookHeals" hidden></p>
           <ul class="page-needs" id="bookNeeds"></ul>
-          <p class="page-hint" id="bookHint"></p>
-          <p class="page-stuck" id="bookStuck" hidden>The rest of the pages are still stuck together from the river.</p>
+          <p class="page-where" id="bookWhere" hidden></p>
+          <ol class="page-journal" id="bookJournal"></ol>
+          <p class="page-stuck" id="bookStuck" hidden>More pages are still stuck together from the river. They come loose as you find your way.</p>
         </div>
       </div>
-      <div class="win-foot book-turn"><button type="button" id="bookPrev">&lsaquo; Previous</button><button type="button" id="bookNext">Next &rsaquo;</button></div>
+      <div class="win-foot book-turn"><button type="button" id="bookPrev">&lsaquo; Previous</button><span class="book-count" id="bookCount"></span><button type="button" id="bookNext">Next &rsaquo;</button></div>
     </section>
     <section class="win" id="settingsWin" data-win="settings" data-width="340" role="dialog" aria-labelledby="settingsTitle" hidden>
       <div class="win-bar"><h2 class="win-title" id="settingsTitle">Settings</h2><button class="win-x" type="button" aria-label="Close the settings"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
@@ -443,7 +470,7 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
       <ul>
         <li>Tap a plank and you pick up every plank, the two in the smashed crate too. Tap the torn tarp and your book to pick them up.</li>
         <li>Tap a stone or a branch and you keep gathering them until your backpack is full.</li>
-        <li>The goal at the top shows what's next. The buttons at the edge open your backpack, your skills and the settings.</li>
+        <li>The goal at the top shows what's next. Tap it and he sets off to do it. The buttons at the edge open your backpack, your skills and the settings.</li>
       </ul>
     </div>
     <div class="win-foot"><button type="button" class="win-ok" id="introOk">Get up</button></div>

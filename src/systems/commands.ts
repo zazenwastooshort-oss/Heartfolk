@@ -17,6 +17,7 @@ import { setOffToFight } from './rats';
 import type { CombatStyle } from '../data/combat';
 import { canCook, fishToCook, goCook } from './cooking';
 import { canSleep, goToBed } from './sleep';
+import { nextCommands } from './nextstep';
 
 export type Command =
   | { type: 'walk'; to: Vec2 }
@@ -46,7 +47,11 @@ export type Command =
   | { type: 'cook' }
   /** to bed in the shelter (a tap on it at night): off to stoke the fire, he stokes it first; by day he says he isn't
    *  tired yet */
-  | { type: 'sleep' };
+  | { type: 'sleep' }
+  /** go do it (the survival book): a tap on the goal card or on his thought sends him off on the current goal's next
+   *  step (systems/nextstep.ts), as tapping the right thing in the world would; already on it, or with nothing to do
+   *  yet, he says so */
+  | { type: 'next' };
 
 export const isClaimed = (state: GameState, parcelId: string | undefined) => !parcelId || !!state.parcels[parcelId]?.claimed;
 
@@ -59,6 +64,8 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     if (state.player.task.kind === 'knockedOut' && c.type !== 'style') continue;
     if (c.type === 'eat') { eat(state, c.item, events); continue; }
     if (c.type === 'style') { setStyle(state, c.style); continue; }
+    // go do it: the goal's next step, applied as the commands a tap in the world would send
+    if (c.type === 'next') { const next = nextCommands(state, layout, events); if (next.length) applyCommands(state, layout, next, events); continue; }
     let ok = true;
     if (c.type === 'walk') ok = walkTo(state, layout, c.to);
     else if (c.type === 'visit') ok = goVisit(state, layout, c.id, c.at);
