@@ -1,8 +1,8 @@
-// The combat bits of the panel (chapter 2, holding the camp, 0.0.22): his health, "Health 7 / 10" with a bar, shown
-// once he has a weapon or isn't at full health, and a small bar over his head while he is hurt; the Train choice
-// (Attack, Strength or Defence), shown once he has a weapon; the numbers that float up over what he strikes (0 for a
-// miss), in calm colours; and the notices that go with fighting. Reads state and sends style commands; never changes
-// the game itself.
+// The combat bits of the HUD (chapter 2, holding the camp, 0.0.22): his health, "Health 7 / 10" with a bar in the strip
+// at the foot (index.html), shown once he has a weapon or isn't at full health, and a small bar over his head while he
+// is hurt; the Train choice (Attack, Strength or Defence) in the Skills window, shown once he has a weapon; the numbers
+// that float up over what he strikes (0 for a miss), in calm colours; and the notices that go with fighting. Reads
+// state and sends style commands; never changes the game itself.
 import * as THREE from 'three';
 import { maxHealth, type GameState } from '../core/state';
 import type { EventBus } from '../core/events';
@@ -29,7 +29,8 @@ const OVERHEAD = { at: 2.05, low: 0.4 };
 const either = (names: string[]) => names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names.at(-1)}` : names[0];
 
 /** Why he can't fight: no weapon, or the dummy has taught him all it can of the style he trains (and which styles
- *  still have something to learn from it: picking one doesn't send him back, so a tap on the dummy does). */
+ *  still have something to learn from it: picking one doesn't send him back, so a tap on the dummy does). The Train
+ *  choice is in the Skills window since the UI foundation, so the notice says where. */
 export function cantFightText(state: GameState, layout: Layout, target: string, reason: 'weapon' | 'taught', skill: SkillId): string {
   const t = targetOf(state, layout, target), name = t?.name.toLowerCase() ?? 'dummy';
   // (chapter 2) a rat to fight, not the dummy to practise on
@@ -85,7 +86,7 @@ export class CombatHud {
 
   update(dt: number): void {
     const state = this.state, max = maxHealth(state), hurt = state.health < max, armed = state.equipment.weapon !== null;
-    // his health in the panel, once he has a weapon or is hurt
+    // his health in the strip, once he has a weapon or is hurt
     $('healthRow').hidden = !armed && !hurt;
     $('healthBar').style.width = `${Math.max(0, Math.min(1, state.health / max)) * 100}%`;
     $('healthText').textContent = `${Math.floor(state.health)} / ${max}`;

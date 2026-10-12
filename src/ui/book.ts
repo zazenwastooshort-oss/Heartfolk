@@ -1,12 +1,14 @@
-// His book (0.0.17): one page per goal, shown over the game, which keeps running behind it. The pages come from
-// core/book.ts (which goals show, done or current, the tick and count per line); this only draws them. It opens by
-// itself at the current page when he picks the book up; once he has it, tapping the goal card opens it (the card's
-// Build button still does its own thing), and a small "Book" cue on the card says so (a button, for keyboards). It
-// sits clear of the card (index.html), so the Build button stays in sight. Previous and next turn the page (or the
-// left and right arrow keys); the close button or Esc closes it. Reads state; never changes the game.
+// His book (0.0.17), in a window since the UI foundation (12 Oct 2026; ui/windows.ts): one page per goal. The pages
+// come from core/book.ts (which goals show, done or current, the tick and count per line); this only draws them, on
+// the muted paper of index.html's .page. It opens by itself at the current page when he picks the book up, with a line
+// saying so; once he has it, the Book button in the row opens it (the button shows only then), and so does a tap on the
+// goal card (ui/hud.ts), each at the current page. Previous and next turn the page (or the left and right arrow keys
+// while it is open); its x, the Book button again or Esc closes it. On a phone it sits under the goal card, so the
+// card's Build button stays in sight. Reads state; never changes the game.
 import type { GameState } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Layout } from '../world/layout';
+import type { Windows } from './windows';
 import { bookPages, opensBook, type BookPage } from '../core/book';
 import { lineName } from './hud';
 
@@ -14,62 +16,51 @@ const $ = (id: string) => document.getElementById(id)!;
 const el = (tag: string, className: string, text = '') => { const e = document.createElement(tag); e.className = className; e.textContent = text; return e; };
 
 export class Book {
-  private panel = $('book');
-  private card = $('goal');
   private at = 0;                       // the page shown (an index into bookPages)
   private lead = false;                 // opened by picking it up: a line above the page says so
+  private pickedUp = false;             // opening because he just picked it up
   private drawn: string | null = null;  // what the page was last drawn from, so it is redrawn only on a change
-  private cardHasBook: boolean | null = null;
   private camp: boolean;
 
-  constructor(private state: GameState, events: EventBus, layout: Layout) {
+  constructor(private state: GameState, events: EventBus, layout: Layout, private windows: Windows) {
     this.camp = !!layout.camp;
     if (!this.camp) return;               // the goals, and so the book, are the camp's
-    $('bookClose').addEventListener('click', () => this.close());
     $('bookPrev').addEventListener('click', () => this.turn(-1));
     $('bookNext').addEventListener('click', () => this.turn(1));
-    // a tap anywhere on the card, or on its "Book" cue (a real button, for keyboards), opens or closes it
-    this.card.addEventListener('click', e => {
-      if ((e.target as HTMLElement).closest('#goalBuild') || !this.state.hasBook) return;
-      if (this.panel.hidden) this.open(false); else this.close();
+    // however it opens (the Book button, the goal card, picking it up), it opens at the current page
+    windows.on((id, open) => {
+      if (id !== 'book') return;
+      $('goalOpen').setAttribute('aria-expanded', String(open));
+      if (!open) return;
+      this.at = bookPages(this.state).length - 1;
+      this.lead = this.pickedUp; this.pickedUp = false;
+      this.drawn = null;
+      this.draw();
+      $('bookBody').scrollTop = 0;
     });
-    // While it is open, Esc closes it and the left and right arrows turn its pages instead of the camera: this
-    // listens as the key goes down to the page, before ui/input.ts hears it on the way back up.
+    // While it is open, the left and right arrows turn its pages instead of the camera: this listens as the key goes
+    // down to the page, before ui/input.ts hears it on the way back up.
     window.addEventListener('keydown', e => {
-      if (this.panel.hidden) return;
-      if (e.key === 'Escape') this.close();
-      else if (e.key === 'ArrowLeft') this.turn(-1);
+      if (!windows.isOpen('book')) return;
+      if (e.key === 'ArrowLeft') this.turn(-1);
       else if (e.key === 'ArrowRight') this.turn(1);
       else return;
       e.preventDefault(); e.stopPropagation();
     }, true);
-    events.on(e => { if (opensBook(e)) this.open(true); });
-  }
-
-  /** Open at the current page (the last one shown). */
-  private open(pickedUp: boolean): void {
-    this.at = bookPages(this.state).length - 1;
-    this.lead = pickedUp;
-    this.drawn = null;
-    this.panel.hidden = false;
-    $('hint').classList.add('gone');      // the how-to-play hint would peek out behind it; he knows his way by now
-    this.draw();
-    $('bookPage').scrollTop = 0;
-    $('goalBook').setAttribute('aria-expanded', 'true');
-    ($('bookClose') as HTMLButtonElement).focus({ preventScroll: true });
-  }
-
-  private close(): void {
-    this.panel.hidden = true;
-    $('goalBook').setAttribute('aria-expanded', 'false');
-    if (document.activeElement && this.panel.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
+    events.on(e => {
+      if (!opensBook(e)) return;
+      this.pickedUp = true;
+      windows.setAvailable('book', true);
+      if (windows.isOpen('book')) windows.close('book');   // opened afresh, at the page he is on, with its line
+      windows.open('book');
+    });
   }
 
   private turn(by: number): void {
     const last = bookPages(this.state).length - 1, to = Math.max(0, Math.min(last, this.at + by));
     if (to === this.at) return;
     this.at = to; this.lead = false; this.draw();
-    $('bookPage').scrollTop = 0;          // a new page starts at its top (live redraws of the same page don't jump)
+    $('bookBody').scrollTop = 0;          // a new page starts at its top (live redraws of the same page don't jump)
   }
 
   private draw(): void {
@@ -103,13 +94,10 @@ export class Book {
 
   update(): void {
     if (!this.camp) return;
-    // the card can be tapped once he has the book, with a small cue saying so
+    // the Book button shows once he has the book, and the goal card says a tap opens it
     const has = this.state.hasBook;
-    if (has !== this.cardHasBook) {
-      this.cardHasBook = has;
-      this.card.classList.toggle('has-book', has);
-      $('goalBook').hidden = !has;
-    }
-    if (!this.panel.hidden) this.draw();
+    this.windows.setAvailable('book', has);
+    $('goal').classList.toggle('has-book', has);
+    if (this.windows.isOpen('book')) this.draw();
   }
 }

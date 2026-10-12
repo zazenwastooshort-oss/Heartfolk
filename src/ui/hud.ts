@@ -1,8 +1,12 @@
-// The panels laid over the game: each skill's level and XP (since 0.0.22 the skill gaining XP as a whole row with its
-// bar, the others by name and level in one line), the backpack and what is stored (the bank, or at the
-// camp the storage chest once it is built), the clock, hover text, notices and floating "+xp" numbers, and the goal
-// card with its Build button (tapping the card opens his book: ui/book.ts), which says the camp is set up once every
-// goal is done. Reads state and listens to events; never changes the game (the Build button sends a command).
+// The always-on screen over the game, kept small so the scene stays in view on a phone (the UI foundation, 12 Oct
+// 2026): the goal card, one line or two (the goal and how many of each thing he has, with a thin bar along its foot;
+// tapping it opens his book, whose page has the how-to hint, or before he has the book shows the hint as a notice),
+// with its Build or Make button while he can make the thing, so that stays one tap away; and once the camp is set up,
+// saying so. The strip at the foot shows the skill gaining XP, its level and a thin bar (his health beside it:
+// ui/combat.ts). Then the clock, hover text, notices and floating "+xp" numbers. What the panel used to show lives in
+// windows now (ui/windows.ts): the backpack (ui/backpack.ts), the skills (ui/skills.ts), his book (ui/book.ts) and the
+// settings (ui/settings.ts). Reads state and listens to events; never changes the game (the Build button sends a
+// command).
 import * as THREE from 'three';
 import { allGoalsDone, currentGoal, made, maxHealth, type GameState } from '../core/state';
 import { goalLines, type BookLine } from '../core/book';
@@ -11,20 +15,19 @@ import type { Command } from '../systems/commands';
 import type { View } from '../render/view';
 import type { SkillId } from '../data/skills';
 import type { BuildingKind, Layout } from '../world/layout';
+import type { Windows } from './windows';
 import { levelFor, levelBounds } from '../data/xp';
 import { ITEMS, SKILLS, TOOLS } from '../data/skills';
-import { BACKPACK_SLOTS } from '../data/hauling';
 import { BOOK, CAMP_DONE, GOALS } from '../data/goals';
 import { GATHERS } from '../data/pickups';
 import { MAKES, makeDef } from '../data/making';
 import { clockLabel } from '../core/clock';
 
 const $ = (id: string) => document.getElementById(id)!;
-/** The skills shown from the start; the others (chapter 2: combat, fishing, cooking) once they have XP. */
-const FIRST_SKILLS: ReadonlySet<SkillId> = new Set(['mining', 'woodcutting']);
+/** Set an element's text only when it changed (the HUD and the windows are updated every frame). */
+export const setText = (el: HTMLElement, text: string) => { if (el.textContent !== text) el.textContent = text; };
 /** One of an item, with its article: "a berry", "a cooked fish". */
 const oneOf = (id: string) => { const name = itemName(id, 1); return `${/^[aeiou]/.test(name) ? 'an' : 'a'} ${name}`; };
-const el = (tag: string, className: string, text = '') => { const e = document.createElement(tag); e.className = className; e.textContent = text; return e; };
 /** What `n` of an item are called: "birch logs", "1 birch log" (ITEMS' `one`); his book is "book". */
 export const itemName = (id: string, n: number) => id === BOOK ? 'book' : ((n === 1 && ITEMS[id]?.one) || ITEMS[id]?.name)?.toLowerCase() ?? id;
 /** "28 birch logs"; several are joined by commas, the last by `last` ("20 birch logs and 8 copper ore") */
@@ -34,10 +37,34 @@ export const itemList = (items: Record<string, number>, last = ', ') => {
 };
 /** What a goal's line (core/book.ts) is called: the thing it needs, or (0.0.22) a skill level, "Attack level". */
 export const lineName = (line: BookLine) => line.level ? `${SKILLS[line.id as SkillId]?.name ?? line.id} level` : itemName(line.id, line.need);
+/** A goal's line as the card counts it: "2 / 4 rat hides", or a skill level, "Attack 2 / 3". */
+const countOf = (line: BookLine) => line.level ? `${SKILLS[line.id as SkillId]?.name ?? line.id} ${line.got} / ${line.need}` : `${line.got} / ${line.need} ${itemName(line.id, line.need)}`;
 
-/** A skill's whole row (name, level, XP bar and count), and (0.0.22) its short form: its name and level in one line with
- *  the others' (`chip`, its level `chipLvl`). */
-interface SkillRow { row: HTMLElement; lvl: HTMLElement; bar: HTMLElement; text: HTMLElement; chip: HTMLElement; chipLvl: HTMLElement }
+/** What the goal card shows: the goal's title; under it how many of each thing he has (carried or stored, as his book
+ *  counts them), or that he is on his way to make the thing or working on it; how far along (0 to 1, the bar) and
+ *  whether everything is there; the Build or Make button while he can make the thing (what it makes and its words);
+ *  and the goal's how-to hint (its ready text once everything is there), which his book's page shows and a tap on
+ *  the card says before he has the book. Once every goal is done, the camp is set up (CAMP_DONE). */
+export interface GoalCard { title: string; line: string; progress: number; ready: boolean; build: { id: string; label: string } | null; hint: string }
+
+export function goalCard(state: GameState): GoalCard {
+  if (allGoalsDone(state)) return { title: CAMP_DONE.title, line: CAMP_DONE.text, progress: 1, ready: true, build: null, hint: CAMP_DONE.text };
+  const goal = currentGoal(state), parts = goalLines(state, goal);
+  // (a level line counts the levels gained past 1, so the bar starts empty)
+  const got = parts.reduce((a, p) => a + p.got - (p.level ? 1 : 0), 0), need = parts.reduce((a, p) => a + p.need - (p.level ? 1 : 0), 0), ready = got >= need;
+  const def = goal.makes ? makeDef(goal.makes) : null, task = state.player.task, pending = state.player.pending;
+  const building = !!def && task.kind === 'make' && task.id === def.id;
+  const going = !!def && pending?.kind === 'make' && pending.id === def.id;
+  const offer = !!def && ready && !building && !going && !made(state, def.id);
+  const name = def?.name.toLowerCase() ?? '';
+  return {
+    title: goal.title,
+    line: building ? `Working on the ${name}...` : going ? `On the way to ${def!.verb.toLowerCase()} the ${name}...` : parts.map(countOf).join(', '),
+    progress: need ? got / need : 1, ready,
+    build: offer ? { id: def!.id, label: `${def!.verb} the ${name}` } : null,
+    hint: ready ? goal.ready : goal.hint,
+  };
+}
 
 export class Hud {
   private floats: { el: HTMLElement; pos: THREE.Vector3; t: number }[] = [];
@@ -48,41 +75,34 @@ export class Hud {
   private pendingLevel: { skill: SkillId; level: number } | null = null;
   private noticeTimer = 0;
   private hintGone = false;
-  private rows = new Map<SkillId, SkillRow>();
-  private chips = el('div', 'chips');
+  /** the skill that gained XP last, shown in the strip; none until one does */
   private active: SkillId | null = null;
 
   private buildFor: string | null = null;     // what the goal card's Build button makes, while it shows
+  private goalHint = '';                      // the current goal's how-to hint, for a tap on the card before he has his book
   private hasBank: boolean;
   /** his health at most, as of the last frame, for the notice when he eats (chapter 2) */
   private maxHealth = 0;
   /** what the place things are stored is called in notices: the bank, or at the camp the chest */
   private store: string;
 
-  constructor(private view: View, events: EventBus, private layout: Layout, queue: Command[]) {
-    // the storage line where there is a bank, or at the camp once the chest is built (update); the goal card only at
-    // the camp (it leads a new player on)
+  constructor(private view: View, events: EventBus, private layout: Layout, queue: Command[], windows: Windows) {
+    // the goal card only at the camp (it leads a new player on)
     this.hasBank = layout.buildings.some(b => b.kind === 'bank');
     this.store = this.hasBank ? 'bank' : 'chest';
-    $('bankName').textContent = this.hasBank ? 'Bank' : 'Chest';
-    $('bankRow').hidden = !this.hasBank;
     $('goal').hidden = !layout.camp;
     $('goalBuild').addEventListener('click', () => {
       const def = this.buildFor && makeDef(this.buildFor);
       if (def) queue.push({ type: 'make', id: def.id });
     });
-    // one row per skill in data/skills, so a new skill shows up here without touching the page; (0.0.22) only the skill
-    // gaining XP shows its whole row, the others their name and level in one line under it, so the panel stays small
-    // on a phone however many skills there are
-    for (const s of Object.values(SKILLS)) {
-      const row = el('div', 'srow'), head = el('div', 'row'), lvl = el('span', 'lvl', '1'), bar = el('i', ''), text = el('small', '');
-      head.append(el('span', 'name', s.name), lvl);
-      const track = el('div', 'bar'); track.append(bar); bar.style.background = s.color;
-      row.append(head, track, text); $('skills').append(row);
-      const chip = el('span', 'chip', `${s.name} `), chipLvl = el('b', '', '1'); chip.append(chipLvl); this.chips.append(chip);
-      this.rows.set(s.id, { row, lvl, bar, text, chip, chipLvl });
-    }
-    $('skills').append(this.chips);
+    // tapping the card opens his book, whose page has the how-to hint (or closes it); before he has the book, the hint
+    // shows as a notice
+    $('goalOpen').addEventListener('click', () => {
+      if (windows.isAvailable('book')) windows.toggle('book');
+      else if (this.goalHint) this.notice(this.goalHint);
+    });
+    // a window opened: the how-to-play hint would peek out behind it, and the player is finding their way by now
+    windows.on((_, open) => { if (open) this.hideHint(); });
     events.on(e => {
       if (e.type === 'xpGained') { this.pendingXp += e.amount; this.active = e.skill; }
       else if (e.type === 'visited') { const text = this.visitText(e.id); if (text) this.notice(text); }
@@ -134,38 +154,33 @@ export class Hud {
     const b = document.createElement('b'); b.textContent = thing ?? ''; el.append(b);
   }
 
-  /** The goal card: the goal currentGoal picks (the first not finished), and how much of each thing it needs he has
-   *  (carried or banked; the book once found), counted by goalLines like his book's pages. A making goal with everything there shows the Build button (or says he
-   *  is on his way or working on it, while he is); one whose thing can't be made yet says so in its ready text. */
+  /** The how-to-play hint goes for good. */
+  private hideHint(): void { this.hintGone = true; $('hint').classList.add('gone'); }
+
+  /** The goal card (goalCard): its title and line, the bar, and the Build or Make button while he can make the thing. */
   private updateGoal(state: GameState): void {
-    if (allGoalsDone(state)) {
-      // the camp is set up: the card says so, and that more comes later
-      $('goalTitle').textContent = CAMP_DONE.title;
-      $('goalCount').textContent = '';
-      ($('goalBar') as HTMLElement).style.width = '100%';
-      $('goalHint').textContent = CAMP_DONE.text;
-      $('goal').classList.add('ready');
-      this.buildFor = null; ($('goalBuild') as HTMLButtonElement).hidden = true;
-      return;
-    }
-    const goal = currentGoal(state);
-    const parts = goalLines(state, goal);
-    // (a level line counts the levels gained past 1, so the bar starts empty)
-    const got = parts.reduce((a, p) => a + p.got - (p.level ? 1 : 0), 0), need = parts.reduce((a, p) => a + p.need - (p.level ? 1 : 0), 0), ready = got >= need;
-    const def = goal.makes ? makeDef(goal.makes) : null, task = state.player.task, pending = state.player.pending;
-    const building = !!def && task.kind === 'make' && task.id === def.id;
-    const going = !!def && pending?.kind === 'make' && pending.id === def.id;
-    const offer = !!def && ready && !building && !going && !made(state, def.id);
-    $('goalTitle').textContent = goal.title;
-    $('goalCount').textContent = parts.map(p => p.level ? `${lineName(p)} ${p.got} / ${p.need}` : `${p.got} / ${p.need} ${itemName(p.id, p.need)}`).join(', ');
-    ($('goalBar') as HTMLElement).style.width = `${need ? got / need * 100 : 100}%`;
-    $('goalHint').textContent = building ? `Working on the ${def.name.toLowerCase()}...`
-      : going ? `On the way to ${def.verb.toLowerCase()} the ${def.name.toLowerCase()}...` : ready ? goal.ready : goal.hint;
-    $('goal').classList.toggle('ready', ready);
-    this.buildFor = offer ? def.id : null;
-    const button = $('goalBuild') as HTMLButtonElement;
-    button.hidden = !offer;
-    if (offer) button.textContent = `${def.verb} the ${def.name.toLowerCase()}`;
+    const card = goalCard(state), button = $('goalBuild') as HTMLButtonElement;
+    setText($('goalTitle'), card.title);
+    setText($('goalCount'), card.line);
+    $('goalCount').hidden = !!card.build;           // the button says it all
+    $('goalBar').style.width = `${card.progress * 100}%`;
+    $('goal').classList.toggle('ready', card.ready);
+    this.buildFor = card.build?.id ?? null;
+    this.goalHint = card.hint;
+    button.hidden = !card.build;
+    if (card.build) setText(button, card.build.label);
+  }
+
+  /** The strip's skill: the one that gained XP last, its level and a thin bar in its colour, once one has. */
+  private updateStrip(state: GameState): void {
+    const id = this.active;
+    $('xpRow').hidden = !id;
+    if (!id) return;
+    const xp = state.skills[id], lvl = levelFor(xp), [lo, hi] = levelBounds(lvl), bar = $('xpBar');
+    setText($('xpName'), SKILLS[id].name);
+    setText($('xpLvl'), String(lvl));
+    bar.style.width = `${lvl >= 99 ? 100 : (xp - lo) / (hi - lo) * 100}%`;
+    bar.style.background = SKILLS[id].color;
   }
 
   /** What a building or a piece of land says when the miner arrives, while it has no use yet. The bank has one: its
@@ -185,10 +200,10 @@ export class Hud {
     return text[b.kind];
   }
 
-  /** Show a notice under the goal card for a few seconds (also used by ui/combat.ts). */
+  /** Show a notice under the goal card for a few seconds (also used by ui/combat.ts and ui/rats.ts). */
   notice(text: string): void {
     // notices take the hint's place, and by then the player knows how to play, so the hint goes for good
-    this.hintGone = true; $('hint').classList.add('gone');
+    this.hideHint();
     const el = $('notice'); el.textContent = text; el.classList.add('show'); this.noticeTimer = 3;
   }
 
@@ -201,7 +216,7 @@ export class Hud {
 
   update(state: GameState, dt: number): void {
     // the how-to-play hint fades once the player has sent the miner somewhere (or a save already has him busy)
-    if (!this.hintGone && state.player.task.kind !== 'idle') { this.hintGone = true; $('hint').classList.add('gone'); }
+    if (!this.hintGone && state.player.task.kind !== 'idle') this.hideHint();
     if (this.pendingXp) { this.float(`+${Math.round(this.pendingXp).toLocaleString()} xp`, false, state.player.pos); this.pendingXp = 0; }
     for (const [item, n] of Object.entries(this.pendingItems)) this.float(`+${n} ${itemName(item, n)}`, false, state.player.pos);
     this.pendingItems = {};
@@ -210,39 +225,10 @@ export class Hud {
       this.pendingLevel = null;
     }
     if (this.noticeTimer > 0) { this.noticeTimer -= dt; if (this.noticeTimer <= 0) $('notice').classList.remove('show'); }
-
-    for (const [id, r] of this.rows) {
-      const xp = state.skills[id], lvl = levelFor(xp), [lo, hi] = levelBounds(lvl);
-      r.lvl.textContent = String(lvl);
-      r.bar.style.width = `${lvl >= 99 ? 100 : (xp - lo) / (hi - lo) * 100}%`;
-      r.text.textContent = `${Math.floor(xp).toLocaleString()} / ${hi.toLocaleString()} xp`;
-      r.row.classList.toggle('active', id === this.active);
-      // the first gathering skills from the start; the others (chapter 2: combat, fishing, cooking) once they have XP; the
-      // skill gaining XP as its whole row, the others by name and level in the line under it
-      const shown = xp > 0 || FIRST_SKILLS.has(id);
-      r.row.hidden = !shown || id !== this.active;
-      r.chip.hidden = !shown || id === this.active;
-      r.chipLvl.textContent = String(lvl);
-    }
-    this.chips.hidden = [...this.rows.values()].every(r => r.chip.hidden);
     this.maxHealth = maxHealth(state);
-    const carried = Object.values(state.player.backpack).reduce((a, n) => a + n, 0);
-    $('packCount').textContent = `${carried} / ${BACKPACK_SLOTS}`;
-    $('packBar').style.width = `${Math.min(100, carried / BACKPACK_SLOTS * 100)}%`;
-    $('pack').classList.toggle('full', carried >= BACKPACK_SLOTS);
-    $('bankRow').hidden = !this.hasBank && !(this.layout.camp && state.built.includes('chest'));
-    $('bank').textContent = itemList(state.bank) || 'empty';
-    // the firewood pile (0.0.21), once it stands: how many logs it holds for stoking the fire
-    const pile = !!this.layout.camp && state.built.includes('woodpile');
-    $('pileRow').hidden = !pile;
-    if (pile) $('pile').textContent = `${state.woodpile} ${state.woodpile === 1 ? 'log' : 'logs'}`;
-    $('clock').textContent = clockLabel(state.time);
+    this.updateStrip(state);
+    setText($('clock'), clockLabel(state.time));
     if (this.layout.camp) this.updateGoal(state);
-    if (this.layout.camp) {
-      // (0.0.22) notices sit just under the goal card when it reaches down past their spot (a long hint, lines of levels)
-      const below = `${Math.round($('goal').getBoundingClientRect().bottom) + 8}px`, notice = $('notice');
-      if (notice.style.getPropertyValue('--below-card') !== below) notice.style.setProperty('--below-card', below);
-    }
     const b = this.view.renderer.domElement.getBoundingClientRect();
     for (let i = this.floats.length - 1; i >= 0; i--) {
       const f = this.floats[i]!; f.t += dt;

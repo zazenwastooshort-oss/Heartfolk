@@ -10,107 +10,263 @@
 <style>
 /* Layout: the 3D scene fills the whole screen on every device; the HUD floats over it, clear of a phone's
    notch and home bar (env safe-area insets). Single look, the same for every viewer: every panel is forest green
-   with cream text, never bright (the owner, 11 Oct 2026). Colours from docs/PLAN.md (Art and feel). */
+   with cream text, never bright (the owner, 11 Oct 2026). Colours from docs/PLAN.md (Art and feel).
+   The UI foundation (the owner, 12 Oct 2026): a tiny always-on screen (the goal card at the top, a slim strip for his
+   health and the skill gaining XP, notices) and a row of buttons that open windows (src/ui/windows.ts): along the
+   bottom on a phone held upright, down the right side on a phone held sideways and on bigger screens. Text sizes are
+   in rem, so the Settings window's text size (html[data-text-size]) scales them. */
 :root {
   color-scheme: dark;
   --scene: #2c4a26; --panel: rgba(30, 52, 27, 0.92); --ink: #f1e8d4; --muted: #b6c0a2; --line: rgba(241, 232, 212, .14);
   --track: rgba(241, 232, 212, .16); --accent: #e8a65e; --button: #d4893c; --button-ink: #1b140c;
   --xp: #8fd36e; --label: #ffffff; --shadow: rgba(0, 0, 0, 0.65); --chip: rgba(30, 52, 27, 0.9); --chip-text: #f1e8d4;
+  /* windows, and the buttons a step lighter than a panel (Build, Train, the row's open window) */
+  --window: rgba(30, 52, 27, 0.97); --raised: #3f6a35; --raised-hover: #4a7a3f; --raised-down: #345a2c; --raised-line: rgba(241, 232, 212, .45);
   --display: "Fraunces", Georgia, "Times New Roman", serif;
   --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --edge: 16px;
+  /* the top bar's first line, and the row of buttons down the right side (its width) */
+  --top: calc(10px + env(safe-area-inset-top, 0px)); --rail: 72px;
+}
+/* text size (Settings): Normal by default, a step smaller on phones */
+html { font-size: 16px; }
+html[data-text-size="small"] { font-size: 14px; }
+html[data-text-size="large"] { font-size: 19px; }
+@media (max-width: 600px) {
+  html { font-size: 15px; }
+  html[data-text-size="small"] { font-size: 13px; }
+  html[data-text-size="large"] { font-size: 18px; }
 }
 html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }
 [hidden] { display: none !important; }
-body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body); -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--body); -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 .stage { position: fixed; inset: 0; background: var(--scene); }
 .stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+/* the icons on the buttons, drawn in code: cream lines */
+.icon { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
-.topbar { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); left: var(--edge); right: var(--edge);
-  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; pointer-events: none; }
+/* the top: the name and, with a mouse, what is under it; the goal card under them; the version and the clock */
+.topbar { position: absolute; top: var(--top); left: var(--edge); right: var(--edge); z-index: 1; pointer-events: none; }
+.top-left { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .brand { margin: 0; font-family: var(--display); font-weight: 700; font-size: 1.2rem; line-height: 1.1; text-shadow: 0 1px 3px var(--shadow); }
-.hover { font: 700 14px/1.3 var(--body); text-shadow: 1px 1px 0 #000; margin-top: 3px; }
+.hover { margin-top: -3px; font: 700 0.875rem/1.3 var(--body); text-shadow: 1px 1px 0 #000; }
 .hover b { color: #00ffff; }
-.clock { font: 700 14px/1.2 var(--body); text-shadow: 1px 1px 0 #000; font-variant-numeric: tabular-nums; padding-top: 2px; }
-.top-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-.ver { pointer-events: auto; border: 0; border-radius: 999px; padding: 5px 9px; background: var(--chip); color: var(--chip-text);
-  font: 600 12px/1 var(--body); cursor: pointer; white-space: nowrap; }
-.ver:hover, .ver:focus-visible { background: rgba(30, 52, 27, 1); outline: none; box-shadow: 0 0 0 2px rgba(241, 232, 212, .5); }
+.top-right { position: absolute; top: 0; right: 0; display: flex; align-items: center; gap: 8px; }
+.clock { font: 700 0.875rem/1.2 var(--body); text-shadow: 1px 1px 0 #000; font-variant-numeric: tabular-nums; }
+.ver { position: relative; pointer-events: auto; border: 0; border-radius: 999px; padding: 5px 9px; background: var(--chip); color: var(--chip-text);
+  font: 600 0.75rem/1 var(--body); cursor: pointer; white-space: nowrap; }
+/* the button looks small, but a finger finds it: its tap area is 44 px tall */
+.ver::after { content: ''; position: absolute; inset: -12px -4px; }
+.ver:focus-visible { background: rgba(30, 52, 27, 1); outline: none; box-shadow: 0 0 0 2px rgba(241, 232, 212, .5); }
 
-/* "What's new" after an update (src/ui/news.ts): over the game, which keeps running behind it */
-.news { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 5; pointer-events: auto;
-  width: min(360px, calc(100% - 2 * var(--edge))); max-height: calc(100% - 150px); overflow-y: auto; box-sizing: border-box;
-  background: rgba(30, 52, 27, 0.96); color: var(--ink); border: 1px solid var(--line); border-radius: 12px;
-  padding: 14px 16px 16px; box-shadow: 0 6px 24px rgba(0, 0, 0, .45); }
-.news[hidden] { display: none; }
-.news h2 { margin: 0 0 6px; font: 700 1.25rem/1.15 var(--display); }
-.news .lead { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
-.news h3 { margin: 10px 0 4px; font: 700 14px/1.3 var(--body); color: var(--accent); display: flex; justify-content: space-between; gap: 8px; }
-.news h3 .when { color: var(--muted); font-weight: 500; font-size: 12px; }
-.news ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; line-height: 1.4; }
-.news .older { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
-.news button { margin-top: 14px; width: 100%; border: 0; border-radius: 999px; padding: 10px; background: var(--button); color: var(--button-ink);
-  font: 700 14px/1 var(--body); cursor: pointer; }
-.news button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.news button.reset { margin-top: 8px; padding: 7px; background: transparent; color: var(--muted); border: 1px solid currentColor; font-size: 13px; font-weight: 600; }
-.news button.reset.armed { color: var(--ink); border-color: var(--accent); }
-/* "While you were away" (src/ui/away.ts) looks the same: its lead line says how long, the list what he did */
-.away .lead { margin-bottom: 10px; color: var(--ink); font-size: 14px; }
+/* the goal card (src/data/goals.ts, src/ui/hud.ts): one line or two, the goal and how many of each thing he has, with a
+   thin bar along its foot; tapping it opens his book (which has the how-to hint). Its Build or Make button shows while
+   he can make the thing, so that stays one tap away */
+.goal { pointer-events: auto; position: relative; box-sizing: border-box; min-width: 190px; max-width: min(340px, 100%);
+  display: flex; flex-direction: column; overflow: hidden; background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 2px 10px rgba(0, 0, 0, .3); }
+.goal-open { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 1px 10px; margin: 0; padding: 6px 10px 9px;
+  border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: default; }
+.goal.has-book .goal-open { cursor: pointer; }
+.goal-open:focus-visible { outline: 2px solid var(--ink); outline-offset: -3px; border-radius: 10px; }
+.goal-title { grid-column: 1; font: 700 1rem/1.2 var(--display); }
+.goal-count { grid-column: 1; font-size: 0.75rem; line-height: 1.3; color: var(--muted); font-variant-numeric: tabular-nums; }
+.goal.ready .goal-count { color: var(--xp); }
+/* once he has his book, a small book on the right says the card opens it */
+.goal-more { display: none; grid-column: 2; grid-row: 1 / span 2; width: 20px; height: 20px; color: var(--muted); }
+.goal.has-book .goal-more { display: block; }
+.goal-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--track); }
+.goal-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s ease-out; }
+.goal.ready .goal-bar i { background: var(--xp); }
+.goal-build { margin: 0 8px 11px; min-height: 44px; border: 1px solid var(--raised-line); border-radius: 999px; padding: 10px 14px;
+  background: var(--raised); color: var(--ink); font: 700 0.9375rem/1 var(--body); cursor: pointer; box-shadow: 0 2px 6px rgba(0, 0, 0, .3); }
+.goal-build:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
-/* the goal card (src/data/goals.ts): what to do next, under the title */
-.goal { position: absolute; left: var(--edge); top: calc(56px + env(safe-area-inset-top, 0px)); box-sizing: border-box;
-  width: min(270px, calc(100% - 2 * var(--edge) - 136px)); background: var(--panel); color: var(--ink); border: 1px solid var(--line);
-  border-radius: 10px; padding: 8px 10px; display: grid; gap: 4px; box-shadow: 0 2px 10px rgba(0, 0, 0, .3); pointer-events: none; }
-.goal .goal-head { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--muted); letter-spacing: .04em; }
-.goal .goal-title { font: 700 1.02rem/1.2 var(--display); }
-.goal .bar i { background: var(--accent); }
-.goal.ready .bar i { background: var(--xp); }
-.goal .goal-hint { font-size: 12px; color: var(--muted); line-height: 1.35; }
-.goal.ready .goal-hint { color: var(--xp); }
-/* the Build button (src/data/making.ts): forest green with cream text like the panels, a step lighter, finger-sized */
-.goal .goal-build { pointer-events: auto; margin-top: 4px; min-height: 44px; border: 1px solid rgba(241, 232, 212, .45); border-radius: 999px;
-  padding: 10px 14px; background: #3f6a35; color: var(--ink); font: 700 15px/1 var(--body); cursor: pointer;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, .3); }
-.goal .goal-build:hover { background: #4a7a3f; }
-.goal .goal-build:active { background: #345a2c; }
-.goal .goal-build:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-/* once he has his book, tapping the card opens it (src/ui/book.ts); the small cue says so, and is the button for keyboards */
-.goal.has-book { pointer-events: auto; cursor: pointer; }
-.goal.has-book:hover { background: rgba(38, 64, 34, 0.95); }
-.goal .goal-book { margin: 0; padding: 1px 8px; border: 1px solid rgba(241, 232, 212, .4); border-radius: 999px; background: none; color: var(--ink);
-  font: 600 11px/1.4 var(--body); letter-spacing: .02em; cursor: pointer; }
-.goal .goal-book:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* the how-to-play hint for a new player, and notices: just under the goal card, in the middle of the room the windows
+   leave (src/ui/windows.ts sets --below-card on the stage to the card's foot, and --free-width to how much of the
+   screen's width is left of the open windows); on a phone held upright a notice shows over an open window */
+.hint, .notice { position: absolute; left: calc(var(--free-width, 100%) / 2); top: var(--below-card, calc(110px + env(safe-area-inset-top, 0px)));
+  transform: translateX(-50%); width: max-content; max-width: calc(var(--free-width, 100%) - 2 * var(--edge)); box-sizing: border-box; padding: 8px 12px; border-radius: 8px;
+  background: var(--chip); font-size: 0.8125rem; text-align: center; pointer-events: none; }
+.hint { z-index: 1; color: var(--chip-text); transition: opacity .5s ease-out; }
+.hint b { color: #ffffff; font-weight: 600; }
+.hint.gone, .hint.waiting { opacity: 0; }
+/* a notice floats over an open window on a phone, so it is a step lighter, with an edge and a shadow */
+.notice { z-index: 4; color: #ffe7a3; opacity: 0; transition: opacity .3s ease-out; background: rgba(52, 84, 44, .97);
+  box-shadow: 0 0 0 1px rgba(241, 232, 212, .22), 0 4px 14px rgba(0, 0, 0, .4); }
+.notice.show { opacity: 1; }
+.mouse { display: none; }
+@media (hover: hover) and (pointer: fine) { .mouse { display: inline; } .touch { display: none; } }
+@media (hover: none) { .hover { display: none; } }
 
-/* his book (src/ui/book.ts): one page of soft, muted paper with dark brown text, in a forest-green frame like the
-   other panels; plain, no effects */
-.book { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 5; pointer-events: auto;
-  width: min(440px, calc(100% - 2 * var(--edge)));
-  max-height: calc(100% - 2 * var(--edge) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
-  box-sizing: border-box; display: flex; flex-direction: column; gap: 8px;
-  background: rgb(30, 52, 27); color: var(--ink); border: 1px solid var(--line); border-radius: 12px;
-  padding: 4px 10px 10px; box-shadow: 0 6px 24px rgba(0, 0, 0, .45); }
-/* it never covers the goal card, so the card's Build or Make button stays in sight: on a phone held upright it sits
-   below the card, and on a mid-size or short screen to the right of it */
-@media (max-width: 600px) {
-  .book { top: auto; bottom: calc(var(--edge) + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
-    max-height: calc(100% - 270px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
-}
-@media (min-width: 601px) and (max-width: 1040px) {
-  .book { left: auto; right: var(--edge); transform: translateY(-50%); width: min(440px, calc(100% - 270px - 3 * var(--edge))); }
-}
-.book-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-left: 6px; }
-.book-name { font: 700 1.1rem/1.2 var(--display); }
-.book-close { width: 44px; height: 44px; margin-right: -4px; border: 0; border-radius: 999px; background: transparent; color: var(--ink);
-  font: 400 30px/1 var(--body); cursor: pointer; }
-.book-close:hover { background: rgba(241, 232, 212, .1); }
-.book-close:focus-visible, .book-turn button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.floats { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.float { position: absolute; transform: translate(-50%, -100%); font: 700 13px/1 var(--body); color: #fff4c8; text-shadow: 1px 1px 0 #000; white-space: nowrap; }
+.float.big { font-size: 16px; color: #ffd34d; }
+.bar { height: 6px; background: var(--track); border-radius: 3px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--xp); transition: width .25s ease-out; }
+
+/* the strip at the foot: his health (src/ui/combat.ts, once he has a weapon or is hurt) and the skill gaining XP, its
+   level and a thin bar (src/ui/hud.ts) */
+.strip { position: absolute; z-index: 1; left: var(--edge); bottom: calc(var(--edge) + env(safe-area-inset-bottom, 0px));
+  max-width: calc(100% - 2 * var(--edge) - var(--rail) - 8px); display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px; pointer-events: none; }
+.pill { position: relative; box-sizing: border-box; min-width: 118px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 5px 10px 10px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .25); font-size: 0.75rem; line-height: 1.2; }
+.pill .name { font-weight: 600; }
+.pill b { font: 700 0.9375rem/1 var(--display); color: var(--accent); font-variant-numeric: tabular-nums; }
+.pill small { font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.pill .bar { position: absolute; left: 10px; right: 10px; bottom: 4px; height: 3px; }
+.hp .bar i { background: #8fc46e; }
+
+/* the row of buttons that open the windows: down the right side, under the clock */
+.rail { position: absolute; z-index: 3; top: calc(var(--top) + 34px); right: var(--edge); box-sizing: border-box; width: var(--rail);
+  display: flex; flex-direction: column; gap: 4px; padding: 5px; pointer-events: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 2px 10px rgba(0, 0, 0, .3); }
+.rail-btn { position: relative; box-sizing: border-box; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; padding: 6px 2px 5px; border: 0; border-radius: 10px; background: transparent; color: var(--ink);
+  font: 600 clamp(10px, 0.6875rem, 12px)/1 var(--body); cursor: pointer; }
+.rail-btn .icon { width: 24px; height: 24px; flex: none; }
+/* while its window is open */
+.rail-btn.on { background: var(--raised); box-shadow: inset 0 0 0 1px rgba(241, 232, 212, .35); }
+.rail-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+/* how many things are in the backpack; amber once it is full */
+.badge { position: absolute; top: 3px; right: 3px; min-width: 18px; box-sizing: border-box; padding: 2px 4px; border-radius: 999px;
+  background: rgba(10, 20, 9, .55); color: var(--ink); font: 700 10px/1.2 var(--body); font-variant-numeric: tabular-nums; text-align: center; }
+.badge.full { background: var(--accent); color: var(--button-ink); }
+
+/* the windows (src/ui/windows.ts): beside the row of buttons, the first next to it and a second (on a wide screen) to
+   its left; each scrolls inside when tall. Where one would cover the goal card (a mid-size screen), windows.ts starts
+   them under the card (--wins-top) or, on a short screen, between the card and the buttons (--wins-left), narrower */
+.wins { position: absolute; z-index: 3; pointer-events: none; display: flex; flex-direction: row-reverse; align-items: flex-start; gap: 8px;
+  top: var(--wins-top, calc(var(--top) + 34px)); bottom: calc(var(--edge) + env(safe-area-inset-bottom, 0px)); left: var(--wins-left, var(--edge)); right: calc(var(--edge) + var(--rail) + 8px); }
+.wins > .win { flex: none; width: min(var(--w, 360px), 100%); }
+/* one look for every window and note: forest green, cream text, a title bar with the close button */
+.win { box-sizing: border-box; max-height: 100%; display: flex; flex-direction: column; overflow: hidden; pointer-events: auto;
+  background: var(--window); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 6px 24px rgba(0, 0, 0, .45); }
+.win-bar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; padding: 2px 4px 2px 14px;
+  border-bottom: 1px solid var(--line); }
+.win-title { margin: 0; font: 700 1.1rem/1.2 var(--display); }
+.win-x { flex: none; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 999px;
+  background: transparent; color: var(--ink); cursor: pointer; }
+.win-x .icon { width: 20px; height: 20px; }
+.win-x:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.win-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 14px 14px; }
+.win-foot { flex: none; padding: 0 14px 14px; }
+.win-ok { width: 100%; min-height: 44px; border: 0; border-radius: 999px; padding: 10px; background: var(--button); color: var(--button-ink);
+  font: 700 0.9375rem/1 var(--body); cursor: pointer; }
+.win-ok:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* a window's section headings (Settings, the Backpack's parts, the Train choice) */
+.set > h3, .pack-sec > h3, .pack-head > h3, .train > h3 { margin: 0 0 6px; font: 600 0.75rem/1.3 var(--body); color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
+
+/* the notes over the game, in the middle: the welcome (src/ui/intro.ts), "What's new" (src/ui/news.ts) and "While you
+   were away" (src/ui/away.ts) */
+.note { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; width: min(380px, calc(100% - 2 * var(--edge)));
+  max-height: min(640px, calc(100% - 2 * var(--edge) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))); }
+.note p { margin: 0 0 10px; font-size: 0.875rem; line-height: 1.45; }
+.note ul { margin: 0; padding-left: 18px; display: grid; gap: 5px; font-size: 0.875rem; line-height: 1.4; }
+.note .lead { color: var(--muted); font-size: 0.8125rem; }
+.note.away .lead { color: var(--ink); font-size: 0.875rem; }
+.note h3 { margin: 12px 0 4px; font: 700 0.875rem/1.3 var(--body); color: var(--accent); display: flex; justify-content: space-between; gap: 8px; }
+.note h3:first-child { margin-top: 0; }
+.note h3 .when { color: var(--muted); font-weight: 500; font-size: 0.75rem; }
+.note .older { margin: 10px 0 0; color: var(--muted); font-size: 0.8125rem; }
+
+/* the Backpack window (src/ui/backpack.ts): his 28 slots, 7 across and 4 down, one thing in each, sunk a little into
+   the window like an old game's inventory; a tapped thing lights up its kind, and the bar under the grid says what it
+   is with its buttons (Eat, Drop one, Drop all); then what he wears (src/ui/armour.ts), and what is stored, each thing
+   with its picture (src/ui/pictures.ts) */
+.item-pic { display: block; }
+.pack-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.pack-head > h3 { margin: 0; }
+.pack-head small { font-size: 0.8125rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pack-head.full small { color: var(--accent); font-weight: 700; }
+#backpackWin .win-body { padding-left: 10px; padding-right: 10px; }
+.pack-slots { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+/* keyboard focus rests on the grid itself once nothing is left to pick (src/ui/backpack.ts) */
+.pack-slots:focus { outline: none; }
+.pack-slots:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 6px; }
+.pack-slot { box-sizing: border-box; aspect-ratio: 1; min-width: 0; display: grid; place-items: center; padding: 0; border: 1px solid rgba(241, 232, 212, .07);
+  border-radius: 8px; background: rgba(8, 18, 8, .34); color: inherit; cursor: pointer; }
+.pack-slot .item-pic { width: 86%; height: 86%; }
+.pack-slot:disabled { cursor: default; }
+.pack-slot.on { background: rgba(232, 166, 94, .2); border-color: rgba(232, 166, 94, .8); }
+.pack-slot:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.pick { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 10px; margin-top: 8px; padding: 8px 10px;
+  border-radius: 10px; background: rgba(241, 232, 212, .06); }
+.pick-pic { display: none; }
+.pick-pic .item-pic { width: 40px; height: 40px; }
+.pick.picked .pick-pic { display: block; }
+.pick-words { display: grid; gap: 2px; grid-column: 2; }
+.pick:not(.picked) .pick-words { grid-column: 1 / -1; }
+.pick-words b { font-size: 0.9375rem; font-weight: 700; line-height: 1.25; }
+.pick:not(.picked) .pick-words b { font-size: 0.8125rem; font-weight: 400; color: var(--muted); }
+.pick-words small { font-size: 0.75rem; line-height: 1.35; color: var(--muted); }
+.pick-words small:empty { display: none; }
+.pick-do { grid-column: 1 / -1; display: flex; gap: 6px; }
+.pick:not(.picked) .pick-do { display: none; }
+.pick-do button { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 6px 8px; border: 1px solid rgba(241, 232, 212, .32); border-radius: 999px;
+  background: transparent; color: var(--ink); font: 600 0.8125rem/1 var(--body); cursor: pointer; }
+.pick-do button.eat { background: var(--raised); border-color: var(--raised-line); }
+.pick-do button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.pack-sec { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 0.875rem; line-height: 1.4; }
+.pack-sec p { margin: 0; }
+.worn { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.worn-tile { display: grid; justify-items: center; align-content: start; gap: 3px; padding: 6px 2px 6px; border-radius: 8px;
+  background: rgba(8, 18, 8, .34); border: 1px solid rgba(241, 232, 212, .07); text-align: center; }
+.worn-tile .item-pic { width: 40px; height: 40px; }
+.worn-tile small { font-size: 0.6875rem; line-height: 1.2; }
+.worn-tile.empty .item-pic { opacity: .18; filter: grayscale(1); }
+.worn-tile.empty small { color: var(--muted); }
+.pack-sec .worn-bonus { margin-top: 8px; font-size: 0.8125rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stored { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; }
+.stored > small { color: var(--muted); }
+.pack-chip { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 0.8125rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.pack-chip .item-pic { flex: none; width: 26px; height: 26px; }
+
+/* the Skills window (src/ui/skills.ts): what he trains when he fights (its buttons from src/ui/combat.ts, after the
+   heading and the line on what the one picked does, which shows under them), then each skill with its icon in the
+   skill's colour, its level, a thin bar and the XP to the next level; his total level at the foot */
+.train { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.train > h3 { grid-column: 1 / -1; order: -1; margin: 0; }
+.train-says { grid-column: 1 / -1; order: 1; margin: 2px 0 0; font-size: 0.75rem; line-height: 1.35; color: var(--muted); }
+.train button { min-width: 0; min-height: 44px; padding: 4px 2px; border: 1px solid rgba(241, 232, 212, .28); border-radius: 999px;
+  background: transparent; color: var(--muted); font: 600 0.8125rem/1 var(--body); cursor: pointer; }
+.train button.on { background: var(--raised); border-color: rgba(241, 232, 212, .55); color: var(--ink); }
+.train button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.skills { display: grid; gap: 8px; }
+.srow { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; column-gap: 10px; row-gap: 3px; }
+.srow:not([hidden]) ~ .srow:not([hidden]) { padding-top: 8px; border-top: 1px solid var(--line); }
+.srow .icon { width: 22px; height: 22px; stroke-width: 2; }
+.srow .name { font-weight: 600; font-size: 0.875rem; }
+.srow.active .name { color: var(--accent); }
+.srow .lvl { font: 700 1.25rem/1 var(--display); color: var(--accent); font-variant-numeric: tabular-nums; }
+.srow .bar, .srow small { grid-column: 2 / -1; }
+.srow small { color: var(--muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.skills-foot { display: grid; gap: 2px; margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 0.75rem; color: var(--muted); }
+#skillsTotal { color: var(--ink); font-weight: 600; font-size: 0.8125rem; }
+
+/* the Settings window (src/ui/settings.ts): a section each (text size; the game), room for sound and graphics later */
+.set + .set { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.seg { display: flex; gap: 6px; }
+.seg button { flex: 1 1 0; min-width: 0; min-height: 44px; border: 1px solid rgba(241, 232, 212, .28); border-radius: 999px; background: transparent;
+  color: var(--muted); font: 600 0.8125rem/1 var(--body); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--raised); border-color: rgba(241, 232, 212, .55); color: var(--ink); }
+.set-ver { margin: 0; color: var(--muted); font-size: 0.8125rem; }
+.set-btn { display: block; width: 100%; min-height: 44px; margin-top: 8px; padding: 10px; border: 1px solid var(--raised-line); border-radius: 999px;
+  background: var(--raised); color: var(--ink); font: 700 0.875rem/1 var(--body); cursor: pointer; }
+.set-btn.reset { background: transparent; color: var(--muted); border-color: currentColor; font-weight: 600; }
+.set-btn.reset.armed { color: var(--ink); border-color: var(--accent); }
+.seg button:focus-visible, .set-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* his book (src/ui/book.ts) in its window: one page of soft, muted paper with dark brown text; plain, no effects */
+#book .win-body { padding: 10px; }
 /* the same height on every page where there's room, so the page-turn buttons stay put */
-.page { min-height: min(25rem, 55vh); flex: 0 1 auto; overflow-y: auto; box-sizing: border-box; background: #e6d8bc; color: #3a2a1b; border-radius: 6px; padding: 14px 18px 18px;
-  font: 17px/1.5 Georgia, "Times New Roman", serif; box-shadow: inset 0 0 0 1px rgba(58, 42, 27, .2), inset 0 0 28px rgba(120, 88, 48, .14); }
+.page { min-height: min(25rem, 50vh); box-sizing: border-box; background: #e6d8bc; color: #3a2a1b; border-radius: 6px; padding: 14px 18px 18px;
+  font: 1.0625rem/1.5 Georgia, "Times New Roman", serif; box-shadow: inset 0 0 0 1px rgba(58, 42, 27, .2), inset 0 0 28px rgba(120, 88, 48, .14); }
 .page p { margin: 0; }
 .page .page-lead { margin-bottom: 10px; font-style: italic; color: #5a4632; }
 .page-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 26px;
-  font: 600 14px/1 var(--body); letter-spacing: .06em; text-transform: uppercase; color: #6b5640; }
+  font: 600 0.875rem/1 var(--body); letter-spacing: .06em; text-transform: uppercase; color: #6b5640; }
 .page-done { padding: 5px 10px; border: 1.5px solid #557243; border-radius: 999px; color: #4a6639; letter-spacing: .04em; }
 .page-title { margin: 6px 0 8px; font: 700 1.45rem/1.2 var(--display); color: #33240f; }
 .page-needs { list-style: none; margin: 14px 0; padding: 0; display: grid; gap: 8px; }
@@ -121,93 +277,17 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
 .page-needs li.done .tick::after { content: ''; width: 5px; height: 10px; margin-top: -3px; border: solid #f1e8d4; border-width: 0 2.5px 2.5px 0;
   transform: rotate(45deg); }
 .page-needs .need-name { flex: 1; }
-.page-needs .need-count { font: 600 16px/1 var(--body); font-variant-numeric: tabular-nums; }
+.page-needs .need-count { font: 600 1rem/1 var(--body); font-variant-numeric: tabular-nums; }
 .page .page-hint { padding-top: 10px; border-top: 1px dashed rgba(58, 42, 27, .3); font-style: italic; color: #574330; }
 .page .page-stuck { margin-top: 16px; text-align: center; font-style: italic; color: #6b5640; }
-.book-turn { display: flex; gap: 8px; }
-.book-turn button { flex: 1; min-height: 46px; border: 1px solid rgba(241, 232, 212, .45); border-radius: 999px; background: #3f6a35;
-  color: var(--ink); font: 700 15px/1 var(--body); cursor: pointer; }
-.book-turn button:hover:not(:disabled) { background: #4a7a3f; }
+.book-turn { display: flex; gap: 8px; padding: 0 10px 10px; }
+.book-turn button { flex: 1; min-height: 46px; border: 1px solid var(--raised-line); border-radius: 999px; background: var(--raised);
+  color: var(--ink); font: 700 0.9375rem/1 var(--body); cursor: pointer; }
 .book-turn button:disabled { opacity: .4; cursor: default; }
+.book-turn button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
-/* the welcome for a new player (src/ui/intro.ts) */
-.intro { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; pointer-events: auto;
-  width: min(380px, calc(100% - 2 * var(--edge))); max-height: calc(100% - 120px); overflow-y: auto; box-sizing: border-box;
-  background: rgba(30, 52, 27, 0.97); color: var(--ink); border: 1px solid var(--line); border-radius: 12px;
-  padding: 18px 18px 16px; box-shadow: 0 6px 24px rgba(0, 0, 0, .45); }
-.intro h2 { margin: 0 0 8px; font: 700 1.45rem/1.15 var(--display); }
-.intro p { margin: 0 0 10px; font-size: 14px; line-height: 1.45; }
-.intro ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 14px; line-height: 1.4; }
-.intro button { margin-top: 16px; width: 100%; border: 0; border-radius: 999px; padding: 11px; background: var(--button); color: var(--button-ink);
-  font: 700 15px/1 var(--body); cursor: pointer; }
-.intro button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.hint.waiting { opacity: 0; }
-
-.hint { position: absolute; left: 50%; top: calc(192px + env(safe-area-inset-top, 0px)); transform: translateX(-50%);
-  width: max-content; max-width: calc(100% - 2 * var(--edge)); box-sizing: border-box; padding: 8px 12px; border-radius: 8px;
-  background: var(--chip); color: var(--chip-text); font-size: 13px; text-align: center; pointer-events: none; transition: opacity .5s ease-out; }
-.hint b { color: #ffffff; font-weight: 600; }
-.hint.gone { opacity: 0; }
-.notice { position: absolute; left: 50%; top: calc(192px + env(safe-area-inset-top, 0px)); transform: translateX(-50%);
-  width: max-content; max-width: calc(100% - 2 * var(--edge)); box-sizing: border-box; padding: 8px 12px; border-radius: 8px;
-  background: var(--chip); color: #ffe7a3; font-size: 13px; text-align: center; pointer-events: none; opacity: 0; transition: opacity .3s ease-out; }
-.notice.show { opacity: 1; }
-/* (0.0.22) a notice is never hidden under the goal card: it is painted above it, and sits just under it when the card
-   reaches down past its spot (src/ui/hud.ts sets --below-card to the card's bottom) */
-.notice { z-index: 1; top: max(calc(192px + env(safe-area-inset-top, 0px)), var(--below-card, 0px)); }
-.mouse { display: none; }
-@media (hover: hover) and (pointer: fine) { .mouse { display: inline; } .touch { display: none; } }
-@media (hover: none) { .hover { display: none; } }
-
-.floats { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-.float { position: absolute; transform: translate(-50%, -100%); font: 700 13px/1 var(--body); color: #fff4c8; text-shadow: 1px 1px 0 #000; white-space: nowrap; }
-.float.big { font-size: 16px; color: #ffd34d; }
-
-.skill { position: absolute; left: var(--edge); bottom: calc(var(--edge) + env(safe-area-inset-bottom, 0px));
-  width: min(240px, calc(100% - 2 * var(--edge))); box-sizing: border-box; background: var(--panel); color: var(--ink);
-  border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; gap: 5px; box-shadow: 0 2px 10px rgba(0, 0, 0, .3); pointer-events: none; }
-.skills { display: grid; gap: 6px; }
-.srow { display: grid; gap: 3px; }
-.srow:not([hidden]) ~ .srow { padding-top: 6px; border-top: 1px solid var(--line); }
-.skill .row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.skill .name { font-weight: 600; font-size: 13px; }
-.srow.active .name { color: var(--accent); }
-.skill .lvl { font-family: var(--display); font-weight: 700; font-size: 20px; color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
-.bar { height: 6px; background: var(--track); border-radius: 3px; overflow: hidden; }
-.bar i { display: block; height: 100%; width: 0; background: var(--xp); transition: width .25s ease-out; }
-.skill small { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-/* the backpack row opens what's in it (src/ui/backpack.ts), with buttons to drop things (and eat food: the panel is a
-   little wider while the list is open, so a name like "Cooked fish" fits beside three buttons) */
-.skill.wide { width: min(280px, calc(100% - 2 * var(--edge))); }
-.pack { display: flex; align-items: center; gap: 8px; width: 100%; margin: 0; padding: 6px 0 0; border: 0; border-top: 1px solid var(--line);
-  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; pointer-events: auto; }
-.pack:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.pack .bar { flex: 1; }
-.pack .bar i { background: var(--accent); }
-.pack.full small { color: var(--accent); font-weight: 700; }
-.pack .chev { width: 0; height: 0; border: 5px solid transparent; border-top-color: var(--muted); margin-top: 5px; }
-.pack[aria-expanded="true"] .chev { border-top-color: transparent; border-bottom-color: var(--muted); margin: 0 0 5px; }
-.packlist { display: grid; gap: 4px; max-height: 40vh; overflow-y: auto; pointer-events: auto; }
-.prow { display: flex; align-items: center; gap: 6px; font-size: 12px; }
-.prow .pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.prow b { font-variant-numeric: tabular-nums; }
-.prow button { border: 0; border-radius: 999px; padding: 6px 9px; background: var(--button); color: var(--button-ink); font: 600 11px/1 var(--body); cursor: pointer; }
-.prow button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.bank { font-size: 12px; line-height: 1.3; }
-.bank .name { font-size: 12px; }
-/* chapter 2's combat (src/ui/combat.ts): his health with a bar, what he trains (a calm three-way choice), the numbers
-   that float up over what he strikes (muted brick for a hit, slate for a miss), and a small bar over his head when hurt */
-.hp { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-.hp .name { font-size: 12px; }
-.hp .bar { flex: 1; }
-.hp .bar i { background: #8fc46e; }
-.hp small { font-variant-numeric: tabular-nums; }
-.train { display: flex; align-items: center; gap: 6px; font-size: 12px; pointer-events: auto; }
-.train .name { font-size: 12px; }
-.train button { flex: 1 1 0; min-width: 0; min-height: 38px; border: 1px solid rgba(241, 232, 212, .28); border-radius: 999px; padding: 4px 2px;
-  background: transparent; color: var(--muted); font: 600 11px/1 var(--body); cursor: pointer; }
-.train button.on { background: #3f6a35; border-color: rgba(241, 232, 212, .55); color: var(--ink); }
-.train button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* chapter 2's combat, over the game (src/ui/combat.ts, src/ui/rats.ts): the numbers that float up over what he strikes
+   (muted brick for a hit, slate for a miss), and a small bar over his head when hurt */
 .hit { position: absolute; transform: translate(-50%, -100%); min-width: 22px; box-sizing: border-box; padding: 4px 6px; border-radius: 999px;
   text-align: center; font: 700 13px/1 var(--body); color: #f6ecd8; background: rgba(140, 66, 50, .88); box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .hit.zero { background: rgba(66, 86, 104, .85); }
@@ -218,102 +298,160 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
 /* (chapter 2) over a rat while it is hurt, smaller; and the numbers over him when a rat bites: a calm red */
 .overhead.foe { width: 28px; height: 4px; }
 .hit.me { background: rgba(166, 54, 66, .9); }
-/* the skills (src/ui/hud.ts, 0.0.22): only the one gaining XP shows its whole row; every other is its name and level in
-   one line under it, so the panel stays small on a phone however many skills there are */
-.chips { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 12px; color: var(--muted); }
-.chips b { color: var(--accent); font-variant-numeric: tabular-nums; }
-.srow:not([hidden]) ~ .chips { padding-top: 6px; border-top: 1px solid var(--line); }
-/* on a short, wide screen (a phone on its side) the panel sits bottom right, clear of the goal card */
-@media (max-height: 500px) and (min-width: 600px) { .skill { left: auto; right: var(--edge); } }
 
 .msg { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; text-align: center; color: var(--chip-text); }
-/* phones held upright (the owner, 12 Oct 2026: the goal card and the panel took half the screen): smaller text and
-   tighter spacing, until the UI foundation gives the panels proper windows */
+
+/* a phone held upright: the buttons along the bottom, the strip just above them, and one window at a time between the
+   goal card and the strip, so the card's Build button stays in sight (src/ui/windows.ts sets --below-card and
+   --above-bottom) */
 @media (max-width: 600px) {
-  .goal { padding: 6px 8px; gap: 2px; width: min(236px, calc(100% - 2 * var(--edge) - 124px)); }
-  .goal .goal-head { font-size: 10px; }
-  .goal .goal-title { font-size: .88rem; }
-  .goal small { font-size: 11px; }
-  .goal .goal-hint { font-size: 11px; line-height: 1.3; }
-  .goal .goal-build { min-height: 38px; padding: 8px 12px; font-size: 13px; }
-  .skill { padding: 6px 8px; gap: 3px; width: min(206px, calc(100% - 2 * var(--edge))); }
-  .skills { gap: 4px; }
-  .skill .name { font-size: 11.5px; }
-  .skill .lvl { font-size: 16px; }
-  .skill small { font-size: 10px; }
-  .bar { height: 5px; }
-  .chips, .bank, .bank .name, .hp, .hp .name, .train, .train .name { font-size: 11px; }
-  .pack { padding-top: 4px; }
-  .train button { min-height: 32px; font-size: 10px; }
+  .rail { top: auto; left: var(--edge); bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: auto; flex-direction: row; padding: 4px; }
+  .rail-btn { flex: 1 1 0; min-width: 0; min-height: 52px; }
+  .strip { bottom: calc(10px + env(safe-area-inset-bottom, 0px) + 62px + 8px); max-width: calc(100% - 2 * var(--edge)); }
+  .wins { top: var(--below-card, calc(110px + env(safe-area-inset-top, 0px))); bottom: var(--above-bottom, calc(84px + env(safe-area-inset-bottom, 0px)));
+    left: var(--edge); right: var(--edge); align-items: flex-end; }
+  .wins > .win { flex: 1 1 auto; width: auto; }
 }
-@media (prefers-reduced-motion: reduce) { .bar i, .hint, .notice { transition: none; } }
+/* hover looks only with a mouse: on a touch screen a tapped button would keep its hover look until the next tap
+   somewhere else, and look chosen. A press shows on every screen (:active) */
+@media (hover: hover) {
+  .ver:hover { background: rgba(30, 52, 27, 1); box-shadow: 0 0 0 2px rgba(241, 232, 212, .5); }
+  .goal.has-book .goal-open:hover { background: rgba(241, 232, 212, .05); }
+  .goal-build:hover, .pick-do button:hover, .set-btn:hover, .book-turn button:hover:not(:disabled) { background: var(--raised-hover); }
+  .rail-btn:not(.on):hover, .train button:not(.on):hover { background: rgba(241, 232, 212, .08); }
+  .win-x:hover, .pack-slot:hover:not(:disabled) { background: rgba(241, 232, 212, .1); }
+}
+.goal.has-book .goal-open:active { background: rgba(241, 232, 212, .08); }
+.goal-build:active, .pick-do button:active, .set-btn:active, .book-turn button:active:not(:disabled) { background: var(--raised-down); }
+.rail-btn:not(.on):active, .train button:not(.on):active, .seg button:not([aria-pressed="true"]):active, .win-x:active,
+.pack-slot:active:not(:disabled) { background: rgba(241, 232, 212, .14); }
+.ver:active { background: rgba(30, 52, 27, 1); }
+@media (prefers-reduced-motion: reduce) { .bar i, .goal-bar i, .hint, .notice { transition: none; } }
 </style>
 </head>
 <body>
 <div class="stage" id="stage">
   <div class="floats" id="floats"></div>
   <div class="topbar">
-    <div><h1 class="brand">Hearthfolk</h1><div class="hover" id="hover">Walk here</div></div>
-    <div class="top-right"><div class="clock" id="clock">07:40</div><button class="ver" id="ver" type="button">What's new</button></div>
+    <div class="top-left">
+      <h1 class="brand">Hearthfolk</h1>
+      <div class="hover" id="hover">Walk here</div>
+      <div class="goal" id="goal" hidden>
+        <button class="goal-open" id="goalOpen" type="button" aria-controls="book">
+          <span class="goal-title" id="goalTitle">Salvage the wreck</span>
+          <span class="goal-count" id="goalCount">0 / 7 planks, 0 / 1 tarp, 0 / 1 book</span>
+          <svg class="icon goal-more" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.8C10.2 5.4 7.6 4.8 4 5.2v13.3c3.6-.4 6.2.2 8 1.6 1.8-1.4 4.4-2 8-1.6V5.2c-3.6-.4-6.2.2-8 1.6z"/><path d="M12 6.8v13.3"/></svg>
+        </button>
+        <button class="goal-build" id="goalBuild" type="button" hidden>Build</button>
+        <span class="goal-bar" aria-hidden="true"><i id="goalBar"></i></span>
+      </div>
+    </div>
+    <div class="top-right"><button class="ver" id="ver" type="button">What's new</button><div class="clock" id="clock">07:40</div></div>
   </div>
   <div class="hint" id="hint">
     <span class="touch"><b>Tap a plank or a stone</b> to gather them one after another, <b>the grass</b> to walk. Drag to turn, pinch to zoom.</span>
     <span class="mouse"><b>Click a plank or a stone</b> to gather them one after another, <b>the grass</b> to walk. Drag or arrow keys to turn, scroll to zoom.</span>
   </div>
+  <div class="strip" id="strip">
+    <div class="pill hp" id="healthRow" hidden><span class="name">Health</span><small id="healthText">10 / 10</small><span class="bar"><i id="healthBar"></i></span></div>
+    <div class="pill xp" id="xpRow" hidden><span class="name" id="xpName">Woodcutting</span><b id="xpLvl">1</b><span class="bar"><i id="xpBar"></i></span></div>
+  </div>
+  <nav class="rail" id="rail" aria-label="Windows">
+    <button class="rail-btn" type="button" data-opens="backpack" aria-controls="backpackWin" aria-expanded="false">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5V5.2a3 3 0 0 1 6 0v1.3"/><path d="M5.5 10a3.5 3.5 0 0 1 3.5-3.5h6a3.5 3.5 0 0 1 3.5 3.5v9a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19z"/><path d="M5.5 12.5h13"/><path d="M10 12.5V15h4v-2.5"/></svg>
+      <span>Backpack</span><b class="badge" id="packBadge" hidden></b>
+    </button>
+    <button class="rail-btn" type="button" data-opens="skills" aria-controls="skillsWin" aria-expanded="false">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="13" width="4" height="7" rx="1"/><rect x="10" y="8.5" width="4" height="11.5" rx="1"/><rect x="16" y="4" width="4" height="16" rx="1"/></svg>
+      <span>Skills</span>
+    </button>
+    <button class="rail-btn" type="button" data-opens="book" aria-controls="book" aria-expanded="false" hidden>
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.8C10.2 5.4 7.6 4.8 4 5.2v13.3c3.6-.4 6.2.2 8 1.6 1.8-1.4 4.4-2 8-1.6V5.2c-3.6-.4-6.2.2-8 1.6z"/><path d="M12 6.8v13.3"/></svg>
+      <span>Book</span>
+    </button>
+    <button class="rail-btn" type="button" data-opens="settings" aria-controls="settingsWin" aria-expanded="false">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="16" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></svg>
+      <span>Settings</span>
+    </button>
+  </nav>
+  <div class="wins" id="wins">
+    <section class="win" id="backpackWin" data-win="backpack" data-width="368" role="dialog" aria-labelledby="backpackTitle" hidden>
+      <div class="win-bar"><h2 class="win-title" id="backpackTitle">Backpack</h2><button class="win-x" type="button" aria-label="Close the backpack"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
+      <div class="win-body">
+        <div class="pack-head" id="packHead"><h3>In your backpack</h3><small id="packCount">0 / 28</small></div>
+        <div class="pack-slots" id="packList" role="group" aria-label="What you carry"></div>
+        <div class="pick" id="packPick">
+          <span class="pick-pic" id="pickPic" aria-hidden="true"></span>
+          <div class="pick-words" aria-live="polite"><b id="pickName">Tap something to eat or drop it.</b><small id="pickNote"></small></div>
+          <div class="pick-do"><button type="button" class="eat" id="pickEat" hidden>Eat</button><button type="button" id="pickDrop1" hidden>Drop one</button><button type="button" id="pickDropAll" hidden>Drop all</button></div>
+        </div>
+        <div class="pack-sec" id="armourRow" hidden><h3>Wearing</h3><div class="worn" id="armour" role="group"></div><p class="worn-bonus" id="bonus"></p></div>
+        <div class="pack-sec" id="bankRow" hidden><h3 id="bankName">Chest</h3><div class="stored" id="bank"></div></div>
+        <div class="pack-sec" id="pileRow" hidden><h3>Firewood pile</h3><div class="stored" id="pile"></div></div>
+      </div>
+    </section>
+    <section class="win" id="skillsWin" data-win="skills" data-width="340" role="dialog" aria-labelledby="skillsTitle" hidden>
+      <div class="win-bar"><h2 class="win-title" id="skillsTitle">Skills</h2><button class="win-x" type="button" aria-label="Close the skills"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
+      <div class="win-body">
+        <div class="train" id="trainRow" role="group" aria-labelledby="trainName" hidden><h3 id="trainName">Train</h3><p class="train-says"><span id="trainSays"></span> <span id="trainVit"></span></p></div>
+        <div class="skills" id="skills"></div>
+        <p class="skills-foot"><span id="skillsTotal">Total level 2</span><span id="skillsMore">More skills show up once you start them.</span></p>
+      </div>
+    </section>
+    <section class="win" id="book" data-win="book" data-width="440" role="dialog" aria-labelledby="bookName" hidden>
+      <div class="win-bar"><h2 class="win-title" id="bookName">Your book</h2><button class="win-x" type="button" aria-label="Close the book"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
+      <div class="win-body" id="bookBody">
+        <div class="page" id="bookPage">
+          <p class="page-lead" id="bookLead" hidden>Your book! It came down the falls with you.</p>
+          <div class="page-head"><span id="bookNo">Page 1</span><span class="page-done" id="bookDone" hidden>Done</span></div>
+          <h3 class="page-title" id="bookTitle">Salvage the wreck</h3>
+          <p id="bookText"></p>
+          <ul class="page-needs" id="bookNeeds"></ul>
+          <p class="page-hint" id="bookHint"></p>
+          <p class="page-stuck" id="bookStuck" hidden>The rest of the pages are still stuck together from the river.</p>
+        </div>
+      </div>
+      <div class="win-foot book-turn"><button type="button" id="bookPrev">&lsaquo; Previous</button><button type="button" id="bookNext">Next &rsaquo;</button></div>
+    </section>
+    <section class="win" id="settingsWin" data-win="settings" data-width="340" role="dialog" aria-labelledby="settingsTitle" hidden>
+      <div class="win-bar"><h2 class="win-title" id="settingsTitle">Settings</h2><button class="win-x" type="button" aria-label="Close the settings"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
+      <div class="win-body">
+        <section class="set">
+          <h3 id="textSizeName">Text size</h3>
+          <div class="seg" id="textSize" role="group" aria-labelledby="textSizeName"><button type="button" data-size="small">Small</button><button type="button" data-size="normal">Normal</button><button type="button" data-size="large">Large</button></div>
+        </section>
+        <section class="set">
+          <h3>The game</h3>
+          <p class="set-ver" id="setVer">Version</p>
+          <button type="button" class="set-btn" id="setNews">What's new</button>
+          <button type="button" class="set-btn reset" id="setReset">Start over</button>
+        </section>
+      </div>
+    </section>
+  </div>
   <div class="notice" id="notice" role="status"></div>
-  <div class="goal" id="goal" hidden>
-    <div class="goal-head"><span>GOAL</span><button class="goal-book" id="goalBook" type="button" aria-label="Your book" aria-controls="book" aria-expanded="false" hidden>Book &rsaquo;</button></div>
-    <div class="goal-title" id="goalTitle">Salvage the wreck</div>
-    <div class="bar"><i id="goalBar"></i></div>
-    <small class="goal-count" id="goalCount">0 / 7 planks, 0 / 1 tarp, 0 / 1 book</small>
-    <div class="goal-hint" id="goalHint">Pick up what washed up along the bank.</div>
-    <button class="goal-build" id="goalBuild" type="button" hidden>Build</button>
-  </div>
-  <div class="book" id="book" role="dialog" aria-labelledby="bookTitle" hidden>
-    <div class="book-top"><span class="book-name">Your book</span><button class="book-close" id="bookClose" type="button" aria-label="Close the book">&times;</button></div>
-    <div class="page" id="bookPage">
-      <p class="page-lead" id="bookLead" hidden>Your book! It came down the falls with you.</p>
-      <div class="page-head"><span id="bookNo">Page 1</span><span class="page-done" id="bookDone" hidden>Done</span></div>
-      <h2 class="page-title" id="bookTitle">Salvage the wreck</h2>
-      <p id="bookText"></p>
-      <ul class="page-needs" id="bookNeeds"></ul>
-      <p class="page-hint" id="bookHint"></p>
-      <p class="page-stuck" id="bookStuck" hidden>The rest of the pages are still stuck together from the river.</p>
+  <div class="win note" id="intro" role="dialog" aria-labelledby="introTitle" hidden>
+    <div class="win-bar"><h2 class="win-title" id="introTitle">Welcome to Hearthfolk</h2><button class="win-x" type="button" data-close="introOk" aria-label="Close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
+    <div class="win-body">
+      <p>The river threw you over the falls, a very long way down. You washed up on this bank with nothing, not even your tools.</p>
+      <p>Something wrecked came down with you. Its pieces are strewn along the bank.</p>
+      <ul>
+        <li>Tap a plank and you pick up every plank, the two in the smashed crate too. Tap the torn tarp and your book to pick them up.</li>
+        <li>Tap a stone or a branch and you keep gathering them until your backpack is full.</li>
+        <li>The goal at the top shows what's next. The buttons at the edge open your backpack, your skills and the settings.</li>
+      </ul>
     </div>
-    <div class="book-turn"><button type="button" id="bookPrev">&lsaquo; Previous</button><button type="button" id="bookNext">Next &rsaquo;</button></div>
+    <div class="win-foot"><button type="button" class="win-ok" id="introOk">Get up</button></div>
   </div>
-  <div class="intro" id="intro" role="dialog" aria-labelledby="introTitle" hidden>
-    <h2 id="introTitle">Welcome to Hearthfolk</h2>
-    <p>The river threw you over the falls, a very long way down. You washed up on this bank with nothing, not even your tools.</p>
-    <p>Something wrecked came down with you. Its pieces are strewn along the bank.</p>
-    <ul>
-      <li>Tap a plank and you pick up every plank, the two in the smashed crate too. Tap the torn tarp and your book to pick them up.</li>
-      <li>Tap a stone or a branch and you keep gathering them until your backpack is full.</li>
-      <li>The goal at the top shows what's next.</li>
-    </ul>
-    <button type="button" id="introOk">Get up</button>
+  <div class="win note" id="news" role="dialog" aria-labelledby="newsTitle" hidden>
+    <div class="win-bar"><h2 class="win-title" id="newsTitle">What's new</h2><button class="win-x" type="button" data-close="newsOk" aria-label="Close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
+    <div class="win-body" id="newsBody"></div>
+    <div class="win-foot"><button type="button" class="win-ok" id="newsOk">Got it</button></div>
   </div>
-  <div class="news" id="news" role="dialog" aria-labelledby="newsTitle" hidden>
-    <h2 id="newsTitle">What's new</h2>
-    <div id="newsBody"></div>
-    <button type="button" id="newsOk">Got it</button>
-    <button type="button" id="newsReset" class="reset">Start over</button>
-  </div>
-  <div class="news away" id="away" role="dialog" aria-labelledby="awayTitle" hidden>
-    <h2 id="awayTitle">While you were away</h2>
-    <p class="lead" id="awayLead"></p>
-    <ul id="awayList"></ul>
-    <button type="button" id="awayOk">Got it</button>
-  </div>
-  <div class="skill" aria-live="polite">
-    <div class="skills" id="skills"></div>
-    <button class="pack" id="pack" type="button" aria-expanded="false" aria-controls="packList"><span class="name">Backpack</span><span class="bar"><i id="packBar"></i></span><small id="packCount">0 / 28</small><span class="chev" aria-hidden="true"></span></button>
-    <div class="packlist" id="packList" hidden></div>
-    <div class="bank" id="bankRow"><span class="name" id="bankName">Bank</span> <span id="bank">empty</span></div>
-    <div class="bank" id="pileRow" hidden><span class="name">Firewood pile</span> <span id="pile">0 logs</span></div>
-    <div class="hp" id="healthRow" hidden><span class="name">Health</span><span class="bar"><i id="healthBar"></i></span><small id="healthText">10 / 10</small></div>
-    <div class="bank" id="armourRow" hidden><span class="name">Armour</span> <span id="armour"></span></div>
-    <div class="train" id="trainRow" role="group" aria-label="What he trains when he fights" hidden><span class="name">Train</span></div>
+  <div class="win note away" id="away" role="dialog" aria-labelledby="awayTitle" hidden>
+    <div class="win-bar"><h2 class="win-title" id="awayTitle">While you were away</h2><button class="win-x" type="button" data-close="awayOk" aria-label="Close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
+    <div class="win-body"><p class="lead" id="awayLead"></p><ul id="awayList"></ul></div>
+    <div class="win-foot"><button type="button" class="win-ok" id="awayOk">Got it</button></div>
   </div>
 </div>
 <script type="module" src="/src/main.ts"></script>
