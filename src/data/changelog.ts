@@ -6,6 +6,17 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.27', date: '13 Oct 2026', notes: [
+      'He thinks out loud now: short thoughts over his head as he finds his way, all kept in a journal in his book.',
+      'Tap the goal at the top, or his thought, and he sets off to do it.',
+      'Your book is a survival book now: a journal, things you can make, food, places and tips. Pages come loose as you discover things.',
+      'Once your camp is set up, the new Build button lets you build a log bench and a workbench wherever you like. Turn them and set them down where they show green.',
+      'Building takes time and trains a new skill, Carpentry. Watch each thing go up stage by stage, and tap a half-built thing to send him back to it.',
+      'Turn your tent into a lean-to, then a log hut. Better shelter, better rest.',
+      "Cut reeds for fibre and dig clay by the river, and birch logs sometimes give bark. The Build list tells you where to find anything you're short of.",
+    ],
+  },
+  {
     version: '0.0.26', date: '12 Oct 2026', notes: [
       'Tap the shelter at night and he goes to bed. The night speeds by, and he wakes up well rested: gathering goes faster until nightfall.',
       'A day and night dial beside the clock shows how far the day has gone.',
