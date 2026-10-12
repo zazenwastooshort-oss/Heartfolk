@@ -6,6 +6,16 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.21', date: '12 Oct 2026', notes: [
+      'Gathering is slower and calmer: a log or a lump of ore every 7 or 8 seconds to begin with, quicker as he levels.',
+      "He stops gathering once your current goal has enough, so your backpack no longer fills up with things you don't need yet.",
+      'Firewood is now a pile beside the fire: chop 10 logs, then tap Stack. At nightfall he stokes the fire from the pile first. Tap the pile to stack more logs on it.',
+      'The shelter needs its own 10 logs now, since the firewood stays in the pile.',
+      'Hopping to the next tree or rock, he keeps his axe or pick in his hands.',
+      'If you send him somewhere while he is off to stoke the fire, he goes back to it once he has nothing to do.',
+    ],
+  },
+  {
     version: '0.0.20', date: '12 Oct 2026', notes: [
       'He keeps working while the game is closed, at a fifth of his speed, for up to 2 hours. After that he waits for you to come back.',
       'When you come back, a short note says how long you were away and what he did: what he gathered, the XP and levels he earned, and whether he stoked the fire.',

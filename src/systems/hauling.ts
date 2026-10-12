@@ -7,7 +7,7 @@
 // it empties the backpack (stores in systems/backpack). With nowhere to store things (the camp before its chest), he
 // stops and says so. While he is off stoking the fire (systems/fire.ts) hauling waits; stoking empties a full
 // backpack at the chest itself.
-import type { Back, GameState, Trip } from '../core/state';
+import { goalHasEnough, type Back, type GameState, type Trip } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Layout, Vec2 } from '../world/layout';
 import { goMake, goPickup, goVisit, goWork, walkTo } from '../actors/player';
@@ -15,7 +15,9 @@ import { BANK_PAUSE } from '../data/hauling';
 import { makeDef } from '../data/making';
 import { backpackFull, deposit, isStore, stores } from './backpack';
 import { workNearestFree } from './gathering';
-import { gatherNext, gatherOf, onGround, roomFor } from './pickups';
+import { gatherOf, keepGathering, onGround, roomFor } from './pickups';
+import { PICKUPS } from '../data/pickups';
+import { RESOURCES } from '../data/skills';
 import { canMake } from './making';
 
 /** The place to empty the backpack (a bank's door, or the camp's chest) nearest `at`, or null where there is none. */
@@ -74,13 +76,17 @@ export function backToWork(state: GameState, layout: Layout, back: Trip | Back, 
   }
   if ('pickupId' in back) {
     // back to gathering: the nearest lying on the ground, or the next to come back; or the one thing he was after
-    const group = gatherOf(layout, back.pickupId);
-    if (group && !gatherNext(state, layout, group)) events.emit({ type: 'allGathered', gather: group });
-    else if (!group && onGround(state, layout, back.pickupId) && roomFor(state, layout, back.pickupId)) goPickup(state, layout, back.pickupId);
+    const group = gatherOf(layout, back.pickupId), spot = layout.pickups?.find(x => x.id === back.pickupId);
+    const gives = spot ? PICKUPS[spot.kind].gives : 'book';
+    if (group) keepGathering(state, layout, group, gives === 'book' ? null : gives.item, events);
+    else if (onGround(state, layout, back.pickupId) && roomFor(state, layout, back.pickupId)) goPickup(state, layout, back.pickupId);
     return;
   }
   const nodeId = back.nodeId, node = state.nodes[nodeId], spot = layout.nodes.find(n => n.id === nodeId);
   if (!node || !spot) return;
+  // the camp's goal already has enough of what it gives (counting what he just stored): he doesn't go back
+  const item = RESOURCES[spot.resource]!.item, enough = goalHasEnough(state, layout, item);
+  if (enough) { events.emit({ type: 'goalEnough', item, goal: enough.id }); return; }
   if (!node.depletedUntil && goWork(state, layout, nodeId)) return;
   if (workNearestFree(state, layout, spot.resource)) return;
   // every one like it is down (or out of reach): wait at his own for it to grow back

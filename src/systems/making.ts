@@ -31,6 +31,8 @@ export function updateMaking(state: GameState, layout: Layout, events: EventBus)
   const missing = missingFor(state, def);
   if (Object.keys(missing).length) { events.emit({ type: 'missing', make: def.id, items: missing }); return; }
   useUp(state, def.needs);
+  // the firewood pile: its logs aren't used up but stacked in it, for stoking the fire
+  if (def.pile) state.woodpile += def.needs[def.pile] ?? 0;
   if (def.gives.kind === 'structure') state.built.push(def.id);
   else state.tools[def.gives.tool] = true;
   events.emit({ type: 'made', make: def.id });

@@ -80,6 +80,9 @@ export class Hud {
       else if (e.type === 'levelUp') this.pendingLevel = { skill: e.skill, level: e.level };
       else if (e.type === 'needTool') { const t = TOOLS[e.tool]; this.notice(`You need ${t.a} to ${t.use}.`); }
       else if (e.type === 'allGathered') this.notice(`That's all the ${GATHERS[e.gather].name.toLowerCase()}.`);
+      else if (e.type === 'goalEnough') this.notice(`That's enough ${itemName(e.item, 2)} for "${GOALS.find(g => g.id === e.goal)?.title ?? e.goal}".`);
+      else if (e.type === 'stacked') this.notice(e.logs > 0 ? `Stacked ${itemList({ birch_logs: e.logs })} on the firewood pile (${e.pile} there now).`
+        : e.reason === 'full' ? 'The firewood pile is full.' : 'You have no logs to stack on the firewood pile.');
       else if (e.type === 'noRoom') this.notice('Your backpack is full. Open the backpack to drop something.');
       else if (e.type === 'dropped') this.notice(`Dropped ${itemList({ [e.item]: e.count })}.`);
       else if (e.type === 'cantDrop') this.notice(`You won't find more ${itemName(e.item, 2)}, so you keep them.`);
@@ -194,6 +197,10 @@ export class Hud {
     $('pack').classList.toggle('full', carried >= BACKPACK_SLOTS);
     $('bankRow').hidden = !this.hasBank && !(this.layout.camp && state.built.includes('chest'));
     $('bank').textContent = itemList(state.bank) || 'empty';
+    // the firewood pile (0.0.21), once it stands: how many logs it holds for stoking the fire
+    const pile = !!this.layout.camp && state.built.includes('woodpile');
+    $('pileRow').hidden = !pile;
+    if (pile) $('pile').textContent = `${state.woodpile} ${state.woodpile === 1 ? 'log' : 'logs'}`;
     $('clock').textContent = clockLabel(state.time);
     if (this.layout.camp) this.updateGoal(state);
     const b = this.view.renderer.domElement.getBoundingClientRect();

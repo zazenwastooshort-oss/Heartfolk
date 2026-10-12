@@ -34,3 +34,8 @@ export const ARMED_CLIPS: ReadonlySet<string> = new Set([IDLE.clip, 'Walk', GAIT
 /** Crossfade between two clips, in seconds. A swap between an armed and a free clip (the tool going between his
  *  hands and his back) is quicker: the tool is hidden while it happens and the arms pass close to his chest. */
 export const FADE = { normal: 0.18, swap: 0.12 };
+
+/** A walk to a tree or rock shorter than this (metres, along his path) keeps the tool in his hands: hopping on to the
+ *  next one while he works, it doesn't go onto his back and out again (the owner, 12 Oct 2026). Longer walks carry
+ *  it on his back. */
+export const SHORT_HOP = 8;

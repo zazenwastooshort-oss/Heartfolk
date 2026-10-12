@@ -187,7 +187,7 @@ describe('arm IK', () => {
 });
 
 describe('tool in hand or on his back', () => {
-  it('holds it only while he works, and slings it on his back on every walk (to work too) and otherwise', () => {
+  it('holds it while he works and on short hops to the next node, and slings it on his back on longer walks and otherwise', () => {
     const state = createState(VILLAGE, 4), events = new EventBus(), log: GameEvent[] = [];
     events.on(e => log.push(e));
     const ctx = { layout: VILLAGE, rng: createRng(4), events };
@@ -216,6 +216,12 @@ describe('tool in hand or on his back', () => {
     expect(p.task.kind).toBe('walk');
     expect(held(), 'visiting a building').toBe(false);
     // waiting at a stump he was sent to is still work
-    expect(toolInHand({ task: { kind: 'gather', nodeId: 'birch1', progress: 0 } })).toBe(true);
+    const still = { pos: { x: 0, z: 0 }, path: [], pending: null };
+    expect(toolInHand({ ...still, task: { kind: 'gather', nodeId: 'birch1', progress: 0 } })).toBe(true);
+    // a short hop on to the next tree keeps it in his hands; a long walk to one, or a walk anywhere else, doesn't
+    const walk = { kind: 'walk' as const }, node = { kind: 'node' as const, id: 'birch2' };
+    expect(toolInHand({ task: walk, pending: node, pos: { x: 0, z: 0 }, path: [{ x: 3, z: 0 }, { x: 3, z: 4 }] }), 'a 7 m hop').toBe(true);
+    expect(toolInHand({ task: walk, pending: node, pos: { x: 0, z: 0 }, path: [{ x: 6, z: 0 }, { x: 6, z: 6 }] }), 'a 12 m walk').toBe(false);
+    expect(toolInHand({ task: walk, pending: null, pos: { x: 0, z: 0 }, path: [{ x: 2, z: 0 }] }), 'a short walk to a spot').toBe(false);
   });
 });

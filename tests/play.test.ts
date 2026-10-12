@@ -39,7 +39,7 @@ const swinging = (s: ReturnType<typeof setup>) => {
 const strikesPerSwing = (s: ReturnType<typeof setup>, cycle: number) => {
   const strikes0 = s.log.filter(e => e.type === 'strike').length;
   let swung = 0, starts = 0, was = false;         // time spent swinging, not walking or waiting for a node to grow back
-  for (let t = 0; t < 120; t += STEP) {
+  for (let t = 0; t < 300; t += STEP) {
     const now = swinging(s);
     if (now) swung += STEP;
     if (now && !was) starts++;
@@ -276,7 +276,7 @@ describe('saving', () => {
     const { backpack: _b, trip: _t, ...player } = s0.state.player;
     const v3 = { ...s0.state, version: 3, player, bank: { birch_logs: 120, copper_ore: 40 } };
     const s = deserialize(JSON.stringify(v3), VILLAGE);
-    expect(SAVE_VERSION).toBe(8);
+    expect(SAVE_VERSION).toBe(9);
     expect(s.version).toBe(SAVE_VERSION);
     expect(s.bank).toEqual({ birch_logs: 120, copper_ore: 40 });
     expect(s.player.backpack).toEqual({});
@@ -312,15 +312,15 @@ describe('long run (headless)', () => {
     expect(task.kind === 'gather' || pending?.kind === 'node' || trip !== null, `ended ${task.kind}`).toBe(true);
     // never stuck: never standing idle, never long without gathering something (a trip to the bank and back included)
     expect(idle).toBeLessThan(1);
-    expect(longestGap).toBeLessThan(45);           // about 30 s at most
+    expect(longestGap).toBeLessThan(60);           // about 40 s at most (a log every 7 s on average since 0.0.21)
     // the bank grows every ten minutes, a full backpack at a time
     expect(growth).toHaveLength(12);
-    expect(Math.min(...growth)).toBeGreaterThan(150);  // about 200 to 250
+    expect(Math.min(...growth)).toBeGreaterThan(40);   // about 60 to 110: two to four backpacks
     const trips = s.log.filter(e => e.type === 'banked');
-    expect(trips.length).toBeGreaterThan(60);
+    expect(trips.length).toBeGreaterThan(25);
     for (const e of trips) expect(Object.values(e.items).reduce((a, n) => a + n, 0)).toBe(BACKPACK_SLOTS);
-    expect(s.state.bank.copper_ore ?? 0).toBeGreaterThan(600);
-    expect(s.state.bank.birch_logs ?? 0).toBeGreaterThan(1000);
+    expect(s.state.bank.copper_ore ?? 0).toBeGreaterThan(250);
+    expect(s.state.bank.birch_logs ?? 0).toBeGreaterThan(400);
     // nothing lost or made up on the way: everything gathered is in the bank or the backpack
     const gained = s.log.reduce((a, e) => a + (e.type === 'itemGained' ? e.count : 0), 0);
     expect(inBank() + backpackCount(s.state)).toBe(gained);

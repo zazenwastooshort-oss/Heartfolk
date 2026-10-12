@@ -8,7 +8,7 @@ import type { EventBus } from '../core/events';
 import type { Layout, Vec2 } from '../world/layout';
 import { doorOf, siteOf } from '../world/layout';
 import { BACKPACK_SLOTS } from '../data/hauling';
-import { STOKE } from '../data/fire';
+import { STOKE, WOODPILE } from '../data/fire';
 
 /** The places he can empty his backpack, by id, with where he stands to do it: each bank's door (the village), and
  *  the camp's storage chest once it stands ('chest', the id of what he built; he stands beside it). */
@@ -70,11 +70,15 @@ export function deposit(state: GameState, events: EventBus): void {
   events.emit(Object.keys(items).length ? { type: 'banked', items } : { type: 'nothingToBank' });
 }
 
-/** Stop stoking the fire (systems/fire.ts), when the player sends him elsewhere: the logs he carries from the chest
- *  go back into it, so nothing is lost. */
+/** Stop stoking the fire (systems/fire.ts), when the player sends him elsewhere: the logs he carries go back where
+ *  he took them from (the firewood pile, the chest, or his backpack), so nothing is lost. */
 export function stopStoking(state: GameState): void {
   const stoke = state.player.stoke;
   if (!stoke) return;
-  if (stoke.logs > 0) state.bank[STOKE.item] = (state.bank[STOKE.item] ?? 0) + stoke.logs;
+  if (stoke.logs > 0) {
+    if (stoke.from === 'woodpile') state.woodpile = Math.min(WOODPILE.max, state.woodpile + stoke.logs);
+    else if (stoke.from === 'chest') state.bank[STOKE.item] = (state.bank[STOKE.item] ?? 0) + stoke.logs;
+    else state.player.backpack[STOKE.item] = (state.player.backpack[STOKE.item] ?? 0) + stoke.logs;
+  }
   state.player.stoke = null;
 }

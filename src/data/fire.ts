@@ -1,6 +1,6 @@
-// The campfire at night (game 0.0.19), as tables only: once the campfire and the storage chest both stand, each night
-// at nightfall he leaves what he is doing, takes a few logs from the chest (or his backpack), stokes the fire and goes
-// back to what he was doing. Without a log anywhere the fire burns low until it is next stoked. systems/fire.ts does
+// The campfire at night (game 0.0.19), as tables only: once the campfire stands with somewhere to take logs from (the
+// firewood pile since 0.0.21, or the storage chest), each night at nightfall he leaves what he is doing, takes a few
+// logs (from the pile, else the chest, else his backpack), stokes the fire and goes back to what he was doing. Without a log anywhere the fire burns low until it is next stoked. systems/fire.ts does
 // the work; render/structures.ts draws the flare and the low fire.
 
 export const STOKE = {
@@ -20,4 +20,8 @@ export const STOKE = {
  *  of their size and its light `lowLight` of its brightness, eased into (and back out of once stoked) at `lowEase` per
  *  second. Taller flames are a little wider too (`widen` of the change in height), and the smoke thickens with them
  *  up to `smokeMax` times. */
+/** The firewood pile (0.0.21): how many logs it holds. It starts with the 10 it is built from; a tap on it stacks the
+ *  logs he carries, up to `max`. */
+export const WOODPILE = { max: 30 };
+
 export const FIRE_LOOK = { flare: 1.6, rise: 0.6, flareLight: 0.8, settle: 3, low: 0.5, lowLight: 0.35, lowEase: 1.5, widen: 0.25, smokeMax: 1.4 };

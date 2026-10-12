@@ -41,7 +41,7 @@ const at = (day: number, hour: number) => (day + hour / 24) * DAY_SECONDS;
 function campSet(seed = 5): Setup {
   const s = setup(CAMP, seed);
   s.state.goalsDone = GOALS.map(g => g.id);
-  s.state.built = ['campfire', 'shelter', 'chest'];
+  s.state.built = ['campfire', 'woodpile', 'shelter', 'chest'];
   s.state.tools = { axe: true, pick: true };
   s.state.hasBook = true;
   return s;
@@ -122,7 +122,7 @@ describe('saves say when they were written (format 8)', () => {
     const s = working();
     const v7 = JSON.stringify({ ...JSON.parse(serialize(s.state)), version: 7 });
     const loaded = readSave(v7, CAMP);
-    expect(SAVE_VERSION).toBe(8);
+    expect(SAVE_VERSION).toBe(9);
     expect(loaded.state.version).toBe(SAVE_VERSION);
     expect(loaded.savedAt).toBeNull();
     expect(loaded.state).toEqual(s.state);

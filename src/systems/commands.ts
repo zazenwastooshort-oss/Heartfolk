@@ -1,5 +1,6 @@
 // The only way the UI changes the game: it queues commands, and the simulation applies them at the start of a step.
 import { goalFirst, type GameState } from '../core/state';
+import { isNight } from '../core/clock';
 import type { EventBus } from '../core/events';
 import type { Layout, Vec2 } from '../world/layout';
 import { walkTo, goWork, goVisit, goPickup, goMake } from '../actors/player';
@@ -67,11 +68,12 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     if (!ok) { events.emit({ type: 'noPath' }); continue; }
     // the player's command wins over a trip to the bank or the chest (the backpack keeps its items), unless it sends
     // him there anyway. Sent to work (or to gather) with a full backpack, hauling starts a new trip at once. It wins
-    // over stoking the fire too (systems/fire.ts): logs he carries go back into the chest. A tap on the chest while
-    // he is on his way there for the logs sends him where he was going: he empties the backpack there and stokes on.
+    // over stoking the fire too (systems/fire.ts): logs he carries go back where he took them from, and (0.0.21) he
+    // sets off again once he has nothing to do, the same night. A tap on the pile or the chest while he is on his way
+    // there for the logs sends him where he was going: at the chest he empties the backpack too, and stokes on.
     const toStore = c.type === 'visit' && isStore(state, layout, c.id), stoke = state.player.stoke;
     if (!toStore) state.player.trip = null;
-    if (toStore && c.id === 'chest' && stoke && stoke.logs === 0) stoke.empty = true;
-    else stopStoking(state);
+    if (stoke && stoke.logs === 0 && c.type === 'visit' && c.id === stoke.from) { if (c.id === 'chest') stoke.empty = true; }
+    else if (stoke) { stopStoking(state); if (isNight(state.time)) state.stokeAgain = true; }
   }
 }

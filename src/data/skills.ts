@@ -1,5 +1,6 @@
 // Skills and what can be gathered, as tables only. Values come from prototypes/wanderskill.html (ACTIONS).
-// time: seconds per item at tool tier 1; xp: per item; value: gold at the merchant.
+// time: seconds per item at tool tier 1 (about 3x the prototype's since 0.0.21: the owner found gathering far too quick
+// for an idle game, 12 Oct 2026); xp: per item; value: gold at the merchant.
 
 export type SkillId = 'mining' | 'woodcutting';
 
@@ -25,11 +26,11 @@ export interface ResourceDef {
 }
 
 export const RESOURCES: Record<string, ResourceDef> = {
-  copper_rock: { id: 'copper_rock', skill: 'mining', name: 'Copper rock', item: 'copper_ore', level: 1, time: 2.4, xp: 12, value: 3, deplete: 0.3, respawn: 2.6, moveOnAfter: 0.5, color: '#c8763a', model: 'Rock' },
-  tin_rock:    { id: 'tin_rock', skill: 'mining', name: 'Tin rock', item: 'tin_ore', level: 6, time: 2.6, xp: 16, value: 4, deplete: 0.3, respawn: 3.0, moveOnAfter: 0.5, color: '#c9ccd1', model: 'Rock' },
-  iron_rock:   { id: 'iron_rock', skill: 'mining', name: 'Iron rock', item: 'iron_ore', level: 15, time: 3.0, xp: 30, value: 9, deplete: 0.35, respawn: 5.0, moveOnAfter: 0.5, color: '#9a6b55', model: 'Rock' },
-  birch_tree:  { id: 'birch_tree', skill: 'woodcutting', name: 'Birch tree', item: 'birch_logs', level: 1, time: 2.2, xp: 10, value: 2, deplete: 0.15, respawn: 6, moveOnAfter: 1.0, color: '#e2c48e', model: 'TreeBirch', stump: 'StumpBirch' },
-  oak_tree:    { id: 'oak_tree', skill: 'woodcutting', name: 'Oak tree', item: 'oak_logs', level: 10, time: 2.8, xp: 22, value: 6, deplete: 0.12, respawn: 9, moveOnAfter: 1.0, color: '#c9a066', model: 'TreeOak', stump: 'StumpOak' },
+  copper_rock: { id: 'copper_rock', skill: 'mining', name: 'Copper rock', item: 'copper_ore', level: 1, time: 7.5, xp: 12, value: 3, deplete: 0.3, respawn: 2.6, moveOnAfter: 0.5, color: '#c8763a', model: 'Rock' },
+  tin_rock:    { id: 'tin_rock', skill: 'mining', name: 'Tin rock', item: 'tin_ore', level: 6, time: 8.5, xp: 16, value: 4, deplete: 0.3, respawn: 3.0, moveOnAfter: 0.5, color: '#c9ccd1', model: 'Rock' },
+  iron_rock:   { id: 'iron_rock', skill: 'mining', name: 'Iron rock', item: 'iron_ore', level: 15, time: 10, xp: 30, value: 9, deplete: 0.35, respawn: 5.0, moveOnAfter: 0.5, color: '#9a6b55', model: 'Rock' },
+  birch_tree:  { id: 'birch_tree', skill: 'woodcutting', name: 'Birch tree', item: 'birch_logs', level: 1, time: 7, xp: 10, value: 2, deplete: 0.15, respawn: 6, moveOnAfter: 1.0, color: '#e2c48e', model: 'TreeBirch', stump: 'StumpBirch' },
+  oak_tree:    { id: 'oak_tree', skill: 'woodcutting', name: 'Oak tree', item: 'oak_logs', level: 10, time: 9, xp: 22, value: 6, deplete: 0.12, respawn: 9, moveOnAfter: 1.0, color: '#c9a066', model: 'TreeOak', stump: 'StumpOak' },
 };
 
 /** `one`: the name for a single one, where it differs ("Birch log" against "Birch logs") */

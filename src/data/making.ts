@@ -1,15 +1,16 @@
 // Things he makes (game 0.0.15), as tables only: what each needs, where it is made, how long he works at it and what
 // it gives. The campfire came first, then the stone axe (0.0.16), then the shelter at the tent's spot and the stone
-// pickaxe (0.0.18), then the storage chest beside the shelter (0.0.19), the camp's storage like the village's bank.
+// pickaxe (0.0.18), then the storage chest beside the shelter (0.0.19), the camp's storage like the village's bank,
+// and the firewood pile beside the fire (0.0.21), stacked with logs he stokes the fire from at night.
 // systems/making.ts does the work.
 import type { ToolId } from './skills';
 
 /** Places in a layout where something is built (siteOf in world/layout.ts): 'hearth' is the camp's fire spot, 'tent'
- *  the camp's tent spot, 'chest' the camp's chest spot beside the shelter. A new site is a name here and a line in
- *  siteOf. */
-export type SiteId = 'hearth' | 'tent' | 'chest';
+ *  the camp's tent spot, 'chest' the camp's chest spot beside the shelter, 'woodpile' the spot beside the fire for the
+ *  firewood pile. A new site is a name here and a line in siteOf. */
+export type SiteId = 'hearth' | 'tent' | 'chest' | 'woodpile';
 
-export type MakeId = 'campfire' | 'stone_axe' | 'shelter' | 'stone_pickaxe' | 'chest';
+export type MakeId = 'campfire' | 'stone_axe' | 'woodpile' | 'shelter' | 'stone_pickaxe' | 'chest';
 
 /** name: what it is called ("Campfire"). verb: what making it is called, for the hover text over its site
  *  ("Build|Campfire") and the goal card's button ("Build the campfire", "Make the stone axe").
@@ -19,7 +20,8 @@ export type MakeId = 'campfire' | 'stone_axe' | 'shelter' | 'stone_pickaxe' | 'c
  *  gives: a structure, which stands at its site from then on (GameState.built) and is in the way like the village's
  *  hearth, or a tool he owns from then on (GameState.tools). Either is made once: a tool he already owns (the
  *  village's axe and pick, or an old camp save's) isn't made again.
- *  done: the notice once it is made. */
+ *  done: the notice once it is made.
+ *  pile: the item it needs isn't used up but stacked in it (the firewood pile's logs: GameState.woodpile). */
 export interface MakeDef {
   id: MakeId; name: string; verb: string;
   needs: Record<string, number>;
@@ -27,6 +29,7 @@ export interface MakeDef {
   time: number;
   gives: { kind: 'structure' } | { kind: 'tool'; tool: ToolId };
   done: string;
+  pile?: string;
 }
 
 export const MAKES: Record<MakeId, MakeDef> = {
@@ -38,6 +41,13 @@ export const MAKES: Record<MakeId, MakeDef> = {
   stone_axe: {
     id: 'stone_axe', name: 'Stone axe', verb: 'Make', needs: { branch: 2, stone: 2 }, at: 'here', time: 3,
     gives: { kind: 'tool', tool: 'axe' }, done: 'You made a stone axe.',
+  },
+  // logs stacked on two bearers beside the fire: at night he stokes the fire from it (systems/fire.ts), and a tap on it
+  // stacks the logs he carries on it
+  woodpile: {
+    id: 'woodpile', name: 'Firewood pile', verb: 'Stack', needs: { birch_logs: 10 }, at: 'woodpile', time: 4,
+    gives: { kind: 'structure' }, done: 'Your firewood pile is stacked by the fire. At nightfall he stokes the fire from it.',
+    pile: 'birch_logs',
   },
   // the tarp over a frame of logs, the planks for a floor, at the tent's spot facing the fire
   shelter: {

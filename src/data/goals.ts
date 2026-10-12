@@ -4,7 +4,8 @@
 // next one never sends the card back. Gathering goals finish once their needs are all there; making goals (`makes`)
 // once the thing is made (a tool once he owns it: an old save that kept its axe and pick has the stone axe and stone
 // pickaxe goals done). The goal card shows the first goal not finished. Since 0.0.18: salvage, the campfire, the
-// stone axe, firewood, the shelter, the stone pickaxe, copper ore, then the storage chest (built since 0.0.19). With
+// stone axe, firewood (since 0.0.21 a pile stacked beside the fire), the shelter, the stone pickaxe, copper ore, then
+// the storage chest (built since 0.0.19). With
 // all of them finished the camp is set up: the card and the last page of his book say so (CAMP_DONE). Since 0.0.17
 // each goal is a page in his book (core/book.ts, ui/book.ts), with a few words of its own (`page`).
 import { MAKES } from './making';
@@ -33,9 +34,9 @@ export const GOALS: Goal[] = [
     hint: 'Gather branches and stones from the ground.',
     ready: 'You have it all. Tap Make.', needs: MAKES.stone_axe.needs, makes: 'stone_axe' },
   { id: 'firewood', title: 'Firewood',
-    page: "A fire is always hungry. Cut wood while it's light, and keep it close by.",
+    page: "A fire is always hungry. Stack a pile of logs beside it, and at night you'll feed it from the pile.",
     hint: 'Tap a birch tree round the clearing to chop it.',
-    ready: 'You have enough firewood.', needs: { birch_logs: 10 } },
+    ready: 'You have it all. Tap Stack, or tap the spot beside the fire.', needs: MAKES.woodpile.needs, makes: 'woodpile' },
   { id: 'shelter', title: 'A shelter',
     page: 'The torn tarp, a few planks and a frame of logs will keep the rain off. Somewhere dry to sleep at last.',
     hint: 'Chop birch trees for logs.',

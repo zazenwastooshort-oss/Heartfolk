@@ -7,8 +7,9 @@ import { PICKUPS } from '../data/pickups';
 import { makeDef, type MakeId } from '../data/making';
 import { DAY_SECONDS } from './clock';
 
-/** The save format. 8 since 0.0.20: a save also says when it was written, for away time (core/save.ts, savedAt). */
-export const SAVE_VERSION = 8;
+/** The save format. 9 since 0.0.21: the firewood pile's logs, stoking from the pile, and stoking again after the player
+ *  stopped it. */
+export const SAVE_VERSION = 9;
 
 /** gather: working a rock or a tree; progress runs 0..1 through one swing of that skill's tool. `mayMoveOn` is set
  *  when the node runs out while he works it, so he can move on to another; a node that was already down when he got
@@ -38,10 +39,12 @@ export type Trip = ({ nodeId: string } | { pickupId: string }) & { leaveAt?: num
 export type Back = { nodeId: string } | { pickupId: string } | { make: MakeId } | { to: Vec2 };
 
 /** Stoking the fire (0.0.19; systems/fire.ts): at nightfall he left what he was doing (`back`, null for nothing),
- *  walks to the storage chest, takes `logs` there (0 until then; he carries them to the fire), walks to the fire and
- *  stokes it (Task 'stoke'). `empty`: he was on his way to the chest anyway (a full backpack, or the player tapped
- *  it), so he empties his backpack there first. Saved, so stoking carries on after a reload. */
-export interface Stoke { back: Back | null; logs: number; empty: boolean }
+ *  walks to where he takes the logs (`from`: the firewood pile since 0.0.21, or the storage chest; null when he took
+ *  them from his backpack and goes straight to the fire), takes `logs` there (0 until then; he carries them to the
+ *  fire), walks to the fire and stokes it (Task 'stoke'). `empty`: he was on his way to the chest anyway (a full
+ *  backpack, or the player tapped it), so he empties his backpack there first. Saved, so stoking carries on after a
+ *  reload. */
+export interface Stoke { back: Back | null; logs: number; empty: boolean; from: 'woodpile' | 'chest' | null }
 
 export interface PlayerState {
   pos: Vec2;
@@ -84,6 +87,12 @@ export interface GameState {
   stokedNight: number;
   /** the campfire burns low: there were no logs to stoke it at nightfall. Until it is next stoked (0.0.19). */
   fireLow: boolean;
+  /** logs stacked in the firewood pile (0.0.21; WOODPILE in data/fire.ts): 0 until it is built, which stacks the 10
+   *  it is made from */
+  woodpile: number;
+  /** the player stopped him on his way to stoke the fire tonight (0.0.21): he sets off again once he has nothing to
+   *  do, the same night */
+  stokeAgain: boolean;
 }
 
 /** How many of something he has, for the goals (data/goals): an item carried or stored (the bank, or the camp's
@@ -116,6 +125,16 @@ export const currentGoal = (state: GameState): Goal => GOALS.find(g => !goalFini
 /** Whether every goal is finished (since 0.0.19, with the storage chest): the camp is set up. */
 export const allGoalsDone = (state: GameState) => GOALS.every(g => goalFinished(state, g));
 
+/** The goal that has enough of `item` (0.0.21): at the camp, the current goal (until the camp is set up) asks for
+ *  `item` and he has at least that many, carried or stored. Gathering it stops then, so the backpack doesn't fill up
+ *  with more than the goal needs (the owner, 12 Oct 2026). Null when gathering goes on: the village, the camp set up,
+ *  or a current goal that doesn't ask for it. */
+export function goalHasEnough(state: GameState, layout: Layout, item: string): Goal | null {
+  if (!layout.camp || allGoalsDone(state)) return null;
+  const goal = currentGoal(state), need = goal.needs[item];
+  return need !== undefined && owned(state, item) >= need ? goal : null;
+}
+
 /** The goal to finish before `id` (data/making.ts) may be made: the first unfinished goal before the goal that makes
  *  it, or null when there is none. The goals come in order: the campfire waits for the wreck, since its planks are the
  *  wreck's, and using them first would leave the wreck never salvaged. */
@@ -147,5 +166,7 @@ export function createState(layout: Layout, seed = 1): GameState {
     goalsDone: [],
     stokedNight: -1,
     fireLow: false,
+    woodpile: 0,
+    stokeAgain: false,
   };
 }

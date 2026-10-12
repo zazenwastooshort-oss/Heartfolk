@@ -35,7 +35,7 @@ type Setup = ReturnType<typeof setup>;
 function campSet(seed = 5): Setup {
   const s = setup(CAMP, seed);
   s.state.goalsDone = GOALS.map(g => g.id);
-  s.state.built = ['campfire', 'shelter', 'chest'];
+  s.state.built = ['campfire', 'woodpile', 'shelter', 'chest'];
   s.state.tools = { axe: true, pick: true };
   s.state.hasBook = true;
   return s;
@@ -89,6 +89,8 @@ describe('the storage chest stores things, like the bank', () => {
 
   it('before the chest is built, a full backpack still stops him with a notice', () => {
     const s = noChest();
+    // (a backpack nearly full of stones: chopping for the chest's goal stops at its 10 logs since 0.0.21)
+    s.state.player.backpack = { stone: 25 };
     send(s, { type: 'work', nodeId: 'camp_birch1' });
     runUntil(s, () => count(s, 'noStorage') > 0, 900);
     expect(count(s, 'noStorage')).toBe(1);
@@ -257,7 +259,7 @@ describe('stoking the fire at night', () => {
     expect(count(s, 'made')).toBe(1);
   });
 
-  it('a command from the player stops it: logs he carries go back into the chest, and he does not set off again that night', () => {
+  it('a command from the player stops it: logs he carries go back into the chest, and once he has nothing to do he sets off again that night', () => {
     const s = campSet();
     s.state.bank = { birch_logs: 4 };
     s.state.time = at(0, NIGHTFALL) - 0.5;
@@ -266,10 +268,14 @@ describe('stoking the fire at night', () => {
     send(s, { type: 'walk', to: { x: 6, z: -2 } });
     expect(s.state.player.stoke).toBeNull();
     expect(s.state.bank).toEqual({ birch_logs: 4 });
+    expect(s.state.stokeAgain).toBe(true);
+    // he walks where he was sent first; standing there with nothing to do, he goes back for the logs
+    runUntil(s, () => count(s, 'stokeOff') > 1, 120);
+    expect(count(s, 'stokeOff')).toBe(2);
     runUntil(s, () => s.state.time >= at(1, 6), DAY_SECONDS);
-    expect(count(s, 'stokeOff')).toBe(1);
-    expect(count(s, 'stoked')).toBe(0);
-    expect(owned(s.state, LOGS)).toBe(4);
+    expect(count(s, 'stoked')).toBe(1);
+    expect(s.state.stokeAgain).toBe(false);
+    expect(owned(s.state, LOGS)).toBe(1);
     // dropping something doesn't stop it
     const t = campSet();
     t.state.bank = { birch_logs: 4 }; t.state.player.backpack = { stone: 2 };
@@ -424,14 +430,16 @@ describe('saving the chest and the fire', () => {
     const { stokedNight: _n, fireLow: _l, ...rest } = JSON.parse(serialize(s.state));
     const { stoke: _s, ...player } = rest.player;
     const back = deserialize(JSON.stringify({ ...rest, player, version: 6 }), CAMP);
-    expect(SAVE_VERSION).toBe(8);
+    expect(SAVE_VERSION).toBe(9);
     expect(back.version).toBe(SAVE_VERSION);
     expect(back.stokedNight).toBe(-1);
     expect(back.fireLow).toBe(false);
     expect(back.player.stoke).toBeNull();
     expect(back.player.task).toEqual(s.state.player.task);
     expect(back.player.backpack).toEqual(s.state.player.backpack);
-    expect(back.built).toEqual(['campfire', 'shelter']);
+    // it had finished Firewood (10 logs, a gathering goal then), so since 0.0.21 it gets the firewood pile, empty
+    expect(back.built).toEqual(['campfire', 'shelter', 'woodpile']);
+    expect(back.woodpile).toBe(0);
   });
 
   it('repairs a damaged stoke: logs it carried go back into the chest, and a stoke task without one stops', () => {
@@ -450,8 +458,8 @@ describe('saving the chest and the fire', () => {
     // on the way to the fire with logs, the stoke is kept with a bad back dropped
     raw.player.stoke = { back: { nodeId: 'gone' }, logs: 3, empty: false }; raw.player.task = { kind: 'walk' };
     raw.player.pending = { kind: 'visit', id: 'campfire' }; raw.player.path = [{ x: FIRE.x - 1.3, z: FIRE.z }];
-    expect(deserialize(JSON.stringify(raw), CAMP).player.stoke).toEqual({ back: null, logs: 3, empty: false });
-    // without a chest there is no stoking to carry on
+    expect(deserialize(JSON.stringify(raw), CAMP).player.stoke).toEqual({ back: null, logs: 3, empty: false, from: 'chest' });
+    // without a chest (or the firewood pile) there is no stoking to carry on
     raw.built = ['campfire', 'shelter'];
     const noChestBack = deserialize(JSON.stringify(raw), CAMP);
     expect(noChestBack.player.stoke).toBeNull();
@@ -477,5 +485,97 @@ describe('the village is unchanged', () => {
     expect(s.log.slice(from)).toEqual([]);
     send(s, { type: 'visit', id: 'chest' });
     expect(s.log.slice(from)).toEqual([{ type: 'noPath' }]);
+  });
+});
+
+describe('the firewood pile (0.0.21)', () => {
+  const PILE = CAMP.camp!.woodpile.pos;
+
+  it('at nightfall he takes the logs from the pile first, and the chest keeps its own', () => {
+    const s = campSet();
+    s.state.woodpile = 10; s.state.bank = { birch_logs: 5 };
+    s.state.time = at(0, NIGHTFALL) - 0.5;
+    runUntil(s, () => count(s, 'stokeOff') > 0, 5);
+    expect(s.state.player.stoke).toMatchObject({ from: 'woodpile', logs: 0 });
+    expect(s.state.player.pending).toEqual({ kind: 'visit', id: 'woodpile' });
+    runUntil(s, () => count(s, 'stoked') > 0, 120);
+    expect(s.state.woodpile).toBe(10 - STOKE.logs);
+    expect(s.state.bank).toEqual({ birch_logs: 5 });
+    expect(s.log).toContainEqual({ type: 'stoked', logs: STOKE.logs });
+    // he ends beside the fire
+    expect(dist(s.state.player.pos, FIRE)).toBeLessThan(2.5);
+  });
+
+  it('with the pile and the chest empty, the logs come out of his backpack and he goes straight to the fire', () => {
+    const s = campSet();
+    s.state.player.backpack = { birch_logs: 2 };
+    s.state.time = at(0, NIGHTFALL) - 0.5;
+    runUntil(s, () => count(s, 'stokeOff') > 0, 5);
+    expect(s.state.player.stoke).toMatchObject({ from: null, logs: 2 });
+    expect(s.state.player.backpack).toEqual({});
+    expect(s.state.player.pending).toEqual({ kind: 'visit', id: 'campfire' });
+    runUntil(s, () => count(s, 'stoked') > 0, 120);
+    expect(s.log).toContainEqual({ type: 'stoked', logs: 2 });
+    expect(count(s, 'fireLow')).toBe(0);
+  });
+
+  it('stoking starts once the pile stands, before there is a chest', () => {
+    const s = noChest();
+    s.state.built = ['campfire', 'woodpile', 'shelter']; s.state.woodpile = 4;
+    s.state.time = at(0, NIGHTFALL) - 0.5;
+    runUntil(s, () => count(s, 'stoked') > 0, 120);
+    expect(s.state.woodpile).toBe(1);
+    // the next night only one log is left: he uses it; the night after, none anywhere, so the fire burns low
+    runUntil(s, () => count(s, 'stoked') > 1, DAY_SECONDS);
+    expect(s.state.woodpile).toBe(0);
+    runUntil(s, () => count(s, 'fireLow') > 0, DAY_SECONDS);
+    expect(s.state.fireLow).toBe(true);
+  });
+
+  it('a tap on the pile stacks the logs he carries on it, up to what it holds', () => {
+    const s = campSet();
+    s.state.woodpile = 25; s.state.player.backpack = { birch_logs: 8, stone: 1 };
+    send(s, { type: 'visit', id: 'woodpile' });
+    runUntil(s, () => count(s, 'stacked') > 0, 60);
+    expect(s.log).toContainEqual({ type: 'stacked', logs: 5, pile: 30 });
+    expect(s.state.woodpile).toBe(30);
+    expect(s.state.player.backpack).toEqual({ birch_logs: 3, stone: 1 });
+    expect(dist(s.state.player.pos, PILE)).toBeLessThan(CAMP.camp!.woodpile.radius + 1);
+    // full, or with no logs to stack, it says so and nothing changes
+    send(s, { type: 'visit', id: 'woodpile' });
+    runUntil(s, () => count(s, 'stacked') > 1, 10);
+    expect(s.log.filter(e => e.type === 'stacked').at(-1)).toEqual({ type: 'stacked', logs: 0, pile: 30, reason: 'full' });
+    s.state.woodpile = 2; s.state.player.backpack = {};
+    send(s, { type: 'visit', id: 'woodpile' });
+    runUntil(s, () => count(s, 'stacked') > 2, 10);
+    expect(s.log.filter(e => e.type === 'stacked').at(-1)).toEqual({ type: 'stacked', logs: 0, pile: 2, reason: 'none' });
+  });
+
+  it('logs he carries from the pile go back on it when the player sends him elsewhere', () => {
+    const s = campSet();
+    s.state.woodpile = 6;
+    s.state.time = at(0, NIGHTFALL) - 0.5;
+    runUntil(s, () => (s.state.player.stoke?.logs ?? 0) > 0, 60);
+    expect(s.state.woodpile).toBe(6 - STOKE.logs);
+    send(s, { type: 'walk', to: { x: 6, z: -2 } });
+    expect(s.state.woodpile).toBe(6);
+    expect(s.state.stokeAgain).toBe(true);
+  });
+
+  it('saves the pile, and a save and reload while he fetches from it carries on', () => {
+    const s = campSet();
+    s.state.woodpile = 9;
+    s.state.time = at(0, NIGHTFALL) - 0.5;
+    runUntil(s, () => count(s, 'stokeOff') > 0, 5);
+    const back = reload(s);
+    expect(back.state.woodpile).toBe(9);
+    expect(back.state.player.stoke).toEqual(s.state.player.stoke);
+    runUntil(back, () => count(back, 'stoked') > 0, 120);
+    expect(back.state.woodpile).toBe(9 - STOKE.logs);
+    // a pile holding more than it can, or one with no pile built, is put right
+    const raw = JSON.parse(serialize(s.state)); raw.woodpile = 500;
+    expect(deserialize(JSON.stringify(raw), CAMP).woodpile).toBe(30);
+    raw.built = ['campfire', 'shelter', 'chest'];
+    expect(deserialize(JSON.stringify(raw), CAMP).woodpile).toBe(0);
   });
 });

@@ -6,7 +6,7 @@ import { ITEMS, SKILLS, TOOL_IDS, type SkillId, type ToolId } from '../data/skil
 import { PICKUPS } from '../data/pickups';
 import { BOOK, GOALS } from '../data/goals';
 import { makeDef, type MakeId } from '../data/making';
-import { STOKE } from '../data/fire';
+import { STOKE, WOODPILE } from '../data/fire';
 
 export interface Storage { get(key: string): string | null; set(key: string, value: string): void }
 
@@ -45,6 +45,18 @@ const migrations: Record<number, (s: any) => any> = {
   // 0.0.20: away time. A save says when it was written (savedAt); an older one doesn't, so its first load has no away
   // time. The next save says.
   7: (s) => ({ ...s, savedAt: null }),
+  // 0.0.21: the firewood pile. Firewood was a gathering goal before (10 logs, then used for the shelter); a save that
+  // finished it gets the pile, built and empty, to stack logs on. Stoking under way took its logs from the chest.
+  8: (s) => {
+    const built = Array.isArray(s.built) ? s.built : [];
+    const done = Array.isArray(s.goalsDone) && s.goalsDone.includes('firewood');
+    const stoke = s.player?.stoke;
+    return {
+      ...s, woodpile: 0, stokeAgain: false,
+      built: done && !built.includes('woodpile') ? [...built, 'woodpile'] : built,
+      player: { ...s.player, stoke: stoke && typeof stoke === 'object' ? { ...stoke, from: 'chest' } : null },
+    };
+  },
 };
 
 /** The game as saved text. `savedAt` (since 0.0.20): the real time the game had been played up to when it was saved,
@@ -120,12 +132,18 @@ function savedBack(v: unknown, state: GameState, layout: Layout): Back | null {
   return null;
 }
 
-/** Stoking the fire (0.0.19), as saved: only where the fire is his to stoke, with a whole number of logs carried (none
- *  before the chest). Anything else is null. */
+/** Stoking the fire (0.0.19), as saved: only where the fire is his to stoke (the campfire stands, with the firewood
+ *  pile or the chest), fetching the logs from one that stands (or with logs from his backpack already in hand: `from`
+ *  null; one that doesn't say, from before 0.0.21 or damaged, came from the chest), with a whole number of logs
+ *  carried (none before he reaches the pile or the chest). Anything else is null. */
 function savedStoke(v: unknown, state: GameState, layout: Layout): Stoke | null {
-  if (!isRecord(v) || !state.built.includes('campfire') || !state.built.includes('chest') || !siteOf(layout, 'chest')) return null;
+  const has = (id: 'woodpile' | 'chest') => state.built.includes(id) && !!siteOf(layout, id);
+  if (!isRecord(v) || !state.built.includes('campfire') || !siteOf(layout, 'hearth') || (!has('woodpile') && !has('chest'))) return null;
+  const from = v.from === 'woodpile' || v.from === 'chest' ? v.from : v.from === null ? null : has('chest') ? 'chest' : null;
+  if (from && !has(from)) return null;
   const logs = Number.isSafeInteger(v.logs) && (v.logs as number) > 0 ? Math.min(v.logs as number, STOKE.logs) : 0;
-  return { back: savedBack(v.back, state, layout), logs, empty: v.empty === true };
+  if (!from && !logs) return null;
+  return { back: savedBack(v.back, state, layout), logs, empty: v.empty === true && from === 'chest', from };
 }
 
 /** Whether `id` can be made here at all (data/making.ts): it exists, its site is in this layout, and it isn't made
@@ -166,8 +184,12 @@ export function readSave(raw: string, layout: Layout): Loaded {
     goalsDone: savedGoals(data.goalsDone),
     stokedNight: Number.isSafeInteger(data.stokedNight) ? data.stokedNight : -1,
     fireLow: data.fireLow === true,
+    woodpile: 0,
+    stokeAgain: data.stokeAgain === true,
     parcels: { ...fresh.parcels, ...Object.fromEntries(Object.entries(data.parcels ?? {}).filter(([id]) => id in fresh.parcels)) },
   };
+  // the firewood pile's logs: a whole number up to what it holds, and none unless it stands
+  if (state.built.includes('woodpile') && Number.isSafeInteger(data.woodpile) && data.woodpile > 0) state.woodpile = Math.min(data.woodpile, WOODPILE.max);
   state.nodes = { ...fresh.nodes, ...Object.fromEntries(Object.entries(data.nodes ?? {}).filter(([id]) => id in fresh.nodes)) } as GameState['nodes'];
   // a position that is broken, or now inside a building or off the land, goes back to the start
   const p = state.player;
@@ -192,13 +214,18 @@ export function readSave(raw: string, layout: Layout): Loaded {
   const gathered = (id: string) => { const spot = layout.pickups?.find(x => x.id === id); return !!spot && PICKUPS[spot.kind].gather !== null; };
   const backTo = !!trip && (typeof trip.pickupId === 'string' ? gathered(trip.pickupId) : typeof trip.nodeId === 'string' && trip.nodeId in state.nodes);
   if (trip && (!backTo || (p.pending?.kind !== 'visit' && trip.leaveAt === undefined))) p.trip = null;
-  // stoking the fire (0.0.19) carries on only on the way to the chest (no logs yet), with the logs on the way to the
-  // fire, or stoking it; otherwise it stops, and logs he carried go back into the chest. A stoke task needs it.
+  // stoking the fire (0.0.19) carries on only on the way to the pile or the chest (no logs yet), with the logs on the
+  // way to the fire, or stoking it; otherwise it stops, and logs he carried go back where they came from. A stoke task
+  // needs it.
   const stoke = savedStoke(p.stoke, state, layout);
   const goingTo = p.pending?.kind === 'visit' ? p.pending.id : null;
-  const onTrack = !!stoke && (p.task.kind === 'stoke' ? stoke.logs > 0 && Number.isFinite(p.task.doneAt) : goingTo === (stoke.logs ? 'campfire' : 'chest'));
+  const onTrack = !!stoke && (p.task.kind === 'stoke' ? stoke.logs > 0 && Number.isFinite(p.task.doneAt) : goingTo === (stoke.logs ? 'campfire' : stoke.from));
   p.stoke = onTrack ? stoke : null;
-  if (stoke && !onTrack && stoke.logs > 0) state.bank[STOKE.item] = (state.bank[STOKE.item] ?? 0) + stoke.logs;
+  if (stoke && !onTrack && stoke.logs > 0) {
+    if (stoke.from === 'woodpile') state.woodpile = Math.min(WOODPILE.max, state.woodpile + stoke.logs);
+    else if (stoke.from === 'chest') state.bank[STOKE.item] = (state.bank[STOKE.item] ?? 0) + stoke.logs;
+    else p.backpack[STOKE.item] = (p.backpack[STOKE.item] ?? 0) + stoke.logs;
+  }
   if (p.task.kind === 'stoke' && !p.stoke) p.task = { kind: 'idle' };
   if (p.stoke) p.trip = null;
   return { state, savedAt };

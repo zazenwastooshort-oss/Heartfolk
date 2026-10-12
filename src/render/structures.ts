@@ -4,9 +4,11 @@
 // wooden box with copper straps facing the fire (0.0.19, built here in code). Until one is built its site shows a
 // faint ring on the ground with a faint outline of it inside (the campfire's stones, the tent, the chest), and an
 // invisible, finger-sized hit area tagged with its id (userData.makeId) for the input; while he builds, the ring fills
-// up. Once the chest stands, a hit area tagged userData.storeId lets a tap empty the backpack into it. Since 0.0.19
+// up. Once the chest (or the firewood pile) stands, a hit area tagged userData.storeId lets a tap empty the backpack
+// into it (stack his logs on it). Since 0.0.19
 // the fire flares up while he stokes it and settles back after, and burns low (smaller flames, dimmer light) on a
-// night there were no logs, until it is stoked again (FIRE_LOOK in data/fire.ts). Models from
+// night there were no logs, until it is stoked again (FIRE_LOOK in data/fire.ts). The firewood pile (0.0.21, built in
+// code) shows as many logs as it holds, and a tap on it stacks the logs he carries. Models from
 // assets/models/village.glb: CampfireCold's stones and ash, the wreck's Plank, the village Hearth's flames, the Tent.
 // Reads state; never changes it.
 import * as THREE from 'three';
@@ -14,7 +16,7 @@ import type { GameState } from '../core/state';
 import type { Layout, Vec2 } from '../world/layout';
 import { siteOf } from '../world/layout';
 import { MAKES, type MakeDef, type MakeId } from '../data/making';
-import { FIRE_LOOK } from '../data/fire';
+import { FIRE_LOOK, WOODPILE } from '../data/fire';
 
 const RING = { width: 0.08, gap: 0.12, segments: 48, color: 0xf1e8d4 };   // the ring round a site not built yet
 const PLAN_OPACITY = 0.3;          // how faint the outline inside it is
@@ -25,6 +27,8 @@ interface Puff { sprite: THREE.Sprite; age: number }
 interface SiteView {
   def: MakeDef; pos: Vec2; plan: THREE.Group; fill: THREE.Mesh; hit: THREE.Mesh; storeHit: THREE.Mesh | null;
   model: THREE.Group; flames: THREE.Object3D[]; light: THREE.PointLight | null; smoke: Puff[];
+  /** the firewood pile's logs, bottom row first: as many show as it holds */
+  logs: THREE.Object3D[] | null;
   shown: boolean | null; pop: number;
   /** the fire: how far it has flared up from being stoked (0..1), and how low it burns (0 normal .. 1 low) */
   flare: number; low: number;
@@ -57,7 +61,7 @@ export class StructuresView {
       if (def.gives.kind !== 'structure' || def.at === 'here' || !build) continue;
       const site = siteOf(layout, def.at);
       if (!site) continue;
-      const { model, flames, plan: outline, store } = build(proto);
+      const { model, flames, plan: outline, store, logs } = build(proto);
       // before it is built: a faint outline of it inside a ring on the ground, which fills up while he builds
       const plan = new THREE.Group(); plan.position.set(site.pos.x, 0, site.pos.z);
       outline.rotation.y = site.rot ?? 0;
@@ -92,7 +96,7 @@ export class StructuresView {
           smoke.push({ sprite, age: i / SMOKE.puffs * SMOKE.life });
         }
       }
-      this.views.push({ def, pos: site.pos, plan, fill, hit, storeHit, model, flames, light, smoke, shown: null, pop: 1, flare: 0, low: 0 });
+      this.views.push({ def, pos: site.pos, plan, fill, hit, storeHit, model, flames, light, smoke, logs: logs ?? null, shown: null, pop: 1, flare: 0, low: 0 });
     }
   }
 
@@ -119,6 +123,7 @@ export class StructuresView {
         if (v.light) v.light.intensity = 0;
         continue;
       }
+      if (v.logs) v.logs.forEach((log, i) => { log.visible = i < state.woodpile; });
       if (v.pop < 1) {
         v.pop = Math.min(1, v.pop + dt / POP);
         v.model.scale.setScalar(0.7 + 0.3 * (1 - Math.pow(1 - v.pop, 3)));
@@ -147,7 +152,34 @@ export class StructuresView {
  *  flames (which flicker), if any; the outline drawn faintly at its site until then; and whether things are stored in
  *  it (the chest: a tap empties the backpack into it). Tools (the stone axe and pickaxe) have none: the view draws
  *  them on him. */
-type Built = { model: THREE.Group; flames: THREE.Object3D[]; plan: THREE.Object3D; store?: boolean };
+type Built = { model: THREE.Group; flames: THREE.Object3D[]; plan: THREE.Object3D; store?: boolean; logs?: THREE.Object3D[] };
+
+/** The firewood pile's look (0.0.21): logs lying across two bearers (along its depth, +z faces the fire), in rows that
+ *  step in as they go up, WOODPILE.max of them in all; a placeholder, quick to change. */
+const PILE = { w: 1.2, len: 0.56, r: 0.055, bark: ['#b9b2a3', '#a8a091', '#c4bdae'], end: '#d9c49a', bearer: '#6e4f33' };
+
+/** The pile: the bearers and its logs, bottom row first (the view shows as many as it holds). */
+function woodpileModel(): { model: THREE.Group; logs: THREE.Object3D[] } {
+  const model = new THREE.Group(), logs: THREE.Object3D[] = [];
+  const mat = (color: string) => new THREE.MeshStandardMaterial({ color, roughness: 0.95, flatShading: true });
+  const barks = PILE.bark.map(mat), bearer = mat(PILE.bearer);
+  const log = new THREE.CylinderGeometry(PILE.r, PILE.r, PILE.len, 7).rotateX(Math.PI / 2);
+  for (const x of [-0.4, 0.4]) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, PILE.len + 0.08), bearer); b.position.set(x, 0.03, 0); model.add(b);
+  }
+  const across = Math.floor(PILE.w / (PILE.r * 2.05));
+  for (let row = 0; logs.length < WOODPILE.max; row++) {
+    const n = across - row;
+    if (n <= 0) break;
+    for (let i = 0; i < n && logs.length < WOODPILE.max; i++) {
+      const m = new THREE.Mesh(log, barks[(row * 3 + i) % barks.length]!);
+      m.position.set((i - (n - 1) / 2) * PILE.r * 2.05, 0.06 + PILE.r + row * PILE.r * 1.75, 0);
+      m.rotation.z = ((row + i) % 3 - 1) * 0.05;
+      model.add(m); logs.push(m);
+    }
+  }
+  return { model, logs };
+}
 
 /** The storage chest's look (0.0.19): a box of split-log boards under a lid, two copper straps over it and a copper
  *  latch at the front (+z, which faces the fire), in metres. */
@@ -206,4 +238,7 @@ const BUILD: Partial<Record<MakeId, (proto: (name: string) => THREE.Object3D) =>
   },
   // the storage chest beside the shelter; until it is built, the whole chest faint
   chest: () => ({ model: chestModel(), flames: [], plan: chestModel(), store: true }),
+  // the firewood pile beside the fire: as many logs as it holds; until it is built, a full pile faint. A tap on it
+  // stacks the logs he carries on it
+  woodpile: () => { const { model, logs } = woodpileModel(); return { model, logs, flames: [], plan: woodpileModel().model, store: true }; },
 };

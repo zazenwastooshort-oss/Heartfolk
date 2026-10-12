@@ -585,7 +585,7 @@ describe('saving the camp', () => {
     run(s, 15);
     const { tools: _t, hasBook: _b, taken: _k, ...rest } = JSON.parse(serialize(s.state));
     const back = deserialize(JSON.stringify({ ...rest, version: 4 }), CAMP);
-    expect(SAVE_VERSION).toBe(8);
+    expect(SAVE_VERSION).toBe(9);
     expect(back.version).toBe(SAVE_VERSION);
     expect(back.tools).toEqual({ axe: true, pick: true });
     expect(back.hasBook).toBe(false);
@@ -640,5 +640,31 @@ describe('saving the camp', () => {
       expect(s.tools).toEqual({ axe: false, pick: false });
       expect(s.taken).toEqual({});
     }
+  });
+});
+
+describe('gathering stops once the goal has enough (0.0.21)', () => {
+  it('with the campfire next, gathering stones stops at the 4 it needs, and he says so', () => {
+    const s = setup();
+    salvage(s);
+    run(s, 0.1);
+    expect(currentGoal(s.state).id).toBe('campfire');
+    const from = s.log.length;
+    send(s, { type: 'pickup', id: ofKind('stone')[0]!.id });
+    runUntil(s, () => s.log.slice(from).some(e => e.type === 'goalEnough' || e.type === 'allGathered' || e.type === 'noStorage'), 900);
+    expect(s.state.player.backpack.stone).toBe(4);
+    expect(s.log.slice(from)).toContainEqual({ type: 'goalEnough', item: 'stone', goal: 'campfire' });
+    expect(s.state.player.task.kind).toBe('idle');
+    expect(s.state.player.pending).toBeNull();
+    // the planks were all picked up, so the wreck says "that's all" rather than "enough"
+    expect(s.log).toContainEqual({ type: 'allGathered', gather: 'planks' });
+  });
+
+  it('before the wreck is salvaged, stones (which it does not ask for) go on until the backpack is full', () => {
+    const s = setup();
+    send(s, { type: 'pickup', id: ofKind('stone')[0]!.id });
+    runUntil(s, () => s.log.some(e => e.type === 'noStorage' || e.type === 'goalEnough'), 1800);
+    expect(s.log.some(e => e.type === 'goalEnough')).toBe(false);
+    expect(backpackCount(s.state)).toBe(BACKPACK_SLOTS);
   });
 });

@@ -23,6 +23,11 @@ export type GameEvent =
   | { type: 'pickupBack'; id: string }
   /** gathering `gather` (GATHERS in data/pickups), he picked up the last one there is, so he stops */
   | { type: 'allGathered'; gather: GatherId }
+  /** gathering `item` (off the ground, or from trees or rocks), the current goal now has enough, so he stops (0.0.21) */
+  | { type: 'goalEnough'; item: string; goal: string }
+  /** a tap on the firewood pile: `logs` he carried were stacked on it, now holding `pile`; none when he had none
+   *  ('none') or it was full ('full') (0.0.21) */
+  | { type: 'stacked'; logs: number; pile: number; reason?: 'none' | 'full' }
   /** no room in the backpack for what he was sent to pick up */
   | { type: 'noRoom' }
   /** `count` of `item` dropped from the backpack, gone for good */
@@ -41,11 +46,11 @@ export type GameEvent =
   | { type: 'made'; make: MakeId }
   /** a goal (data/goals.ts) is finished, for good */
   | { type: 'goalDone'; goal: string }
-  /** nightfall: he sets off to the storage chest for logs to stoke the fire (systems/fire.ts) */
+  /** nightfall: he sets off for logs to stoke the fire (systems/fire.ts): to the firewood pile, else the chest */
   | { type: 'stokeOff' }
   /** he stoked the fire with `logs` logs: its flames flare up */
   | { type: 'stoked'; logs: number }
-  /** nightfall, and no logs in the chest or the backpack: the fire burns low until it is next stoked */
+  /** nightfall, and no logs in the pile, the chest or the backpack: the fire burns low until it is next stoked */
   | { type: 'fireLow' }
   | { type: 'arrived' };
 

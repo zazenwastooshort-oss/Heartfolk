@@ -72,7 +72,7 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
       return def.gather ? `Gather|${GATHERS[def.gather].name}` : `Pick up|${def.name}`;
     }
     if (t.kind === 'make') return `${MAKES[t.id].verb}|${MAKES[t.id].name}`;
-    if (t.kind === 'store') return 'Store in|Chest';
+    if (t.kind === 'store') return t.id === 'woodpile' ? 'Stack logs on|Firewood pile' : 'Store in|Chest';
     if (t.kind === 'building') return `Visit|${layout.buildings.find(b => b.id === t.id)!.name}`;
     return `Explore|${layout.parcels.find(p => p.id === t.id)!.name}`;
   }

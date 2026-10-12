@@ -5,8 +5,9 @@
 // group still lying on the ground (GATHERS), until none are left. Stones and branches come back, so then he walks to
 // the one that comes back soonest and waits beside it. With no room for the next one, systems/hauling takes over:
 // to the bank and back, or, with nowhere to store it (the camp), he stops. The torn tarp and the book are picked up
-// on their own.
-import type { GameState } from '../core/state';
+// on their own. Since 0.0.21 gathering also stops once the camp's current goal has enough of what he gathers
+// (goalHasEnough in core/state), so the backpack doesn't fill with more than it needs.
+import { goalHasEnough, type GameState } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Layout } from '../world/layout';
 import { PICKUPS, PICKUP_PAUSE, type GatherId } from '../data/pickups';
@@ -44,9 +45,16 @@ export function gatherNext(state: GameState, layout: Layout, group: GatherId): b
   return [...lying, ...coming].some(x => goPickup(state, layout, x.id));
 }
 
-/** On to the next of `group`, or stop and say that was all of them. */
-function keepGathering(state: GameState, layout: Layout, group: GatherId, events: EventBus): void {
-  if (!gatherNext(state, layout, group)) events.emit({ type: 'allGathered', gather: group });
+/** Whether any of `group` is left to gather: lying on the ground, or (stones and branches) coming back. */
+const anyLeft = (state: GameState, layout: Layout, group: GatherId) =>
+  (layout.pickups ?? []).some(x => PICKUPS[x.kind].gather === group && (!(x.id in state.taken) || typeof state.taken[x.id] === 'number'));
+
+/** On to the next of `group`, or stop: that was all of them, or the current goal has enough of `item` (what the group
+ *  gives). */
+export function keepGathering(state: GameState, layout: Layout, group: GatherId, item: string | null, events: EventBus): void {
+  const enough = item ? goalHasEnough(state, layout, item) : null;
+  if (enough && anyLeft(state, layout, group)) { events.emit({ type: 'goalEnough', item: item!, goal: enough.id }); return; }
+  if (enough || !gatherNext(state, layout, group)) events.emit({ type: 'allGathered', gather: group });
 }
 
 export function updatePickups(state: GameState, layout: Layout, events: EventBus): void {
@@ -63,7 +71,7 @@ export function updatePickups(state: GameState, layout: Layout, events: EventBus
     const back = state.taken[spot.id];
     if (typeof back === 'number') { task.doneAt = back + PICKUP_PAUSE; return; }
     p.task = { kind: 'idle' };
-    if (def.gather) keepGathering(state, layout, def.gather, events);
+    if (def.gather) keepGathering(state, layout, def.gather, def.gives === 'book' ? null : def.gives.item, events);
     return;
   }
   p.task = { kind: 'idle' };
@@ -77,5 +85,5 @@ export function updatePickups(state: GameState, layout: Layout, events: EventBus
   const item = def.gives === 'book' ? null : def.gives.item, count = def.gives === 'book' ? 1 : def.gives.count;
   events.emit({ type: 'pickedUp', id: spot.id, kind: spot.kind, item, count });
   if (item) events.emit({ type: 'itemGained', item, count });
-  if (def.gather) keepGathering(state, layout, def.gather, events);
+  if (def.gather) keepGathering(state, layout, def.gather, item, events);
 }
