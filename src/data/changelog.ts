@@ -6,6 +6,13 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.24', date: '12 Oct 2026', notes: [
+      'Goblins have camped where the river leaves the valley. Beat all three before they get back up, and their chief comes out of his tent.',
+      'Take food and wear your hide armour: goblins hit harder than rats. If they keep getting back up, train Attack and Strength.',
+      "Beat the chief for a torn map, and the way along the river is open. That's the end of chapter 2!",
+    ],
+  },
+  {
     version: '0.0.23', date: '12 Oct 2026', notes: [
       'Rats have moved into the woods down the river. Tap one to fight it; they only fight back if you start it.',
       'Beaten rats sometimes leave a hide, and come back to their nest after a while.',
