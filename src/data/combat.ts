@@ -21,16 +21,22 @@ export const COMBAT = { styleBonus: 3, vitality: 1 / 3 };
 export type Slot = 'weapon' | 'head' | 'body' | 'shield';
 export const SLOTS: Slot[] = ['weapon', 'head', 'body', 'shield'];
 
-export type GearId = 'stone_club';
+export type GearId = 'stone_club' | 'hide_cap' | 'hide_vest' | 'hide_shield';
 
 /** Gear he wears (made by a MAKES row that gives it, data/making.ts): the slot it goes in, and its bonuses as in OSRS:
  *  `attack` to his accuracy, `strength` to his max hit, `defence` against being hit. A weapon has a `speed`: seconds
- *  from one strike to the next (at least STRIKE.cycle, the swing itself; he rests for the rest of it). */
-export interface GearDef { id: GearId; name: string; slot: Slot; attack: number; strength: number; defence: number; speed?: number }
+ *  from one strike to the next (at least STRIKE.cycle, the swing itself; he rests for the rest of it). `short`: what
+ *  the panel's armour line calls a piece of armour ("cap"). */
+export interface GearDef { id: GearId; name: string; slot: Slot; attack: number; strength: number; defence: number; speed?: number; short?: string }
 
 export const GEAR: Record<GearId, GearDef> = {
   // a heavy branch with a round stone lashed on: slow and blunt (OSRS's 4-tick weapons strike every 2.4 seconds)
   stone_club: { id: 'stone_club', name: 'Stone club', slot: 'weapon', attack: 4, strength: 6, defence: 0, speed: 2.4 },
+  // hide armour (chapter 2, chunk D), stitched from rat hides: defence only, about OSRS's leather (a cowl, a body, a
+  // wooden shield). All three, +16, make the roll that has to beat his defence about a fifth less likely to land
+  hide_cap: { id: 'hide_cap', name: 'Hide cap', slot: 'head', attack: 0, strength: 0, defence: 3, short: 'cap' },
+  hide_vest: { id: 'hide_vest', name: 'Hide vest', slot: 'body', attack: 0, strength: 0, defence: 8, short: 'vest' },
+  hide_shield: { id: 'hide_shield', name: 'Hide shield', slot: 'shield', attack: 0, strength: 0, defence: 5, short: 'shield' },
 };
 
 export const gearDef = (id: string): GearDef | null => Object.hasOwn(GEAR, id) ? GEAR[id as GearId] : null;

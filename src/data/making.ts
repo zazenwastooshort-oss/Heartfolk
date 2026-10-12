@@ -13,7 +13,8 @@ import type { GearId } from './combat';
  *  siteOf. */
 export type SiteId = 'hearth' | 'tent' | 'chest' | 'woodpile' | 'dummy';
 
-export type MakeId = 'campfire' | 'stone_axe' | 'woodpile' | 'shelter' | 'stone_pickaxe' | 'chest' | 'dummy' | 'stone_club' | 'rod';
+export type MakeId = 'campfire' | 'stone_axe' | 'woodpile' | 'shelter' | 'stone_pickaxe' | 'chest' | 'dummy' | 'stone_club' | 'rod'
+  | 'hide_cap' | 'hide_vest' | 'hide_shield';
 
 /** name: what it is called ("Campfire"). verb: what making it is called, for the hover text over its site
  *  ("Build|Campfire") and the goal card's button ("Build the campfire", "Make the stone axe").
@@ -86,6 +87,21 @@ export const MAKES: Record<MakeId, MakeDef> = {
   rod: {
     id: 'rod', name: 'Fishing rod', verb: 'Make', needs: { branch: 3 }, at: 'here', time: 3,
     gives: { kind: 'tool', tool: 'rod' }, done: "You made a fishing rod, its line pulled from the tarp's frayed edge.",
+  },
+  // chapter 2, hide armour (chunk D): rat hides stitched together where he stands, like the club; he puts each piece on
+  // as it is made (GEAR in data/combat.ts: defence, so he is harder to hit). 9 hides in all, for rats that drop one
+  // about half the time; the shield's frame is branches
+  hide_cap: {
+    id: 'hide_cap', name: 'Hide cap', verb: 'Make', needs: { rat_hide: 2 }, at: 'here', time: 3,
+    gives: { kind: 'gear', gear: 'hide_cap' }, done: 'You made a hide cap and put it on. A little harder to hit now.',
+  },
+  hide_vest: {
+    id: 'hide_vest', name: 'Hide vest', verb: 'Make', needs: { rat_hide: 4 }, at: 'here', time: 4,
+    gives: { kind: 'gear', gear: 'hide_vest' }, done: 'You made a hide vest and put it on. Even harder to hit now.',
+  },
+  hide_shield: {
+    id: 'hide_shield', name: 'Hide shield', verb: 'Make', needs: { rat_hide: 3, branch: 2 }, at: 'here', time: 4,
+    gives: { kind: 'gear', gear: 'hide_shield' }, done: 'You made a hide shield and strapped it to your arm. Your hide armour is all on.',
   },
 };
 

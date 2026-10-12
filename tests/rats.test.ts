@@ -7,7 +7,7 @@
 // Other goals may sit between or after chapter 2's: a goal is made current by marking every goal before it done, never
 // by its position.
 import { describe, expect, it } from 'vitest';
-import { createState, currentGoal, goalFinished, maxHealth, owned, SAVE_VERSION } from '../src/core/state';
+import { createState, currentGoal, goalFinished, maxHealth, owned, SAVE_VERSION, type GameState } from '../src/core/state';
 import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
 import { STEP } from '../src/core/loop';
@@ -351,10 +351,11 @@ describe('fighting the rats', () => {
 describe("a rat's bite, as in OSRS", () => {
   /** Many bites from a rat that never falls, with his Defence level `defence`, training `style`: how many came, and the
    *  share that hurt him. */
-  const bitten = (style: 'attack' | 'defence', defence: number) => {
+  const bitten = (style: 'attack' | 'defence', defence: number, wear: Partial<GameState['equipment']> = {}) => {
     const s = ready(11);
     s.state.player.backpack = { cooked_fish: 28 };
     s.state.combatStyle = style;
+    Object.assign(s.state.equipment, wear);
     s.state.skills.defence = XP_TABLE[defence]!; s.state.skills.vitality = XP_TABLE[60]!; s.state.health = maxHealth(s.state);
     engage(s, 'rat1');
     s.state.rats.rat1!.health = 1e9;                       // a rat that never falls, for many bites
@@ -372,18 +373,15 @@ describe("a rat's bite, as in OSRS", () => {
     expect(d.landed).toBeCloseTo(hitChance(roll(RAT.attack + 9, RAT.attackBonus), roll(effectiveLevel(30, true), 0)) / 2, 1);
   });
 
-  it("his gear's defence counts as well: bites land less often (how the hide armour will protect him)", () => {
-    // nothing he can wear here has a defence bonus yet, so for this test the club lends one that doubles his roll
-    const club = GEAR.stone_club, was = club.defence, rat = roll(RAT.attack + 9, RAT.attackBonus);
-    club.defence = 64;
-    try {
-      const g = bitten('attack', 3), plain = hitChance(rat, roll(effectiveLevel(3, false), 0)) / 2;
-      const geared = hitChance(rat, roll(effectiveLevel(3, false), 64)) / 2;
-      expect(geared).toBeLessThan(plain - 0.08);
-      expect(g.n).toBeGreaterThan(400);
-      expect(g.landed).toBeCloseTo(geared, 1);
-      expect(g.landed).toBeLessThan(plain - 0.05);
-    } finally { club.defence = was; }
+  it("the hide armour's defence counts as well: bites land less often", () => {
+    const rat = roll(RAT.attack + 9, RAT.attackBonus), armour = { head: 'hide_cap', body: 'hide_vest', shield: 'hide_shield' } as const;
+    const bonus = GEAR.hide_cap.defence! + GEAR.hide_vest.defence! + GEAR.hide_shield.defence!;
+    const plain = hitChance(rat, roll(effectiveLevel(3, false), 0)) / 2, geared = hitChance(rat, roll(effectiveLevel(3, false), bonus)) / 2;
+    expect(geared).toBeLessThan(plain - 0.03);
+    const a = bitten('attack', 3), g = bitten('attack', 3, armour);
+    expect(g.n).toBeGreaterThan(400);
+    expect(g.landed).toBeCloseTo(geared, 1);
+    expect(g.landed).toBeLessThan(a.landed);
   });
 });
 

@@ -55,6 +55,11 @@ export const attackRoll = (state: GameState) =>
 export const maxHitOf = (state: GameState) =>
   maxHit(effectiveLevel(levelOf(state, 'strength'), state.combatStyle === 'strength'), gearBonus(state, 'strength'));
 
+/** His defence roll, with his Defence level, the style he trains and his gear (his armour): what anything that hits
+ *  back rolls against (hitChance(its attack roll, this)), so the armour he wears makes him harder to hit. */
+export const defenceRollOf = (state: GameState) =>
+  roll(effectiveLevel(levelOf(state, 'defence'), state.combatStyle === 'defence'), gearBonus(state, 'defence'));
+
 /** One strike at `target`: whether it lands (an accuracy roll) and how hard (0 to his max hit, so a strike that lands
  *  can still do 0, as in OSRS). 0 for a miss. */
 export function rollStrike(state: GameState, target: Target, rng: Rng): number {

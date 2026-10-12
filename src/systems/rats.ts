@@ -24,7 +24,7 @@ import { goVisit } from '../actors/player';
 import { BITE_LANDS, FIGHT_FOOD, KNOCKED_OUT, POTTER, RAT } from '../data/rats';
 import { FOOD } from '../data/food';
 import { BACKPACK_SLOTS } from '../data/hauling';
-import { effectiveLevel, gearBonus, goFight, hitChance, roll, strikeReach } from './combat';
+import { defenceRollOf, goFight, hitChance, roll, strikeReach } from './combat';
 import { addToBackpack, backpackCount, backpackFull, deposit } from './backpack';
 import { levelOf } from './skills';
 import { eat } from './food';
@@ -136,7 +136,8 @@ function bite(state: GameState, spot: RatSpot, r: RatState, dt: number, rng: Rng
   const lands = before < BITE_LANDS ? r.bite >= BITE_LANDS || r.bite < before : r.bite < before && r.bite >= BITE_LANDS;
   if (!lands) return;
   const attack = roll(RAT.attack + 9, RAT.attackBonus);
-  const defence = roll(effectiveLevel(levelOf(state, 'defence'), state.combatStyle === 'defence'), gearBonus(state, 'defence'));
+  // his defence roll: his Defence level (the defensive style) and the armour he wears (systems/combat.ts)
+  const defence = defenceRollOf(state);
   const rolled = rng.next() < hitChance(attack, defence) ? Math.floor(rng.next() * (RAT.maxHit + 1)) : 0;
   const damage = Math.min(rolled, Math.max(0, state.health));
   state.health -= damage;
