@@ -32,8 +32,6 @@ export type Step = { commands: Command[] } | { busy: true } | { wait: string | n
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.z - b.z);
 const levelOf = (state: GameState, skill: SkillId) => levelFor(state.skills[skill] ?? 0);
 const isStyle = (s: string): s is CombatStyle => (STYLES as string[]).includes(s);
-/** Raw fish caught for each cooked fish still wanted, for the ones that burn: he cooks once he has this many. */
-const RAW_PER_COOKED = 1.5;
 
 /** What a resource node gives, or null. */
 const nodeGives = (layout: Layout, id: string) => { const n = layout.nodes.find(x => x.id === id); return (n && RESOURCES[n.resource]?.item) ?? null; };
@@ -55,7 +53,7 @@ function wantsOf(state: GameState, layout: Layout): Wants {
   let cook = false;
   const cooked = items[COOK.cooked] ?? 0;
   if (cooked > 0) {
-    const p = state.player, raw = owned(state, COOK.raw), want = Math.ceil(cooked * RAW_PER_COOKED);
+    const p = state.player, raw = owned(state, COOK.raw), want = Math.ceil(cooked * COOK.rawPer);
     const fishing = (p.task.kind === 'gather' && nodeGives(layout, p.task.nodeId) === COOK.raw) || (p.pending?.kind === 'node' && nodeGives(layout, p.pending.id) === COOK.raw);
     delete items[COOK.cooked];
     if (p.cook) cook = true;

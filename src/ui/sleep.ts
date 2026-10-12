@@ -14,6 +14,7 @@ export const SLEEP_TEXT = {
   cantSleep: "He isn't tired yet. He can sleep in the shelter once night falls.",
   bedLater: "He'll stoke the fire first, then go to bed.",
   fellAsleep: 'Goodnight. He sleeps until dawn.',
+  stillAsleep: "He's asleep until morning. Tap anything around the camp to wake him.",
   awake: 'He wakes up well rested: gathering goes faster until nightfall.',
 } as const;
 
@@ -38,7 +39,7 @@ export function dialSvg(): string {
 /** The notices that go with sleeping. */
 export function sleepNotices(events: EventBus, hud: Hud): void {
   events.on(e => {
-    if (e.type === 'cantSleep' || e.type === 'bedLater' || e.type === 'fellAsleep' || e.type === 'awake') hud.notice(SLEEP_TEXT[e.type]);
+    if (e.type === 'cantSleep' || e.type === 'bedLater' || e.type === 'fellAsleep' || e.type === 'awake' || e.type === 'stillAsleep') hud.notice(SLEEP_TEXT[e.type]);
   });
 }
 

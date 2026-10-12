@@ -4,7 +4,7 @@
 // spot fits (on the camp's land, out of the water, clear of everything else, not on him, cutting nothing off); what
 // the Build list has and what each still needs; which shelter stands and how well he rests in it; and the saved
 // placements and progress, read back. Headless; changes nothing (systems/building.ts does the work).
-import { owned, type GameState, type Placed } from './state';
+import { allGoalsDone, currentGoal, made, owned, type GameState, type Placed } from './state';
 import { inArea, siteOf, type Layout, type Site, type Vec2 } from '../world/layout';
 import { blockedBy, landOf, navFor, type NavGrid, type PlacedRect } from '../world/nav';
 import { waterOf } from '../world/water';
@@ -95,9 +95,21 @@ export function restBonus(state: GameState): number {
 /** What he still lacks to begin `def`: item id to how many more (empty when he has it all, carried or stored). */
 export function lacking(state: GameState, def: MakeDef): Record<string, number> {
   const out: Record<string, number> = {};
-  for (const [id, n] of Object.entries(def.needs)) { const have = owned(state, id); if (have < n) out[id] = n - have; }
+  for (const [id, n] of Object.entries(def.needs)) { const have = spare(state, id); if (have < n) out[id] = n - have; }
   return out;
 }
+
+/** How many of `item` the camp's current goal counts (what it asks for, or what the thing it makes needs): building
+ *  leaves those alone, so the goal's count never goes backwards (13 Oct 2026). None once the camp is set up. */
+export function forGoal(state: GameState, item: string): number {
+  if (allGoalsDone(state)) return 0;
+  const goal = currentGoal(state), def = goal.makes ? makeDef(goal.makes) : null;
+  if (def && made(state, def.id)) return 0;
+  return (def ? def.needs : goal.needs)[item] ?? 0;
+}
+
+/** How many of `item` he has to spare for building: what he has, carried or stored, less what the current goal counts. */
+export const spare = (state: GameState, item: string) => Math.max(0, owned(state, item) - forGoal(state, item));
 
 /** Whether this layout has a place for `id`: a camp for the things he places, the tent's spot for its upgrades. */
 export function hasPlaceFor(layout: Layout, id: MakeId): boolean {

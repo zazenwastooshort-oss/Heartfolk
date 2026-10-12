@@ -5,13 +5,13 @@ import { createState, type GameState } from '../src/core/state';
 import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
 import { STEP } from '../src/core/loop';
-import { DAY_SECONDS, isNight } from '../src/core/clock';
+import { DAY_SECONDS, dayFraction, isNight } from '../src/core/clock';
 import { deserialize, serialize } from '../src/core/save';
 import { step } from '../src/sim';
 import { CAMP } from '../src/world/camp';
 import { VILLAGE, type Layout } from '../src/world/layout';
 import { applyCommands, type Command } from '../src/systems/commands';
-import { isRested, playSpeed, restedFactor } from '../src/systems/sleep';
+import { isRested, playSpeed, playTime, restedFactor } from '../src/systems/sleep';
 import { SLEEP } from '../src/data/sleep';
 import { STOKE } from '../src/data/fire';
 import { GOALS } from '../src/data/goals';
@@ -72,6 +72,41 @@ describe('sleeping in the shelter', () => {
     // and the rest wears off by nightfall
     run(s, SLEEP.rested + 1);
     expect(isRested(s.state)).toBe(false);
+  });
+
+  it('he sleeps on past the end of the night until the light has turned (07:00), then gets up', () => {
+    const s = camp(23);
+    s.state.stokedNight = Math.floor(s.state.time / DAY_SECONDS - STOKE.at);
+    send(s, { type: 'sleep' });
+    runUntil(s, () => s.state.player.task.kind === 'sleep', 60);
+    runUntil(s, () => !isNight(s.state.time), DAY_SECONDS);
+    expect(s.state.player.task.kind).toBe('sleep');                  // 05:00: still asleep while the dawn comes
+    runUntil(s, () => s.state.player.task.kind !== 'sleep', DAY_SECONDS);
+    expect(dayFraction(s.state.time)).toBeGreaterThanOrEqual(SLEEP.wake - 0.001);
+    expect(dayFraction(s.state.time)).toBeLessThan(SLEEP.wake + 0.01);
+    // a save from 06:00 finds him still asleep
+    const early = JSON.parse(serialize(s.state)) as GameState;
+    early.player.task = { kind: 'sleep' }; early.time = at(5, 6);
+    expect(deserialize(JSON.stringify(early), CAMP).player.task).toEqual({ kind: 'sleep' });
+  });
+
+  it('only a frame\'s worth of time goes quicker: a long gap (the screen off, the page hidden) counts at real speed', () => {
+    const s = camp(23);
+    s.state.player.task = { kind: 'sleep' };
+    expect(playTime(s.state, 0.016)).toBeCloseTo(0.016 * SLEEP.speed, 6);
+    expect(playTime(s.state, 600)).toBeCloseTo(SLEEP.frame * SLEEP.speed + (600 - SLEEP.frame), 6);   // not 12,000
+    s.state.player.task = { kind: 'idle' };
+    expect(playTime(s.state, 600)).toBeCloseTo(600, 6);
+  });
+
+  it('a tap on the goal card or his thought while he sleeps leaves him asleep, and says so', () => {
+    const s = camp(23);
+    s.state.stokedNight = Math.floor(s.state.time / DAY_SECONDS - STOKE.at);
+    send(s, { type: 'sleep' });
+    runUntil(s, () => s.state.player.task.kind === 'sleep', 60);
+    send(s, { type: 'next' });
+    expect(s.state.player.task.kind).toBe('sleep');
+    expect(of(s, 'stillAsleep')).toHaveLength(1);
   });
 
   it('woken early by a tap elsewhere, he gets up without the rest', () => {

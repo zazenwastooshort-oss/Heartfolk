@@ -154,6 +154,25 @@ describe('the Build list', () => {
   });
 });
 
+describe("the current goal's share", () => {
+  it("a build never takes what the current goal still counts, so the goal's count doesn't go backwards", () => {
+    const c = camp();
+    c.state.goalsDone = GOALS.slice(0, GOALS.findIndex(g => g.makes === 'dummy')).map(g => g.id);
+    const goal = MAKES.dummy.needs, bench = MAKES.log_bench.needs;
+    c.state.bank = { birch_logs: goal.birch_logs!, branch: goal.branch! };
+    expect(buildRows(c.state, CAMP).find(r => r.id === 'log_bench')!.missing).toEqual(bench);
+    send(c, { type: 'build', id: 'log_bench', at: OPEN, turn: 0 });
+    expect(c.state.underway).toEqual({});
+    expect(of(c, 'missing')).toHaveLength(1);
+    // with some to spare, it goes ahead and leaves the goal its share
+    c.state.bank = { birch_logs: goal.birch_logs! + bench.birch_logs!, branch: goal.branch! + bench.branch! };
+    send(c, { type: 'build', id: 'log_bench', at: OPEN, turn: 0 });
+    expect(c.state.underway.log_bench).toBe(0);
+    expect(owned(c.state, 'birch_logs')).toBe(goal.birch_logs);
+    expect(owned(c.state, 'branch')).toBe(goal.branch);
+  });
+});
+
 describe('placing', () => {
   it('fits on open grass, snapped to the half-metre grid', () => {
     const c = camp();

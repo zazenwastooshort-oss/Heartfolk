@@ -7,7 +7,7 @@ import { BOOK, GOALS } from '../data/goals';
 import { makeDef, type MakeId } from '../data/making';
 import { STOKE, WOODPILE } from '../data/fire';
 import { SLEEP } from '../data/sleep';
-import { isNight } from './clock';
+import { sleepsOn } from './clock';
 import { SLOTS, STYLES, gearDef, type CombatStyle, type GearId, type Slot } from '../data/combat';
 import { targetOf } from './targets';
 import { savedRats } from './rats';
@@ -275,8 +275,8 @@ export function readSave(raw: string, layout: Layout): Loaded {
   if (p.task.kind === 'make' && (!makeable(state, layout, p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
   // building in stages: only something begun and not finished
   if (p.task.kind === 'raise' && !Object.hasOwn(state.underway, p.task.id)) p.task = { kind: 'idle' };
-  // asleep: only in a shelter that stands, and only at night (a save from the morning finds him up)
-  if (p.task.kind === 'sleep' && (!canSleep(state, layout) || !isNight(state.time))) p.task = { kind: 'idle' };
+  // asleep: only in a shelter that stands, and only while he would sleep on (a save from later in the morning finds him up)
+  if (p.task.kind === 'sleep' && (!canSleep(state, layout) || !sleepsOn(state.time))) p.task = { kind: 'idle' };
   // knocked out (chapter 2's rats): he wakes when it says, but no later than a knock-out now would give (at once if that
   // is broken), and lies there with the 0 health he was knocked out with
   if (p.task.kind === 'knockedOut') {

@@ -23,7 +23,7 @@ import { RESOURCES } from '../data/skills';
 import { canMake } from './making';
 import { setOffToFight, stockUp } from './rats';
 import { targetOf } from '../core/targets';
-import { canCook, fishToCook, goCook } from './cooking';
+import { canCook, cookForGoal, fishToCook, goCook } from './cooking';
 import { canSleep, goToBed } from './sleep';
 import { isNight } from '../core/clock';
 import { backToBuilding } from './building';
@@ -108,7 +108,7 @@ export function backToWork(state: GameState, layout: Layout, back: Trip | Back, 
   if (!node || !spot) return;
   // the camp's goal already has enough of what it gives (counting what he just stored): he doesn't go back
   const item = RESOURCES[spot.resource]!.item, enough = goalHasEnough(state, layout, item);
-  if (enough) { events.emit({ type: 'goalEnough', item, goal: enough.id }); return; }
+  if (enough) { events.emit({ type: 'goalEnough', item, goal: enough.id }); cookForGoal(state, layout, enough); return; }
   if (!node.depletedUntil && goWork(state, layout, nodeId)) return;
   if (workNearestFree(state, layout, spot.resource)) return;
   // every one like it is down (or out of reach): wait at his own for it to grow back

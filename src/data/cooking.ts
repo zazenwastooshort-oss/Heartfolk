@@ -12,6 +12,9 @@ export const COOK = {
   xp: 15,
   /** the chance one burns at Cooking level 1; it falls evenly to none at level `safe` */
   burn: 0.35, safe: 25,
+  /** raw fish caught for each cooked fish a goal still wants, for the ones that burn: fishing for such a goal stops
+   *  once he has this many (core/state.ts goalHasEnough), and he takes them to the fire */
+  rawPer: 1.5,
 };
 
 /** The chance a fish burns at Cooking level `level`: COOK.burn at level 1, falling evenly to none at COOK.safe. */

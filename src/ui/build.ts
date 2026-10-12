@@ -18,7 +18,7 @@ import type { View } from '../render/view';
 import type { Windows } from './windows';
 import type { Hud } from './hud';
 import type { PlacingHooks } from './input';
-import { buildOpen, buildRows, fitOf, isPlaced, placeStart, rectOf, snap, type BuildRow, type Misfit } from '../core/building';
+import { buildOpen, buildRows, fitOf, forGoal, isPlaced, placeStart, rectOf, snap, spare, type BuildRow, type Misfit } from '../core/building';
 import { SOURCES, STAGE_NAMES } from '../data/building';
 import { MAKES, type MakeId } from '../data/making';
 import { itemName, setText } from './hud';
@@ -167,7 +167,7 @@ export class BuildWindow {
     }
     if (!this.windows.isOpen('build')) { this.shown = ''; return; }
     const rows = buildRows(state, this.layout);
-    const key = JSON.stringify(rows.map(r => [r.id, r.begun, r.stage, Math.round(r.progress * 50), r.missing, r.levelOk, Object.keys(r.def.needs).map(i => owned(state, i))]));
+    const key = JSON.stringify(rows.map(r => [r.id, r.begun, r.stage, Math.round(r.progress * 50), r.missing, r.levelOk, Object.keys(r.def.needs).map(i => [owned(state, i), spare(state, i)])]));
     if (key === this.shown) return;
     this.shown = key;
     const list = $('buildList');
@@ -188,9 +188,11 @@ export class BuildWindow {
     } else {
       const needs = el('ul', 'brow-needs');
       for (const [id, n] of Object.entries(r.def.needs)) {
-        const have = Math.min(n, owned(state, id)), li = el('li', have < n ? 'short' : '');
+        // only what he can spare counts: what the current goal needs stays for the goal (core/building.ts spare)
+        const have = Math.min(n, spare(state, id)), li = el('li', have < n ? 'short' : '');
         li.innerHTML = picture(id, 'item-pic');
         li.append(el('span', '', `${have} / ${n} ${itemName(id, n)}`));
+        if (have < n && forGoal(state, id) > 0 && owned(state, id) > have) li.append(el('small', 'brow-goal', ' (the rest are for your goal)'));
         needs.append(li);
       }
       row.append(needs);

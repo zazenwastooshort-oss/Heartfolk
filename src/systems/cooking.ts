@@ -8,6 +8,7 @@
 // away and he comes back to it after (Back { cook } in systems/fire.ts). It runs every step, so catching up (a
 // background tab, or away time) cooks as playing does.
 import type { GameState } from '../core/state';
+import type { Goal } from '../data/goals';
 import type { EventBus } from '../core/events';
 import type { Rng } from '../core/rng';
 import type { Layout } from '../world/layout';
@@ -38,6 +39,13 @@ export function goCook(state: GameState, layout: Layout): boolean {
   if (!goVisit(state, layout, fetch ? 'chest' : 'campfire')) return false;
   state.player.cook = { fetch };
   return true;
+}
+
+/** Once he has caught enough raw fish for a goal that asks for cooked ones (goalHasEnough), he takes them to the fire
+ *  by himself rather than stand idle. Returns whether he set off. */
+export function cookForGoal(state: GameState, layout: Layout, goal: Goal): boolean {
+  if (goal.needs[COOK.cooked] === undefined || !canCook(state, layout) || !fishToCook(state, layout)) return false;
+  return goCook(state, layout);
 }
 
 /** Stop cooking: nothing left to cook (he says so), or no way to go on. */

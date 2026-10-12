@@ -40,6 +40,10 @@ function setup(seed = 11) {
 type Setup = ReturnType<typeof setup>;
 /** A camp game whose current goal is `goal`: every goal before it done, the first chapter's things standing, his stone
  *  tools (and the rod once its goal is done), early in the morning so no night falls in a test. */
+/** The goal after the cooked meal: no goal asks for fish then, so nothing stops his fishing (since 13 Oct 2026 the meal
+ *  stops it once he has enough raw fish to cook it). */
+const AFTER_MEAL = GOALS[GOALS.findIndex(g => g.id === 'meal') + 1]!.id;
+
 function campAt(goal: string, { chest = true, seed = 11 } = {}): Setup {
   const s = setup(seed), i = GOALS.findIndex(g => g.id === goal);
   s.state.goalsDone = GOALS.slice(0, i).map(g => g.id);
@@ -141,7 +145,7 @@ describe('the fishing rod', () => {
 
 describe('fishing', () => {
   it('fish after fish into the backpack, with Fishing XP, at about the spot\'s pace', () => {
-    const s = campAt('meal');                                                  // the Fish goal done: no stopping at 5
+    const s = campAt(AFTER_MEAL);                                              // past the meal: no goal stops his fishing
     send(s, { type: 'work', nodeId: spots[2]!.id });
     runUntil(s, () => fishingAt(s) !== null, 60);
     const started = s.state.time;
@@ -213,7 +217,7 @@ describe('fishing', () => {
   });
 
   it('away time while fishing: he fishes on while the game is closed, and the note says so', () => {
-    const s = campAt('meal');
+    const s = campAt(AFTER_MEAL);
     send(s, { type: 'work', nodeId: spots[1]!.id });
     runUntil(s, () => fishingAt(s) !== null, 60);
     const loaded = readSave(serialize(s.state, NOW - 30 * 60 * 1000), CAMP);

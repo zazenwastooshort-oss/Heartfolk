@@ -70,7 +70,11 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     if (c.type === 'eat') { eat(state, c.item, events); continue; }
     if (c.type === 'style') { setStyle(state, c.style); continue; }
     // go do it: the goal's next step, applied as the commands a tap in the world would send
-    if (c.type === 'next') { const next = nextCommands(state, layout, events); if (next.length) applyCommands(state, layout, next, events); continue; }
+    if (c.type === 'next') {
+      // asleep, he sleeps on (13 Oct 2026: before, the tap woke him and he lost his rest); a tap in the world still wakes him
+      if (state.player.task.kind === 'sleep') { events.emit({ type: 'stillAsleep' }); continue; }
+      const next = nextCommands(state, layout, events); if (next.length) applyCommands(state, layout, next, events); continue;
+    }
     let ok = true;
     if (c.type === 'walk') ok = walkTo(state, layout, c.to);
     else if (c.type === 'visit') ok = goVisit(state, layout, c.id, c.at);

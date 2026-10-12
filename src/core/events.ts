@@ -62,6 +62,8 @@ export type GameEvent =
   | { type: 'fellAsleep' }
   /** dawn: he got up after a full night's sleep, well rested */
   | { type: 'awake' }
+  /** a tap on the goal card or his thought while he sleeps: he sleeps on (a tap in the world still wakes him) */
+  | { type: 'stillAsleep' }
   /** he ate one `item` from his backpack (chapter 2, 0.0.22): it healed `healed`, and his health is now `health` */
   | { type: 'ate'; item: string; healed: number; health: number }
   /** asked to eat `item`: it isn't food ('notFood'), he carries none ('none'), or his health is full ('full') */

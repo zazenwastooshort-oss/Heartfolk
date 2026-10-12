@@ -12,6 +12,7 @@ import { freshRats } from './rats';
 import { freshGoblins } from './goblins';
 import { CHIEF } from '../data/goblins';
 import type { Thoughts } from './thoughts';
+import { COOK } from '../data/cooking';
 
 /** The save format. 10 since 0.0.22: his health, and the combat and food skills. 11 since 0.0.25: "Ready for the
  *  goblins" came in before the goblin camp. */
@@ -221,7 +222,12 @@ export const allGoalsDone = (state: GameState) => GOALS.every(g => goalFinished(
 export function goalHasEnough(state: GameState, layout: Layout, item: string): Goal | null {
   if (!layout.camp || allGoalsDone(state)) return null;
   const goal = GOALS.find(g => !state.goalsDone.includes(g.id)) ?? currentGoal(state), need = goal.needs[item];
-  return need !== undefined && owned(state, item) >= need ? goal : null;
+  if (need !== undefined) return owned(state, item) >= need ? goal : null;
+  // a goal asking for cooked fish has enough raw fish once there are enough to cook what it still wants (13 Oct 2026:
+  // before, fishing for the meal went on for ever); systems/gathering.ts then sends him to cook them
+  const cooked = goal.needs[COOK.cooked];
+  if (item !== COOK.raw || cooked === undefined) return null;
+  return owned(state, item) >= Math.ceil((cooked - owned(state, COOK.cooked)) * COOK.rawPer) ? goal : null;
 }
 
 /** The goal to finish before `id` (data/making.ts) may be made: the first unfinished goal before the goal that makes

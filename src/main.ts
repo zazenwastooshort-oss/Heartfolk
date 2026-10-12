@@ -27,7 +27,7 @@ import { RatsHud } from './ui/rats';
 import { goblinNotices } from './ui/goblins';
 import { showArmour } from './ui/armour';
 import { AWAY } from './data/away';
-import { playSpeed } from './systems/sleep';
+import { playTime } from './systems/sleep';
 import { SleepHud, sleepNotices } from './ui/sleep';
 import { ThoughtBubble } from './ui/thoughts';
 import { BuildWindow } from './ui/build';
@@ -133,7 +133,7 @@ function start(data: HotData): void {
   view.ready.then(() => {
     view.renderer.setAnimationLoop(() => {
       const real = clock.frame(performance.now(), Date.now()), dt = Math.min(0.1, real);
-      simulate(real * playSpeed(state));                           // quicker while he sleeps: the night is seen to pass
+      simulate(playTime(state, real));                             // quicker while he sleeps: the night is seen to pass
       view.draw(state, dt);
       hud.update(state, dt);
       combat.update(dt);

@@ -5,7 +5,7 @@
 // the rest. Numbers in data/sleep.ts.
 import { canSleep, type GameState } from '../core/state';
 import type { EventBus } from '../core/events';
-import { isNight } from '../core/clock';
+import { isNight, sleepsOn } from '../core/clock';
 import type { Layout } from '../world/layout';
 import { goVisit } from '../actors/player';
 import { SLEEP } from '../data/sleep';
@@ -23,11 +23,19 @@ export const restedFactor = (state: GameState) => isRested(state) ? 1 + restBonu
 /** How many times faster than real time play goes: SLEEP.speed while he sleeps, else 1 (main.ts; never in a catch-up). */
 export const playSpeed = (state: GameState) => state.player.task.kind === 'sleep' ? SLEEP.speed : 1;
 
+/** The seconds of play for `real` seconds since the last frame (main.ts): up to SLEEP.frame of them at playSpeed, the
+ *  rest at real speed, so a long gap (the page hidden, the screen off) is never multiplied. */
+export function playTime(state: GameState, real: number): number {
+  const quick = Math.min(real, SLEEP.frame);
+  return quick * playSpeed(state) + (real - quick);
+}
+
 /** Off to bed (the sleep command, or after stoking the fire): to the shelter, where he lies down (updateSleep). Returns
  *  false when there is no way there. The caller checks there is a shelter and that it is night. */
 export const goToBed = (state: GameState, layout: Layout) => goVisit(state, layout, 'shelter');
 
-/** He lies down when he reaches the shelter at night (`visited`, actors/player), and gets up at dawn, well rested. */
+/** He lies down when he reaches the shelter at night (`visited`, actors/player), and gets up once the light has turned
+ *  to dawn (SLEEP.wake), well rested. */
 export function updateSleep(state: GameState, layout: Layout, visited: string | null, events: EventBus): void {
   const p = state.player;
   if (visited === 'shelter' && canSleep(state, layout) && isNight(state.time)) {
@@ -35,7 +43,7 @@ export function updateSleep(state: GameState, layout: Layout, visited: string | 
     events.emit({ type: 'fellAsleep' });
     return;
   }
-  if (p.task.kind === 'sleep' && !isNight(state.time)) {
+  if (p.task.kind === 'sleep' && !sleepsOn(state.time)) {
     p.task = { kind: 'idle' };
     state.restedUntil = state.time + SLEEP.rested;
     events.emit({ type: 'awake' });

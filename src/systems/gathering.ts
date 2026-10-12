@@ -16,6 +16,7 @@ import { isClaimed } from './commands';
 import { addToBackpack, backpackFull } from './backpack';
 import { restedFactor } from './sleep';
 import { peelBark } from './building';
+import { cookForGoal } from './cooking';
 
 // He pauses RESOURCES[...].moveOnAfter seconds after a node runs out (a tree is seen to land), then looks for another.
 export const MOVE_ON_EVERY = 0.5;     // then look again this often while still waiting; cheap when time is caught up
@@ -82,7 +83,11 @@ export function updateGathering(state: GameState, layout: Layout, dt: number, rn
     }
     // the camp's goal has all it needs of this: he stops, rather than fill the backpack with more
     const enough = goalHasEnough(state, layout, res.item);
-    if (enough) { state.player.task = { kind: 'idle' }; events.emit({ type: 'goalEnough', item: res.item, goal: enough.id }); }
+    if (enough) {
+      state.player.task = { kind: 'idle' };
+      events.emit({ type: 'goalEnough', item: res.item, goal: enough.id });
+      cookForGoal(state, layout, enough);                     // enough raw fish for the meal: off to cook them
+    }
   }
 }
 

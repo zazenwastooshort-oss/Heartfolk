@@ -44,11 +44,13 @@ export class Lighting {
     this.hemi.color.copy(c(a.sky, b.sky)); this.hemi.groundColor.copy(c(a.gnd, b.gnd)); this.hemi.intensity = n(a.hemiI, b.hemiI);
     this.night = n(a.night, b.night);
     this.horizon.copy(c(a.horizon, b.horizon));
-    // the sun travels east to west by day; at night the moon sits high in the north-east
+    // the sun travels east to west by day; at night the light swings back, from where the sun set to where it will
+    // rise, highest at midnight, so the shadows are seen to turn through the night while he sleeps (13 Oct 2026; it
+    // meets the sun's path at both ends, so nothing jumps at dusk or dawn)
     const day = dayFrac > 0.23 && dayFrac < 0.8;
-    const t = (dayFrac - 0.25) / 0.5;
-    const el = day ? Math.max(0.12, Math.sin(Math.PI * Math.min(1, Math.max(0, t)))) : 0.7;
-    const az = day ? Math.PI * (0.15 + 0.7 * t) : 1.0;
+    const t = (dayFrac - 0.25) / 0.5, nt = ((dayFrac - 0.8 + 1) % 1) / 0.43;
+    const el = day ? Math.max(0.12, Math.sin(Math.PI * Math.min(1, Math.max(0, t)))) : 0.12 + 0.58 * Math.sin(Math.PI * Math.min(1, nt));
+    const az = day ? Math.PI * (0.15 + 0.7 * t) : Math.PI * (0.92 - 0.8 * Math.min(1, nt));
     this.sun.position.set(Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az)).multiplyScalar(30).add(focus);
     this.sun.target.position.copy(focus);
     const fog = this.scene.fog as THREE.Fog;

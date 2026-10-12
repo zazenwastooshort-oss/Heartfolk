@@ -166,6 +166,17 @@ describe('the next step for each kind of goal', () => {
     expect(nextStep(s.state, CAMP)).toEqual({ busy: true });
   });
 
+  it('the meal from one tap: he catches enough raw fish, takes them to the fire by himself and cooks the meal', () => {
+    for (const seed of [4, 7]) {
+      const s = on('meal', seed);
+      s.state.tools.rod = true;
+      send(s, { type: 'next' });
+      for (let t = 0; t < 900 && currentGoal(s.state).id === 'meal'; t += 1) run(s, 1);
+      expect(currentGoal(s.state).id, `seed ${seed}`).not.toBe('meal');
+      expect(s.log.some(e => e.type === 'goalEnough' && e.item === 'raw_fish'), `seed ${seed}`).toBe(true);
+    }
+  });
+
   it("the rats' hides: the nearest rat that is up; with every one down, one by its nest, to wait for it", () => {
     const s = on('rats');
     s.state.player.backpack = { cooked_fish: 3 };
