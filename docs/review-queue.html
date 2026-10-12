@@ -1,0 +1,237 @@
+<title>Hearthfolk Review Queue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: the plan board's look (the game's forest-green panels on a deep forest ground, village-green header), so the
+   two read as a pair. Summary chips first, then the queue in the order things move through it: waiting, in review,
+   waiting for the owner's OK, then the reviewers' questions and the night-shift log. One dark look, as the owner asked.
+   Content comes from the db. */
+:root {
+  --bg: #111b10; --panel: #1e341b; --ink: #f1e8d4; --muted: #b6c0a2; --line: rgba(241, 232, 212, .13);
+  --accent: #e8a65e; --green: #8fd36e; --ground: #2c4a26; --ground-ink: #f1e8d4;
+  --c-wait: #4f3a1a; --c-wait-ink: #f3c48c; --c-review: #23384d; --c-review-ink: #a9c6ee;
+  --c-ok: #4a2f3f; --c-ok-ink: #f0b9d6; --c-good: #2b4a24; --c-good-ink: #b4e39f; --c-plain: #2a3f26; --c-plain-ink: #c6cfb3;
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
+  --body: "Karla", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius: 12px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); }
+.wrap { max-width: 940px; margin: 0 auto; padding-inline: 16px; padding-block: 0 48px; display: grid; gap: 22px; }
+
+header.top { background: var(--ground); color: var(--ground-ink); padding-inline: 16px; padding-block: 22px 20px; }
+header.top .in { max-width: 940px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; }
+h1 { font: 700 clamp(1.6rem, 4vw, 2.2rem)/1.05 var(--display); margin: 0; text-wrap: balance; }
+.sub { margin: 6px 0 0; opacity: .85; max-width: 62ch; }
+.links { display: flex; flex-wrap: wrap; gap: 8px; }
+a.pill { color: var(--ground); background: var(--ground-ink); border-radius: 999px; padding: 6px 14px; font-weight: 700; text-decoration: none; font-size: 14px; white-space: nowrap; }
+a.pill.ghost { color: var(--ground-ink); background: rgba(241, 232, 212, .12); border: 1px solid rgba(241, 232, 212, .3); }
+a.pill:hover, a.pill:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(241, 232, 212, .4); }
+
+/* summary: what needs attention, at a glance */
+.tally { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: -8px; }
+.count { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: grid; gap: 2px; }
+.count b { font: 700 1.6rem/1.1 var(--display); font-variant-numeric: tabular-nums; }
+.count span { color: var(--muted); font-size: 13px; }
+.count.wait b { color: var(--c-wait-ink); } .count.review b { color: var(--c-review-ink); } .count.ok b { color: var(--c-ok-ink); } .count.q b { color: var(--accent); }
+
+section { display: grid; gap: 10px; min-width: 0; }
+h2 { font: 700 1.15rem/1.2 var(--display); margin: 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+h2 small { font: 500 13px/1.3 var(--body); color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+
+.chip { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+.chip.wait { background: var(--c-wait); color: var(--c-wait-ink); }
+.chip.review { background: var(--c-review); color: var(--c-review-ink); }
+.chip.ok { background: var(--c-ok); color: var(--c-ok-ink); }
+.chip.good { background: var(--c-good); color: var(--c-good-ink); }
+.chip.plain { background: var(--c-plain); color: var(--c-plain-ink); }
+.tag { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ver { font: 700 13px/1.4 var(--body); color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+ul.rows { list-style: none; margin: 0; padding: 0; }
+ul.rows > li { padding: 12px 16px; border-top: 1px solid var(--line); display: grid; gap: 6px; min-width: 0; }
+ul.rows > li:first-child { border-top: 0; }
+.row-head { display: flex; gap: 10px; justify-content: space-between; align-items: baseline; flex-wrap: wrap; }
+.row-title { font-weight: 700; min-width: 0; }
+.row-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row-detail { color: var(--muted); margin: 0; }
+dl.facts { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; }
+dl.facts dt { color: var(--muted); font-size: 13px; padding-top: 1px; }
+dl.facts dd { margin: 0; min-width: 0; }
+ul.points { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+.point-head { font-size: 13px; color: var(--muted); margin: 2px 0 0; }
+
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+@media (max-width: 760px) { .two { grid-template-columns: 1fr; } }
+@media (max-width: 460px) { dl.facts { grid-template-columns: 1fr; gap: 0 0; } dl.facts dd { margin-bottom: 4px; } }
+
+details.more summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 10px 16px; border-top: 1px solid var(--line); list-style: none; }
+details.more summary::-webkit-details-marker { display: none; }
+details.more summary::before { content: "+ "; }
+details.more[open] summary::before { content: "− "; }
+summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.empty { padding: 14px 16px; color: var(--muted); }
+.how { color: var(--muted); font-size: 14px; margin: 0; max-width: 70ch; }
+</style>
+
+<header class="top">
+  <div class="in">
+    <div>
+      <h1>Hearthfolk review queue</h1>
+      <p class="sub">Quick changes made during the day wait here for a reviewer. At night the reviewers play each one, fixes are made, and they wait for your OK before going live.</p>
+    </div>
+    <div class="links">
+      <a class="pill" id="play" href="https://claude.ai/artifact/QbZc7HqgKjvqUfxnQ49Nrj" target="_blank" rel="noopener">Play the game</a>
+      <a class="pill ghost" href="https://claude.ai/artifact/AYP6EzdjA5j2nTcAgorBnJ" target="_blank" rel="noopener">Plan board</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tally" aria-label="Summary">
+    <div class="count wait"><b id="n-wait">–</b><span>waiting for review</span></div>
+    <div class="count review"><b id="n-review">–</b><span>in review</span></div>
+    <div class="count ok"><b id="n-ok">–</b><span>waiting for your OK</span></div>
+    <div class="count q"><b id="n-q">–</b><span>questions for you</span></div>
+  </div>
+
+  <section aria-labelledby="h-wait">
+    <h2 id="h-wait">Waiting for review <small>made during the day, not reviewed yet</small></h2>
+    <div class="panel"><ul class="rows" id="wait"><li class="empty">Loading the queue…</li></ul></div>
+  </section>
+
+  <section aria-labelledby="h-review" id="sec-review" hidden>
+    <h2 id="h-review">In review now</h2>
+    <div class="panel"><ul class="rows" id="review"></ul></div>
+  </section>
+
+  <section aria-labelledby="h-ok">
+    <h2 id="h-ok">Reviewed, waiting for your OK <small>fixes are made but not live until you say so</small></h2>
+    <div class="panel"><ul class="rows" id="ok"><li class="empty">Loading…</li></ul></div>
+  </section>
+
+  <div class="two">
+    <section aria-labelledby="h-q">
+      <h2 id="h-q">Questions for you <small>calls the reviewers want you to make</small></h2>
+      <div class="panel"><ul class="rows" id="questions"><li class="empty">Loading…</li></ul></div>
+    </section>
+    <section aria-labelledby="h-nights">
+      <h2 id="h-nights">Night shifts <small>newest first</small></h2>
+      <div class="panel"><ul class="rows" id="nights"><li class="empty">Loading…</li></ul></div>
+    </section>
+  </div>
+
+  <section aria-labelledby="h-done">
+    <h2 id="h-done">Reviewed and live</h2>
+    <div class="panel"><ul class="rows" id="done"><li class="empty">Loading…</li></ul></div>
+  </section>
+
+  <p class="how">To approve, tell Claude in chat ("OK, publish the fixes"). Claude keeps this page up to date as things move through the queue.</p>
+</main>
+
+<script>
+const STATUS = {
+  waiting: ['Waiting for review', 'wait'], reviewing: ['In review', 'review'],
+  fixed: ['Fixes ready, needs your OK', 'ok'], passed: ['Reviewed, all good', 'good'],
+  published: ['Fixes live', 'good'], skipped: ['Not reviewed', 'plain'],
+};
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const chip = key => { const [label, cls] = STATUS[key] || [key || '', 'plain']; return el('span', 'chip ' + cls, label); };
+const $ = id => document.getElementById(id);
+const day = iso => { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleDateString([], { day: 'numeric', month: 'short' }) : ''; };
+
+let reviews = null, questions = [], nights = [];
+
+function fill(id, items, make, emptyText) {
+  const list = $(id); list.replaceChildren();
+  if (!items.length) { list.append(el('li', 'empty', emptyText)); return; }
+  for (const it of items) list.append(make(it));
+}
+
+function points(head, list) {
+  const frag = document.createDocumentFragment();
+  if (!Array.isArray(list) || !list.length) return frag;
+  frag.append(el('p', 'point-head', head));
+  const ul = el('ul', 'points'); for (const p of list) ul.append(el('li', null, p)); frag.append(ul);
+  return frag;
+}
+
+function reviewItem(r) {
+  const li = el('li'), head = el('div', 'row-head'), right = el('div', 'row-right');
+  head.append(el('span', 'row-title', r.title || ''));
+  if (r.version) right.append(el('span', 'ver', r.version));
+  right.append(chip(r.status)); head.append(right); li.append(head);
+  const facts = el('dl', 'facts');
+  const add = (k, v) => { if (!v) return; facts.append(el('dt', null, k), el('dd', null, v)); };
+  add('What changed', r.changed); add('What to check', r.check);
+  if (facts.childElementCount) li.append(facts);
+  li.append(points('What the reviewer found', r.findings), points('What was fixed', r.fixed));
+  const when = [r.added ? 'Added ' + day(r.added) : '', r.reviewed ? 'reviewed ' + day(r.reviewed) : ''].filter(Boolean).join(' · ');
+  if (when) li.append(el('span', 'tag', when));
+  return li;
+}
+
+function render() {
+  if (reviews) {
+    const by = (...s) => reviews.filter(r => s.includes(r.status));
+    const wait = by('waiting'), rev = by('reviewing'), ok = by('fixed'), done = by('passed', 'published', 'skipped');
+    $('n-wait').textContent = wait.length; $('n-review').textContent = rev.length; $('n-ok').textContent = ok.length;
+    fill('wait', wait, reviewItem, 'Nothing waiting. Quick changes land here during the day.');
+    $('sec-review').hidden = !rev.length; fill('review', rev, reviewItem, '');
+    fill('ok', ok, reviewItem, 'Nothing waiting for your OK.');
+    const list = $('done'); list.replaceChildren();
+    if (!done.length) list.append(el('li', 'empty', 'Nothing reviewed yet.'));
+    done.slice(0, 5).forEach(r => list.append(reviewItem(r)));
+    if (done.length > 5) {
+      const more = el('details', 'more'), inner = el('ul', 'rows');
+      more.append(el('summary', null, `${done.length - 5} earlier`));
+      done.slice(5).forEach(r => inner.append(reviewItem(r)));
+      more.append(inner); const li = el('li'); li.style.padding = '0'; li.append(more); list.append(li);
+    }
+  }
+  const open = questions.filter(q => q.status !== 'answered'), answered = questions.filter(q => q.status === 'answered');
+  $('n-q').textContent = reviews ? open.length : '–';
+  const qList = $('questions'); qList.replaceChildren();
+  if (!open.length) qList.append(el('li', 'empty', reviews ? 'No open questions.' : 'Loading…'));
+  const qItem = q => {
+    const li = el('li'), head = el('div', 'row-head');
+    head.append(el('span', 'row-title', q.title || ''));
+    if (q.version) head.append(el('span', 'ver', q.version));
+    li.append(head);
+    if (q.detail) li.append(el('p', 'row-detail', q.detail));
+    if (q.answer) li.append(el('p', 'row-detail', 'Your answer: ' + q.answer));
+    return li;
+  };
+  open.forEach(q => qList.append(qItem(q)));
+  if (answered.length) {
+    const more = el('details', 'more'), inner = el('ul', 'rows');
+    more.append(el('summary', null, `${answered.length} answered`));
+    answered.forEach(q => inner.append(qItem(q)));
+    more.append(inner); const li = el('li'); li.style.padding = '0'; li.append(more); qList.append(li);
+  }
+  fill('nights', nights, n => {
+    const li = el('li'), head = el('div', 'row-head');
+    head.append(el('span', 'row-title', n.title || ''), el('span', 'tag', day(n.at)));
+    li.append(head);
+    if (n.summary) li.append(el('p', 'row-detail', n.summary));
+    return li;
+  }, reviews ? 'No night shifts yet.' : 'Loading…');
+}
+
+function offline(text) {
+  for (const id of ['wait', 'ok', 'questions', 'nights', 'done']) $(id).replaceChildren(el('li', 'empty', text));
+}
+
+(async () => {
+  const c = window.claude;
+  const db = c && c.use ? await c.use('db') : null;
+  if (!db) { offline('The queue shows here when this page is opened in Claude while signed in.'); return; }
+  const fail = () => offline('The queue couldn’t load. Reopen the page to try again.');
+  db.collection('reviews').orderBy('order').onSnapshot(s => { reviews = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
+  db.collection('questions').orderBy('order').onSnapshot(s => { questions = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, () => {});
+  db.collection('nights').orderBy('at', 'desc').limit(30).onSnapshot(s => { nights = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, () => {});
+})();
+</script>
