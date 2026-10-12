@@ -6,6 +6,14 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.26', date: '12 Oct 2026', notes: [
+      'New buttons at the edge of the screen open your backpack, skills, book and settings. Close a window with its x or the same button.',
+      'Your backpack shows all 28 slots, with a picture for everything in it. Tap a thing to eat it or drop it.',
+      "See what you're wearing and your bonuses, and what's in the chest and the firewood pile.",
+      'The goal card is smaller and windows stay clear of it, so its Build button is always in reach. Text size and Start over are now in Settings.',
+    ],
+  },
+  {
     version: '0.0.25', date: '12 Oct 2026', notes: [
       'A new goal before the goblin camp: Ready for the goblins. Practise at the dummy or fight rats until Attack, Strength and Defence reach 7.',
       'He switches what he trains by himself: when a skill reaches what your goal asks, and when the dummy has taught him all it can.',
