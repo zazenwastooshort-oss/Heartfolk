@@ -3,139 +3,242 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-/* Layout: the game's own look (CLAUDE.md, index.html): forest-green panels on a deep forest ground, the
-   village-green header on top. One deliberate dark look for every viewer (the owner asked for it not to be bright).
-   What needs the owner comes first (questions to answer, reviewed fixes to OK), then the plan, then the record.
-   Content comes from the db; answers and OKs are written back to it for Claude to pick up. */
+/* Layout: the game's own look (CLAUDE.md, index.html): forest-green panels on a deep forest ground under a
+   village-green canvas header with a stitched edge. A sticky tab strip shows one section at a time; Overview
+   says what needs the owner. Lists are rows that open in place (title and one line; open for the rest).
+   One deliberate dark forest look for every viewer and theme (the owner asked for it never to be bright), so
+   the dark blocks below repeat the same values. Content comes from the db; answers, OKs and notes are written
+   back to it for Claude to pick up. */
 :root {
-  --bg: #111b10; --panel: #1e341b; --ink: #f1e8d4; --muted: #b6c0a2; --line: rgba(241, 232, 212, .13);
-  --accent: #e8a65e; --green: #8fd36e; --ground: #2c4a26; --ground-ink: #f1e8d4;
+  --bg: #111b10; --panel: #1c3119; --panel-hi: #233b20; --ink: #f1e8d4; --muted: #b3bd9f; --line: rgba(241, 232, 212, .12);
+  --accent: #e8a65e; --accent-ink: #1b140c; --green: #8fd36e; --ground: #2c4a26; --ground-ink: #f1e8d4;
+  --track: #2a4026; --late: #c48d52; --stitch: rgba(241, 232, 212, .27); --weave: rgba(255, 250, 235, .035); --weave-2: rgba(0, 0, 0, .07);
+  --work: #a9b26c; --c-work: #353f20; --c-work-ink: #dadca2;
   --c-done: #335a26; --c-done-ink: #c9efb6; --c-built: #2b4a24; --c-built-ink: #b4e39f;
   --c-now: #4f3a1a; --c-now-ink: #f3c48c; --c-next: #23384d; --c-next-ink: #a9c6ee;
-  --c-plan: #2a3f26; --c-plan-ink: #c6cfb3; --c-new: #4f3a1a; --c-new-ink: #f3c48c;
-  --c-ok: #4a2f3f; --c-ok-ink: #f0b9d6;
+  --c-plan: #2a3f26; --c-plan-ink: #c6cfb3; --c-new: #4f3a1a; --c-new-ink: #f3c48c; --c-ok: #4a2f3f; --c-ok-ink: #f0b9d6;
   --display: "Fraunces", Georgia, "Times New Roman", serif;
   --body: "Karla", system-ui, -apple-system, "Segoe UI", sans-serif;
   --radius: 12px;
   color-scheme: dark;
 }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111b10; --panel: #1c3119; --panel-hi: #233b20; --ink: #f1e8d4; --muted: #b3bd9f; --line: rgba(241, 232, 212, .12);
+    --accent: #e8a65e; --accent-ink: #1b140c; --green: #8fd36e; --ground: #2c4a26; --ground-ink: #f1e8d4;
+    --track: #2a4026; --late: #c48d52; --stitch: rgba(241, 232, 212, .27); --weave: rgba(255, 250, 235, .035); --weave-2: rgba(0, 0, 0, .07);
+    --work: #a9b26c; --c-work: #353f20; --c-work-ink: #dadca2;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111b10; --panel: #1c3119; --panel-hi: #233b20; --ink: #f1e8d4; --muted: #b3bd9f; --line: rgba(241, 232, 212, .12);
+  --accent: #e8a65e; --accent-ink: #1b140c; --green: #8fd36e; --ground: #2c4a26; --ground-ink: #f1e8d4;
+  --track: #2a4026; --late: #c48d52; --stitch: rgba(241, 232, 212, .27); --weave: rgba(255, 250, 235, .035); --weave-2: rgba(0, 0, 0, .07);
+    --work: #a9b26c; --c-work: #353f20; --c-work-ink: #dadca2;
+  color-scheme: dark;
+}
 * { box-sizing: border-box; }
-body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); }
-.wrap { max-width: 940px; margin: 0 auto; padding-inline: 16px; padding-block: 0 48px; display: grid; gap: 22px; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-header.top { background: var(--ground); color: var(--ground-ink); padding-inline: 16px; padding-block: 22px 20px; }
-header.top .in { max-width: 940px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: flex-end; justify-content: space-between; }
-h1 { font: 700 clamp(1.6rem, 4vw, 2.2rem)/1.05 var(--display); margin: 0; text-wrap: balance; }
-.sub { margin: 6px 0 0; opacity: .85; max-width: 60ch; }
+/* ---------- header: village-green canvas with a stitched seam ---------- */
+header.top {
+  position: relative; background-color: var(--ground); color: var(--ground-ink); padding-inline: 16px; padding-block: 20px 22px;
+  background-image: repeating-linear-gradient(0deg, var(--weave) 0 1px, transparent 1px 3px), repeating-linear-gradient(90deg, var(--weave-2) 0 1px, transparent 1px 3px);
+}
+header.top::after { content: ""; position: absolute; inset-inline: 0; bottom: 6px; border-top: 1.5px dashed var(--stitch); }
+header.top .in { max-width: 940px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; }
+h1 { font: 700 clamp(1.5rem, 4.4vw, 2.1rem)/1.05 var(--display); margin: 0; text-wrap: balance; }
+.sub { margin: 6px 0 0; opacity: .88; max-width: 58ch; font-size: 14px; }
 .facts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.fact { background: rgba(241, 232, 212, .12); border: 1px solid rgba(241, 232, 212, .22); border-radius: 999px; padding: 4px 11px; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.fact b { font-weight: 700; }
+.fact { background: rgba(241, 232, 212, .12); background: color-mix(in srgb, var(--ground-ink) 12%, transparent); border: 1px solid rgba(241, 232, 212, .22); border: 1px solid color-mix(in srgb, var(--ground-ink) 22%, transparent); border-radius: 999px; padding: 4px 11px; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 a.play { color: var(--ground); background: var(--ground-ink); border-radius: 999px; padding: 6px 14px; font-weight: 700; text-decoration: none; font-size: 14px; white-space: nowrap; }
-a.play:hover, a.play:focus-visible { background: #fffaf0; outline: none; box-shadow: 0 0 0 3px rgba(241, 232, 212, .4); }
+a.play:hover, a.play:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(241, 232, 212, .4); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ground-ink) 40%, transparent); }
+@media (max-width: 560px) { .facts .fact { display: none; } }
 
-section { display: grid; gap: 10px; min-width: 0; }
-h2 { font: 700 1.15rem/1.2 var(--display); margin: 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-h2 small { font: 500 13px/1.3 var(--body); color: var(--muted); }
-h3.group { font: 700 13px/1.3 var(--body); letter-spacing: .04em; color: var(--muted); margin: 4px 0 -2px; }
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+/* ---------- the tab strip: a row of tabs; scrolls sideways on a phone ---------- */
+nav.tabs { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); border-bottom: 1px solid var(--line); }
+.tabs-in { max-width: 940px; margin: 0 auto; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; padding-inline: 10px; }
+.tabs-in::-webkit-scrollbar { display: none; }
+nav.tabs.more-right .tabs-in { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
+nav.tabs.more-left .tabs-in { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); }
+nav.tabs.more-left.more-right .tabs-in { -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
+.tab { flex: none; display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); font: 700 14px/1 var(--body); padding: 14px 10px 12px; cursor: pointer; white-space: nowrap; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tab:focus-visible { outline-offset: -3px; border-radius: 6px; }
+.badge { min-width: 20px; padding: 2px 6px; border-radius: 999px; font: 700 12px/1.2 var(--body); text-align: center; background: var(--c-plan); color: var(--c-plan-ink); font-variant-numeric: tabular-nums; }
+.badge.hot { background: var(--accent); color: var(--accent-ink); }
 
-.chip { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+/* ---------- page and sections ---------- */
+.wrap { max-width: 940px; margin: 0 auto; padding-inline: 16px; padding-block: 22px 56px; }
+.tabpanel { display: grid; gap: 26px; min-width: 0; }
+.tabpanel:focus { outline: none; }
+.block { display: grid; gap: 10px; min-width: 0; align-content: start; }
+.stack { display: grid; gap: 26px; min-width: 0; align-content: start; }
+.sec-h { display: grid; gap: 3px; }
+h2 { font: 700 1.25rem/1.2 var(--display); margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); font-size: 14px; max-width: 64ch; }
+.group-label { font: 700 12px/1.3 var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 6px 0 0; display: flex; gap: 8px; align-items: baseline; }
+.group-label .n { font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; overflow: hidden; }
+.banner { margin: 0 0 22px; padding: 12px 16px; border-radius: var(--radius); background: var(--panel); border: 1px dashed var(--stitch); color: var(--ink); }
+.empty { padding: 14px 16px; color: var(--muted); margin: 0; }
+
+.chip { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; line-height: 1.5; }
 .chip.done { background: var(--c-done); color: var(--c-done-ink); }
 .chip.built { background: var(--c-built); color: var(--c-built-ink); }
 .chip.now { background: var(--c-now); color: var(--c-now-ink); }
+.chip.work { background: var(--c-work); color: var(--c-work-ink); }
 .chip.next { background: var(--c-next); color: var(--c-next-ink); }
 .chip.plan { background: var(--c-plan); color: var(--c-plan-ink); }
 .chip.new { background: var(--c-new); color: var(--c-new-ink); }
 .chip.ok { background: var(--c-ok); color: var(--c-ok-ink); }
-.tag { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tag { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ver { font: 700 13px/1.5 var(--body); color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.num { font: 700 14px/1.5 var(--display); color: var(--muted); font-variant-numeric: tabular-nums; min-width: 1.6em; }
 
-/* what needs the owner, at a glance */
-.tally { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-.count { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; display: grid; gap: 2px; text-decoration: none; color: inherit; }
-.count b { font: 700 1.5rem/1.1 var(--display); font-variant-numeric: tabular-nums; color: var(--accent); }
-.count span { color: var(--muted); font-size: 13px; }
-a.count:hover, a.count:focus-visible { border-color: var(--accent); outline: none; }
-
-/* building now: a row of cards that wraps */
-.now { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
-.card { padding: 14px 16px; display: grid; gap: 6px; align-content: start; min-width: 0; }
-.card .head { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-.card h3 { margin: 0; font: 700 1rem/1.3 var(--body); }
-.card p { margin: 0; color: var(--muted); }
-
-/* slice steps: a numbered sequence (the build order really is one) */
-.progress { display: flex; gap: 4px; }
-.progress i { flex: 1; height: 6px; border-radius: 3px; background: var(--c-plan); }
-.progress i.done { background: var(--green); }
-.progress i.built { background: color-mix(in srgb, var(--green) 55%, var(--c-plan)); }
-.progress i.now { background: var(--accent); }
-ol.steps { list-style: none; margin: 0; padding: 0; }
-ol.steps li { display: grid; grid-template-columns: 2.2rem 1fr auto; gap: 4px 12px; padding: 12px 16px; border-top: 1px solid var(--line); align-items: start; }
-ol.steps li:first-child { border-top: 0; }
-.num { font: 700 1.1rem/1.4 var(--display); color: var(--muted); font-variant-numeric: tabular-nums; }
-li.built .num, li.done .num { color: var(--green); }
-li.now .num { color: var(--accent); }
-.step-title { font-weight: 700; }
-.step-detail { color: var(--muted); grid-column: 2 / 4; margin: 0; min-width: 0; }
-.step-meta { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
-
-.two { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
-@media (max-width: 760px) { .two { grid-template-columns: 1fr; } }
-
-ul.rows { list-style: none; margin: 0; padding: 0; }
-ul.rows > li { padding: 11px 16px; border-top: 1px solid var(--line); display: grid; gap: 5px; min-width: 0; }
-ul.rows > li:first-child { border-top: 0; }
-.row-head { display: flex; gap: 10px; justify-content: space-between; align-items: baseline; flex-wrap: wrap; }
-.row-title { font-weight: 700; min-width: 0; }
-.row-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.row-detail { color: var(--muted); margin: 0; }
-.ver { font: 700 13px/1.4 var(--body); color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
-dl.kv { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; }
+/* ---------- rows: a title and one line; open for the rest ---------- */
+ul.list { list-style: none; margin: 0; padding: 0; }
+ul.list > li + li { border-top: 1px solid var(--line); }
+.row-btn { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 14px; align-items: center; width: 100%; padding: 12px 16px; background: none; border: 0; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.row-btn:hover { background: var(--panel-hi); }
+.row-btn:focus-visible { outline-offset: -3px; border-radius: 10px; }
+.row-static { display: grid; gap: 4px; padding: 12px 16px; min-width: 0; }
+.row-text { display: grid; gap: 3px; min-width: 0; }
+.row-top { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; min-width: 0; }
+.row-title { font-weight: 700; min-width: 0; flex: 1 1 14rem; overflow-wrap: anywhere; }
+.row-meta { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.row-sum { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-size: 14px; }
+.row-sum.full { white-space: normal; }
+li.open > .row-btn .row-sum { display: none; }
+li.open > .row-btn { background: var(--panel-hi); }
+.chev { width: 9px; height: 9px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: translateY(-2px) rotate(45deg); }
+li.open > .row-btn .chev, .group.open > .group-btn .chev { transform: translateY(2px) rotate(-135deg); }
+@media (prefers-reduced-motion: no-preference) { .chev { transition: transform .15s; } .tbar i, .bar i { transition: width .8s ease; } }
+.row-body { display: grid; gap: 10px; padding: 4px 16px 16px; min-width: 0; background: var(--panel-hi); }
+.row-body > p { margin: 0; max-width: 70ch; overflow-wrap: anywhere; }
+.row-body .facts-line { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.row-always { padding: 0 16px 13px; display: grid; gap: 8px; min-width: 0; }
+li.open > .row-always { background: var(--panel-hi); }
+dl.kv { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; }
 dl.kv dt { color: var(--muted); font-size: 13px; padding-top: 1px; }
-dl.kv dd { margin: 0; min-width: 0; }
-@media (max-width: 460px) { dl.kv { grid-template-columns: 1fr; gap: 0; } dl.kv dd { margin-bottom: 4px; } }
+dl.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 480px) { dl.kv { grid-template-columns: minmax(0, 1fr); gap: 0; } dl.kv dd { margin-bottom: 6px; } }
+.point-head { font-size: 13px; color: var(--muted); margin: 0 0 3px; }
 ul.points { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
-.point-head { font-size: 13px; color: var(--muted); margin: 2px 0 0; }
+.said, .reply { margin: 0; padding: 8px 11px; border-radius: 8px; background: var(--bg); font-size: 14px; overflow-wrap: anywhere; }
+.said b, .reply b { color: var(--accent); }
 
-/* answering: a question's answer box, an OK button on reviewed fixes */
-.answer { display: grid; gap: 8px; margin-top: 2px; }
-.answer-foot { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-.said { margin: 2px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--bg); font-size: 14px; }
-.said b { color: var(--accent); }
+/* collapsible groups: a panel whose first row opens the list */
+.group-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 16px; background: none; border: 0; color: var(--muted); font: 700 14px/1.3 var(--body); text-align: start; cursor: pointer; }
+.group-btn:hover { color: var(--ink); background: var(--panel-hi); border-radius: var(--radius); }
+.group-btn:focus-visible { outline-offset: -3px; border-radius: 10px; }
+.group-btn .lbl { flex: 1; }
+.group.open > .group-btn { border-bottom: 1px solid var(--line); }
 
-/* notes */
-form.note { display: grid; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+/* ---------- forms and buttons ---------- */
+.btn { font: 700 14px/1 var(--body); border: 0; border-radius: 999px; padding: 10px 16px; cursor: pointer; background: var(--accent); color: var(--accent-ink); }
+.btn.quiet { background: var(--c-plan); color: var(--ink); }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: .5; cursor: default; }
+.link { background: none; border: 0; color: var(--muted); padding: 8px 6px; min-height: 40px; font: 500 13px/1.4 var(--body); text-decoration: underline; cursor: pointer; justify-self: start; }
+.link.warn { color: var(--accent); }
+.link:disabled, .link[aria-disabled="true"] { opacity: .5; cursor: default; }
+textarea { width: 100%; min-height: 72px; resize: vertical; border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; font: inherit; color: var(--ink); background: var(--bg); }
+form.answer, form.note { display: grid; gap: 8px; }
+form.note { padding: 14px 16px; }
 form.note label { font-weight: 700; font-size: 14px; }
-textarea { width: 100%; min-height: 64px; resize: vertical; border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; font: inherit; color: var(--ink); background: var(--bg); }
-textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.form-foot { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.foot { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .hint { font-size: 13px; color: var(--muted); }
-button { font: 700 14px/1 var(--body); border: 0; border-radius: 999px; padding: 9px 16px; cursor: pointer; background: var(--accent); color: #1b140c; }
-button:disabled { opacity: .5; cursor: default; }
-button.link { background: none; color: var(--muted); padding: 2px 4px; font-weight: 500; font-size: 13px; text-decoration: underline; }
-.reply { margin: 4px 0 0; padding: 7px 10px; border-radius: 8px; background: var(--bg); color: var(--ink); font-size: 14px; }
-.reply b { color: var(--accent); }
 
-details.more summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 10px 16px; border-top: 1px solid var(--line); list-style: none; }
-details.more summary::-webkit-details-marker { display: none; }
-details.more summary::before { content: "+ "; }
-details.more[open] summary::before { content: "− "; }
-summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* ---------- overview ---------- */
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.tile { display: grid; gap: 2px; align-content: start; text-align: start; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); color: inherit; font: inherit; cursor: pointer; }
+.tile b { font: 700 1.7rem/1.1 var(--display); color: var(--accent); font-variant-numeric: tabular-nums; }
+.tile.zero b, .tile.calm b { color: var(--muted); }
+.tile span { color: var(--muted); font-size: 13px; line-height: 1.3; }
+.tile:hover { border-color: var(--accent); }
+.all-clear { margin: 0; color: var(--c-built-ink); font-weight: 500; }
+.ov-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 26px; align-items: start; }
+@media (max-width: 760px) { .ov-grid { grid-template-columns: minmax(0, 1fr); } }
+.live { padding: 14px 16px; display: grid; gap: 8px; }
+.live .big { font: 700 1.35rem/1.15 var(--display); font-variant-numeric: tabular-nums; }
+.live p { margin: 0; color: var(--muted); font-size: 14px; }
+.live a.play { justify-self: start; color: var(--accent-ink); background: var(--accent); }
+.night-card { padding: 14px 16px; display: grid; gap: 6px; }
+.night-card p { margin: 0; overflow-wrap: anywhere; }
+.night-card .t { font-weight: 700; }
+.night-card p.clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 
-.empty { padding: 14px 16px; color: var(--muted); }
-.cols { columns: 2 240px; column-gap: 0; }
-.cols li { break-inside: avoid; }
-@media (prefers-reduced-motion: no-preference) { .card, ol.steps li, ul.rows li { transition: background-color .2s; } }
+/* ---------- tonight: a stitched panel with the night's steps ---------- */
+.tonight { outline: 1.5px dashed var(--stitch); outline-offset: -7px; }
+.tn-head { display: grid; gap: 8px; padding: 16px 18px 14px; }
+.tn-title { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; justify-content: space-between; }
+.tn-title h2, .tn-title h3 { margin: 0; font: 700 1.25rem/1.2 var(--display); }
+.tn-count { font-weight: 700; font-variant-numeric: tabular-nums; }
+.tn-count span { color: var(--muted); font-weight: 500; }
+.bar { height: 10px; border-radius: 6px; background: var(--track); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--green); border-radius: 6px; }
+.tonight ul.list { border-top: 1px solid var(--line); }
+.tonight .row-btn, .tonight .row-static { padding-inline: 18px; }
+.tonight .row-always, .tonight .row-body { padding-inline: 18px; }
+.tn-foot { padding: 12px 18px 16px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.tn-note { margin: 0; font-size: 13px; color: var(--muted); }
+
+/* stage pips: the real sequence a step goes through */
+.pips { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); }
+.pip { position: relative; display: grid; justify-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
+.pips { --pip-done: #5e8f48; --pip-done: color-mix(in srgb, var(--green) 55%, var(--track)); }
+.pip::before { content: ""; position: absolute; top: 4px; left: 0; right: 0; height: 2px; background: var(--track); }
+.pip:first-child::before { left: 50%; }
+.pip:last-child::before { right: 50%; }
+.pip.past::before { background: var(--pip-done); }
+.pip.cur:not(:first-child)::before { background: linear-gradient(to right, var(--pip-done) 50%, var(--track) 50%); }
+.pip.cur:last-child::before { background: var(--pip-done); }
+.pip i { position: relative; width: 10px; height: 10px; border-radius: 50%; background: var(--track); border: 2px solid var(--panel); box-sizing: content-box; margin-top: -2px; }
+.pip.past i { background: var(--green); }
+.pip.cur i { background: var(--work); width: 12px; height: 12px; margin-top: -3px; }
+.pip.cur.wait i { background: var(--muted); }
+.pip.cur.fin i { background: var(--green); }
+.pip.cur span { color: var(--ink); font-weight: 700; }
+.pip span { white-space: nowrap; }
+.stage-n { display: none; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 560px) { .pips { display: none; } .stage-n { display: inline; } }
+
+/* the time bar: fills between the start and the expected finish */
+.clock { display: grid; gap: 5px; min-width: 0; }
+.tbar { height: 8px; border-radius: 5px; background: var(--track); overflow: hidden; }
+.tbar i { display: block; height: 100%; width: 0; border-radius: 5px; background: var(--work); }
+.clock.full .tbar i { background: var(--green); }
+.clock.late .tbar i { background: var(--late); background: repeating-linear-gradient(135deg, var(--late) 0 6px, #9a7144 6px 12px); }
+.clock.nobar .tbar { display: none; }
+.tlabel { display: flex; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; font-size: 13px; font-variant-numeric: tabular-nums; }
+.tlabel .l { color: var(--ink); }
+.clock.late .tlabel .l { color: var(--late); font-weight: 700; }
+.tlabel .r { color: var(--muted); }
+.mini-clock { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.mini-clock.late { color: var(--late); font-weight: 700; }
+
+/* the slice: one small segment per step, in build order */
+.strip { display: flex; gap: 3px; }
+.strip i { flex: 1; height: 6px; border-radius: 3px; background: var(--c-plan); }
+.strip i.done { background: var(--green); }
+.strip i.built { background: #5e8f48; background: color-mix(in srgb, var(--green) 55%, var(--c-plan)); }
+.strip i.now, .strip i.work { background: var(--work); }
+.strip i.next { background: var(--c-next-ink); opacity: .55; }
+.note-text { white-space: pre-wrap; overflow-wrap: anywhere; font-weight: 500; }
 </style>
 
 <header class="top">
   <div class="in">
     <div>
       <h1>Hearthfolk plan board</h1>
-      <p class="sub" id="goal">What we're building, what's next and what's still open. Kept up to date as we work.</p>
+      <p class="sub" id="slice">What we're building, what's next and what's still open.</p>
     </div>
-    <div class="facts" id="facts">
-      <span class="fact" id="slice">Slice 1: the loop</span>
+    <div class="facts">
       <span class="fact">Live <b id="live">–</b></span>
       <span class="fact">Updated <b id="updated">–</b></span>
       <a class="play" id="play" href="https://claude.ai/artifact/QbZc7HqgKjvqUfxnQ49Nrj" target="_blank" rel="noopener">Play the game</a>
@@ -143,356 +246,812 @@ summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; 
   </div>
 </header>
 
+<nav class="tabs" id="tabs" aria-label="Sections">
+  <div class="tabs-in" role="tablist" id="tablist">
+    <button class="tab" type="button" role="tab" id="t-overview" aria-controls="p-overview" data-tab="overview">Overview</button>
+    <button class="tab" type="button" role="tab" id="t-questions" aria-controls="p-questions" data-tab="questions">Questions <span class="badge" id="c-questions" hidden></span></button>
+    <button class="tab" type="button" role="tab" id="t-reviews" aria-controls="p-reviews" data-tab="reviews">Reviews <span class="badge" id="c-reviews" hidden></span></button>
+    <button class="tab" type="button" role="tab" id="t-building" aria-controls="p-building" data-tab="building">Building <span class="badge" id="c-building" hidden></span></button>
+    <button class="tab" type="button" role="tab" id="t-notes" aria-controls="p-notes" data-tab="notes">Notes <span class="badge" id="c-notes" hidden></span></button>
+    <button class="tab" type="button" role="tab" id="t-versions" aria-controls="p-versions" data-tab="versions">Versions</button>
+    <button class="tab" type="button" role="tab" id="t-decisions" aria-controls="p-decisions" data-tab="decisions">Decisions</button>
+    <button class="tab" type="button" role="tab" id="t-later" aria-controls="p-later" data-tab="later">Later</button>
+  </div>
+</nav>
+
 <main class="wrap">
-  <div class="tally" aria-label="What needs you">
-    <a class="count" href="#h-q"><b id="n-q">–</b><span>questions for you</span></a>
-    <a class="count" href="#h-review"><b id="n-ok">–</b><span>fixes waiting for your OK</span></a>
-    <a class="count" href="#h-review"><b id="n-wait">–</b><span>changes waiting for review</span></a>
-  </div>
+  <p class="banner" id="banner" role="status" hidden></p>
+  <p class="sr" id="say" role="status" aria-live="polite"></p>
 
-  <section aria-labelledby="h-now">
-    <h2 id="h-now">Building now</h2>
-    <div class="now" id="now"><div class="panel empty">Loading the plan…</div></div>
-  </section>
-
-  <section aria-labelledby="h-q">
-    <h2 id="h-q">Questions for you <small>answer here; Claude picks your answers up next time it looks</small></h2>
-    <div class="panel"><ul class="rows" id="questions"><li class="empty">Loading…</li></ul></div>
-  </section>
-
-  <section aria-labelledby="h-review">
-    <h2 id="h-review">Review queue <small>quick changes wait for a reviewer; at night the reviewers play them, and fixes wait for your OK</small></h2>
-    <h3 class="group">Reviewed, waiting for your OK</h3>
-    <div class="panel"><ul class="rows" id="r-ok"><li class="empty">Loading…</li></ul></div>
-    <h3 class="group" id="g-review" hidden>In review now</h3>
-    <div class="panel" id="p-review" hidden><ul class="rows" id="r-review"></ul></div>
-    <h3 class="group">Waiting for review</h3>
-    <div class="panel"><ul class="rows" id="r-wait"><li class="empty">Loading…</li></ul></div>
-    <div class="panel"><details class="more" id="r-done-box"><summary id="r-done-sum">Reviewed and live</summary><ul class="rows" id="r-done"></ul></details></div>
-  </section>
-
-  <section aria-labelledby="h-steps">
-    <h2 id="h-steps">Slice 1 steps <small id="steps-sum"></small></h2>
-    <div class="progress" id="progress" aria-hidden="true"></div>
-    <div class="panel"><ol class="steps" id="steps"><li class="empty">Loading…</li></ol></div>
-  </section>
-
-  <div class="two">
-    <section aria-labelledby="h-notes">
-      <h2 id="h-notes">Your notes <small>Claude reads these</small></h2>
-      <div class="panel">
-        <form class="note" id="note-form">
-          <label for="note-text">Jot down an idea or something to fix</label>
-          <textarea id="note-text" maxlength="2000" placeholder="For example: the bank trip feels long from the oaks"></textarea>
-          <div class="form-foot">
-            <span class="hint" id="note-hint">Saved to this board.</span>
-            <button type="submit" id="note-add">Add note</button>
-          </div>
-        </form>
-        <ul class="rows" id="notes"><li class="empty">No notes yet.</li></ul>
+  <section class="tabpanel" id="p-overview" role="tabpanel" aria-labelledby="t-overview" tabindex="-1">
+    <div class="block">
+      <div class="sec-h"><h2>What needs you</h2></div>
+      <div class="tiles">
+        <button class="tile zero" type="button" data-go="questions"><b id="n-q">–</b><span id="l-q">questions for you</span></button>
+        <button class="tile zero" type="button" data-go="reviews"><b id="n-ok">–</b><span id="l-ok">fixes waiting for your OK</span></button>
+        <button class="tile calm" type="button" data-go="reviews"><b id="n-wait">–</b><span>waiting for the reviewers</span></button>
       </div>
-    </section>
-    <section aria-labelledby="h-nights">
-      <h2 id="h-nights">Night shifts <small>newest first</small></h2>
-      <div class="panel"><ul class="rows" id="nights"><li class="empty">Loading…</li></ul></div>
-    </section>
-  </div>
-
-  <section aria-labelledby="h-ver">
-    <h2 id="h-ver">Recent versions</h2>
-    <div class="panel"><ul class="rows" id="versions"><li class="empty">Loading…</li></ul></div>
+      <p class="all-clear" id="all-clear" hidden>Nothing needs you right now.</p>
+    </div>
+    <div class="ov-grid">
+      <div class="block" id="ov-tonight"><div class="panel empty">Loading the plan…</div></div>
+      <div class="stack">
+        <div class="block" id="ov-live"></div>
+        <div class="block" id="ov-night"></div>
+      </div>
+    </div>
+    <div class="block" id="ov-now"></div>
   </section>
 
-  <section aria-labelledby="h-dec">
-    <h2 id="h-dec">Decisions <small>newest first</small></h2>
-    <div class="panel"><ul class="rows" id="decisions"><li class="empty">Loading…</li></ul></div>
+  <section class="tabpanel" id="p-building" role="tabpanel" aria-labelledby="t-building" tabindex="-1" hidden>
+    <div class="block" id="b-tonight"><div class="panel empty">Loading the plan…</div></div>
+    <div class="block" id="b-steps"></div>
+    <div class="block" id="b-nights"></div>
   </section>
 
-  <section aria-labelledby="h-later">
-    <h2 id="h-later">Later <small>ideas parked outside this slice</small></h2>
-    <div class="panel"><ul class="rows cols" id="later"><li class="empty">Loading…</li></ul></div>
+  <section class="tabpanel" id="p-questions" role="tabpanel" aria-labelledby="t-questions" tabindex="-1" hidden>
+    <div class="sec-h"><h2>Questions for you</h2><p class="lede" id="q-lede">Open a question to read it and answer. Claude picks your answers up next time it looks.</p></div>
+    <div class="stack" id="q-body"><div class="panel empty">Loading…</div></div>
+  </section>
+
+  <section class="tabpanel" id="p-reviews" role="tabpanel" aria-labelledby="t-reviews" tabindex="-1" hidden>
+    <div class="sec-h"><h2>Reviews</h2><p class="lede">Quick changes wait for a reviewer. At night the reviewers play them, and their fixes wait for your OK before they go live.</p></div>
+    <div class="stack" id="r-body"><div class="panel empty">Loading…</div></div>
+  </section>
+
+  <section class="tabpanel" id="p-versions" role="tabpanel" aria-labelledby="t-versions" tabindex="-1" hidden>
+    <div class="sec-h"><h2>Versions</h2><p class="lede">Newest first. The live one is on the game link.</p></div>
+    <div class="stack" id="v-body"><div class="panel empty">Loading…</div></div>
+  </section>
+
+  <section class="tabpanel" id="p-decisions" role="tabpanel" aria-labelledby="t-decisions" tabindex="-1" hidden>
+    <div class="sec-h"><h2>Decisions</h2><p class="lede">What we've settled, newest first.</p></div>
+    <div class="stack" id="d-body"><div class="panel empty">Loading…</div></div>
+  </section>
+
+  <section class="tabpanel" id="p-later" role="tabpanel" aria-labelledby="t-later" tabindex="-1" hidden>
+    <div class="sec-h"><h2>Later</h2><p class="lede">Ideas parked outside this slice.</p></div>
+    <div class="stack" id="l-body"><div class="panel empty">Loading…</div></div>
+  </section>
+
+  <section class="tabpanel" id="p-notes" role="tabpanel" aria-labelledby="t-notes" tabindex="-1" hidden>
+    <div class="sec-h"><h2>Your notes</h2><p class="lede">Ideas and things to fix. Claude reads these and answers here.</p></div>
+    <div class="panel">
+      <form class="note" id="note-form">
+        <label for="note-text">Jot down an idea or something to fix</label>
+        <textarea id="note-text" maxlength="2000" placeholder="For example: the bank trip feels long from the oaks"></textarea>
+        <div class="foot">
+          <span class="hint" id="note-hint" role="status">Saved to this board.</span>
+          <button class="btn" type="submit" id="note-add">Add note</button>
+        </div>
+      </form>
+      <p class="empty" id="note-ro" tabindex="-1" hidden></p>
+    </div>
+    <div class="panel"><ul class="list" id="notes"><li class="empty">No notes yet.</li></ul></div>
   </section>
 </main>
 
 <script>
+/* Amber means "needs you" (open questions, fixes waiting for his OK). Work in progress is a calm olive. */
 const STATUS = {
-  done: ['Done', 'done'], built: ['Ready to play', 'built'], building: ['Building now', 'now'],
+  done: ['Done', 'done'], built: ['Ready to play', 'built'], building: ['Building now', 'work'],
   next: ['Next', 'next'], planned: ['Planned', 'plan'], open: ['Open', 'plan'], paused: ['Paused', 'plan'], dropped: ['Dropped', 'plan'],
 };
-const NOTE_STATE = { new: ['New', 'new'], seen: ['Seen by Claude', 'next'], done: ['Done', 'done'] };
+const NOTE_STATE = { new: ['New', 'plan'], seen: ['Seen by Claude', 'next'], done: ['Done', 'done'] };
 const Q_STATE = { open: ['Open', 'new'], answered: ['Answered, Claude picks it up next time', 'next'], done: ['Done', 'done'] };
 const REVIEW = {
-  waiting: ['Waiting for review', 'now'], reviewing: ['In review', 'next'], fixed: ['Fixes ready, needs your OK', 'ok'],
+  waiting: ['Waiting for review', 'plan'], reviewing: ['In review', 'next'], fixed: ['Fixes ready, needs your OK', 'new'],
   passed: ['Reviewed, all good', 'done'], published: ['Fixes live', 'done'], skipped: ['Not reviewed', 'plan'],
 };
+/* the stages a step goes through at night, in order (the teams report stages, not percentages) */
+const STAGES = ['queued', 'building', 'checking', 'fixing', 'merging', 'playing', 'ready', 'done'];
+const STAGE = {
+  queued: ['Queued', 'plan'], building: ['Building', 'work'], checking: ['Checking in the game', 'work'], fixing: ['Fixing', 'work'],
+  merging: ['Merging', 'work'], playing: ['Playing it through', 'work'], ready: ['Ready', 'built'], done: ['Done', 'done'],
+};
+const STAGE_SHORT = ['Queued', 'Building', 'Checking', 'Fixing', 'Merging', 'Playing', 'Ready', 'Done'];
+/* his own actions first, the record last */
+const TABS = ['overview', 'questions', 'reviews', 'building', 'notes', 'versions', 'decisions', 'later'];
+
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const chip = (map, key) => { const [label, cls] = map[key] || [key || '', 'plan']; return el('span', 'chip ' + cls, label); };
 const $ = id => document.getElementById(id);
-const day = iso => { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleDateString([], { day: 'numeric', month: 'short' }) : ''; };
+const valid = d => d && !isNaN(d);
+const day = iso => { const d = iso ? new Date(iso) : null; return valid(d) ? d.toLocaleDateString([], { day: 'numeric', month: 'short' }) : ''; };
+const hm = ms => { const d = new Date(ms); return valid(d) ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''; };
+const stamp = iso => { const d = iso ? new Date(iso) : null; return valid(d) ? d.toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : ''; };
+/* one-to-one: 'q.a' and 'q-a' get different element ids */
+const keyId = k => String(k).replace(/[^A-Za-z0-9-]/g, c => '_' + c.charCodeAt(0).toString(16) + '_');
+const safeUrl = u => /^https?:\/\//i.test(String(u || '')) ? String(u) : null;
+const GAME_URL = 'https://claude.ai/artifact/QbZc7HqgKjvqUfxnQ49Nrj';
 
 let board = null, meta = null, notes = [], reviews = null, nights = [], db = null, canWrite = null;
-const drafts = {};        // answers being typed, kept across live updates
-const editing = new Set(); // answered questions reopened to change the answer
+const drafts = {};          // answers being typed, kept across live updates
+const editing = new Set();  // answered questions reopened to change the answer
+const justAnswered = new Map(); // answered on this visit -> the group it was in: it stays there, showing the answer
+const saving = new Set();   // writes in flight ('q:<id>' answers, 'ok:<id>' OKs): their buttons stay disabled across redraws
+const errs = {};            // the last failed write's message, by the same keys (and 'del:<id>' for notes)
+const openState = new Map(); // rows and groups the owner opened or closed (survives live updates)
+const isOpen = (key, dflt) => openState.has(key) ? openState.get(key) : !!dflt;
+const writable = () => !!db && canWrite !== false;
+const of = kind => (board || []).filter(b => b.kind === kind);
 
-function fill(listId, items, make, emptyText) {
-  const list = $(listId); list.replaceChildren();
-  if (!items.length) { list.append(el('li', 'empty', emptyText)); return; }
-  for (const it of items) list.append(make(it));
+/* ---------- building blocks: a row that opens, a group that folds ---------- */
+function row({ key, title, lead, meta: right, sum, body, always, dflt, cls }) {
+  const li = el('li', cls || '');
+  const nodes = (body || []).filter(Boolean);
+  const top = el('span', 'row-top');
+  if (lead) top.append(lead);
+  top.append(el('span', 'row-title', title || ''));
+  const m = el('span', 'row-meta'); (right || []).filter(Boolean).forEach(x => m.append(x));
+  if (m.childElementCount) top.append(m);
+  const extra = (always || []).filter(Boolean);
+  if (!nodes.length) {
+    const s = el('div', 'row-static'); s.append(top);
+    if (sum) s.append(el('span', 'row-sum full', sum));
+    li.append(s);
+    if (extra.length) { const a = el('div', 'row-always'); a.append(...extra); li.append(a); }
+    return li;
+  }
+  const id = keyId(key), btn = el('button', 'row-btn'); btn.type = 'button'; btn.id = 'h-' + id;
+  btn.setAttribute('aria-controls', 'b-' + id);
+  const txt = el('span', 'row-text'); txt.append(top);
+  if (sum) txt.append(el('span', 'row-sum', sum));
+  const chev = el('span', 'chev'); chev.setAttribute('aria-hidden', 'true');
+  btn.append(txt, chev);
+  const bd = el('div', 'row-body'); bd.id = 'b-' + id; bd.append(...nodes);
+  const set = on => { btn.setAttribute('aria-expanded', String(on)); li.classList.toggle('open', on); bd.hidden = !on; };
+  set(isOpen(key, dflt));
+  btn.addEventListener('click', () => { const on = btn.getAttribute('aria-expanded') !== 'true'; openState.set(key, on); set(on); });
+  li.append(btn);
+  if (extra.length) { const a = el('div', 'row-always'); a.append(...extra); li.append(a); }
+  li.append(bd);
+  return li;
 }
 
-/* keep the owner's typing and focus when the lists redraw */
+function list(items, make, emptyText) {
+  const ul = el('ul', 'list');
+  if (!items.length) ul.append(el('li', 'empty', emptyText));
+  for (const it of items) ul.append(make(it));
+  return ul;
+}
+
+/* a labelled list that always shows */
+function section(label, items, make, emptyText, count) {
+  const b = el('div', 'block');
+  const h = el('h3', 'group-label', label);
+  if (count != null) h.append(el('span', 'n', '· ' + count));
+  const p = el('div', 'panel'); p.append(list(items, make, emptyText));
+  b.append(h, p); return b;
+}
+
+/* a list behind one row: "12 settled questions" opens it */
+function fold(key, label, items, make, dflt) {
+  const g = el('div', 'panel group'), id = keyId(key);
+  const btn = el('button', 'group-btn'); btn.type = 'button'; btn.id = 'h-' + id; btn.setAttribute('aria-controls', 'b-' + id);
+  const chev = el('span', 'chev'); chev.setAttribute('aria-hidden', 'true');
+  btn.append(el('span', 'lbl', label), el('span', 'badge', String(items.length)), chev);
+  const body = el('div'); body.id = 'b-' + id; body.append(list(items, make, ''));
+  const set = on => { btn.setAttribute('aria-expanded', String(on)); g.classList.toggle('open', on); body.hidden = !on; };
+  set(isOpen(key, dflt));
+  btn.addEventListener('click', () => { const on = btn.getAttribute('aria-expanded') !== 'true'; openState.set(key, on); set(on); });
+  g.append(btn, body); return g;
+}
+
+function para(text, cls) { return text ? el('p', cls || null, text) : null; }
+function factsLine(parts) { const f = parts.filter(Boolean); if (!f.length) return null; const d = el('div', 'facts-line'); f.forEach(t => d.append(el('span', 'tag', t))); return d; }
+function points(head, items) {
+  if (!Array.isArray(items) || !items.length) return null;
+  const d = el('div'); d.append(el('p', 'point-head', head));
+  const ul = el('ul', 'points'); for (const p of items) ul.append(el('li', null, String(p))); d.append(ul);
+  return d;
+}
+
+/* keep the owner's typing, focus and open rows when the lists redraw */
+let pendingFocus = null; // { ids, settled }: where focus goes when a write redraws the button he pressed away (kept a moment after the write settles, for the next delivery)
 function keepFocus(draw) {
-  const a = document.activeElement, id = a && a.id, start = a && a.selectionStart, end = a && a.selectionEnd;
+  const a = document.activeElement, id = a && a !== document.body ? a.id : '', start = a && a.selectionStart, end = a && a.selectionEnd;
   draw();
   if (id) { const b = $(id); if (b && b !== a) { b.focus({ preventScroll: true }); if (start != null) try { b.setSelectionRange(start, end); } catch {} } }
+  const pf = pendingFocus; if (!pf) return;
+  const cur = document.activeElement;
+  if (!cur || cur === document.body || !cur.isConnected || cur.disabled || cur.closest('[hidden]')) {
+    for (const pid of pf.ids) {
+      const t = pid && $(pid); if (!t || t.disabled) continue;
+      t.focus({ preventScroll: true });
+      if (document.activeElement === t) { t.scrollIntoView({ block: 'nearest' }); pendingFocus = null; return; }
+    }
+  }
+  if (pf.settled && Date.now() - pf.settled > 1500 && pendingFocus === pf) pendingFocus = null;
+}
+/* a short spoken confirmation for screen readers ('Answer saved') */
+function say(text) { const s = $('say'); s.textContent = ''; setTimeout(() => { s.textContent = text; }, 60); }
+function errText(err, what) {
+  const code = err && err.code;
+  if (code === 'invalid_argument') return `Only the board’s owner can ${what}.`;
+  if (code === 'quota_exceeded') return 'The board is full. Ask Claude to tidy old notes.';
+  return 'Couldn’t save just now. Try again in a moment.';
 }
 
-function render() {
-  if (meta) {
-    $('live').textContent = meta.live || '–';
-    $('updated').textContent = meta.updated || '–';
-    if (meta.slice) $('slice').textContent = meta.slice;
-    if (meta.goal) $('goal').textContent = meta.goal;
-    if (meta.gameUrl) $('play').href = meta.gameUrl;
+/* ---------- tonight: stages and time ---------- */
+function stageOf(s) {
+  if (STAGE[s.stage]) return s.stage;
+  return { done: 'done', built: 'ready', building: 'building' }[s.status] || 'queued';
+}
+function tonightDate() { return meta && meta.tonight && meta.tonight.date ? String(meta.tonight.date) : ''; }
+function tonightSteps() { const d = tonightDate(); return d ? of('step').filter(s => s.night === d) : []; }
+function tonightLabel() {
+  const t = meta && meta.tonight; if (!t) return '';
+  if (t.label) return t.label;
+  const [y, mo, d] = String(t.date || '').split('-').map(Number), a = new Date(y, mo - 1, d), b = new Date(y, mo - 1, d + 1);
+  if (!valid(a)) return '';
+  const f = x => x.toLocaleDateString([], { day: 'numeric', month: 'short' });
+  return `Night of ${a.getDate()} to ${f(b)}`;
+}
+function dur(ms) {
+  const mins = Math.max(1, Math.ceil(ms / 60000));
+  if (mins <= 1) return 'about a minute';
+  if (mins < 15) return `about ${mins} min`;
+  if (mins < 60) return `about ${Math.round(mins / 5) * 5} min`;
+  let h = Math.floor(mins / 60), m = Math.round((mins % 60) / 5) * 5;
+  if (m === 60) { h += 1; m = 0; }
+  return m ? `about ${h} h ${m} min` : `about ${h} h`;
+}
+/* how far along by the clock: fills between startedAt and eta; full at ready or done; never sits at 99% */
+function clockInfo(start, end, stage, now, at) {
+  if (stage === 'ready' || stage === 'done') return { frac: 1, cls: 'full', text: !isNaN(at) ? 'finished ' + hm(at) : '', right: '' };
+  const hs = !isNaN(start), he = !isNaN(end);
+  if (hs && he && end > start) {
+    if (now < start) return { frac: 0, cls: '', text: 'starts in ' + dur(start - now), right: 'due ' + hm(end) };
+    if (now >= end) return { frac: 1, cls: 'late', text: 'running a bit long', right: 'was due ' + hm(end) };
+    return { frac: (now - start) / (end - start), cls: '', text: dur(end - now) + ' left', right: 'due ' + hm(end) };
   }
-  if (!board) return;
-  const of = kind => board.filter(b => b.kind === kind);
-
-  const now = $('now'); now.replaceChildren();
-  const nowItems = of('now');
-  if (!nowItems.length) now.append(el('div', 'panel empty', 'Nothing in progress right now.'));
-  for (const it of nowItems) {
-    const card = el('article', 'panel card'), head = el('div', 'head');
-    head.append(el('h3', null, it.title), chip(STATUS, it.status));
-    card.append(head);
-    if (it.detail) card.append(el('p', null, it.detail));
-    if (it.tag) card.append(el('span', 'tag', it.tag));
-    now.append(card);
+  if (he) return now >= end ? { frac: null, cls: 'late', text: 'running a bit long', right: 'was due ' + hm(end) } : { frac: null, cls: '', text: dur(end - now) + ' left', right: 'due ' + hm(end) };
+  if (hs) return { frac: null, cls: '', text: 'started ' + hm(start), right: '' };
+  if (stage === 'queued') return { frac: null, cls: '', text: 'waiting its turn', right: '' };
+  return { frac: null, cls: '', text: '', right: '' };
+}
+function clockEl(s, withBar) {
+  const c = el('span', withBar ? 'clock' : 'mini-clock');
+  c.dataset.start = s.startedAt || ''; c.dataset.eta = s.eta || ''; c.dataset.at = s.stageAt || ''; c.dataset.stage = stageOf(s);
+  if (withBar) {
+    const bar = el('span', 'tbar'); bar.setAttribute('aria-hidden', 'true'); bar.append(el('i'));
+    const lab = el('span', 'tlabel'); lab.append(el('span', 'l'), el('span', 'r'));
+    c.append(bar, lab);
   }
+  paintClock(c, Date.now());
+  return c;
+}
+function paintClock(c, now) {
+  const info = clockInfo(Date.parse(c.dataset.start), Date.parse(c.dataset.eta), c.dataset.stage, now, Date.parse(c.dataset.at));
+  if (c.classList.contains('mini-clock')) { c.textContent = info.text; c.classList.toggle('late', info.cls === 'late'); return; }
+  c.classList.toggle('full', info.cls === 'full'); c.classList.toggle('late', info.cls === 'late'); c.classList.toggle('nobar', info.frac == null);
+  c.querySelector('.tbar i').style.width = (info.frac == null ? 0 : Math.round(info.frac * 1000) / 10) + '%';
+  c.querySelector('.l').textContent = info.text; c.querySelector('.r').textContent = info.right;
+  c.hidden = !info.text && info.frac == null;
+}
+function updateClocks() { const now = Date.now(); document.querySelectorAll('.clock, .mini-clock').forEach(c => paintClock(c, now)); }
 
-  const steps = of('step');
-  const counts = s => steps.filter(x => x.status === s).length;
-  $('steps-sum').textContent = steps.length
-    ? `${counts('done')} done · ${counts('built')} ready to play · ${steps.length} in all` : '';
-  const bar = $('progress'); bar.replaceChildren();
-  for (const s of steps) bar.append(el('i', (STATUS[s.status] || [, 'plan'])[1]));
-  fill('steps', steps, s => {
-    const li = el('li', (STATUS[s.status] || [, 'plan'])[1]);
-    li.append(el('span', 'num', String(steps.indexOf(s) + 1)), el('span', 'step-title', s.title));
-    const m = el('span', 'step-meta');
-    if (s.tag) m.append(el('span', 'tag', s.tag));
-    m.append(chip(STATUS, s.status));
-    li.append(m);
-    if (s.detail) li.append(el('p', 'step-detail', s.detail));
-    return li;
-  }, 'No steps yet.');
-
-  const row = (it, right) => {
-    const li = el('li'), head = el('div', 'row-head');
-    head.append(el('span', 'row-title', it.title));
-    if (right) head.append(right);
-    li.append(head);
-    if (it.detail) li.append(el('p', 'row-detail', it.detail));
-    return li;
-  };
-  keepFocus(renderQuestions);
-  fill('versions', of('version'), v => {
-    const li = el('li'), head = el('div', 'row-head');
-    head.append(el('span', 'row-title', v.title), el('span', 'ver', v.tag || ''));
-    li.append(head);
-    if (v.detail) li.append(el('p', 'row-detail', v.detail));
-    return li;
-  }, 'No versions yet.');
-
-  const decisions = of('decision'), list = $('decisions'); list.replaceChildren();
-  if (!decisions.length) list.append(el('li', 'empty', 'No decisions yet.'));
-  decisions.slice(0, 8).forEach(d => list.append(row(d, d.tag ? el('span', 'tag', d.tag) : null)));
-  if (decisions.length > 8) {
-    const more = el('details', 'more'), sum = el('summary', null, `${decisions.length - 8} earlier decisions`), inner = el('ul', 'rows');
-    decisions.slice(8).forEach(d => inner.append(row(d, d.tag ? el('span', 'tag', d.tag) : null)));
-    more.append(sum, inner); const li = el('li'); li.style.padding = '0'; li.append(more); list.append(li);
-  }
-
-  fill('later', of('later'), l => row(l, null), 'Nothing parked.');
-  renderNotes();
+function pips(stage) {
+  const at = STAGES.indexOf(stage), wrap = el('span', 'pips');
+  wrap.setAttribute('role', 'img');
+  wrap.setAttribute('aria-label', `Stage ${at + 1} of ${STAGES.length}: ${STAGE[stage][0].toLowerCase()}`);
+  STAGES.forEach((s, i) => {
+    const p = el('span', 'pip' + (i < at ? ' past' : i === at ? ' cur' + (s === 'ready' || s === 'done' ? ' fin' : s === 'queued' ? ' wait' : '') : ''));
+    p.append(el('i'), el('span', null, STAGE_SHORT[i])); wrap.append(p);
+  });
+  return wrap;
 }
 
-/* ---------- questions: answer on the board ---------- */
-function qState(q) { return q.status === 'answered' || q.status === 'done' ? q.status : 'open'; }
+function tonightPanel(full) {
+  const box = el('section', 'panel tonight'), head = el('div', 'tn-head'), tt = el('div', 'tn-title');
+  const steps = tonightSteps(), label = tonightLabel();
+  const h = el(full ? 'h2' : 'h3', null, 'Tonight'); tt.append(h);
+  if (label) tt.append(el('span', 'tag', label));
+  head.append(tt); box.append(head);
+  if (!steps.length) {
+    head.append(el('p', 'tn-note', tonightDate() ? 'No steps planned for tonight yet.' : 'No night plan yet. When tonight’s work is planned, each step shows here with how far along it is.'));
+    return box;
+  }
+  const ready = steps.filter(s => ['ready', 'done'].includes(stageOf(s))).length;
+  const count = el('div', 'tn-count'); count.append(document.createTextNode(`${ready} of ${steps.length} ready`), el('span', null, ready === steps.length ? ' · all done for tonight' : ` · ${steps.length - ready} to go`));
+  const bar = el('div', 'bar'); bar.setAttribute('role', 'progressbar'); bar.setAttribute('aria-label', 'Tonight');
+  bar.setAttribute('aria-valuemin', '0'); bar.setAttribute('aria-valuemax', String(steps.length)); bar.setAttribute('aria-valuenow', String(ready));
+  bar.setAttribute('aria-valuetext', `${ready} of ${steps.length} steps ready`);
+  const fill = el('i'); fill.style.width = (ready / steps.length * 100) + '%'; bar.append(fill);
+  head.append(count, bar);
+  const ul = el('ul', 'list');
+  for (const s of steps) {
+    const st = stageOf(s);
+    if (full) {
+      ul.append(row({
+        key: 'tn:' + s.id, title: s.title, meta: [chip(STAGE, st), el('span', 'stage-n', `stage ${STAGES.indexOf(st) + 1} of ${STAGES.length}`)],
+        always: [pips(st), clockEl(s, true)],
+        body: [para(s.detail), factsLine([
+          !isNaN(Date.parse(s.startedAt)) ? 'Started ' + hm(Date.parse(s.startedAt)) : '',
+          !isNaN(Date.parse(s.stageAt)) ? `${STAGE[st][0]} since ${hm(Date.parse(s.stageAt))}` : '',
+          !isNaN(Date.parse(s.eta)) && st !== 'ready' && st !== 'done' ? 'Expected about ' + hm(Date.parse(s.eta)) : '',
+          s.tag || '',
+        ])],
+      }));
+    } else {
+      const li = el('li'), r = el('div', 'row-static'), top = el('span', 'row-top'), m = el('span', 'row-meta');
+      m.append(chip(STAGE, st)); top.append(el('span', 'row-title', s.title || ''), m);
+      r.append(top, clockEl(s, false)); li.append(r); ul.append(li);
+    }
+  }
+  box.append(ul);
+  const foot = el('div', 'tn-foot');
+  if (full) foot.append(el('p', 'tn-note', 'Each bar fills with the time a step is expected to take, so it is a guide. The stage is what the team last reported.'));
+  else { const go = el('button', 'btn quiet', 'See tonight’s plan'); go.type = 'button'; go.dataset.go = 'building'; foot.append(el('span', 'tn-note', 'Stages and time left for each step'), go); }
+  box.append(foot);
+  return box;
+}
+
+/* ---------- each tab ---------- */
+function renderHeader() {
+  if (!meta) return;
+  $('live').textContent = meta.live || '–';
+  $('updated').textContent = meta.updated || '–';
+  if (meta.slice) $('slice').textContent = meta.slice;
+  $('play').href = safeUrl(meta.gameUrl) || GAME_URL;
+}
+
+function renderOverview() {
+  $('ov-tonight').replaceChildren(tonightPanel(false));
+  const live = el('div', 'panel live');
+  live.append(el('h3', 'group-label', 'On the game link'), el('span', 'big', (meta && meta.live) || '–'));
+  if (meta && meta.updated) live.append(el('p', null, 'Board updated ' + meta.updated));
+  if (meta && meta.goal) live.append(el('p', null, meta.goal));
+  const a = el('a', 'play', 'Play the game'); a.href = safeUrl(meta && meta.gameUrl) || GAME_URL; a.target = '_blank'; a.rel = 'noopener';
+  live.append(a);
+  $('ov-live').replaceChildren(live);
+  const last = nights[0], nb = $('ov-night');
+  if (last) {
+    const c = el('div', 'panel night-card');
+    c.append(el('h3', 'group-label', 'Last night shift'), el('span', 't', last.title || ''));
+    if (last.at) c.append(el('span', 'tag', day(last.at)));
+    if (last.summary) {
+      const long = String(last.summary).length > 180;
+      c.append(el('p', long ? 'clamp' : null, last.summary));
+      if (long) {
+        const more = el('button', 'link', 'Read it all'); more.type = 'button';
+        more.addEventListener('click', () => {
+          const key = 'night:' + last.id; openState.set(key, true);
+          showTab('building'); keepFocus(renderAll);
+          const h = $('h-' + keyId(key)); if (h) { h.scrollIntoView({ block: 'center' }); h.focus({ preventScroll: true }); }
+        });
+        c.append(more);
+      }
+    }
+    nb.replaceChildren(c);
+  } else nb.replaceChildren();
+  const now = of('now').filter(it => it.status !== 'dropped');
+  $('ov-now').replaceChildren(section('Going on now', now, it => row({
+    key: 'now:' + it.id, title: it.title, meta: [chip(STATUS, it.status)], sum: it.detail,
+    body: [para(it.detail), it.tag ? el('span', 'tag', it.tag) : null],
+  }), 'Nothing in progress right now.'));
+}
+
+/* a step in tonight's plan shows the same stage here as in the Tonight panel */
+function tonightChip(s) {
+  const c = chip(STAGE, stageOf(s)); c.prepend(el('span', 'sr', 'Tonight: ')); c.title = 'In tonight’s plan';
+  return c;
+}
+function stepRow(s, i, tn, showStatus) {
+  return row({
+    key: 'step:' + s.id, title: s.title, lead: el('span', 'num', String(i + 1)),
+    meta: [tn && s.night === tn ? tonightChip(s) : null, showStatus ? chip(STATUS, s.status) : null],
+    sum: s.detail || s.tag, body: [para(s.detail), s.tag ? el('span', 'tag', s.tag) : null],
+  });
+}
+
+function renderBuilding() {
+  $('b-tonight').replaceChildren(tonightPanel(true));
+  const steps = of('step'), tn = tonightDate(), box = $('b-steps');
+  const n = s => steps.filter(x => x.status === s).length;
+  const words = [['done', 'done'], ['built', 'ready to play'], ['building', 'building'], ['next', 'next'], ['planned', 'planned'], ['paused', 'paused'], ['dropped', 'dropped']];
+  const otherN = steps.filter(s => !words.some(([k]) => k === s.status)).length;
+  const tonightN = tn ? steps.filter(s => s.night === tn).length : 0;
+  const head = el('div', 'sec-h'); head.append(el('h2', null, (meta && meta.slice) ? 'Steps in this slice' : 'Steps'));
+  head.append(el('p', 'lede', steps.length ? [...words.map(([k, w]) => n(k) && `${n(k)} ${w}`), otherN && `${otherN} other`, `${steps.length} in all`].filter(Boolean).join(' · ') : 'No steps yet.'));
+  if (tonightN) head.append(el('p', 'lede', `${tonightN === 1 ? 'One of these is' : tonightN + ' of these are'} in tonight’s plan above; they show tonight’s stage.`));
+  const strip = el('div', 'strip'); strip.setAttribute('aria-hidden', 'true');
+  for (const s of steps) strip.append(el('i', (STATUS[s.status] || [, 'plan'])[1]));
+  const parts = [head];
+  if (steps.length) parts.push(strip);
+  const idx = new Map(steps.map((s, i) => [s.id, i])), make = s => stepRow(s, idx.get(s.id), tn);
+  const groups = [
+    ['building', 'Building now', 'open'], ['next', 'Next', 'open'], ['planned', 'Planned', 'open'],
+    ['built', 'Ready to play', 'fold'], ['paused', 'Paused', 'open'], ['done', 'Done', 'fold'], ['dropped', 'Dropped', 'fold'],
+  ];
+  const known = new Set(groups.map(g => g[0]));
+  for (const [st, label, how] of groups) {
+    const items = steps.filter(s => s.status === st); if (!items.length) continue;
+    parts.push(how === 'fold' ? fold('g:steps-' + st, label, items, make, false) : section(label, items, make, '', items.length));
+  }
+  const other = steps.filter(s => !known.has(s.status));
+  if (other.length) parts.push(section('Other', other, s => stepRow(s, idx.get(s.id), tn, true), '', other.length));
+  box.replaceChildren(...parts);
+
+  const nb = $('b-nights'), nh = el('div', 'sec-h');
+  nh.append(el('h2', null, 'Night shifts'), el('p', 'lede', 'What each night’s work came to, newest first.'));
+  const nrow = x => row({ key: 'night:' + x.id, title: x.title, meta: [x.at ? el('span', 'tag', day(x.at)) : null], sum: x.summary, body: [para(x.summary)] });
+  const np = el('div', 'panel'); np.append(list(nights, nrow, 'No night shifts yet.'));
+  nb.replaceChildren(nh, np);
+}
+
+/* questions: answer on the board.
+   A question with no status at all is one of the old long-range ones (engine, price, the game's name):
+   it waits in a folded "Older questions, no rush" group and is not counted as needing him. */
+function qState(q) {
+  if (q.status === 'answered' || q.status === 'done') return q.status;
+  return q.status == null || q.status === '' ? 'later' : 'open';
+}
+/* where a question shows: one he is changing, or answered on this visit, stays where it was */
+function qGroup(q) {
+  if (editing.has(q.id)) return 'open';
+  const s = qState(q);
+  return s === 'answered' && justAnswered.has(q.id) ? justAnswered.get(q.id) : s;
+}
+let qForce = false, qStale = false; // redraw the questions even while an answer box has focus / a redraw was held back
 
 function answerForm(q) {
-  const form = el('form', 'answer'), id = 'ans-' + q.id;
+  const form = el('form', 'answer'), id = 'ans-' + q.id, k = 'q:' + q.id, busy = saving.has(k);
   const box = el('textarea'); box.id = id; box.maxLength = 2000; box.placeholder = 'Your answer';
   box.setAttribute('aria-label', 'Your answer to: ' + (q.title || ''));
   box.value = drafts[q.id] ?? (editing.has(q.id) ? (q.answer || '') : '');
   box.addEventListener('input', () => { drafts[q.id] = box.value; });
-  const foot = el('div', 'answer-foot'), hint = el('span', 'hint', ''), btn = el('button', null, 'Save answer'); btn.type = 'submit';
+  const foot = el('div', 'foot'), hint = el('span', 'hint', errs[k] || ''), btn = el('button', 'btn', busy ? 'Saving…' : 'Save answer');
+  btn.type = 'submit'; btn.id = 'save-' + q.id; btn.setAttribute('aria-disabled', String(busy));
   foot.append(hint, btn); form.append(box, foot);
   form.addEventListener('submit', async e => {
     e.preventDefault();
-    const text = box.value.trim(); if (!text || !db) return;
-    btn.disabled = true;
+    const text = box.value.trim(); if (!text || !db || saving.has(k)) return;
+    drafts[q.id] = box.value;
+    const from = qGroup(q), pf = { ids: ['chg-' + q.id, 'h-' + keyId('q:' + q.id)] };
+    saving.add(k); delete errs[k]; justAnswered.set(q.id, from === 'later' ? 'later' : 'open'); pendingFocus = pf;
+    qForce = true; schedule();
     try {
       await db.doc('board/' + q.id).update({ answer: text, answeredAt: new Date().toISOString(), status: 'answered' });
       delete drafts[q.id]; editing.delete(q.id);
+      say('Answer saved. Claude picks it up next time it looks.');
     } catch (err) {
-      hint.textContent = err && (err.code === 'invalid_argument' || err.code === 'permission_denied') ? 'Only the board’s owner can answer.' : 'Couldn’t save just now. Try again in a moment.';
-      btn.disabled = false;
+      errs[k] = errText(err, 'answer'); pf.ids = ['save-' + q.id, 'ans-' + q.id];
+      say(errs[k]);
+    } finally {
+      saving.delete(k); pf.settled = Date.now(); qForce = true; schedule();
     }
   });
   return form;
 }
 
-function questionItem(q) {
-  const li = el('li'), head = el('div', 'row-head'), right = el('div', 'row-right'), state = qState(q);
-  head.append(el('span', 'row-title', q.title || ''));
-  if (q.tag) right.append(el('span', 'tag', q.tag));
-  if (state !== 'open') right.append(chip(Q_STATE, state));
-  head.append(right); li.append(head);
-  if (q.detail) li.append(el('p', 'row-detail', q.detail));
-  if (q.answer && !editing.has(q.id)) {
-    const said = el('p', 'said'); said.append(el('b', null, 'You: '), document.createTextNode(q.answer)); li.append(said);
-  }
-  if (q.reply) { const r = el('p', 'reply'); r.append(el('b', null, 'Claude: '), document.createTextNode(q.reply)); li.append(r); }
-  if (canWrite !== false && db) {
-    if (state === 'open' || editing.has(q.id)) li.append(answerForm(q));
+function questionRow(q) {
+  const state = qState(q), ed = editing.has(q.id), body = [para(q.detail)];
+  if (q.answer && !ed) { const said = el('p', 'said'); said.append(el('b', null, 'You: '), document.createTextNode(q.answer)); body.push(said); }
+  if (q.reply) { const r = el('p', 'reply'); r.append(el('b', null, 'Claude: '), document.createTextNode(q.reply)); body.push(r); }
+  if (day(q.answeredAt) && !ed) body.push(el('span', 'tag', 'Answered ' + day(q.answeredAt)));
+  if (writable()) {
+    if (state === 'open' || state === 'later' || ed) body.push(answerForm(q));
     else if (state === 'answered') {
-      const change = el('button', 'link', 'Change answer'); change.type = 'button';
-      change.addEventListener('click', () => { editing.add(q.id); keepFocus(renderQuestions); const b = $('ans-' + q.id); if (b) b.focus(); });
-      li.append(change);
+      const change = el('button', 'link', 'Change answer'); change.type = 'button'; change.id = 'chg-' + q.id;
+      change.addEventListener('click', () => { editing.add(q.id); delete errs['q:' + q.id]; openState.set('q:' + q.id, true); qForce = true; keepFocus(renderAll); const b = $('ans-' + q.id); if (b) b.focus(); });
+      body.push(change);
     }
   }
-  return li;
+  const sum = (state === 'answered' || state === 'done') && q.answer && !ed ? 'You: ' + q.answer : (q.detail || '');
+  return row({
+    key: 'q:' + q.id, title: q.title, sum, body,
+    meta: [q.tag ? el('span', 'tag', q.tag) : null, (state === 'answered' || state === 'done') && !ed ? chip(Q_STATE, state) : null],
+  });
+}
+
+function questionGroups() {
+  const qs = of('question'), g = k => qs.filter(q => qGroup(q) === k);
+  return {
+    open: g('open'), answered: g('answered'), later: g('later'), done: g('done'),
+    /* what needs him: open questions and ones he is changing (not the old no-rush ones) */
+    count: qs.filter(q => qState(q) === 'open' || editing.has(q.id)).length,
+  };
 }
 
 function renderQuestions() {
-  if (!board) return;
-  const qs = board.filter(b => b.kind === 'question');
-  const open = qs.filter(q => qState(q) === 'open' || editing.has(q.id));
-  const answered = qs.filter(q => qState(q) === 'answered' && !editing.has(q.id));
-  const done = qs.filter(q => qState(q) === 'done' && !editing.has(q.id));
-  $('n-q').textContent = open.length;
-  const list = $('questions'); list.replaceChildren();
-  if (!open.length && !answered.length) list.append(el('li', 'empty', 'No open questions.'));
-  open.forEach(q => list.append(questionItem(q)));
-  answered.forEach(q => list.append(questionItem(q)));
-  if (done.length) {
-    const more = el('details', 'more'), inner = el('ul', 'rows');
-    more.append(el('summary', null, `${done.length} settled`));
-    done.forEach(q => inner.append(questionItem(q)));
-    more.append(inner); const li = el('li'); li.style.padding = '0'; li.append(more); list.append(li);
-  }
+  const { open, answered, later, done } = questionGroups(), parts = [];
+  $('q-lede').textContent = writable() ? 'Open a question to read it and answer. Claude picks your answers up next time it looks.' : 'Open a question to read it.';
+  parts.push(section('Open', open, questionRow, 'No open questions. New ones show up here.', open.length));
+  if (answered.length) parts.push(section('Answered, waiting for Claude', answered, questionRow, '', answered.length));
+  if (later.length) parts.push(fold('g:q-later', 'Older questions, no rush', later, questionRow, false));
+  if (done.length) parts.push(fold('g:q-done', 'Settled questions', done, questionRow, false));
+  $('q-body').replaceChildren(...parts);
 }
 
-/* ---------- the review queue ---------- */
-function points(head, items) {
-  const frag = document.createDocumentFragment();
-  if (!Array.isArray(items) || !items.length) return frag;
-  frag.append(el('p', 'point-head', head));
-  const ul = el('ul', 'points'); for (const p of items) ul.append(el('li', null, p)); frag.append(ul);
-  return frag;
-}
-
-function reviewItem(r) {
-  const li = el('li'), head = el('div', 'row-head'), right = el('div', 'row-right');
-  head.append(el('span', 'row-title', r.title || ''));
-  if (r.version) right.append(el('span', 'ver', r.version));
-  right.append(r.status === 'fixed' && r.ok ? el('span', 'chip next', 'You said OK, Claude publishes it next') : chip(REVIEW, r.status));
-  head.append(right); li.append(head);
-  const kv = el('dl', 'kv');
+/* the review queue */
+function reviewRow(r) {
+  const body = [], kv = el('dl', 'kv');
   const add = (k, v) => { if (v) kv.append(el('dt', null, k), el('dd', null, v)); };
   add('What changed', r.changed); add('What to check', r.check);
-  if (kv.childElementCount) li.append(kv);
-  li.append(points('What the reviewer found', r.findings), points('What was fixed', r.fixed));
-  const when = [r.added ? 'Added ' + day(r.added) : '', r.reviewed ? 'reviewed ' + day(r.reviewed) : ''].filter(Boolean).join(' · ');
-  if (when) li.append(el('span', 'tag', when));
-  if (r.status === 'fixed' && !r.ok && canWrite !== false && db) {
-    const foot = el('div', 'answer-foot'), hint = el('span', 'hint', 'Fixes go live once you say OK.'), btn = el('button', null, 'OK, publish it'); btn.type = 'button';
+  if (kv.childElementCount) body.push(kv);
+  body.push(points('What the reviewer found', r.findings), points('What was fixed', r.fixed));
+  body.push(factsLine([r.added ? 'Added ' + day(r.added) : '', r.reviewed ? 'Reviewed ' + day(r.reviewed) : '', r.okAt ? 'You said OK ' + day(r.okAt) : '']));
+  const needsOk = r.status === 'fixed' && !r.ok;
+  if (needsOk && writable()) {
+    const k = 'ok:' + r.id, busy = saving.has(k);
+    const foot = el('div', 'foot'), hint = el('span', 'hint', errs[k] || 'The fixes go live once you say OK.'), btn = el('button', 'btn', busy ? 'Sending…' : 'OK, publish it');
+    btn.type = 'button'; btn.id = 'ok-' + r.id; btn.setAttribute('aria-disabled', String(busy));
     btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      try { await db.doc('reviews/' + r.id).update({ ok: true, okAt: new Date().toISOString() }); }
-      catch { hint.textContent = 'Couldn’t save just now. Try again in a moment.'; btn.disabled = false; }
+      if (saving.has(k) || !db) return;
+      const pf = { ids: ['h-' + keyId('r:' + r.id)] };
+      saving.add(k); delete errs[k]; openState.set('r:' + r.id, true); pendingFocus = pf; schedule();
+      try {
+        await db.doc('reviews/' + r.id).update({ ok: true, okAt: new Date().toISOString() });
+        say('OK sent. Claude publishes the fixes next.');
+      } catch (err) {
+        errs[k] = errText(err, 'OK fixes'); pf.ids = ['ok-' + r.id, 'h-' + keyId('r:' + r.id)];
+        say(errs[k]);
+      } finally {
+        saving.delete(k); pf.settled = Date.now(); schedule();
+      }
     });
-    foot.append(hint, btn); li.append(foot);
+    foot.append(hint, btn); body.push(foot);
   }
-  return li;
+  return row({
+    key: 'r:' + r.id, title: r.title, sum: r.changed, body, dflt: needsOk,
+    meta: [r.version ? el('span', 'ver', r.version) : null, r.status === 'fixed' && r.ok ? el('span', 'chip next', 'You said OK, Claude publishes it next') : chip(REVIEW, r.status)],
+  });
+}
+
+function reviewGroups() {
+  const rs = reviews || [], by = (...s) => rs.filter(r => s.includes(r.status));
+  const known = ['waiting', 'reviewing', 'fixed', 'passed', 'published', 'skipped'];
+  return {
+    needOk: rs.filter(r => r.status === 'fixed' && !r.ok), okd: rs.filter(r => r.status === 'fixed' && r.ok),
+    reviewing: by('reviewing'), waiting: by('waiting'), done: by('passed', 'published', 'skipped').slice().reverse(),
+    other: rs.filter(r => !known.includes(r.status)),
+  };
 }
 
 function renderReviews() {
   if (!reviews) return;
-  const by = (...s) => reviews.filter(r => s.includes(r.status));
-  const wait = by('waiting'), rev = by('reviewing'), ok = by('fixed'), done = by('passed', 'published', 'skipped');
-  $('n-wait').textContent = wait.length; $('n-ok').textContent = ok.filter(r => !r.ok).length;
-  fill('r-ok', ok, reviewItem, 'Nothing waiting for your OK.');
-  $('g-review').hidden = $('p-review').hidden = !rev.length; fill('r-review', rev, reviewItem, '');
-  fill('r-wait', wait, reviewItem, 'Nothing waiting. Quick changes land here during the day.');
-  $('r-done-sum').textContent = `Reviewed and live (${done.length})`;
-  fill('r-done', done.slice().reverse(), reviewItem, 'Nothing reviewed yet.');
+  const g = reviewGroups(), parts = [];
+  parts.push(section('Waiting for your OK', g.needOk, reviewRow, 'Nothing waiting for your OK.', g.needOk.length));
+  if (g.okd.length) parts.push(section('You said OK', g.okd, reviewRow, '', g.okd.length));
+  if (g.reviewing.length) parts.push(section('In review now', g.reviewing, reviewRow, '', g.reviewing.length));
+  parts.push(section('Waiting for review', g.waiting, reviewRow, 'Nothing waiting. Quick changes land here during the day.', g.waiting.length));
+  if (g.other.length) parts.push(section('Other', g.other, reviewRow, '', g.other.length));
+  parts.push(g.done.length ? fold('g:r-done', 'Reviewed and live', g.done, reviewRow, false) : section('Reviewed and live', [], reviewRow, 'Nothing reviewed yet.'));
+  $('r-body').replaceChildren(...parts);
 }
 
-function renderNights() {
-  fill('nights', nights, n => {
-    const li = el('li'), head = el('div', 'row-head');
-    head.append(el('span', 'row-title', n.title || ''), el('span', 'tag', day(n.at)));
-    li.append(head);
-    if (n.summary) li.append(el('p', 'row-detail', n.summary));
-    return li;
-  }, 'No night shifts yet.');
+/* versions, decisions, later: the record; long lists fold after the first eight */
+function recordList(target, items, make, emptyText, foldLabel, key) {
+  const head = items.slice(0, 8), rest = items.slice(8), p = el('div', 'panel');
+  p.append(list(head, make, emptyText));
+  $(target).replaceChildren(...[p, rest.length ? fold(key, foldLabel(rest.length), rest, make, false) : null].filter(Boolean));
+}
+function renderRecord() {
+  recordList('v-body', of('version'), v => row({
+    key: 'v:' + v.id, title: v.title, lead: v.tag ? el('span', 'ver', v.tag) : null, sum: v.detail, body: [para(v.detail)],
+  }), 'No versions yet.', () => 'Earlier versions', 'g:v-more');
+  recordList('d-body', of('decision'), d => row({
+    key: 'd:' + d.id, title: d.title, meta: [d.tag ? el('span', 'tag', d.tag) : null], sum: d.detail, body: [para(d.detail)],
+  }), 'No decisions yet.', () => 'Earlier decisions', 'g:d-more');
+  const later = of('later'), lp = el('div', 'panel');
+  lp.append(list(later, l => row({ key: 'l:' + l.id, title: l.title, meta: [l.tag ? el('span', 'tag', l.tag) : null], sum: l.detail, body: [para(l.detail)] }), 'Nothing parked.'));
+  $('l-body').replaceChildren(lp);
 }
 
-/* ---------- notes ---------- */
+/* notes */
+const armed = new Set(); // notes whose Remove was tapped once
 function renderNotes() {
-  fill('notes', notes.filter(n => n.text), n => {
-    const li = el('li'), head = el('div', 'row-head');
-    head.append(el('span', 'row-title', n.text), chip(NOTE_STATE, n.state || 'new'));
-    li.append(head);
-    const when = n.at ? new Date(n.at) : null;
-    const foot = el('div', 'row-head');
-    foot.append(el('span', 'tag', when && !isNaN(when) ? when.toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''));
-    if (canWrite !== false && db) {
-      const del = el('button', 'link', 'Remove'); del.type = 'button';
-      del.addEventListener('click', async () => { del.disabled = true; try { await db.doc('notes/' + n.id).delete(); } catch { del.disabled = false; } });
+  const items = notes.filter(n => n.text);
+  const ul = list(items, n => {
+    const li = el('li'), r = el('div', 'row-static'), top = el('span', 'row-top'), m = el('span', 'row-meta');
+    m.append(chip(NOTE_STATE, n.state || 'new'));
+    top.append(el('span', 'row-title note-text', String(n.text)), m); r.append(top);
+    if (n.reply) { const p = el('p', 'reply'); p.append(el('b', null, 'Claude: '), document.createTextNode(n.reply)); r.append(p); }
+    const foot = el('div', 'foot'); foot.append(el('span', 'tag', stamp(n.at)));
+    if (writable()) {
+      const k = 'del:' + n.id, busy = saving.has(k);
+      const del = el('button', 'link', 'Remove'); del.type = 'button'; del.id = 'del-' + n.id; del.setAttribute('aria-disabled', String(busy));
+      if (errs[k]) { del.textContent = errs[k]; del.classList.add('warn'); }
+      else if (armed.has(n.id)) { del.textContent = 'Tap again to remove'; del.classList.add('warn'); }
+      del.addEventListener('click', async () => {
+        if (saving.has(k)) return;
+        if (!armed.has(n.id)) {
+          delete errs[k]; armed.add(n.id); del.textContent = 'Tap again to remove'; del.classList.add('warn');
+          setTimeout(() => { armed.delete(n.id); const b = $('del-' + n.id); if (b && b.getAttribute('aria-disabled') !== 'true' && !errs[k]) { b.textContent = 'Remove'; b.classList.remove('warn'); } }, 5000);
+          return;
+        }
+        /* after the note goes, focus moves to the next note's Remove (or the one before, or the note box) */
+        const btns = [...document.querySelectorAll('#notes button[id^="del-"]')], at = btns.indexOf(del);
+        const near = [btns[at + 1], btns[at - 1]].filter(Boolean).map(b => b.id);
+        const pf = { ids: [...near, 'note-text'] };
+        saving.add(k); armed.delete(n.id); pendingFocus = pf; del.setAttribute('aria-disabled', 'true');
+        try {
+          await db.doc('notes/' + n.id).delete();
+          say('Note removed.');
+        } catch (err) {
+          const own = err && err.code === 'invalid_argument';
+          errs[k] = own ? 'Only the board’s owner can remove notes.' : 'Couldn’t remove. Tap to try again';
+          pf.ids = ['del-' + n.id, ...pf.ids];
+          say(errs[k]);
+          if (own) canWrite = false;
+        } finally {
+          saving.delete(k); pf.settled = Date.now(); schedule();
+        }
+      });
       foot.append(del);
     }
-    if (n.reply) { const r = el('p', 'reply'); r.append(el('b', null, 'Claude: '), document.createTextNode(n.reply)); li.append(r); }
-    li.append(foot);
-    return li;
-  }, 'No notes yet. Anything you add here, Claude picks up next time it looks.');
+    r.append(foot); li.append(r); return li;
+  }, db ? 'No notes yet. Anything you add here, Claude picks up next time it looks.' : 'Shows here once the board loads.');
+  $('notes').replaceWith(ul); ul.id = 'notes';
+  const form = $('note-form'), ro = $('note-ro');
+  form.hidden = !writable();
+  ro.hidden = writable();
+  ro.textContent = !db ? 'Notes can be added when the board is opened in Claude while signed in.' : 'Only the board’s owner can add notes.';
 }
 
 $('note-form').addEventListener('submit', async e => {
   e.preventDefault();
   const box = $('note-text'), text = box.value.trim(), btn = $('note-add'), hint = $('note-hint');
-  if (!text || !db) return;
+  if (!text || !db || btn.disabled) return;
+  const hadFocus = document.activeElement === btn;
   btn.disabled = true;
   try {
     await db.collection('notes').add({ text, at: new Date().toISOString(), state: 'new' });
     box.value = ''; hint.textContent = 'Saved. Claude will see it.';
   } catch (err) {
-    hint.textContent = err && err.code === 'invalid_argument' ? 'Only the board’s owner can add notes.' : 'Couldn’t save just now. Try again in a moment.';
-    if (err && err.code === 'invalid_argument') canWrite = false;
-  } finally { btn.disabled = false; }
+    hint.textContent = errText(err, 'add notes');
+    if (err && err.code === 'invalid_argument') { canWrite = false; if (hadFocus) pendingFocus = { ids: ['note-ro'], settled: Date.now() }; schedule(); }
+  } finally {
+    btn.disabled = false;
+    if (hadFocus && canWrite !== false && (document.activeElement === document.body || !document.activeElement)) btn.focus({ preventScroll: true });
+  }
 });
 
-function offline(text) {
-  for (const id of ['steps', 'questions', 'versions', 'decisions', 'later', 'r-ok', 'r-wait', 'nights']) $(id).replaceChildren(el('li', 'empty', text));
-  $('now').replaceChildren(el('div', 'panel empty', text));
-  $('note-add').disabled = true; $('note-hint').textContent = 'Notes need the board open in Claude.';
+/* counts: the tally on Overview and the badges on the tabs */
+let badgeSig = '';
+function renderCounts() {
+  const badge = (id, n, hot, text) => { const b = $(id); b.hidden = n == null; if (n == null) return; b.textContent = text != null ? text : String(n); b.classList.toggle('hot', !!hot); };
+  const tile = (id, n) => { const b = $(id); b.textContent = n == null ? '–' : String(n); b.parentElement.classList.toggle('zero', n === 0); };
+  let qn = null, okn = null;
+  if (board) {
+    qn = questionGroups().count;
+    tile('n-q', qn); badge('c-questions', qn || null, true);
+    const tn = tonightSteps(), ready = tn.filter(s => ['ready', 'done'].includes(stageOf(s))).length;
+    badge('c-building', tn.length ? ready : null, false, `${ready}/${tn.length}`);
+  } else { tile('n-q', null); badge('c-questions', null); badge('c-building', null); }
+  if (reviews) {
+    const g = reviewGroups(); okn = g.needOk.length;
+    tile('n-ok', okn); tile('n-wait', g.waiting.length);
+    badge('c-reviews', okn || null, true);
+  } else { tile('n-ok', null); tile('n-wait', null); badge('c-reviews', null); }
+  $('l-q').textContent = qn === 1 ? 'question for you' : 'questions for you';
+  $('l-ok').textContent = okn === 1 ? 'fix waiting for your OK' : 'fixes waiting for your OK';
+  $('all-clear').hidden = !(qn === 0 && okn === 0);
+  const nn = notes.filter(n => n.text).length;
+  badge('c-notes', nn || null, false);
+  /* the badges make the tabs wider: keep the open tab in view on a phone */
+  const sig = ['c-questions', 'c-reviews', 'c-building', 'c-notes'].map(id => $(id).hidden ? '' : $(id).textContent).join('|');
+  if (sig !== badgeSig) { badgeSig = sig; revealTab(); }
 }
+
+function renderAll() {
+  renderHeader();
+  if (board) {
+    renderOverview(); renderBuilding(); renderRecord();
+    /* don't rebuild the questions under his fingers: wait until he leaves the answer box (or saves) */
+    const a = document.activeElement, typing = a && a.closest && a.closest('#q-body form.answer');
+    if (typing && !qForce) qStale = true; else { qStale = false; renderQuestions(); }
+  }
+  qForce = false;
+  renderReviews();
+  renderNotes();
+  renderCounts();
+}
+let queued = false;
+function schedule() { if (queued) return; queued = true; Promise.resolve().then(() => { queued = false; keepFocus(renderAll); }); }
+
+/* a held-back questions redraw runs once focus leaves the questions (after the tap, so the tap still lands) */
+let pointerDown = false, afterPointer = false;
+document.addEventListener('pointerdown', () => { pointerDown = true; }, true);
+const pointerEnd = () => { pointerDown = false; if (afterPointer) { afterPointer = false; setTimeout(schedule, 0); } };
+document.addEventListener('pointerup', pointerEnd, true);
+document.addEventListener('pointercancel', pointerEnd, true);
+$('q-body').addEventListener('focusout', e => {
+  if (!qStale || e.currentTarget.contains(e.relatedTarget)) return;
+  if (pointerDown) afterPointer = true; else setTimeout(schedule, 0);
+});
+
+/* the board itself didn't load: blank what it drives; reviews and notes keep showing from their own listeners */
+function offline(text) {
+  const b = $('banner'); b.textContent = text; b.hidden = false;
+  const empty = () => el('div', 'panel empty', 'Shows here once the board loads.');
+  for (const id of ['ov-tonight', 'b-tonight', 'q-body', 'v-body', 'd-body', 'l-body'].concat(db ? [] : ['r-body'])) $(id).replaceChildren(empty());
+  for (const id of ['ov-live', 'ov-night', 'ov-now', 'b-steps', 'b-nights']) $(id).replaceChildren();
+  schedule();
+}
+
+/* ---------- tabs: remembered in this browser, linkable by #name ---------- */
+let current = null;
+function showTab(name, opts = {}) {
+  if (!TABS.includes(name)) name = 'overview';
+  const changed = current !== name; current = name;
+  for (const t of TABS) {
+    const on = t === name, tab = $('t-' + t);
+    tab.setAttribute('aria-selected', String(on)); tab.tabIndex = on ? 0 : -1; $('p-' + t).hidden = !on;
+  }
+  revealTab();
+  try { localStorage.setItem('hf-plan-tab', name); } catch {}
+  if (opts.hash !== false && location.hash.slice(1) !== name) { try { history.replaceState(null, '', '#' + name); } catch {} }
+  if (changed && opts.scroll !== false) {
+    const nav = $('tabs'), top = nav.offsetTop;
+    if (window.scrollY > top) window.scrollTo(0, top);
+  }
+  if (opts.focus) $('p-' + name).focus({ preventScroll: true });
+  if (name === 'building' || name === 'overview') updateClocks();
+}
+/* scroll the strip so the open tab (and its underline) is in view, clear of the faded edges */
+function revealTab() {
+  const strip = $('tablist'), tab = current && $('t-' + current);
+  if (tab) {
+    const sr = strip.getBoundingClientRect(), tr = tab.getBoundingClientRect(), pad = 40;
+    const l = tr.left - sr.left + strip.scrollLeft, r = l + tr.width;
+    if (l < strip.scrollLeft + pad) strip.scrollLeft = Math.max(0, l - pad);
+    else if (r > strip.scrollLeft + strip.clientWidth - pad) strip.scrollLeft = r - strip.clientWidth + pad;
+  }
+  edges();
+}
+function edges() {
+  const s = $('tablist'), n = $('tabs');
+  n.classList.toggle('more-left', s.scrollLeft > 2);
+  n.classList.toggle('more-right', s.scrollLeft + s.clientWidth < s.scrollWidth - 2);
+}
+$('tablist').addEventListener('click', e => { const t = e.target.closest('[role="tab"]'); if (t) showTab(t.dataset.tab); });
+$('tablist').addEventListener('keydown', e => {
+  const i = TABS.indexOf(current); let j = null;
+  if (e.key === 'ArrowRight') j = (i + 1) % TABS.length; else if (e.key === 'ArrowLeft') j = (i - 1 + TABS.length) % TABS.length;
+  else if (e.key === 'Home') j = 0; else if (e.key === 'End') j = TABS.length - 1;
+  if (j == null) return;
+  e.preventDefault(); showTab(TABS[j]); $('t-' + TABS[j]).focus();
+});
+$('tablist').addEventListener('scroll', edges, { passive: true });
+window.addEventListener('resize', revealTab);
+document.addEventListener('click', e => { const g = e.target.closest('[data-go]'); if (g) showTab(g.dataset.go, { focus: true }); });
+window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (TABS.includes(h)) showTab(h, { hash: false }); });
+(() => {
+  const h = location.hash.slice(1); let saved = null;
+  try { saved = localStorage.getItem('hf-plan-tab'); } catch {}
+  showTab(TABS.includes(h) ? h : TABS.includes(saved) ? saved : 'overview', { scroll: false, hash: false });
+  /* the heading and tab fonts arrive late and widen the tabs */
+  try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(revealTab); } catch {}
+})();
+
+/* the time bars move on their own; no data is reloaded for that */
+setInterval(updateClocks, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) updateClocks(); });
 
 (async () => {
   const c = window.claude;
   db = c && c.use ? await c.use('db') : null;
   if (!db) { offline('The plan shows here when the board is opened in Claude while signed in.'); return; }
-  const fail = () => offline('The plan couldn’t load. Reopen the board to try again.');
-  db.collection('board').orderBy('order').onSnapshot(s => { board = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
-  db.doc('meta/board').onSnapshot(s => { meta = s.exists ? s.data() : null; render(); }, () => {});
-  db.collection('notes').orderBy('at', 'desc').limit(200).onSnapshot(s => { notes = s.docs.map(d => ({ id: d.id, ...d.data() })); renderNotes(); }, () => {});
-  db.collection('reviews').orderBy('order').onSnapshot(s => { reviews = s.docs.map(d => ({ id: d.id, ...d.data() })); keepFocus(renderReviews); }, () => {});
-  db.collection('nights').orderBy('at', 'desc').limit(30).onSnapshot(s => { nights = s.docs.map(d => ({ id: d.id, ...d.data() })); renderNights(); }, () => {});
+  const fail = () => { board = null; offline('The plan couldn’t load. Reopen the board to try again.'); };
+  /* an unchanged delivery (the same document objects) doesn't redraw anything */
+  const seen = {};
+  const same = (k, docs) => { const p = seen[k]; seen[k] = docs; return !!p && p.length === docs.length && docs.every((d, i) => d === p[i]); };
+  const rows = s => s.docs.map(d => ({ id: d.id, ...d.data() }));
+  db.collection('board').orderBy('order').onSnapshot(s => { if (same('board', s.docs)) return; board = rows(s); schedule(); }, fail);
+  let metaSnap = null;
+  db.doc('meta/board').onSnapshot(s => {
+    const p = metaSnap; metaSnap = s;
+    if (p && (s === p || (s.exists && p.exists && s.data() === p.data()))) return;
+    meta = s.exists ? s.data() : null; schedule();
+  }, () => {});
+  db.collection('notes').orderBy('at', 'desc').limit(200).onSnapshot(s => { if (same('notes', s.docs)) return; notes = rows(s); schedule(); }, () => {});
+  db.collection('reviews').orderBy('order').onSnapshot(s => { if (same('reviews', s.docs)) return; reviews = rows(s); schedule(); }, () => {});
+  db.collection('nights').orderBy('at', 'desc').limit(30).onSnapshot(s => { if (same('nights', s.docs)) return; nights = rows(s); schedule(); }, () => {});
   const user = c.use ? await c.use('user') : null;
   if (user) { try { canWrite = await user.can('data.write'); } catch { canWrite = null; } }
-  if (canWrite === false) { $('note-add').disabled = true; $('note-hint').textContent = 'Only the board’s owner can add notes.'; }
-  render(); keepFocus(renderReviews);
+  schedule();
 })();
 </script>
