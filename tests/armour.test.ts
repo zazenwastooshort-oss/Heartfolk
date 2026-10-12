@@ -296,7 +296,7 @@ describe('saving the hide armour', () => {
     s.state.skills = { ...s.state.skills, attack: XP_TABLE[3]!, strength: XP_TABLE[3]!, defence: XP_TABLE[3]!, vitality: 300 };
     s.state.bank = { cooked_fish: 4, birch_logs: 12 };
     const raw = JSON.parse(serialize(s.state, Date.now()));
-    expect(raw.version).toBe(10);
+    raw.version = 10;                                          // as 0.0.22 to 0.0.24 wrote it
     expect(raw.equipment).toEqual({ weapon: 'stone_club', head: null, body: null, shield: null });
     const back = readSave(JSON.stringify(raw), CAMP).state;
     expect(back.equipment).toEqual(raw.equipment);

@@ -154,13 +154,13 @@ describe('fishing', () => {
     expect(count(s, 'strike')).toBeGreaterThan(12);                            // bites that got away, too
   });
 
-  it('the Fish goal: he stops once he has the 5 it asks for', () => {
+  it('the Fish goal: he stops once he has the 8 it asks for (0.0.25: 5 left too few for the meal, with some burning)', () => {
     const s = campAt('fish');
     expect(currentGoal(s.state).id).toBe('fish');
     send(s, { type: 'work', nodeId: spots[1]!.id });
     runUntil(s, () => count(s, 'goalEnough') > 0, 300);
     expect(s.log).toContainEqual({ type: 'goalEnough', item: 'raw_fish', goal: 'fish' });
-    expect(fish(s)).toBe(5);
+    expect(fish(s)).toBe(8);
     expect(s.state.player.task.kind).toBe('idle');
     run(s, 0.1);
     expect(currentGoal(s.state).id).toBe('meal');

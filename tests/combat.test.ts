@@ -30,7 +30,7 @@ import { STOKE } from '../src/data/fire';
 import { XP_TABLE, levelFor } from '../src/data/xp';
 import { addSummary, emptySummary, tally } from '../src/systems/away';
 import { awayText } from '../src/ui/away';
-import { cantFightText, goalLevelText } from '../src/ui/combat';
+import { cantFightText, goalLevelText, switchedText } from '../src/ui/combat';
 
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.z - b.z);
 const SPOT = CAMP.camp!.dummy;
@@ -338,57 +338,58 @@ describe('practising on the dummy', () => {
     expect(s.state.player.task.kind).toBe('fight');
   });
 
-  it('when the style he trains reaches what the practice goal asks, he says so once and carries on', () => {
+  it('when the style he trains reaches what the practice goal asks, he says so once and trains the next it asks for', () => {
     const s = ready(), need = goal('practice').levels!.attack!;
     s.state.skills.attack = XP_TABLE[need]! - 1;
     practise(s);
     const from = s.log.length;
     runUntil(s, () => since(s, from).some(e => e.type === 'goalLevel'), 120);
-    expect(since(s, from).find(e => e.type === 'goalLevel')).toEqual({ type: 'goalLevel', skill: 'attack', level: need, goal: 'practice' });
+    expect(since(s, from).find(e => e.type === 'goalLevel')).toEqual({ type: 'goalLevel', skill: 'attack', level: need, goal: 'practice', next: 'strength' });
+    expect(s.state.combatStyle).toBe('strength');
     expect(s.state.player.task.kind).toBe('fight');
     run(s, 60);
-    expect(since(s, from).filter(e => e.type === 'goalLevel')).toHaveLength(1);
+    expect(since(s, from).filter(e => e.type === 'goalLevel' && e.skill === 'attack')).toHaveLength(1);
     expect(levelFor(s.state.skills.attack)).toBeGreaterThanOrEqual(need);
+    expect(s.state.skills.strength).toBeGreaterThan(0);
   });
 
-  it('the dummy teaches each style only up to its level: refused there, and he stops on reaching it, saying so', () => {
+  it("the dummy teaches each style up to its level: he moves on to one it can still teach, and stops when it has taught him all three", () => {
+    // a tap with Attack at the limit: he trains the next skill the practice goal asks for, and sets off
     const s = ready();
     s.state.skills.attack = XP_TABLE[DUMMY.maxLevel]!;
     send(s, { type: 'fight', target: 'dummy' });
-    expect(s.log.at(-1)).toEqual({ type: 'cantFight', target: 'dummy', reason: 'taught', skill: 'attack' });
-    expect(s.state.player.pending).toBeNull();
-    // just below it: he practises until he reaches it, then stops by himself
+    expect(s.log).toContainEqual({ type: 'switchedStyle', target: 'dummy', from: 'attack', to: 'strength' });
+    expect(s.state.combatStyle).toBe('strength');
+    expect(s.state.player.pending).toEqual({ kind: 'fight', id: 'dummy' });
+    // with no goal asking for levels, reaching the limit mid-practice moves him on to the lowest it can still teach
+    const u = ready();
+    u.state.goalsDone = before('berries');
+    u.state.skills = { ...u.state.skills, attack: XP_TABLE[DUMMY.maxLevel]! - 1, strength: XP_TABLE[5]!, defence: XP_TABLE[4]! };
+    practise(u);
+    runUntil(u, () => u.log.some(e => e.type === 'switchedStyle'), 300);
+    expect(u.log.find(e => e.type === 'switchedStyle')).toEqual({ type: 'switchedStyle', target: 'dummy', from: 'attack', to: 'defence' });
+    expect(u.state.player.task.kind).toBe('fight');
+    // just below the limit in the last skill it can teach: he practises up to it, then stops by himself, saying so
     const t = ready();
-    t.state.skills.attack = XP_TABLE[DUMMY.maxLevel]! - 1;
+    t.state.goalsDone = before('berries');
+    t.state.skills = { ...t.state.skills, attack: XP_TABLE[DUMMY.maxLevel]!, strength: XP_TABLE[DUMMY.maxLevel]!, defence: XP_TABLE[DUMMY.maxLevel]! - 1 };
+    t.state.combatStyle = 'defence';
     practise(t);
     runUntil(t, () => t.state.player.task.kind !== 'fight', 300);
-    expect(t.log.at(-1)).toEqual({ type: 'cantFight', target: 'dummy', reason: 'taught', skill: 'attack' });
-    expect(levelFor(t.state.skills.attack)).toBe(DUMMY.maxLevel);
-    // another style still has something to learn: picking it doesn't send him back by itself (so the notice says to tap
-    // the dummy as well), a tap on the dummy does
-    send(t, { type: 'style', style: 'strength' });
-    run(t, 2);
-    expect(t.state.player.task.kind).toBe('idle');
-    practise(t);
-    expect(t.state.player.task.kind).toBe('fight');
+    expect(t.log.at(-1)).toEqual({ type: 'cantFight', target: 'dummy', reason: 'taught', skill: 'defence' });
+    expect(levelFor(t.state.skills.defence)).toBe(DUMMY.maxLevel);
+    send(t, { type: 'fight', target: 'dummy' });
+    expect(t.log.at(-1)).toEqual({ type: 'cantFight', target: 'dummy', reason: 'taught', skill: 'defence' });
+    expect(t.state.player.pending).toBeNull();
   });
 
-  it('the notices say plainly what to do: make a weapon; or pick another style, then tap the dummy', () => {
-    const s = ready();
+  it('the notices say plainly what happens: make a weapon; he trains the next skill; the dummy has taught him all it can', () => {
+    const s = ready(), need = goal('practice').levels!.strength!;
     expect(cantFightText(s.state, CAMP, 'dummy', 'weapon', 'attack')).toBe('You need a weapon to practise with. A stone club will do.');
-    s.state.skills.strength = XP_TABLE[DUMMY.maxLevel]!;
-    expect(cantFightText(s.state, CAMP, 'dummy', 'taught', 'strength'))
-      .toBe("The training dummy can't teach you any more Strength. Pick Attack or Defence under Train, then tap the dummy.");
-    s.state.skills.attack = XP_TABLE[DUMMY.maxLevel]!;
-    expect(cantFightText(s.state, CAMP, 'dummy', 'taught', 'attack'))
-      .toBe("The training dummy can't teach you any more Attack. Pick Defence under Train, then tap the dummy.");
-    s.state.skills.defence = XP_TABLE[DUMMY.maxLevel]!;
     expect(cantFightText(s.state, CAMP, 'dummy', 'taught', 'defence')).toBe('The training dummy has taught you all it can.');
-    // reaching the goal's level he carries on, so picking another style is all it takes
-    const t = ready(), need = goal('practice').levels!.strength!;
-    t.state.skills.strength = XP_TABLE[need]!;
-    expect(goalLevelText(t.state, 'strength', need, 'practice'))
-      .toBe(`Strength level ${need}: that's enough for "Practice". Now pick Attack or Defence under Train.`);
+    expect(switchedText(s.state, CAMP, 'dummy', 'attack', 'strength')).toBe("The training dummy can't teach you any more Attack. Now he trains Strength.");
+    expect(goalLevelText(s.state, 'strength', need, 'practice', 'defence')).toBe(`Strength level ${need}: that's enough for "Practice". Now he trains Defence.`);
+    expect(goalLevelText(s.state, 'strength', need, 'practice')).toBe(`Strength level ${need}: that's enough for "Practice".`);
   });
 
   it('idle practice, switching style when told, finishes the practice goal in a few minutes', () => {
@@ -566,7 +567,7 @@ describe('saving practice', () => {
     delete raw.health; delete raw.equipment; delete raw.combatStyle;
     raw.skills = { mining: 900, woodcutting: 2400 };
     const back = readSave(JSON.stringify(raw), CAMP).state;
-    expect(SAVE_VERSION).toBe(10);
+    expect(SAVE_VERSION).toBe(11);
     expect(back.version).toBe(SAVE_VERSION);
     expect(allGoalsDone(back)).toBe(false);
     expect(currentGoal(back)).toBe(GOALS[at('chest') + 1]);
@@ -619,7 +620,9 @@ describe('the village has no dummy', () => {
 
 describe('away time while practising', () => {
   it('two hours closed (24 minutes of play) catches up the same every time, quickly, and stops cleanly at the dummy\'s limit', () => {
+    // Strength and Defence already as high as the dummy teaches, so reaching its limit in Attack leaves nothing to learn
     const s = ready();
+    s.state.skills.strength = XP_TABLE[DUMMY.maxLevel]!; s.state.skills.defence = XP_TABLE[DUMMY.maxLevel]!;
     practise(s);
     run(s, 5);
     const saved = serialize(s.state, 1_000_000), now = 1_000_000 + 2 * 60 * 60 * 1000;

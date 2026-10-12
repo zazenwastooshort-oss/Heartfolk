@@ -10,7 +10,7 @@
 // Other goals may sit between or after chapter 2's: a goal is made current by marking every goal before it done, never
 // by its position.
 import { describe, expect, it } from 'vitest';
-import { allGoalsDone, canDrop, createState, currentGoal, maxHealth, owned, SAVE_VERSION, type GameState } from '../src/core/state';
+import { allGoalsDone, goalFinished, canDrop, createState, currentGoal, maxHealth, owned, SAVE_VERSION, type GameState } from '../src/core/state';
 import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
 import { STEP } from '../src/core/loop';
@@ -442,7 +442,7 @@ describe('the goblin chief', () => {
     expect(of(s, 'campCleared')).toHaveLength(1);
     expect(s.state.player.backpack.old_map).toBe(1);
     // the notice: the player is "you" in notices, so it's clear the map is his, not dropped
-    expect(GOBLIN_TEXT.cleared).toBe('You beat the goblin chief, and the goblins run off for good. You find a torn map.');
+    expect(GOBLIN_TEXT.cleared).toBe('You beat the goblin chief, and the goblins run off for good. You find a torn map. The gate stands open.');
     run(s, 1);
     expect(s.state.goalsDone).toContain('goblins');
     expect(of(s, 'goalDone').map(e => e.goal)).toContain('goblins');
@@ -650,18 +650,36 @@ describe('saving the goblin camp', () => {
     expect(load(r => { r.player.task = { kind: 'fight', target: 'chief', progress: 0.2 }; }).player.task).toEqual({ kind: 'idle' });
   });
 
+  it('"Ready for the goblins" (0.0.25) comes before the camp, and a save that already cleared the camp has it done', () => {
+    const g = GOALS[at('goblins') - 1]!;
+    expect(g.id).toBe('ready');
+    expect(g.levels).toEqual({ attack: 7, strength: 7, defence: 7 });
+    const s = ready();
+    s.state.goalsDone = GOALS.filter(x => x.id !== 'ready').map(x => x.id);    // every goal, as 0.0.24 had them
+    s.state.skills.defence = XP_TABLE[4]!;                                        // below what the new goal asks
+    const raw = JSON.parse(serialize(s.state, Date.now()));
+    raw.version = 10;
+    const back = readSave(JSON.stringify(raw), CAMP).state;
+    expect(back.goalsDone).toContain('ready');
+    expect(allGoalsDone(back)).toBe(true);
+    // one that hadn't cleared the camp yet doesn't
+    raw.goalsDone = GOALS.slice(0, at('hide_shield') + 1).map(x => x.id);
+    expect(readSave(JSON.stringify(raw), CAMP).state.goalsDone).not.toContain('ready');
+  });
+
   it('0.0.22 and 0.0.23 saves (format 10, before the goblin camp) load with the camp as new', () => {
     const s = ready();
     s.state.goalsDone = GOALS.slice(0, at('hide_shield') + 1).map(g => g.id);
     const raw = JSON.parse(serialize(s.state, Date.now()));
     delete raw.goblins; delete raw.goblinCamp;
-    expect(raw.version).toBe(10);
-    expect(SAVE_VERSION).toBe(10);
+    raw.version = 10;                                          // as 0.0.22 to 0.0.24 wrote it
+    expect(SAVE_VERSION).toBe(11);
     const v23 = readSave(JSON.stringify(raw), CAMP).state;
     expect(v23.goblinCamp).toEqual({ chiefOut: false, cleared: false });
     expect(Object.keys(v23.goblins)).toEqual([...GOBLINS, CHIEF_ID]);
     expect(v23.goblins.goblin1).toMatchObject({ health: GOBLIN.health, downUntil: null, pos: goblinSpot(CAMP, 'goblin1')!.home, swing: null });
-    expect(currentGoal(v23)).toBe(GOALS[at('hide_shield') + 1]);
+    // the first goal after the hide shield not yet finished ("Ready for the goblins" is met already at these levels)
+    expect(currentGoal(v23)).toBe(GOALS.find((g, i) => i > at('hide_shield') && !goalFinished(v23, g)));
     delete raw.rats;                                                  // 0.0.22: no rats either
     const v22 = readSave(JSON.stringify(raw), CAMP).state;
     expect(Object.keys(v22.goblins)).toEqual([...GOBLINS, CHIEF_ID]);

@@ -520,6 +520,53 @@ describe('food in a fight', () => {
   });
 });
 
+describe("food running out, and a few meals kept (0.0.25, the owner's picks)", () => {
+  it('out of food mid-fight with food in the chest, he walks back for more and returns to the same rat', () => {
+    const s = ready();
+    s.state.bank = { cooked_fish: 9 };
+    s.state.player.backpack = { berries: 1 };
+    engage(s, 'rat2');
+    s.state.rats.rat2!.health = 1e9;                                  // a rat that never falls
+    s.state.health = Math.floor(maxHealth(s.state) * FIGHT_FOOD.below);
+    const from = s.log.length;
+    runUntil(s, () => of(s, 'fetchFood', from).length > 0, 120);      // the berry eaten, then nothing left
+    expect(of(s, 'ate', from).map(e => e.item)).toContain('berries');
+    expect(s.state.player.trip).toEqual({ fight: 'rat2' });
+    expect(s.state.player.pending).toEqual({ kind: 'visit', id: 'chest' });
+    runUntil(s, () => of(s, 'tookFood', from).length > 0, 90);
+    expect(s.state.player.backpack.cooked_fish).toBe(FIGHT_FOOD.take);
+    runUntil(s, () => s.state.player.task.kind === 'fight', 90);
+    expect((s.state.player.task as { target: string }).target).toBe('rat2');
+    // with none in the chest he fights on (and a knock-out stays gentle)
+    const t = ready();
+    t.state.player.backpack = {};
+    engage(t, 'rat1');
+    t.state.rats.rat1!.health = 1e9;
+    t.state.health = 2;
+    run(t, 10);
+    expect(of(t, 'fetchFood')).toHaveLength(0);
+  });
+
+  it('emptying the backpack into the chest keeps up to 5 food on him, the food that heals most first', () => {
+    const s = ready();
+    s.state.player.backpack = { copper_ore: 20, cooked_fish: 3, berries: 5 };
+    send(s, { type: 'visit', id: 'chest' });
+    runUntil(s, () => of(s, 'banked').length > 0, 90);
+    expect(s.state.player.backpack).toEqual({ cooked_fish: 3, berries: 2 });
+    expect(s.state.bank).toMatchObject({ copper_ore: 20, berries: 3 });
+    expect(s.state.bank.cooked_fish ?? 0).toBe(0);
+    // carrying a meal or two, the trip for food tops him up to 5
+    const t = ready();
+    t.state.bank = { cooked_fish: 9 };
+    t.state.player.backpack = { copper_ore: BACKPACK_SLOTS - 2, berries: 2 };
+    send(t, { type: 'fight', target: 'rat1' });
+    runUntil(t, () => of(t, 'tookFood').length > 0, 120);
+    expect(of(t, 'tookFood')[0]!.items).toEqual({ cooked_fish: 3 });
+    expect(t.state.player.backpack).toEqual({ berries: 2, cooked_fish: 3 });
+    expect(t.state.bank).toMatchObject({ copper_ore: BACKPACK_SLOTS - 2, cooked_fish: 6 });
+  });
+});
+
 describe('knocked out', () => {
   it('at 0 health he slumps a moment, then wakes at the camp by the shelter with half his health, keeping everything', () => {
     const s = ready();
@@ -764,8 +811,8 @@ describe('saving the rats', () => {
     s.state.goalsDone = GOALS.slice(0, at('meal') + 1).map(g => g.id);
     const raw = JSON.parse(serialize(s.state, Date.now()));
     delete raw.rats;
-    expect(raw.version).toBe(10);
-    expect(SAVE_VERSION).toBe(10);
+    raw.version = 10;                                          // as 0.0.22 to 0.0.24 wrote it
+    expect(SAVE_VERSION).toBe(11);
     const back = readSave(JSON.stringify(raw), CAMP).state;
     expect(back.rats).toEqual(Object.fromEntries(ratsOf(CAMP).map(r => [r.id, expect.objectContaining({ health: RAT.health, downUntil: null, pos: r.home, to: null, bite: null })])));
     expect(currentGoal(back)).toBe(GOALS[at('meal') + 1]);

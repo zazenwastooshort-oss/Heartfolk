@@ -272,10 +272,12 @@ Ten tasks take the village prototype to the first playable loop; tick each one o
 
 ## Decision log
 
-Thirty-nine decisions so far, newest first; each answered open question is added here with its date.
+Forty-one decisions so far, newest first; each answered open question is added here with its date.
 
 | Date | Decision |
 | --- | --- |
+| 12 Oct 2026 | The owner went with the lead's picks: he switches what he trains by himself (to the next skill the goal asks for, and off a skill the dummy can't teach any more); "Ready for the goblins" (Attack, Strength and Defence 7) comes before the goblin camp; out of food mid-fight he walks back to the chest for more; emptying the backpack keeps up to 5 meals; the Fish goal asks for 8. |
+| 12 Oct 2026 | A UI foundation (windows that open and close from a row of buttons: Backpack, Skills, Book, Settings; a tiny always-on screen) is built now, before chapter 3, instead of a layout pass in slice 4. After it, the owner and the lead review chapters 1 and 2 together before expanding them. |
 | 12 Oct 2026 | Chapter 2, "Holding the camp", comes after the storage chest, in this order: a training dummy, a first weapon, practice on the dummy, food (berry bushes near the camp first, then fishing and cooking at the campfire), rats, hide armour and protection, then the goblins blocking the path up the river. The village comes much later, once he can travel safely with enough food, gear and protection. |
 | 12 Oct 2026 | Combat is OSRS-style: Attack, Strength and Defence. His health comes from Vitality, not Hitpoints, so it differs a bit. Losing a fight isn't punishing: he is knocked out, wakes at the camp, keeps his gear and loses only the food he ate. |
 | 12 Oct 2026 | The first weapon is a stone club (the lead's call, open to the owner): it swings with the axe's Chop clip, so no new animation is needed; a spear needs its own thrust clip and can come later. |

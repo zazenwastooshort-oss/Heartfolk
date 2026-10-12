@@ -12,8 +12,9 @@ import { freshRats } from './rats';
 import { freshGoblins } from './goblins';
 import { CHIEF } from '../data/goblins';
 
-/** The save format. 10 since 0.0.22: his health, and the combat and food skills. */
-export const SAVE_VERSION = 10;
+/** The save format. 10 since 0.0.22: his health, and the combat and food skills. 11 since 0.0.25: "Ready for the
+ *  goblins" came in before the goblin camp. */
+export const SAVE_VERSION = 11;
 
 /** gather: working a rock or a tree; progress runs 0..1 through one swing of that skill's tool. `mayMoveOn` is set
  *  when the node runs out while he works it, so he can move on to another; a node that was already down when he got

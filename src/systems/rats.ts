@@ -66,14 +66,28 @@ export function setOffToFight(state: GameState, layout: Layout, id: string, even
   return true;
 }
 
+/** Out of food mid-fight (0.0.25, the owner's pick): fighting something that hits back (a rat, a goblin), hurt below
+ *  FIGHT_FOOD.below with nothing left to eat and food in the chest, he leaves it for the chest (a trip { fight }) and
+ *  comes back to it with more (stockUp). */
+export function restockIfOut(state: GameState, layout: Layout, events: EventBus): void {
+  const p = state.player, task = p.task;
+  if (task.kind !== 'fight' || p.trip || state.health >= maxHealth(state) * FIGHT_FOOD.below || carriesFood(state)) return;
+  if (!targetOf(state, layout, task.target)?.foe || chestFood(state, layout) <= 0) return;
+  const id = task.target;
+  if (!goVisit(state, layout, 'chest')) return;
+  p.trip = { fight: id };
+  events.emit({ type: 'fetchFood' });
+}
+
 /** At the chest on his way to fight (a trip { fight }): a full backpack is emptied into it first (any backpack when the
- *  player tapped the chest on the way: `store`, Trip in core/state.ts); then, carrying no food, he takes up to
- *  FIGHT_FOOD.take of the food in it, the food that heals most first, as much as fits. */
+ *  player tapped the chest on the way: `store`, Trip in core/state.ts; a few meals stay on him: deposit); then he takes
+ *  food until he carries FIGHT_FOOD.take, the food that heals most first, as much as fits. */
 export function stockUp(state: GameState, events: EventBus, store = false): void {
   if (store || backpackFull(state)) deposit(state, events);
-  if (carriesFood(state)) return;
   const pack = state.player.backpack, items: Record<string, number> = {};
-  let room = Math.min(FIGHT_FOOD.take, BACKPACK_SLOTS - backpackCount(state));
+  const carried = BEST_FIRST.reduce((a, f) => a + (pack[f] ?? 0), 0);
+  let room = Math.min(FIGHT_FOOD.take - carried, BACKPACK_SLOTS - backpackCount(state));
+  if (room <= 0) return;
   for (const food of BEST_FIRST) {
     const n = Math.min(room, state.bank[food] ?? 0);
     if (n <= 0) continue;

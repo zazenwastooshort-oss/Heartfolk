@@ -6,6 +6,15 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.25', date: '12 Oct 2026', notes: [
+      'A new goal before the goblin camp: Ready for the goblins. Practise at the dummy or fight rats until Attack, Strength and Defence reach 7.',
+      'He switches what he trains by himself: when a skill reaches what your goal asks, and when the dummy has taught him all it can.',
+      "If his food runs out in a fight and there's more in the chest, he walks back for it and carries on.",
+      'When he empties his backpack into the chest, he keeps up to 5 meals on him.',
+      "The Fish goal asks for 8 fish, so a few burnt ones don't leave you short for the meal.",
+    ],
+  },
+  {
     version: '0.0.24', date: '12 Oct 2026', notes: [
       'Goblins have camped where the river leaves the valley. Beat all three before they get back up, and their chief comes out of his tent.',
       'Take food and wear your hide armour: goblins hit harder than rats. If they keep getting back up, train Attack and Strength.',

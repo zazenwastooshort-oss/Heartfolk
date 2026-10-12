@@ -67,6 +67,12 @@ const migrations: Record<number, (s: any) => any> = {
   // 0.0.22: chapter 2. The combat and food skills start from 0 XP (as a new game has them, filled in below), and his
   // health is full.
   9: (s) => ({ ...s, health: null }),
+  // 0.0.25: "Ready for the goblins" (levels) came in before the goblin camp; a save that already cleared the camp
+  // has it done, so the card never goes back to it
+  10: (s) => {
+    const done: unknown[] = Array.isArray(s.goalsDone) ? s.goalsDone : [];
+    return done.includes('goblins') && !done.includes('ready') ? { ...s, goalsDone: [...done, 'ready'] } : s;
+  },
 };
 
 /** The game as saved text. `savedAt` (since 0.0.20): the real time the game had been played up to when it was saved,

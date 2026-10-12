@@ -8,3 +8,7 @@ export const BACKPACK_SLOTS = 28;
 /** Seconds he stands at the bank's door after emptying the backpack on a trip, so the deposit is seen, before he
  *  heads back to work. */
 export const BANK_PAUSE = 0.8;
+
+/** Food he keeps on him when the backpack is emptied into the bank or the chest (0.0.25, the owner's pick: food stored
+ *  there can't be eaten yet), the food that heals most kept first. */
+export const KEEP_FOOD = 5;

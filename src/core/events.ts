@@ -3,6 +3,7 @@
 import type { SkillId, ToolId } from '../data/skills';
 import type { GatherId, PickupKind } from '../data/pickups';
 import type { MakeId } from '../data/making';
+import type { CombatStyle } from '../data/combat';
 
 export type GameEvent =
   | { type: 'strike'; nodeId: string }
@@ -62,8 +63,11 @@ export type GameEvent =
    *  trains ('taught': the dummy's level limit), so he stops or doesn't set off */
   | { type: 'cantFight'; target: string; reason: 'weapon' | 'taught'; skill: SkillId }
   /** fighting, the skill he trains reached the level the camp's current goal asks for it, and the goal still asks for
-   *  another (0.0.22): he carries on, and the player may choose another to train */
-  | { type: 'goalLevel'; skill: SkillId; level: number; goal: string }
+   *  another (0.0.22): he carries on, since 0.0.25 training `next`, the next skill the goal asks for (none when the
+   *  target can't teach it) */
+  | { type: 'goalLevel'; skill: SkillId; level: number; goal: string; next?: CombatStyle }
+  /** (0.0.25) the target he fights has taught him all it can of `from`, so he carries on training `to` */
+  | { type: 'switchedStyle'; target: string; from: CombatStyle; to: CombatStyle }
   /** a fish came off the campfire (chapter 2, systems/cooking.ts): cooked (Cooking XP), or `burnt` */
   | { type: 'cooked'; burnt: boolean }
   /** asked to cook with no raw fish in the backpack or the chest: he stays put */

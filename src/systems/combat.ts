@@ -4,9 +4,10 @@
 // roll (his Attack level and his gear's attack bonus against the target's defence) and, if it lands, damage from 0 to
 // his max hit (his Strength level and his gear's strength bonus). Damage gives XP to the style he trains
 // (GameState.combatStyle: Attack, Strength or Defence, each +3 to its own skill in the rolls) and a third as much to
-// Vitality. Without a weapon he doesn't set off; once the target has taught him all it can of the style he trains (the
-// dummy's level limit) he stops and says so. When the style he trains reaches the level the camp's goal asks of it, he
-// says so and carries on. His health comes back slowly while he is hurt, and a Vitality level adds to it.
+// Vitality. Without a weapon he doesn't set off. Since 0.0.25 he switches what he trains by himself (the owner's pick,
+// 12 Oct 2026, so practice stays idle): when the style he trains reaches the level the camp's goal asks of it, to the
+// next the goal asks for; when the target has taught him all it can of it (the dummy's level limit), to the lowest it
+// can still teach; with nothing left to learn there he stops and says so. His health comes back slowly while he is hurt, and a Vitality level adds to it.
 // The rats (chapter 2, part 2) are fought the same way: a strike takes a rat's health, and systems/rats.ts does the
 // rest (it bites back, topples over at 0, comes back; he waits while the rat he beat is down, then goes on).
 import { allGoalsDone, currentGoal, goalMet, maxHealth, type GameState } from '../core/state';
@@ -76,6 +77,29 @@ function cantFight(state: GameState, target: Target): 'weapon' | 'taught' | null
   return levelOf(state, state.combatStyle) >= target.maxLevel ? 'taught' : null;
 }
 
+/** The style to train next: one the camp's current goal still asks a level of, first in STYLES order, that `target`
+ *  can teach; else, when `target` has taught him all it can of the style he trains, the lowest it can still teach;
+ *  else null (he keeps the style he has). */
+export function nextStyle(state: GameState, layout: Layout, target: Target | null): CombatStyle | null {
+  const teaches = (s: CombatStyle) => !target || levelOf(state, s) < target.maxLevel;
+  if (layout.camp && !allGoalsDone(state)) {
+    const levels = currentGoal(state).levels;
+    const asked = STYLES.find(s => s !== state.combatStyle && levels?.[s] !== undefined && levelOf(state, s) < levels[s]! && teaches(s));
+    if (asked) return asked;
+  }
+  if (!target || teaches(state.combatStyle)) return null;
+  return STYLES.filter(teaches).sort((a, b) => levelOf(state, a) - levelOf(state, b))[0] ?? null;
+}
+
+/** Nothing left for `target` to teach in the style he trains: he moves on to one it can (nextStyle), saying so. */
+function switchIfTaught(state: GameState, layout: Layout, target: Target, events: EventBus): void {
+  if (cantFight(state, target) !== 'taught') return;
+  const next = nextStyle(state, layout, target), from = state.combatStyle;
+  if (!next) return;
+  state.combatStyle = next;
+  events.emit({ type: 'switchedStyle', target: target.id, from, to: next });
+}
+
 /** For the fight command (systems/commands): whether to set off to fight `id`. Not when there is nothing by that id to
  *  fight here (the dummy not built yet) or he is at it already, or on his way; refused, saying why (`cantFight`), with
  *  no weapon, or when it has nothing more to teach of the style he trains. */
@@ -83,6 +107,7 @@ export function mayFight(state: GameState, layout: Layout, id: string, events: E
   const target = targetOf(state, layout, id), p = state.player;
   if (!target) return false;
   if ((p.task.kind === 'fight' && p.task.target === id) || (p.pending?.kind === 'fight' && p.pending.id === id)) return false;
+  switchIfTaught(state, layout, target, events);
   const why = cantFight(state, target);
   if (why) { events.emit({ type: 'cantFight', target: id, reason: why, skill: state.combatStyle }); return false; }
   return true;
@@ -121,11 +146,14 @@ function strike(state: GameState, layout: Layout, target: Target, rng: Rng, even
   addXp(state, 'vitality', xp * COMBAT.vitality, events);
   state.health += maxHealth(state) - most;                  // a Vitality level adds to his health as well as his most
   addXp(state, style, xp, events);
-  // the camp's goal asks this much of the skill he trains and more of another: he says so, and carries on
+  // the camp's goal asks this much of the skill he trains and more of another: he says so, and trains the next it asks for
   const now = levelOf(state, style);
   if (now === level || !layout.camp || allGoalsDone(state)) return;
   const goal = currentGoal(state), need = goal.levels?.[style];
-  if (need !== undefined && level < need && now >= need && !goalMet(state, goal)) events.emit({ type: 'goalLevel', skill: style, level: now, goal: goal.id });
+  if (need === undefined || level >= need || now < need || goalMet(state, goal)) return;
+  const next = nextStyle(state, layout, target);
+  if (next) state.combatStyle = next;
+  events.emit(next ? { type: 'goalLevel', skill: style, level: now, goal: goal.id, next } : { type: 'goalLevel', skill: style, level: now, goal: goal.id });
 }
 
 /** Whether progress going from `before` to `after` (round 0..1, wrapping) passed `at`. */
@@ -140,6 +168,7 @@ export function updateCombat(state: GameState, layout: Layout, dt: number, rng: 
   const target = targetOf(state, layout, task.target);
   if (!target) { p.task = { kind: 'idle' }; return; }        // nothing there to fight any more
   if (target.foe?.down) { task.progress = 0; return; }        // a rat he beat: he waits (systems/rats.ts moves him on)
+  switchIfTaught(state, layout, target, events);
   const why = cantFight(state, target);
   if (why) { p.task = { kind: 'idle' }; events.emit({ type: 'cantFight', target: target.id, reason: why, skill: state.combatStyle }); return; }
   const every = strikeEvery(state.equipment.weapon), before = task.progress;

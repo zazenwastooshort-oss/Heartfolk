@@ -1,6 +1,6 @@
 {
   "name": "hearthfolk",
-  "version": "0.0.24",
+  "version": "0.0.25",
   "private": true,
   "type": "module",
   "description": "Hearthfolk: an idle skilling game in a living village.",

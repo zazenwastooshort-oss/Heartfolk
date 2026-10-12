@@ -8,7 +8,7 @@ import type { Hud } from './hud';
 /** The notices, in plain words (the player is "you", as in the other notices). */
 export const GOBLIN_TEXT = {
   chiefOut: 'The goblin chief comes out of his tent!',
-  cleared: 'You beat the goblin chief, and the goblins run off for good. You find a torn map.',
+  cleared: 'You beat the goblin chief, and the goblins run off for good. You find a torn map. The gate stands open.',
 };
 
 /** Show the goblin camp's notices as they happen. */

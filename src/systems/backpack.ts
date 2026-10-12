@@ -7,7 +7,8 @@ import { canDrop, type GameState } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Layout, Vec2 } from '../world/layout';
 import { doorOf, siteOf } from '../world/layout';
-import { BACKPACK_SLOTS } from '../data/hauling';
+import { BACKPACK_SLOTS, KEEP_FOOD } from '../data/hauling';
+import { FOOD } from '../data/food';
 import { STOKE, WOODPILE } from '../data/fire';
 
 /** The places he can empty his backpack, by id, with where he stands to do it: each bank's door (the village), and
@@ -62,11 +63,18 @@ export function useUp(state: GameState, items: Record<string, number>, storedFir
 
 /** Empty the backpack into the bank (the chest) and say what was stored, or that there was nothing to store. */
 export function deposit(state: GameState, events: EventBus): void {
-  const items: Record<string, number> = {};
-  for (const [item, n] of Object.entries(state.player.backpack)) {
-    if (n > 0) { items[item] = n; state.bank[item] = (state.bank[item] ?? 0) + n; }
+  const items: Record<string, number> = {}, pack = state.player.backpack, kept: Record<string, number> = {};
+  // a few meals stay on him (KEEP_FOOD), the food that heals most first
+  let keep = KEEP_FOOD;
+  for (const food of Object.keys(FOOD).sort((a, b) => FOOD[b]!.heals - FOOD[a]!.heals)) {
+    const n = Math.min(keep, pack[food] ?? 0);
+    if (n > 0) { kept[food] = n; keep -= n; }
   }
-  state.player.backpack = {};
+  for (const [item, n] of Object.entries(pack)) {
+    const store = n - (kept[item] ?? 0);
+    if (store > 0) { items[item] = store; state.bank[item] = (state.bank[item] ?? 0) + store; }
+  }
+  state.player.backpack = kept;
   events.emit(Object.keys(items).length ? { type: 'banked', items } : { type: 'nothingToBank' });
 }
 

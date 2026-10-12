@@ -86,7 +86,7 @@ export const GOALS: Goal[] = [
   { id: 'fish', title: 'Fish',
     page: 'Stand on the bank where the water ripples, and cast your line. Be patient, and the fish will come.',
     hint: 'Tap the ripples in the pool or the river to fish.',
-    ready: 'You have enough fish.', needs: { raw_fish: 5 } },
+    ready: 'You have enough fish.', needs: { raw_fish: 8 } },
   { id: 'meal', title: 'A cooked meal',
     page: 'Cook your fish slowly over the fire. A few may burn at first, but you will soon get the knack of it.',
     hint: 'Tap the campfire to cook your fish. If some burn, catch a few more.',
@@ -113,6 +113,12 @@ export const GOALS: Goal[] = [
   // then the goblin camp where the river leaves the valley (its last part): beating the three goblins before any gets
   // back up brings out their chief (a race: hitting hard and often wins it, so the page says what to train), and beaten,
   // he leaves a torn map; the end of chapter 2
+  // before the goblins, practice until he can face them (the owner's pick, 12 Oct 2026: a player who had trained only
+  // one style couldn't bring their chief out); he trains each skill in turn by himself (systems/combat.ts)
+  { id: 'ready', title: 'Ready for the goblins',
+    page: 'Goblins are tougher than rats. Grow stronger at the dummy or among the rats before you face their camp.',
+    hint: 'Practise at the training dummy or fight rats. He trains each skill in turn.',
+    ready: 'Ready for the goblins.', needs: {}, levels: { attack: 7, strength: 7, defence: 7 } },
   { id: 'goblins', title: 'The goblin camp',
     page: 'Goblins have camped where the river leaves the valley, their chief in his tent. Bring food, wear armour, and train Attack and Strength.',
     hint: 'Tap a goblin in the camp past the rats. Beat all three before they get back up, and their chief comes out.',

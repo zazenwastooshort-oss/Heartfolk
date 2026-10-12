@@ -192,7 +192,9 @@ describe('the berry bushes by the camp', () => {
     expect(s.state.player.trip).toMatchObject({ pickupId: expect.stringMatching(/^bush/) });
     runUntil(s, () => count(s, 'banked') > 0, 60);
     expect(s.state.bank.birch_logs).toBe(BACKPACK_SLOTS - 3);
-    expect(s.state.bank.berries).toBeGreaterThan(0);
+    // the few berries he picked stay on him: a few meals are kept when the backpack is emptied (KEEP_FOOD, 0.0.25)
+    expect(s.state.player.backpack.berries).toBeGreaterThan(0);
+    expect(s.state.bank.berries ?? 0).toBe(0);
     runUntil(s, () => s.state.player.trip === null, 5);
     expect(s.state.player.pending?.kind).toBe('pickup');                     // back to the bushes
     const got = picks(s);

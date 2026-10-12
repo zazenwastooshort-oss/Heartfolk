@@ -34,17 +34,22 @@ export function cantFightText(state: GameState, layout: Layout, target: string, 
   const t = targetOf(state, layout, target), name = t?.name.toLowerCase() ?? 'dummy';
   // (chapter 2) a rat to fight, not the dummy to practise on
   if (reason === 'weapon') return t?.foe ? `You need a weapon to fight a ${name}. A stone club will do.` : 'You need a weapon to practise with. A stone club will do.';
-  const next = either(t ? STYLES.filter(s => levelFor(state.skills[s]) < t.maxLevel).map(s => SKILLS[s].name) : []);
-  return next ? `The ${name} can't teach you any more ${SKILLS[skill].name}. Pick ${next} under Train, then tap the dummy.`
-    : `The ${name} has taught you all it can.`;
+  // (0.0.25) with another style left to learn he moves on to it by himself (switchedText), so this is the last word
+  void skill;
+  return `The ${name} has taught you all it can.`;
 }
 
-/** The skill he trains reached what the goal asks of it: say so, and which skills it still asks for ("Now pick
- *  Attack or Defence under Train."); he carries on meanwhile, so picking one is enough. */
-export function goalLevelText(state: GameState, skill: SkillId, level: number, id: string): string {
+/** (0.0.25) The target has taught him all it can of `from`, so he trains `to` now. */
+export function switchedText(state: GameState, layout: Layout, target: string, from: CombatStyle, to: CombatStyle): string {
+  const name = targetOf(state, layout, target)?.name.toLowerCase() ?? 'dummy';
+  return `The ${name} can't teach you any more ${SKILLS[from].name}. Now he trains ${SKILLS[to].name}.`;
+}
+
+/** The skill he trains reached what the goal asks of it: say so, and (0.0.25) which he trains now (`next`, chosen by
+ *  himself: systems/combat.ts). */
+export function goalLevelText(state: GameState, skill: SkillId, level: number, id: string, next?: CombatStyle): string {
   const goal = GOALS.find(g => g.id === id);
-  const next = either(STYLES.filter(s => levelFor(state.skills[s]) < (goal?.levels?.[s] ?? 0)).map(s => SKILLS[s].name));
-  return `${SKILLS[skill].name} level ${level}: that's enough for "${goal?.title ?? id}".${next ? ` Now pick ${next} under Train.` : ''}`;
+  return `${SKILLS[skill].name} level ${level}: that's enough for "${goal?.title ?? id}".${next ? ` Now he trains ${SKILLS[next].name}.` : ''}`;
 }
 
 export class CombatHud {
@@ -67,7 +72,8 @@ export class CombatHud {
     events.on(e => {
       if (e.type === 'hit') this.pendingHit = { target: e.target, damage: e.damage };
       else if (e.type === 'cantFight') hud.notice(cantFightText(this.state, this.layout, e.target, e.reason, e.skill));
-      else if (e.type === 'goalLevel') hud.notice(goalLevelText(this.state, e.skill, e.level, e.goal));
+      else if (e.type === 'goalLevel') hud.notice(goalLevelText(this.state, e.skill, e.level, e.goal, e.next));
+      else if (e.type === 'switchedStyle') hud.notice(switchedText(this.state, this.layout, e.target, e.from, e.to));
     });
   }
 
