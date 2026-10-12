@@ -378,17 +378,17 @@ describe('practising on the dummy', () => {
     expect(cantFightText(s.state, CAMP, 'dummy', 'weapon', 'attack')).toBe('You need a weapon to practise with. A stone club will do.');
     s.state.skills.strength = XP_TABLE[DUMMY.maxLevel]!;
     expect(cantFightText(s.state, CAMP, 'dummy', 'taught', 'strength'))
-      .toBe("The training dummy can't teach you any more Strength. Pick Attack or Defence under Train, then tap the dummy.");
+      .toBe("The training dummy can't teach you any more Strength. Pick Attack or Defence under Train in Skills, then tap the dummy.");
     s.state.skills.attack = XP_TABLE[DUMMY.maxLevel]!;
     expect(cantFightText(s.state, CAMP, 'dummy', 'taught', 'attack'))
-      .toBe("The training dummy can't teach you any more Attack. Pick Defence under Train, then tap the dummy.");
+      .toBe("The training dummy can't teach you any more Attack. Pick Defence under Train in Skills, then tap the dummy.");
     s.state.skills.defence = XP_TABLE[DUMMY.maxLevel]!;
     expect(cantFightText(s.state, CAMP, 'dummy', 'taught', 'defence')).toBe('The training dummy has taught you all it can.');
     // reaching the goal's level he carries on, so picking another style is all it takes
     const t = ready(), need = goal('practice').levels!.strength!;
     t.state.skills.strength = XP_TABLE[need]!;
     expect(goalLevelText(t.state, 'strength', need, 'practice'))
-      .toBe(`Strength level ${need}: that's enough for "Practice". Now pick Attack or Defence under Train.`);
+      .toBe(`Strength level ${need}: that's enough for "Practice". Now pick Attack or Defence under Train in Skills.`);
   });
 
   it('idle practice, switching style when told, finishes the practice goal in a few minutes', () => {

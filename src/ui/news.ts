@@ -1,13 +1,11 @@
 // "What's new": when the game has been updated since this player last played, a short note lists what changed
 // (data/changelog.ts). The version they last saw is remembered in this browser only, like the save. The version
-// button at the top opens the note again. At its foot, Start over (the owner, 12 Oct 2026, for testers trying new
-// things) erases this browser's game and begins a new one, on a second tap so a stray tap never does. Reads nothing
-// from the game and changes nothing in it: main.ts does the erasing.
+// button at the top and the Settings window (ui/settings.ts, which also has Start over since the UI foundation) open
+// the note again. Reads nothing from the game and changes nothing in it.
 import { CHANGELOG, type Release } from '../data/changelog';
 
 const SEEN_KEY = 'hearthfolk_seen_version';
 const SHOW_AT_MOST = 3;                // versions listed at once; older ones get one line
-const CONFIRM_SECONDS = 6;             // how long Start over waits for the second tap
 
 /** True when version `a` (like "0.0.10") is later than `b`, comparing each part as a number. */
 export function isNewer(a: string, b: string): boolean {
@@ -35,27 +33,21 @@ export class News {
   private panel: HTMLElement;
   private body: HTMLElement;
   private ok: HTMLButtonElement;
-  private reset: HTMLButtonElement;
-  private armedUntil = 0;
   private current = CHANGELOG[0]!.version;
+  /** what had keyboard focus when the note opened (the version button, or What's new in Settings), to go back to */
+  private opener: HTMLElement | null = null;
 
-  /** returning: this browser already had a game going (a save was loaded). startOver: erase this browser's game and
-   *  begin a new one (main.ts), once Start over is tapped twice. */
-  constructor(returning: boolean, startOver: () => void) {
+  /** returning: this browser already had a game going (a save was loaded). */
+  constructor(returning: boolean) {
     this.panel = document.getElementById('news')!;
     this.body = document.getElementById('newsBody')!;
     this.ok = document.getElementById('newsOk') as HTMLButtonElement;
     const button = document.getElementById('ver')!;
-    button.textContent = `v${this.current} · What's new`;
-    button.addEventListener('click', () => (this.panel.hidden ? this.open(CHANGELOG, false) : this.close()));
+    button.textContent = `v${this.current}`;
+    button.title = "What's new";
+    button.setAttribute('aria-label', `Version ${this.current}: what's new`);
+    button.addEventListener('click', () => (this.panel.hidden ? this.show() : this.close()));
     this.ok.addEventListener('click', () => this.close());
-    this.reset = document.getElementById('newsReset') as HTMLButtonElement;
-    this.reset.addEventListener('click', () => {
-      if (performance.now() < this.armedUntil) { startOver(); return; }
-      this.armedUntil = performance.now() + CONFIRM_SECONDS * 1000;
-      this.armReset(true);
-      setTimeout(() => { if (performance.now() >= this.armedUntil) this.armReset(false); }, CONFIRM_SECONDS * 1000 + 50);
-    });
     this.panel.addEventListener('keydown', e => { if (e.key === 'Escape') this.close(); });
     const fresh = unseen(seenStore.get(), returning);
     if (fresh.length) {
@@ -63,6 +55,9 @@ export class News {
       this.open(fresh, true);
     } else seenStore.set(this.current);
   }
+
+  /** Every version's notes, newest first (the version button, or Settings). */
+  show(): void { this.open(CHANGELOG, false); }
 
   private open(releases: Release[], isUpdate: boolean): void {
     const el = (tag: string, text?: string, className?: string) => {
@@ -78,20 +73,22 @@ export class News {
     }
     const older = releases.length - SHOW_AT_MOST;
     if (older > 0) this.body.append(el('p', `And ${older} earlier ${older === 1 ? 'update' : 'updates'}.`, 'older'));
+    if (this.panel.hidden) {
+      const active = document.activeElement;
+      this.opener = active instanceof HTMLElement && active !== document.body && !this.panel.contains(active) ? active : null;
+    }
     this.panel.hidden = false;
+    this.body.scrollTop = 0;
     this.ok.focus({ preventScroll: true });
   }
 
-  /** Start over as it first reads, or waiting for the second tap. */
-  private armReset(armed: boolean): void {
-    if (!armed) this.armedUntil = 0;
-    this.reset.textContent = armed ? 'Tap again to erase your camp and start over' : 'Start over';
-    this.reset.classList.toggle('armed', armed);
-  }
-
   private close(): void {
-    this.armReset(false);
+    // keyboard focus in the note (or already lost) goes back to what opened it, while that is still on the screen
+    const active = document.activeElement, lost = !active || active === document.body || this.panel.contains(active);
+    const back = this.opener;
+    this.opener = null;
     this.panel.hidden = true;
     seenStore.set(this.current);
+    if (lost && back?.isConnected && back.getClientRects().length) back.focus({ preventScroll: true });
   }
 }

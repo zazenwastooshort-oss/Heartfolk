@@ -16,8 +16,11 @@ import { Hud } from './ui/hud';
 import { bindInput } from './ui/input';
 import { News } from './ui/news';
 import { Intro } from './ui/intro';
-import { BackpackList } from './ui/backpack';
+import { BackpackWindow } from './ui/backpack';
 import { Book } from './ui/book';
+import { Windows } from './ui/windows';
+import { SkillsWindow } from './ui/skills';
+import { Settings } from './ui/settings';
 import { AwayNote } from './ui/away';
 import { CombatHud } from './ui/combat';
 import { RatsHud } from './ui/rats';
@@ -41,7 +44,7 @@ function start(data: HotData): void {
   const saved = restored ?? loaded?.state ?? null;
   const newGame = saved === null;
   const state = saved ?? createState(layout, (Math.random() * 2 ** 31) | 0);
-  // Start over (the "What's new" panel): once set, nothing saves this game again, the artifact viewer hands nothing over,
+  // Start over (the Settings window): once set, nothing saves this game again, the artifact viewer hands nothing over,
   // and the page reloads into a new game
   let startingOver = false;
   try { hot?.snapshot?.(() => (startingOver ? {} : { save: serialize(state) })); } catch { /* not an artifact viewer */ }
@@ -65,16 +68,19 @@ function start(data: HotData): void {
     stage.insertAdjacentHTML('beforeend', '<div class="msg">This browser can\'t show 3D (WebGL is off or unsupported).</div>');
     return;
   }
-  const hud = new Hud(view, events, layout, queue);                 // the goal card's Build button sends a command
+  const windows = new Windows();                                    // the windows the row of buttons opens: backpack, skills, book, settings
+  const hud = new Hud(view, events, layout, queue, windows);        // the goal card's Build button sends a command
   const combat = new CombatHud(state, view, events, layout, queue, hud);   // his health, what he trains, hits over the dummy
   const rats = new RatsHud(state, view, events, layout, hud);       // (chapter 2) bars and numbers over the rats, and over him
   events.on(e => { if (e.type === 'strike') view.strike(e.nodeId); });     // chips fly where the tool lands
   events.on(e => { if (e.type === 'hit') view.hit(e.target, e.damage); }); // the training dummy wobbles when struck
   bindInput(view, layout, queue, label => hud.hover(label));
   showModels(view, layout);                                         // dev only: ?models in the address shows chapter 2's models
-  const pack = new BackpackList(queue);                             // what's in the backpack, to drop things
-  const book = new Book(state, events, layout);                     // his book: a page per goal, opened from the goal card
-  new News(!newGame, () => { startingOver = true; clearSave(browserStorage); location.reload(); });   // a returning player sees what changed since
+  const pack = new BackpackWindow(windows, queue, layout);           // what's in the backpack, to eat and drop things
+  const skills = new SkillsWindow(windows, events);                 // each skill's level, and what he trains
+  const book = new Book(state, events, layout, windows);            // his book: a page per goal, opened from its button or the goal card
+  const news = new News(!newGame);                                  // a returning player sees what changed since
+  new Settings(windows, news, () => { startingOver = true; clearSave(browserStorage); location.reload(); });   // text size, What's new, Start over
   new Intro(newGame);                                               // a new one is told what the game is about
   const awayNote = new AwayNote();                                  // and what he did while they were away
   // what the note tells until it is closed: a catch-up while it is still up (or waiting) adds to it (tellAway), so
@@ -124,6 +130,7 @@ function start(data: HotData): void {
       rats.update(dt);
       showArmour(state);                                            // the armour line in the panel (chunk D)
       pack.update(state);
+      skills.update(state);
       book.update();
       awayNote.update();
       sinceSave += dt; if (sinceSave > 10 && !startingOver) { sinceSave = 0; save(browserStorage, state, clock.playedTo); }

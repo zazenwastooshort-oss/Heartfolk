@@ -71,7 +71,7 @@ export const GOALS: Goal[] = [
     ready: 'You have it all. Tap Make.', needs: MAKES.stone_club.needs, makes: 'stone_club' },
   { id: 'practice', title: 'Practice',
     page: 'Swing at the dummy until it feels natural. Learn to aim true, to hit hard, and to keep your guard up.',
-    hint: 'Tap the training dummy to practise. Choose what to train in the panel.',
+    hint: 'Tap the training dummy to practise. Choose what to train under Skills.',
     ready: 'Well practised.', needs: {}, levels: { attack: 3, strength: 3, defence: 3 } },
   // then food: berries by the camp, a rod, fish from the pool and the river, and a meal cooked at the campfire
   { id: 'berries', title: 'Berries',
