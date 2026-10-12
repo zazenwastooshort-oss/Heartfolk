@@ -29,6 +29,20 @@ export function drop(state: GameState, item: string, count: number, events: Even
   events.emit({ type: 'dropped', item, count: n });
 }
 
+/** Use up `items` (item id: count), from the backpack first, then the bank. The caller checks they are all there
+ *  (owned in core/state); whatever isn't there is skipped. */
+export function useUp(state: GameState, items: Record<string, number>): void {
+  for (const [item, n] of Object.entries(items)) {
+    let left = n;
+    for (const store of [state.player.backpack, state.bank]) {
+      const have = Object.hasOwn(store, item) ? store[item]! : 0, take = Math.min(have, left);
+      if (take <= 0) continue;
+      if (take === have) delete store[item]; else store[item] = have - take;
+      left -= take;
+    }
+  }
+}
+
 /** Empty the backpack into the bank and say what was banked, or that there was nothing to bank. */
 export function deposit(state: GameState, events: EventBus): void {
   const items: Record<string, number> = {};

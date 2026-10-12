@@ -6,6 +6,14 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.15', date: '12 Oct 2026', notes: [
+      'Build your campfire. Once the wreck is salvaged and you have 3 planks and 4 stones, tap Build on the goal card, or tap the fire spot (the ring on the bare earth in the middle of the camp).',
+      'You work there a few seconds, and the fire is lit: it flickers, smokes a little, and lights up the camp at night. It stays lit when you come back.',
+      'Before that, you are told what to finish first, or what you still need.',
+      'Finished goals stay finished, so using planks for the fire never sends you back to salvaging. Next up: a stone axe.',
+    ],
+  },
+  {
     version: '0.0.14', date: '12 Oct 2026', notes: [
       'Tap a plank and you pick up every plank on the bank, one after another, the two in the smashed crate too. When they are all in your backpack, you stop.',
       'Tap a stone or a branch and you keep gathering them, nearest first. When none are left, you wait beside the next one to come back, until your backpack is full. While you wait, a ring on the ground fills up until it is back.',

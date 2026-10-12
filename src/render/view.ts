@@ -1,5 +1,5 @@
 // Draws the game: the ground and river, the village, fog over unclaimed land, the rocks and trees, things lying on the
-// ground to pick up, and the character with the tool for the job (pick or axe) and the matching animation, placed
+// ground to pick up, what he builds (the campfire), and the character with the tool for the job (pick or axe) and the matching animation, placed
 // from the game state every frame, plus effects (chips, the click cross). It reads state; it never changes it. The
 // tool is in his hands while he works and on his back otherwise, every walk included (toolInHand picks the armed or
 // the free clip), hidden for the moment it moves between the two. A tool he doesn't own is never drawn: with none he
@@ -24,7 +24,11 @@ import { FogView } from './fog';
 import { FallsView } from './waterfall';
 import { NodesView } from './nodes';
 import { PickupsView } from './pickups';
+import { StructuresView } from './structures';
 import { ArmIK, armedWeight, toolInHand, toolInTransit } from './arms';
+
+/** While he builds something: a placeholder motion, bowing down to it and back up, `rate` bows a second. */
+const BUILD_BOW = { lean: 0.42, dip: 0.08, rate: 1.3 };
 
 type Tool = Swing['tool'];
 
@@ -50,6 +54,7 @@ export class View {
   private clock = 0;
   private nodes?: NodesView;
   private pickups?: PickupsView;
+  private structures?: StructuresView;
   private spots: Map<string, NodeSpot>;
   private miner?: THREE.Object3D;
   private tools?: Record<Tool, { parts: THREE.Object3D[]; tip: THREE.Object3D }>;
@@ -114,6 +119,8 @@ export class View {
     this.pickables.push(...this.nodes.pickables);
     this.pickups = new PickupsView(this.scene, this.layout, village.scene);
     this.pickables.push(...this.pickups.pickables);
+    this.structures = new StructuresView(this.scene, this.layout, village.scene);
+    this.pickables.push(...this.structures.pickables);
     this.scene.add(this.miner);
     this.arms = new ArmIK(this.miner);   // reads the rest pose, so before the mixer first runs
     this.mixer = new THREE.AnimationMixer(this.miner);
@@ -178,6 +185,10 @@ export class View {
       if (task.kind === 'walk') this.play(armed ? GAIT.clip : GAIT.freeClip);
       else if (task.kind === 'gather' && !waiting && swing && armed) { this.play(swing.clip); this.actions[swing.clip]!.time = task.progress * swing.cycle; }
       else this.play(armed ? IDLE.clip : IDLE.freeClip);
+      // building: he bows down to it and back up, over and over (a placeholder until there is a clip for it)
+      const bow = task.kind === 'make' ? Math.max(0, Math.sin(this.clock * Math.PI * 2 * BUILD_BOW.rate)) : 0;
+      this.miner.rotation.z = -bow * BUILD_BOW.lean;
+      this.miner.position.y = -bow * BUILD_BOW.dip;
       this.mixer.update(dt);
       // a crossfade blends the arms apart from the tool: hands back on the handle (in armed clips only)
       this.arms?.solve(armedWeight(Object.values(this.actions), this.current));
@@ -187,6 +198,7 @@ export class View {
     this.strikeAt = null;
     this.nodes?.update(state, dt, this.shown.pos);
     this.pickups?.update(state, this.clock, dt, this.cam.camera, this.lighting.night);
+    this.structures?.update(state, this.clock, dt, this.lighting.night);
     if (this.marker.visible) { this.markerT -= dt; this.marker.scale.setScalar(0.4 + this.markerT * 1.6); if (this.markerT <= 0) this.marker.visible = false; }
     this.cam.follow(this.shown.pos, Math.min(1, dt * 6));
     this.lighting.update(dayFraction(state.time), this.shown.pos, true, this.cam.dist);

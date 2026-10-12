@@ -2,7 +2,7 @@
 // that its top is never seen: the water pours out of the mist down a towering mountain wall to the north, into a pool,
 // and flows on to the south-west. He washes up on the pool's bank with nothing, and wreckage washed up with him:
 // planks, a torn tarp, a smashed crate and his book, strewn along the bank. Stones and branches lie round the clearing.
-// The camp starts bare: the tent and the campfire have their spots here but are built later. The village lies far up
+// The camp starts bare: the tent and the campfire have their spots here and are built later. The village lies far up
 // the river and comes much later (world/layout.ts, VILLAGE).
 // Data only, like the village: x east, z south, in metres; the camera starts looking north at the falls.
 import type { Area, Falls, Layout, NodeSpot, PickupSpot, TreeKind, TreeSpot, Vec2 } from './layout';
@@ -21,7 +21,7 @@ const rock = (id: string, resource: string, x: number, z: number): NodeSpot => (
 
 function seeded(seed: number) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
-// where the campfire and the tent will be built (later updates): nothing stands there yet
+// where the campfire (data/making.ts) and the tent will be built: nothing stands there at the start
 const FIRE = W(2.4, 3.0), TENT = W(-1.6, 5.8);
 
 // the river from the pool south-west past the sandy bank, and the falls pouring into the pool
@@ -57,8 +57,8 @@ export const CAMP: Layout = {
   // the walkable land reaches the water's edge along the river (the river blocks walking, world/nav.ts)
   village: { minX: -15.5, maxX: 16, minZ: -12.5, maxZ: 15 },
   start: W(-8.8, -7.6),                 // the pool's bank, where the river leaves him
-  hearth: { pos: FIRE, radius: 0.62 },  // where the campfire will be built
-  hearthModel: null,                    // ...but nothing is there yet
+  hearth: { pos: FIRE, radius: 0.62 },  // the fire spot (siteOf), where the campfire is built
+  hearthModel: null,                    // ...nothing there until then (GameState.built)
   square: 0,
   buildings: [],
   props: [],

@@ -11,6 +11,7 @@
 
 import type { PickupKind } from '../data/pickups';
 import type { ToolId } from '../data/skills';
+import type { SiteId } from '../data/making';
 import { SHORE_CLEAR, waterShape } from './water';
 
 export interface Vec2 { x: number; z: number }
@@ -69,7 +70,7 @@ export interface Layout {
   paths: { points: Vec2[]; width: number }[];
   parcels: Parcel[];
   /** the model drawn at the hearth: the village's big Hearth when not given, or null for nothing there yet (the camp,
-   *  whose campfire is built later). With nothing there, nothing is in the way either. */
+   *  whose campfire is built there: siteOf, data/making.ts). With nothing there, nothing is in the way either. */
   hearthModel?: string | null;
   /** the camp a new game starts at: where its tent will stand once it is built (later updates; nothing stands there
    *  until then, and the campfire will be at `hearth`) */
@@ -109,6 +110,14 @@ export function doorOf(b: BuildingSpot): Vec2 {
 }
 
 export const inArea = (a: Area, p: Vec2) => p.x >= a.minX && p.x <= a.maxX && p.z >= a.minZ && p.z <= a.maxZ;
+
+/** Where something is built (MAKES' `at` in data/making.ts) in this layout: the camp's hearth, where nothing stands
+ *  until its campfire is built (the village's already has its big Hearth), or null where this layout has no such
+ *  place. A structure built there stands on it and is in the way (world/nav.ts). */
+export function siteOf(layout: Layout, id: SiteId): { pos: Vec2; radius: number } | null {
+  if (id === 'hearth') return layout.hearthModel === null ? layout.hearth : null;
+  return null;
+}
 
 // a scatter that is the same every time
 function seeded(seed: number) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }

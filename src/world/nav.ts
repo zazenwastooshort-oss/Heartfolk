@@ -1,11 +1,12 @@
 // Walking: a grid over the village marking where a person can stand, A* paths across it, and smoothing so the
 // paths are straight lines between corners. Buildings, fenced gardens, rocks, tree trunks, the hearth (when one
-// stands there), lantern posts, props (the well, benches, crates), the water (the river and the pool below the falls,
+// stands there), what he has built (the campfire: GameState.built), lantern posts, props (the well, benches, crates), the water (the river and the pool below the falls,
 // one shape: world/water.ts), the bigger rocks at the foot of the camp's wall (world/falls.ts) and the wreck's debris
 // block; things lying on the ground to pick up, and rubble, don't. The forest and land not yet claimed lie outside the
 // walkable area.
 import type { Area, Layout, Vec2 } from './layout';
-import { inArea } from './layout';
+import { inArea, siteOf } from './layout';
+import { makeDef } from '../data/making';
 import { waterOf } from './water';
 import { BLOCKING, footOf } from './falls';
 
@@ -27,12 +28,17 @@ export class NavGrid {
   readonly nx: number; readonly nz: number;
   private blocked: Uint8Array;
 
-  constructor(private area: Area, layout: Layout) {
+  /** built: what stands on the layout's sites (GameState.built): each blocks its site, like the village's hearth. */
+  constructor(private area: Area, layout: Layout, built: readonly string[] = []) {
     this.nx = Math.ceil((area.maxX - area.minX) / CELL);
     this.nz = Math.ceil((area.maxZ - area.minZ) / CELL);
     this.blocked = new Uint8Array(this.nx * this.nz);
     const circles: [Vec2, number][] = [
       ...(layout.hearthModel !== null ? [[layout.hearth.pos, layout.hearth.radius] as [Vec2, number]] : []),
+      ...built.flatMap(id => {
+        const def = makeDef(id), site = def && def.at !== 'here' ? siteOf(layout, def.at) : null;
+        return site ? [[site.pos, site.radius] as [Vec2, number]] : [];
+      }),
       ...layout.nodes.map(n => [n.pos, n.radius * 0.8] as [Vec2, number]),
       ...layout.trees.map(t => [t.pos, (t.kind === 'oak' ? 0.4 : 0.3) * t.size] as [Vec2, number]),
       ...layout.bushes.map(b => [b, 0.45] as [Vec2, number]),
@@ -178,10 +184,14 @@ export class NavGrid {
   }
 }
 
-const cache = new WeakMap<Layout, NavGrid>();
-/** The walking grid for the land the player has. Land claims (step 7) will rebuild it with more area. */
-export function navFor(layout: Layout): NavGrid {
-  let nav = cache.get(layout);
-  if (!nav) { nav = new NavGrid(layout.village, layout); cache.set(layout, nav); }
+const cache = new WeakMap<Layout, Map<string, NavGrid>>();
+/** The walking grid for the land the player has, with what he has built on it (GameState.built), one kept per
+ *  layout and set of built things. Land claims (step 7) will rebuild it with more area. */
+export function navFor(layout: Layout, built: readonly string[] = []): NavGrid {
+  let grids = cache.get(layout);
+  if (!grids) { grids = new Map(); cache.set(layout, grids); }
+  const key = [...built].sort().join(',');
+  let nav = grids.get(key);
+  if (!nav) { nav = new NavGrid(layout.village, layout, built); grids.set(key, nav); }
   return nav;
 }

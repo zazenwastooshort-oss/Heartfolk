@@ -1,9 +1,11 @@
 // Saving: versioned JSON with a migration for every format change, so an update never wipes a village.
-import { SAVE_VERSION, createState, type GameState } from './state';
-import type { Layout } from '../world/layout';
+import { SAVE_VERSION, createState, made, type GameState } from './state';
+import { siteOf, type Layout } from '../world/layout';
 import { navFor } from '../world/nav';
 import { ITEMS, SKILLS, TOOL_IDS, type SkillId, type ToolId } from '../data/skills';
 import { PICKUPS } from '../data/pickups';
+import { BOOK, GOALS } from '../data/goals';
+import { makeDef, type MakeId } from '../data/making';
 
 export interface Storage { get(key: string): string | null; set(key: string, value: string): void }
 
@@ -28,6 +30,14 @@ const migrations: Record<number, (s: any) => any> = {
   // 0.0.12: owned tools, the book and pickups. Older saves had the axe and the pick all along, so they keep both;
   // nothing has been picked up yet.
   4: (s) => ({ ...s, tools: { axe: true, pick: true }, hasBook: false, taken: {} }),
+  // 0.0.15: goals remember they are finished, and things get built. Nothing was built before. A save that already
+  // had everything a gathering goal asks for (salvaging the wreck) counts it finished, so using planks for the fire
+  // can't send the card back to it.
+  5: (s) => {
+    const have = (id: string) => id === BOOK ? (s.hasBook === true ? 1 : 0) : (savedItems(s.player?.backpack)[id] ?? 0) + (savedItems(s.bank)[id] ?? 0);
+    const met = GOALS.filter(g => !g.makes && Object.entries(g.needs).every(([id, n]) => have(id) >= n));
+    return { ...s, built: [], goalsDone: met.map(g => g.id) };
+  },
 };
 
 export function serialize(state: GameState): string { return JSON.stringify(state); }
@@ -66,6 +76,30 @@ function savedTaken(v: unknown, layout: Layout): Record<string, number | null> {
   return Object.fromEntries(Object.entries(v).filter(([id, t]) => ids.has(id) && (t === null || (typeof t === 'number' && Number.isFinite(t))))) as Record<string, number | null>;
 }
 
+/** What stands built: things in MAKES that give a structure and whose site this layout has, each once. */
+function savedBuilt(v: unknown, layout: Layout): MakeId[] {
+  if (!Array.isArray(v)) return [];
+  const ok = (id: unknown) => {
+    const def = typeof id === 'string' ? makeDef(id) : null;
+    return !!def && def.gives.kind === 'structure' && def.at !== 'here' && siteOf(layout, def.at) !== null;
+  };
+  return [...new Set(v.filter(ok))] as MakeId[];
+}
+
+/** Goals finished: ids GOALS still has, each once. */
+function savedGoals(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return [...new Set(v.filter(id => typeof id === 'string' && GOALS.some(g => g.id === id)))] as string[];
+}
+
+/** Whether `id` can be made here at all (data/making.ts): it exists, its site is in this layout, and it isn't built
+ *  yet. */
+function makeable(state: GameState, layout: Layout, id: unknown): boolean {
+  const def = typeof id === 'string' ? makeDef(id) : null;
+  if (!def || (def.at !== 'here' && !siteOf(layout, def.at))) return false;
+  return def.gives.kind !== 'structure' || !made(state, def.id);
+}
+
 export function deserialize(raw: string, layout: Layout): GameState {
   let data = JSON.parse(raw);
   if (typeof data !== 'object' || data === null || typeof data.version !== 'number') throw new Error('not a Hearthfolk save');
@@ -85,12 +119,14 @@ export function deserialize(raw: string, layout: Layout): GameState {
     tools: savedTools(data.tools, fresh.tools),
     hasBook: data.hasBook === true,
     taken: savedTaken(data.taken, layout),
+    built: savedBuilt(data.built, layout),
+    goalsDone: savedGoals(data.goalsDone),
     parcels: { ...fresh.parcels, ...Object.fromEntries(Object.entries(data.parcels ?? {}).filter(([id]) => id in fresh.parcels)) },
   };
   state.nodes = { ...fresh.nodes, ...Object.fromEntries(Object.entries(data.nodes ?? {}).filter(([id]) => id in fresh.nodes)) } as GameState['nodes'];
   // a position that is broken, or now inside a building or off the land, goes back to the start
   const p = state.player;
-  if (!Number.isFinite(p.pos?.x) || !Number.isFinite(p.pos?.z) || !navFor(layout).walkable(p.pos)) {
+  if (!Number.isFinite(p.pos?.x) || !Number.isFinite(p.pos?.z) || !navFor(layout, state.built).walkable(p.pos)) {
     p.pos = { ...layout.start }; p.path = []; p.task = { kind: 'idle' }; p.pending = null; p.trip = null;
   }
   // a task or destination pointing at something that no longer exists (or a pickup taken for good) is dropped; a
@@ -98,7 +134,10 @@ export function deserialize(raw: string, layout: Layout): GameState {
   const pickupThere = (id: string) => (layout.pickups ?? []).some(x => x.id === id) && (!(id in state.taken) || state.taken[id] !== null);
   if (p.task.kind === 'gather' && !(p.task.nodeId in state.nodes)) p.task = { kind: 'idle' };
   if (p.task.kind === 'pickup' && (!pickupThere(p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
-  if ((p.pending?.kind === 'node' && !(p.pending.id in state.nodes)) || (p.pending?.kind === 'pickup' && !pickupThere(p.pending.id))) {
+  // making something: only something that can still be made here, with a time it is done
+  if (p.task.kind === 'make' && (!makeable(state, layout, p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
+  if ((p.pending?.kind === 'node' && !(p.pending.id in state.nodes)) || (p.pending?.kind === 'pickup' && !pickupThere(p.pending.id))
+    || (p.pending?.kind === 'make' && !makeable(state, layout, p.pending.id))) {
     p.pending = null; p.path = []; if (p.task.kind === 'walk') p.task = { kind: 'idle' };
   }
   // a trip only makes sense on the way to the bank or waiting at its door, back to a node that still exists or to

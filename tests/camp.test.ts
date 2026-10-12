@@ -302,18 +302,24 @@ describe('the wreck, stones and branches', () => {
     // stones for the fire, gathered by hand
     for (const p of ofKind('stone').slice(0, GOALS[1]!.needs.stone!)) pickUp(s, p.id);
     expect(goalMet(s.state, GOALS[1]!)).toBe(true);
-    // all met: the card stays on the last goal, which then says it has everything
-    expect(currentGoal(s.state)).toBe(GOALS.at(-1));
+    // everything for the fire: the card stays on it until the fire is built (building it: tests/making.test.ts)
+    expect(currentGoal(s.state).id).toBe('campfire');
     expect(goalMet(s.state, currentGoal(s.state))).toBe(true);
+    expect(s.state.goalsDone).toEqual(['salvage']);
     expect(nav.walkable(s.state.player.pos)).toBe(true);
   });
 
-  it('the card counts what is banked as well as carried, and goes back a goal if something is lost', () => {
+  it('the card counts what is banked as well as carried, and a finished goal stays finished when things are used', () => {
     const s = setup();
     s.state.hasBook = true; s.state.bank = { plank: 4, tarp: 1 }; s.state.player.backpack = { plank: 3 };
     expect(currentGoal(s.state).id).toBe('campfire');
+    run(s, 0.1);                                               // a step writes the finished goal down
+    expect(s.state.goalsDone).toEqual(['salvage']);
+    expect(s.log).toContainEqual({ type: 'goalDone', goal: 'salvage' });
     s.state.player.backpack = { plank: 2 };
-    expect(currentGoal(s.state).id).toBe('salvage');
+    run(s, 0.1);
+    expect(currentGoal(s.state).id).toBe('campfire');
+    expect(s.state.goalsDone).toEqual(['salvage']);
   });
 
   it('drops what he can find again from the backpack, but keeps the wreck', () => {
@@ -574,7 +580,7 @@ describe('saving the camp', () => {
     run(s, 15);
     const { tools: _t, hasBook: _b, taken: _k, ...rest } = JSON.parse(serialize(s.state));
     const back = deserialize(JSON.stringify({ ...rest, version: 4 }), CAMP);
-    expect(SAVE_VERSION).toBe(5);
+    expect(SAVE_VERSION).toBe(6);
     expect(back.version).toBe(SAVE_VERSION);
     expect(back.tools).toEqual({ axe: true, pick: true });
     expect(back.hasBook).toBe(false);

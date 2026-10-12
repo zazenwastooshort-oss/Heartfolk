@@ -127,7 +127,7 @@ export function buildWorld(scene: THREE.Scene, layout: Layout): WorldView {
   }
   // the town square: a worn dirt circle laid with irregular pale paving stones
   if (layout.square > 0) dirt(layout.hearth.pos.x, layout.hearth.pos.z, layout.square + 0.6, layout.square + 0.6, 9000);
-  else if (layout.hearthModel !== null) dirt(layout.hearth.pos.x, layout.hearth.pos.z, 2.6, 2.6, 2200);   // trodden earth round a campfire
+  else dirt(layout.hearth.pos.x, layout.hearth.pos.z, 2.6, 2.6, 2200);   // trodden earth round a campfire, or where the camp's will be built
   for (let i = 0; i < (layout.square > 0 ? 1400 : 0); i++) {
     const a = r() * Math.PI * 2, d = Math.sqrt(r()) * (layout.square - 0.3);
     const x = layout.hearth.pos.x + Math.cos(a) * d, z = layout.hearth.pos.z + Math.sin(a) * d, sz = (0.28 + r() * 0.3) * px;
@@ -160,7 +160,7 @@ export function buildWorld(scene: THREE.Scene, layout: Layout): WorldView {
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(); let k = 0, tries = 0;
   while (k < n && tries++ < 80000) {
     const v = layout.village, p = { x: v.minX - 7 + r() * (v.maxX - v.minX + 16), z: v.minZ - 2 + r() * (v.maxZ - v.minZ + 4) };
-    if (layout.hearthModel !== null && Math.hypot(p.x - layout.hearth.pos.x, p.z - layout.hearth.pos.z) < layout.square + 0.8) continue;
+    if (Math.hypot(p.x - layout.hearth.pos.x, p.z - layout.hearth.pos.z) < layout.square + 0.8) continue;
     // nothing to pick up hides in the grass
     if (layout.pickups?.some(pk => Math.hypot(p.x - pk.pos.x, p.z - pk.pos.z) < 0.7)) continue;
     if (edgeAt(p.x, p.z) < BANK + 0.2 || onScree(p.x, p.z)) continue;

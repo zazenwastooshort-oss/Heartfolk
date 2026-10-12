@@ -42,7 +42,7 @@ function start(data: HotData): void {
     stage.insertAdjacentHTML('beforeend', '<div class="msg">This browser can\'t show 3D (WebGL is off or unsupported).</div>');
     return;
   }
-  const hud = new Hud(view, events, layout);
+  const hud = new Hud(view, events, layout, queue);                 // the goal card's Build button sends a command
   events.on(e => { if (e.type === 'strike') view.strike(e.nodeId); });     // chips fly where the tool lands
   bindInput(view, layout, queue, label => hud.hover(label));
   const pack = new BackpackList(queue);                             // what's in the backpack, to drop things

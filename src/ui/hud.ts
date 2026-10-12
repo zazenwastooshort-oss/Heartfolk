@@ -1,16 +1,19 @@
 // The panels laid over the game: each skill's level and XP, the backpack and the bank, the clock, hover text,
-// notices and floating "+xp" numbers. Reads state and listens to events; never changes the game.
+// notices and floating "+xp" numbers, and the goal card with its Build button. Reads state and listens to events;
+// never changes the game (the Build button sends a command).
 import * as THREE from 'three';
-import { currentGoal, owned, type GameState } from '../core/state';
+import { currentGoal, made, owned, type GameState } from '../core/state';
 import type { EventBus } from '../core/events';
+import type { Command } from '../systems/commands';
 import type { View } from '../render/view';
 import type { SkillId } from '../data/skills';
 import type { BuildingKind, Layout } from '../world/layout';
 import { levelFor, levelBounds } from '../data/xp';
 import { ITEMS, SKILLS, TOOLS } from '../data/skills';
 import { BACKPACK_SLOTS } from '../data/hauling';
-import { BOOK } from '../data/goals';
+import { BOOK, GOALS } from '../data/goals';
 import { GATHERS } from '../data/pickups';
+import { MAKES, makeDef } from '../data/making';
 import { clockLabel } from '../core/clock';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -37,10 +40,16 @@ export class Hud {
   private rows = new Map<SkillId, SkillRow>();
   private active: SkillId | null = null;
 
-  constructor(private view: View, events: EventBus, private layout: Layout) {
+  private buildFor: string | null = null;     // what the goal card's Build button makes, while it shows
+
+  constructor(private view: View, events: EventBus, private layout: Layout, queue: Command[]) {
     // the bank line only where there is a bank; the goal card only at the camp (it leads a new player on)
     $('bankRow').hidden = !layout.buildings.some(b => b.kind === 'bank');
     $('goal').hidden = !layout.camp;
+    $('goalBuild').addEventListener('click', () => {
+      const def = this.buildFor && makeDef(this.buildFor);
+      if (def) queue.push({ type: 'make', id: def.id });
+    });
     // one row per skill in data/skills, so a new skill shows up here without touching the page
     for (const s of Object.values(SKILLS)) {
       const row = el('div', 'srow'), head = el('div', 'row'), lvl = el('span', 'lvl', '1'), bar = el('i', ''), text = el('small', '');
@@ -63,6 +72,12 @@ export class Hud {
       else if (e.type === 'noRoom') this.notice('Your backpack is full. Open the backpack to drop something.');
       else if (e.type === 'dropped') this.notice(`Dropped ${itemList({ [e.item]: e.count })}.`);
       else if (e.type === 'cantDrop') this.notice(`You won't find more ${itemName(e.item, 2)}, so you keep them.`);
+      else if (e.type === 'missing') {
+        const def = MAKES[e.make];
+        this.notice(`To ${def.verb.toLowerCase()} the ${def.name.toLowerCase()} you still need ${itemList(e.items, ' and ')}.`);
+      }
+      else if (e.type === 'goalFirst') this.notice(`Finish "${GOALS.find(g => g.id === e.goal)?.title ?? e.goal}" first.`);
+      else if (e.type === 'made') this.notice(MAKES[e.make].done);
       else if (e.type === 'pickedUp') {
         if (e.item) this.pendingItems[e.item] = (this.pendingItems[e.item] ?? 0) + e.count;
         else this.notice('Your book! It came down the falls with you.');
@@ -82,18 +97,27 @@ export class Hud {
     const b = document.createElement('b'); b.textContent = thing ?? ''; el.append(b);
   }
 
-  /** The goal card: the goal currentGoal picks (the first whose needs aren't met yet), and how much of each it has
-   *  (carried or banked; the book once found). Making it comes in a later update, so the last goal, once it has
-   *  everything, says so. */
+  /** The goal card: the goal currentGoal picks (the first not finished), and how much of each thing it needs he has
+   *  (carried or banked; the book once found). A making goal with everything there shows the Build button (or says he
+   *  is on his way or working on it, while he is); one whose thing can't be made yet says so in its ready text. */
   private updateGoal(state: GameState): void {
     const goal = currentGoal(state);
     const parts = Object.entries(goal.needs).map(([id, n]) => ({ id, n, got: Math.min(n, owned(state, id)) }));
-    const got = parts.reduce((a, p) => a + p.got, 0), need = parts.reduce((a, p) => a + p.n, 0);
+    const got = parts.reduce((a, p) => a + p.got, 0), need = parts.reduce((a, p) => a + p.n, 0), ready = got >= need;
+    const def = goal.makes ? makeDef(goal.makes) : null, task = state.player.task, pending = state.player.pending;
+    const building = !!def && task.kind === 'make' && task.id === def.id;
+    const going = !!def && pending?.kind === 'make' && pending.id === def.id;
+    const offer = !!def && ready && !building && !going && !made(state, def.id);
     $('goalTitle').textContent = goal.title;
     $('goalCount').textContent = parts.map(p => `${p.got} / ${p.n} ${itemName(p.id, p.n)}`).join(', ');
     ($('goalBar') as HTMLElement).style.width = `${need ? got / need * 100 : 100}%`;
-    $('goalHint').textContent = got >= need ? goal.ready : goal.hint;
-    $('goal').classList.toggle('ready', got >= need);
+    $('goalHint').textContent = building ? `Working on the ${def.name.toLowerCase()}...`
+      : going ? `On the way to ${def.verb.toLowerCase()} the ${def.name.toLowerCase()}...` : ready ? goal.ready : goal.hint;
+    $('goal').classList.toggle('ready', ready);
+    this.buildFor = offer ? def.id : null;
+    const button = $('goalBuild') as HTMLButtonElement;
+    button.hidden = !offer;
+    if (offer) button.textContent = `${def.verb} the ${def.name.toLowerCase()}`;
   }
 
   /** What a building or a piece of land says when the miner arrives, while it has no use yet. The bank has one: its

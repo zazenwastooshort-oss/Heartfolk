@@ -4,22 +4,26 @@ import { RESOURCES, TOOL_IDS } from '../data/skills';
 import type { Layout, Vec2 } from '../world/layout';
 import { BOOK, GOALS, type Goal } from '../data/goals';
 import { PICKUPS } from '../data/pickups';
+import { makeDef, type MakeId } from '../data/making';
 import { DAY_SECONDS } from './clock';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 /** gather: working a rock or a tree; progress runs 0..1 through one swing of that skill's tool. `mayMoveOn` is set
  *  when the node runs out while he works it, so he can move on to another; a node that was already down when he got
  *  there (the player tapped a stump) is one he was sent to, so he waits at it.
  *  pickup: standing beside something on the ground (layout.pickups) a moment; at `doneAt` (in-game seconds) it goes
  *  into his backpack. A stone or branch that isn't back yet he waits beside, `doneAt` a moment after it comes back.
- *  Gathering (0.0.14) needs nothing more saved: what he picks up says which group he goes on with (PICKUPS' gather). */
+ *  Gathering (0.0.14) needs nothing more saved: what he picks up says which group he goes on with (PICKUPS' gather).
+ *  make (0.0.15): working at something he makes (data/making.ts, by id), beside its site or where he stands; at
+ *  `doneAt` (in-game seconds) its needs are taken and it is made (systems/making). */
 export type Task = { kind: 'idle' } | { kind: 'walk' } | { kind: 'gather'; nodeId: string; progress: number; mayMoveOn?: boolean }
-  | { kind: 'pickup'; id: string; doneAt: number };
+  | { kind: 'pickup'; id: string; doneAt: number } | { kind: 'make'; id: MakeId; doneAt: number };
 
-/** What the player is walking towards: a resource node to work, a place to visit (a building or land), or something
- *  on the ground to pick up. */
-export type Pending = { kind: 'node'; id: string } | { kind: 'visit'; id: string } | { kind: 'pickup'; id: string } | null;
+/** What the player is walking towards: a resource node to work, a place to visit (a building or land), something
+ *  on the ground to pick up, or where he makes something (data/making.ts). */
+export type Pending = { kind: 'node'; id: string } | { kind: 'visit'; id: string } | { kind: 'pickup'; id: string }
+  | { kind: 'make'; id: MakeId } | null;
 
 /** On the way to the bank to empty a full backpack; afterwards he goes back to work at `nodeId` (or the nearest free
  *  node like it), or (0.0.14) back to gathering things on the ground like `pickupId`. `leaveAt` is set at the bank once
@@ -55,6 +59,10 @@ export interface GameState {
   /** pickups taken from the ground (layout.pickups, by id): the in-game time one lies there again, or null for never.
    *  Ones lying on the ground aren't listed. */
   taken: Record<string, number | null>;
+  /** what he has built that stands at its site (data/making.ts, by id), since 0.0.15: the campfire */
+  built: MakeId[];
+  /** the goals finished (data/goals.ts, by id), since 0.0.15: a goal finished stays finished */
+  goalsDone: string[];
 }
 
 /** How many of something he has, for the goals (data/goals): an item carried or banked, or his book (BOOK), 1 once
@@ -67,9 +75,30 @@ export function owned(state: GameState, id: string): number {
 /** Whether he has everything a goal needs (owned). */
 export const goalMet = (state: GameState, goal: Goal) => Object.entries(goal.needs).every(([id, n]) => owned(state, id) >= n);
 
-/** The goal the goal card shows: the first in GOALS whose needs aren't all met, or the last one once all are met
- *  (making it comes in a later update, so the card then says it has everything). */
-export const currentGoal = (state: GameState): Goal => GOALS.find(g => !goalMet(state, g)) ?? GOALS.at(-1)!;
+/** Whether he has made `id` (data/making.ts): a structure that stands built, or a tool he owns. Something not in
+ *  MAKES yet can't have been made. */
+export function made(state: GameState, id: string): boolean {
+  const def = makeDef(id);
+  if (!def) return false;
+  return def.gives.kind === 'structure' ? state.built.includes(def.id) : state.tools[def.gives.tool];
+}
+
+/** Whether a goal is finished: a gathering goal once it has everything it needs, a making goal once its thing is made.
+ *  Once finished it is remembered (goalsDone, by systems/goals), so it stays finished whatever is used up later. */
+export const goalFinished = (state: GameState, goal: Goal) =>
+  state.goalsDone.includes(goal.id) || (goal.makes ? made(state, goal.makes) : goalMet(state, goal));
+
+/** The goal the goal card shows: the first in GOALS not finished, or the last one once all are (the card then says
+ *  what comes next). */
+export const currentGoal = (state: GameState): Goal => GOALS.find(g => !goalFinished(state, g)) ?? GOALS.at(-1)!;
+
+/** The goal to finish before `id` (data/making.ts) may be made: the first unfinished goal before the goal that makes
+ *  it, or null when there is none. The goals come in order: the campfire waits for the wreck, since its planks are the
+ *  wreck's, and using them first would leave the wreck never salvaged. */
+export function goalFirst(state: GameState, id: string): Goal | null {
+  const i = GOALS.findIndex(g => g.makes === id);
+  return i < 0 ? null : GOALS.slice(0, i).find(g => !goalFinished(state, g)) ?? null;
+}
 
 /** Whether he may drop an item from his backpack: only something he can find again, from a tree or a rock
  *  (RESOURCES) or lying on the ground again after a while (PICKUPS that come back). The wreck came down only once,
@@ -90,5 +119,7 @@ export function createState(layout: Layout, seed = 1): GameState {
     tools: Object.fromEntries(TOOL_IDS.map(t => [t, layout.startTools ? layout.startTools.includes(t) : true])) as Record<ToolId, boolean>,
     hasBook: false,
     taken: {},
+    built: [],
+    goalsDone: [],
   };
 }

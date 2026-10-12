@@ -63,6 +63,13 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
 .goal.ready .bar i { background: var(--xp); }
 .goal .goal-hint { font-size: 12px; color: var(--muted); line-height: 1.35; }
 .goal.ready .goal-hint { color: var(--xp); }
+/* the Build button (src/data/making.ts): forest green with cream text like the panels, a step lighter, finger-sized */
+.goal .goal-build { pointer-events: auto; margin-top: 4px; min-height: 44px; border: 1px solid rgba(241, 232, 212, .45); border-radius: 999px;
+  padding: 10px 14px; background: #3f6a35; color: var(--ink); font: 700 15px/1 var(--body); cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .3); }
+.goal .goal-build:hover { background: #4a7a3f; }
+.goal .goal-build:active { background: #345a2c; }
+.goal .goal-build:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
 /* the welcome for a new player (src/ui/intro.ts) */
 .intro { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; pointer-events: auto;
@@ -147,6 +154,7 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
     <div class="bar"><i id="goalBar"></i></div>
     <small class="goal-count" id="goalCount">0 / 7 planks, 0 / 1 tarp, 0 / 1 book</small>
     <div class="goal-hint" id="goalHint">Pick up what washed up along the bank.</div>
+    <button class="goal-build" id="goalBuild" type="button" hidden>Build</button>
   </div>
   <div class="intro" id="intro" role="dialog" aria-labelledby="introTitle" hidden>
     <h2 id="introTitle">Welcome to Hearthfolk</h2>

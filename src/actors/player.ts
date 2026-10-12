@@ -1,13 +1,14 @@
 // The player's character: turning taps into a path round buildings, rocks and trees, walking it, and starting work
-// (or arriving at a building, or stopping beside something to pick up) at the end.
+// (or arriving at a building, stopping beside something to pick up, or starting to build something) at the end.
 import type { GameState } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Layout, NodeSpot, Vec2 } from '../world/layout';
-import { doorOf } from '../world/layout';
+import { doorOf, siteOf } from '../world/layout';
 import { navFor } from '../world/nav';
 import { GAIT, SWINGS } from '../data/animation';
 import { RESOURCES } from '../data/skills';
 import { PICKUP_PAUSE } from '../data/pickups';
+import { BUILD_REACH, MAKES, type MakeId } from '../data/making';
 
 export const WALK_SPEED = GAIT.speed;  // m/s
 const TURN_RATE = 12;                  // how quickly heading catches up with the walking direction
@@ -25,7 +26,7 @@ function setPath(state: GameState, path: Vec2[] | null, pending: GameState['play
 
 /** Walk to the walkable spot nearest the tapped point. */
 export function walkTo(state: GameState, layout: Layout, target: Vec2): boolean {
-  const nav = navFor(layout);
+  const nav = navFor(layout, state.built);
   return setPath(state, nav.findPath(state.player.pos, nav.nearestWalkable(target)), null);
 }
 
@@ -39,7 +40,7 @@ export function reachFor(spot: NodeSpot): number {
 export function goWork(state: GameState, layout: Layout, nodeId: string): boolean {
   const node = layout.nodes.find(n => n.id === nodeId);
   if (!node) return false;
-  const nav = navFor(layout), p = state.player, reach = reachFor(node);
+  const nav = navFor(layout, state.built), p = state.player, reach = reachFor(node);
   let d = sub(p.pos, node.pos);
   if (len(d) < 1e-4) d = { x: -1, z: 0 };
   const base = Math.atan2(d.z, d.x);
@@ -61,7 +62,7 @@ export const PICKUP_REACH = [0.55, 0.8, 1.05];
 export function goPickup(state: GameState, layout: Layout, id: string): boolean {
   const spot = layout.pickups?.find(x => x.id === id);
   if (!spot) return false;
-  const nav = navFor(layout), p = state.player;
+  const nav = navFor(layout, state.built), p = state.player;
   let d = sub(p.pos, spot.pos);
   if (len(d) <= PICKUP_REACH[0]! + 0.1 && nav.walkable(p.pos)) return setPath(state, [{ ...p.pos }], { kind: 'pickup', id });
   if (len(d) < 1e-4) d = { x: -1, z: 0 };
@@ -77,9 +78,33 @@ export function goPickup(state: GameState, layout: Layout, id: string): boolean 
   return false;
 }
 
+/** Where he makes something (data/making.ts): beside its site, on the side nearest him, on ground that stays open
+ *  once it stands there; or right where he is, for something made anywhere. Already beside the site, he stays. */
+export function goMake(state: GameState, layout: Layout, id: MakeId): boolean {
+  const def = MAKES[id], p = state.player, pending = { kind: 'make' as const, id };
+  if (def.at === 'here') return setPath(state, [{ ...p.pos }], pending);
+  const site = siteOf(layout, def.at);
+  if (!site) return false;
+  const nav = navFor(layout, state.built), after = navFor(layout, [...state.built, id]), reach = site.radius + BUILD_REACH;
+  let d = sub(p.pos, site.pos);
+  if (Math.abs(len(d) - reach) < 0.3 && after.walkable(p.pos)) return setPath(state, [{ ...p.pos }], pending);
+  if (len(d) < 1e-4) d = { x: -1, z: 0 };
+  const base = Math.atan2(d.z, d.x);
+  for (let k = 0; k <= 18; k++) {
+    const a = base + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 9);
+    const stand = { x: site.pos.x + Math.cos(a) * reach, z: site.pos.z + Math.sin(a) * reach };
+    if (!after.walkable(stand)) continue;
+    if (setPath(state, nav.findPath(p.pos, stand), pending)) return true;
+  }
+  return false;
+}
+
+/** Where he faces while making something: its site, or straight ahead for something made where he stands. */
+const makeAt = (layout: Layout, id: MakeId) => { const at = MAKES[id].at; return at === 'here' ? undefined : siteOf(layout, at)?.pos; };
+
 /** Walk to a building's door, or to the edge of land that isn't the player's yet. */
 export function goVisit(state: GameState, layout: Layout, id: string, at?: Vec2): boolean {
-  const nav = navFor(layout);
+  const nav = navFor(layout, state.built);
   const b = layout.buildings.find(x => x.id === id);
   const target = b ? doorOf(b) : at ? nav.nearestWalkable(at) : null;
   if (!target) return false;
@@ -107,6 +132,7 @@ export function updatePlayer(state: GameState, layout: Layout, dt: number, event
         events.emit({ type: 'arrived' });
         if (pending?.kind === 'node') p.task = { kind: 'gather', nodeId: pending.id, progress: 0 };
         else if (pending?.kind === 'pickup') p.task = { kind: 'pickup', id: pending.id, doneAt: state.time + PICKUP_PAUSE };
+        else if (pending?.kind === 'make') p.task = { kind: 'make', id: pending.id, doneAt: state.time + MAKES[pending.id].time };
         else {
           p.task = { kind: 'idle' };
           if (pending?.kind === 'visit') {
@@ -120,10 +146,11 @@ export function updatePlayer(state: GameState, layout: Layout, dt: number, event
     } else {
       p.pos = { x: p.pos.x + d.x / dist * step, z: p.pos.z + d.z / dist * step };
     }
-  } else if (p.task.kind === 'gather' || p.task.kind === 'pickup') {
-    // face what he works or picks up
+  } else if (p.task.kind === 'gather' || p.task.kind === 'pickup' || p.task.kind === 'make') {
+    // face what he works, picks up or builds
     const task = p.task;
-    const at = task.kind === 'gather' ? layout.nodes.find(n => n.id === task.nodeId)?.pos : layout.pickups?.find(x => x.id === task.id)?.pos;
+    const at = task.kind === 'gather' ? layout.nodes.find(n => n.id === task.nodeId)?.pos
+      : task.kind === 'pickup' ? layout.pickups?.find(x => x.id === task.id)?.pos : makeAt(layout, task.id);
     if (at && len(sub(at, p.pos)) > 1e-3) p.heading = angleToward(p.heading, headingOf(sub(at, p.pos)), TURN_RATE * dt);
   }
   return null;

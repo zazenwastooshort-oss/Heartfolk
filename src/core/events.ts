@@ -2,6 +2,7 @@
 // sound and the chronicle subscribe. Events carry plain data only.
 import type { SkillId, ToolId } from '../data/skills';
 import type { GatherId, PickupKind } from '../data/pickups';
+import type { MakeId } from '../data/making';
 
 export type GameEvent =
   | { type: 'strike'; nodeId: string }
@@ -32,6 +33,14 @@ export type GameEvent =
   | { type: 'noPath' }
   /** the backpack is full and there is nowhere to store it yet (the camp, before its storage chest) */
   | { type: 'noStorage' }
+  /** asked to make something (data/making.ts) without everything it needs: `items` is what is still missing */
+  | { type: 'missing'; make: MakeId; items: Record<string, number> }
+  /** asked to make something at the camp before the goals before its goal are finished: `goal` is the first of those */
+  | { type: 'goalFirst'; make: MakeId; goal: string }
+  /** he made something: it stands at its site (GameState.built), or he owns the tool */
+  | { type: 'made'; make: MakeId }
+  /** a goal (data/goals.ts) is finished, for good */
+  | { type: 'goalDone'; goal: string }
   | { type: 'arrived' };
 
 type Handler = (e: GameEvent) => void;

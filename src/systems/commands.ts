@@ -1,13 +1,15 @@
 // The only way the UI changes the game: it queues commands, and the simulation applies them at the start of a step.
-import type { GameState } from '../core/state';
+import { goalFirst, type GameState } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Layout, Vec2 } from '../world/layout';
-import { walkTo, goWork, goVisit, goPickup } from '../actors/player';
+import { walkTo, goWork, goVisit, goPickup, goMake } from '../actors/player';
 import { RESOURCES } from '../data/skills';
 import { SWINGS } from '../data/animation';
+import { makeDef, type MakeId } from '../data/making';
 import { levelOf } from './skills';
 import { gatherOf, onGround, roomFor } from './pickups';
 import { drop } from './backpack';
+import { canMake, missingFor } from './making';
 
 export type Command =
   | { type: 'walk'; to: Vec2 }
@@ -18,7 +20,10 @@ export type Command =
    *  gathering more like it (systems/pickups) */
   | { type: 'pickup'; id: string }
   /** drop `count` of an item from the backpack (all of it when `count` is more than he carries) */
-  | { type: 'drop'; item: string; count: number };
+  | { type: 'drop'; item: string; count: number }
+  /** make something (data/making.ts): the goal card's Build button, or a tap on its site. At the camp, a goal before
+   *  the one that makes it still to finish, or without everything it needs, he says so and stays put. */
+  | { type: 'make'; id: MakeId };
 
 export const isClaimed = (state: GameState, parcelId: string | undefined) => !parcelId || !!state.parcels[parcelId]?.claimed;
 
@@ -36,6 +41,16 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
       const toBankFirst = !!gatherOf(layout, c.id) && layout.buildings.some(b => b.kind === 'bank');
       if (!roomFor(state, layout, c.id) && !toBankFirst) { events.emit({ type: 'noRoom' }); continue; }
       ok = goPickup(state, layout, c.id);
+    } else if (c.type === 'make') {
+      const def = makeDef(c.id), task = state.player.task;
+      // not here, already built, or already at work on it: nothing to do
+      if (!def || !canMake(state, layout, def) || (task.kind === 'make' && task.id === def.id)) continue;
+      // the camp's goals come in order: the campfire waits until the wreck is salvaged
+      const first = layout.camp ? goalFirst(state, def.id) : null;
+      if (first) { events.emit({ type: 'goalFirst', make: def.id, goal: first.id }); continue; }
+      const missing = missingFor(state, def);
+      if (Object.keys(missing).length) { events.emit({ type: 'missing', make: def.id, items: missing }); continue; }
+      ok = goMake(state, layout, def.id);
     } else {
       const spot = layout.nodes.find(n => n.id === c.nodeId);
       const res = spot && RESOURCES[spot.resource];
