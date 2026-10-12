@@ -2,7 +2,7 @@
 import { SAVE_VERSION, createState, type GameState } from './state';
 import type { Layout } from '../world/layout';
 import { navFor } from '../world/nav';
-import { ITEMS, SKILLS, type SkillId } from '../data/skills';
+import { ITEMS, SKILLS, TOOL_IDS, type SkillId, type ToolId } from '../data/skills';
 
 export interface Storage { get(key: string): string | null; set(key: string, value: string): void }
 
@@ -24,6 +24,9 @@ const migrations: Record<number, (s: any) => any> = {
   },
   // 0.0.9: the backpack. Gathering fills it and he carries it to the bank; what was gathered before stays banked.
   3: (s) => ({ ...s, player: { ...s.player, backpack: {}, trip: null } }),
+  // 0.0.12: owned tools, the book and pickups. Older saves had the axe and the pick all along, so they keep both;
+  // nothing has been picked up yet.
+  4: (s) => ({ ...s, tools: { axe: true, pick: true }, hasBook: false, taken: {} }),
 };
 
 export function serialize(state: GameState): string { return JSON.stringify(state); }
@@ -48,6 +51,20 @@ function savedSkills(v: unknown, fresh: Record<SkillId, number>): Record<SkillId
   return skills;
 }
 
+/** Tools owned: a known tool keeps its saved true or false; anything else is as a new game here has it. */
+function savedTools(v: unknown, fresh: Record<ToolId, boolean>): Record<ToolId, boolean> {
+  const tools = { ...fresh };
+  if (isRecord(v)) for (const id of TOOL_IDS) if (typeof v[id] === 'boolean') tools[id] = v[id] as boolean;
+  return tools;
+}
+
+/** Pickups taken: ids the layout still has, each with a finite time it comes back, or null for never. */
+function savedTaken(v: unknown, layout: Layout): Record<string, number | null> {
+  if (!isRecord(v)) return {};
+  const ids = new Set((layout.pickups ?? []).map(p => p.id));
+  return Object.fromEntries(Object.entries(v).filter(([id, t]) => ids.has(id) && (t === null || (typeof t === 'number' && Number.isFinite(t))))) as Record<string, number | null>;
+}
+
 export function deserialize(raw: string, layout: Layout): GameState {
   let data = JSON.parse(raw);
   if (typeof data !== 'object' || data === null || typeof data.version !== 'number') throw new Error('not a Hearthfolk save');
@@ -64,6 +81,9 @@ export function deserialize(raw: string, layout: Layout): GameState {
     player: { ...fresh.player, ...data.player, backpack: savedItems(data.player?.backpack) },
     skills: savedSkills(data.skills, fresh.skills),
     bank: savedItems(data.bank),
+    tools: savedTools(data.tools, fresh.tools),
+    hasBook: data.hasBook === true,
+    taken: savedTaken(data.taken, layout),
     parcels: { ...fresh.parcels, ...Object.fromEntries(Object.entries(data.parcels ?? {}).filter(([id]) => id in fresh.parcels)) },
   };
   state.nodes = { ...fresh.nodes, ...Object.fromEntries(Object.entries(data.nodes ?? {}).filter(([id]) => id in fresh.nodes)) } as GameState['nodes'];
@@ -72,9 +92,13 @@ export function deserialize(raw: string, layout: Layout): GameState {
   if (!Number.isFinite(p.pos?.x) || !Number.isFinite(p.pos?.z) || !navFor(layout).walkable(p.pos)) {
     p.pos = { ...layout.start }; p.path = []; p.task = { kind: 'idle' }; p.pending = null; p.trip = null;
   }
-  // a task or destination pointing at something that no longer exists is dropped
+  // a task or destination pointing at something that no longer exists (or a pickup already taken) is dropped
+  const onGround = (id: string) => (layout.pickups ?? []).some(x => x.id === id) && !(id in state.taken);
   if (p.task.kind === 'gather' && !(p.task.nodeId in state.nodes)) p.task = { kind: 'idle' };
-  if (p.pending?.kind === 'node' && !(p.pending.id in state.nodes)) { p.pending = null; p.path = []; if (p.task.kind === 'walk') p.task = { kind: 'idle' }; }
+  if (p.task.kind === 'pickup' && (!onGround(p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
+  if ((p.pending?.kind === 'node' && !(p.pending.id in state.nodes)) || (p.pending?.kind === 'pickup' && !onGround(p.pending.id))) {
+    p.pending = null; p.path = []; if (p.task.kind === 'walk') p.task = { kind: 'idle' };
+  }
   // a trip only makes sense on the way to the bank or waiting at its door, back to a node that still exists
   const trip = p.trip;
   if (trip && trip.leaveAt !== undefined && !Number.isFinite(trip.leaveAt)) delete trip.leaveAt;

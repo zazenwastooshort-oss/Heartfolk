@@ -1,12 +1,24 @@
 // Walking: a grid over the village marking where a person can stand, A* paths across it, and smoothing so the
-// paths are straight lines between corners. Buildings, fenced gardens, rocks, tree trunks, the hearth, lantern
-// posts and props (the well, benches, crates) block;
-// the river, the forest and land not yet claimed lie outside the walkable area.
+// paths are straight lines between corners. Buildings, fenced gardens, rocks, tree trunks, the hearth (when one
+// stands there), lantern posts, props (the well, benches, crates), the pool below the falls, the river and the
+// wreck's debris block; things lying on the ground to pick up don't. The forest and land not yet claimed lie outside
+// the walkable area.
 import type { Area, Layout, Vec2 } from './layout';
 import { inArea } from './layout';
 
 const CELL = 0.4;
 const MARGIN = 0.35;                 // keep this far from walls, so the character doesn't clip them
+
+/** Distance from p to the nearest point of a polyline. */
+export function distToLine(p: Vec2, line: Vec2[]): number {
+  let best = Infinity;
+  for (let i = 0; i < line.length - 1; i++) {
+    const a = line[i]!, b = line[i + 1]!, abx = b.x - a.x, abz = b.z - a.z, l2 = abx * abx + abz * abz;
+    const t = l2 ? Math.max(0, Math.min(1, ((p.x - a.x) * abx + (p.z - a.z) * abz) / l2)) : 0;
+    best = Math.min(best, Math.hypot(p.x - (a.x + abx * t), p.z - (a.z + abz * t)));
+  }
+  return best;
+}
 
 export class NavGrid {
   readonly nx: number; readonly nz: number;
@@ -17,16 +29,19 @@ export class NavGrid {
     this.nz = Math.ceil((area.maxZ - area.minZ) / CELL);
     this.blocked = new Uint8Array(this.nx * this.nz);
     const circles: [Vec2, number][] = [
-      [layout.hearth.pos, layout.hearth.radius],
+      ...(layout.hearthModel !== null ? [[layout.hearth.pos, layout.hearth.radius] as [Vec2, number]] : []),
       ...layout.nodes.map(n => [n.pos, n.radius * 0.8] as [Vec2, number]),
       ...layout.trees.map(t => [t.pos, (t.kind === 'oak' ? 0.4 : 0.3) * t.size] as [Vec2, number]),
       ...layout.bushes.map(b => [b, 0.45] as [Vec2, number]),
       ...layout.lanterns.map(l => [l, 0.2] as [Vec2, number]),
       ...layout.props.map(p => [p.pos, p.radius] as [Vec2, number]),
-      // at the camp: the tent, and the pool at the foot of the falls
-      ...(layout.camp ? [[layout.camp.tent.pos, 1.25] as [Vec2, number]] : []),
+      // at the camp: the pool at the foot of the falls, and the wreck's ribs at the water's edge
       ...(layout.falls ? [[layout.falls.pool.pos, layout.falls.pool.radius + 0.2] as [Vec2, number]] : []),
+      ...(layout.debris ?? []).filter(d => d.radius > 0).map(d => [d.pos, d.radius] as [Vec2, number]),
     ];
+    // a cell by the river is open only if all of it is dry land (its centre is half a diagonal from its corners), so
+    // he walks right to the water's edge but never into it
+    const river = layout.river, riverClear = river.width / 2 + CELL * Math.SQRT1_2;
     // gardens block with their fence, a little larger than the soil
     const rects = [
       ...layout.buildings.map(b => ({ pos: b.pos, rot: b.rot, hw: b.w / 2 + MARGIN, hd: b.d / 2 + MARGIN })),
@@ -41,6 +56,7 @@ export class NavGrid {
         if (Math.abs(lx) <= b.hw && Math.abs(lz) <= b.hd) { block = true; break; }
       }
       if (!block) for (const [c, r] of circles) if (Math.hypot(p.x - c.x, p.z - c.z) <= r + MARGIN * 0.5) { block = true; break; }
+      if (!block && distToLine(p, river.points) <= riverClear) block = true;   // where the land reaches the water
       if (block) this.blocked[iz * this.nx + ix] = 1;
     }
   }
@@ -51,16 +67,28 @@ export class NavGrid {
 
   walkable(p: Vec2): boolean { return inArea(this.area, p) && this.open(...this.cellOf(p)); }
 
-  /** The walkable spot closest to p (p itself if it is walkable). */
+  /** The walkable spot closest to p (p itself if it is walkable), also for a point off the grid, such as a tap
+   *  across the river. Searches square rings of cells round p's cell, outward. The first ring with an open cell
+   *  isn't enough: a cell in ring r can be up to r * 1.41 cells away, so a closer one may lie in a later ring. Every
+   *  cell in ring r is at least r - 0.5 cells from p, so the search stops once that passes the best distance found. */
   nearestWalkable(p: Vec2): Vec2 {
     if (this.walkable(p)) return { ...p };
-    const [cx, cz] = this.cellOf(p);
+    const [cx, cz] = this.cellOf(p), lastX = this.nx - 1, lastZ = this.nz - 1;
+    const first = Math.max(0, -cx, cx - lastX, -cz, cz - lastZ);      // the first ring that reaches the grid
+    const last = Math.max(cx, lastX - cx, cz, lastZ - cz);            // the ring through the grid's farthest corner
     let best: Vec2 | null = null, bd = Infinity;
-    for (let r = 1; r < Math.max(this.nx, this.nz) && !best; r++) {
-      for (let iz = cz - r; iz <= cz + r; iz++) for (let ix = cx - r; ix <= cx + r; ix++) {
-        if (Math.max(Math.abs(ix - cx), Math.abs(iz - cz)) !== r || !this.open(ix, iz)) continue;
-        const c = this.center(ix, iz), d = Math.hypot(c.x - p.x, c.z - p.z);
-        if (d < bd) { bd = d; best = c; }
+    const visit = (ix: number, iz: number) => {
+      if (!this.open(ix, iz)) return;
+      const c = this.center(ix, iz), d = Math.hypot(c.x - p.x, c.z - p.z);
+      if (d < bd) { bd = d; best = c; }
+    };
+    for (let r = first; r <= last && (r - 0.5) * CELL < bd; r++) {
+      // the ring's top and bottom rows, then its sides, each clipped to the grid
+      for (const iz of r ? [cz - r, cz + r] : [cz]) {
+        if (iz >= 0 && iz <= lastZ) for (let ix = Math.max(0, cx - r); ix <= Math.min(lastX, cx + r); ix++) visit(ix, iz);
+      }
+      for (const ix of r ? [cx - r, cx + r] : []) {
+        if (ix >= 0 && ix <= lastX) for (let iz = Math.max(0, cz - r + 1); iz <= Math.min(lastZ, cz + r - 1); iz++) visit(ix, iz);
       }
     }
     return best ?? { ...p };

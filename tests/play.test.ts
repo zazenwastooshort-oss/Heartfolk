@@ -276,7 +276,7 @@ describe('saving', () => {
     const { backpack: _b, trip: _t, ...player } = s0.state.player;
     const v3 = { ...s0.state, version: 3, player, bank: { birch_logs: 120, copper_ore: 40 } };
     const s = deserialize(JSON.stringify(v3), VILLAGE);
-    expect(SAVE_VERSION).toBe(4);
+    expect(SAVE_VERSION).toBe(5);
     expect(s.version).toBe(SAVE_VERSION);
     expect(s.bank).toEqual({ birch_logs: 120, copper_ore: 40 });
     expect(s.player.backpack).toEqual({});

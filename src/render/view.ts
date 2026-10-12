@@ -1,16 +1,17 @@
-// Draws the game: the ground and river, the village, fog over unclaimed land, the rocks and trees, and the character
-// with the tool for the job (pick or axe) and the matching animation, placed from the game state every frame, plus
-// effects (chips, the click cross). It reads state; it never changes it. The tool is in his hands while he works and
-// on his back otherwise, every walk included (toolInHand picks the armed or the free clip), hidden for the moment it
-// moves between the two. Clips crossfade, and ArmIK puts the hands back on the handle after every blend into an
-// armed clip.
+// Draws the game: the ground and river, the village, fog over unclaimed land, the rocks and trees, things lying on the
+// ground to pick up, and the character with the tool for the job (pick or axe) and the matching animation, placed
+// from the game state every frame, plus effects (chips, the click cross). It reads state; it never changes it. The
+// tool is in his hands while he works and on his back otherwise, every walk included (toolInHand picks the armed or
+// the free clip), hidden for the moment it moves between the two. A tool he doesn't own is never drawn: with none he
+// plays the free clips with nothing on his back. Clips crossfade, and ArmIK puts the hands back on the handle after
+// every blend into an armed clip.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import minerUrl from '../../assets/models/miner.glb?url';
 import villageUrl from '../../assets/models/village.glb?url';
 import type { GameState } from '../core/state';
 import type { Layout, NodeSpot } from '../world/layout';
-import { RESOURCES } from '../data/skills';
+import { RESOURCES, TOOL_IDS } from '../data/skills';
 import { ARMED_CLIPS, FADE, GAIT, IDLE, SWINGS, type Swing } from '../data/animation';
 import { dayFraction } from '../core/clock';
 import { Lighting } from './lighting';
@@ -20,6 +21,7 @@ import { VillageView } from './village';
 import { FogView } from './fog';
 import { FallsView } from './waterfall';
 import { NodesView } from './nodes';
+import { PickupsView } from './pickups';
 import { ArmIK, armedWeight, toolInHand, toolInTransit } from './arms';
 
 type Tool = Swing['tool'];
@@ -45,12 +47,14 @@ export class View {
   private falls?: FallsView;
   private clock = 0;
   private nodes?: NodesView;
+  private pickups?: PickupsView;
   private spots: Map<string, NodeSpot>;
   private miner?: THREE.Object3D;
   private tools?: Record<Tool, { parts: THREE.Object3D[]; tip: THREE.Object3D }>;
-  private tool: Tool | null = null;
+  private tool: Tool | null = null;      // the tool drawn (null: none, he owns no tool)
   private handle?: THREE.Object3D;       // the handle both tools share
   private toolHidden = false;
+  private toolsSet = false;
   private mixer?: THREE.AnimationMixer;
   private arms?: ArmIK;
   private actions: Record<string, THREE.AnimationAction> = {};
@@ -74,7 +78,11 @@ export class View {
     this.ground.push(...this.world.ground);
     this.lighting = new Lighting(this.scene);
     this.fog = new FogView(this.scene, layout);
-    if (layout.falls) this.falls = new FallsView(this.scene, layout.falls);
+    if (layout.falls) {
+      this.falls = new FallsView(this.scene, layout.falls);
+      const falls = this.falls;
+      this.cam.clearance = p => falls.clearance(p);      // the camera stays in front of the wall and the falls
+    }
     for (const a of [Math.PI / 4, -Math.PI / 4]) {
       const bar = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.02, 0.09), new THREE.MeshBasicMaterial({ color: '#ffe100' }));
       bar.rotation.y = a; this.marker.add(bar);
@@ -99,9 +107,11 @@ export class View {
       axe: { parts: [find('axe_head'), find('axe_blade')], tip: find('AxeTip') },
     };
     this.handle = find('pick_handle');
-    this.showTool('pick');
+    this.showTool(null);                 // until draw() knows which tools he owns
     this.nodes = new NodesView(this.scene, this.layout, find('Rock'), village.scene);
     this.pickables.push(...this.nodes.pickables);
+    this.pickups = new PickupsView(this.scene, this.layout, village.scene);
+    this.pickables.push(...this.pickups.pickables);
     this.scene.add(this.miner);
     this.arms = new ArmIK(this.miner);   // reads the rest pose, so before the mixer first runs
     this.mixer = new THREE.AnimationMixer(this.miner);
@@ -112,12 +122,12 @@ export class View {
   }
 
   /** Show the pick or the axe (in his hands or on his back, as the clip has it), or neither while it moves between
-   *  the two (toolInTransit). */
-  private showTool(tool: Tool, hidden = this.toolHidden): void {
-    if (!this.tools || !this.handle || (tool === this.tool && hidden === this.toolHidden)) return;
+   *  the two (toolInTransit), or none at all (null: he owns no tool). */
+  private showTool(tool: Tool | null, hidden = this.toolHidden): void {
+    if (!this.tools || !this.handle || (this.toolsSet && tool === this.tool && hidden === this.toolHidden)) return;
     for (const [name, t] of Object.entries(this.tools)) for (const part of t.parts) part.visible = !hidden && name === tool;
-    this.handle.visible = !hidden;
-    this.tool = tool; this.toolHidden = hidden;
+    this.handle.visible = !hidden && tool !== null;
+    this.tool = tool; this.toolHidden = hidden; this.toolsSet = true;
   }
 
   private play(name: string, fade?: number): void {
@@ -156,20 +166,25 @@ export class View {
       const workId = task.kind === 'gather' ? task.nodeId : p.pending?.kind === 'node' ? p.pending.id : null;
       const spot = workId ? this.spots.get(workId) : undefined;
       const swing = spot ? SWINGS[RESOURCES[spot.resource]!.skill] : null;
-      if (swing) this.showTool(swing.tool);
+      // the tool for the job if he owns it, else the one he last had out, else any he owns, else none
+      const owns = (t: Tool | null): t is Tool => t !== null && state.tools[t];
+      const tool = swing && owns(swing.tool) ? swing.tool : owns(this.tool) ? this.tool : TOOL_IDS.find(owns) ?? null;
+      if (tool !== this.tool) this.showTool(tool);
       const waiting = task.kind === 'gather' && !!state.nodes[task.nodeId]?.depletedUntil;
-      const armed = toolInHand(p);         // otherwise the tool is on his back
+      // in his hands only at work with the right tool; otherwise on his back (or he has none)
+      const armed = tool !== null && toolInHand(p) && (!swing || swing.tool === tool);
       if (task.kind === 'walk') this.play(armed ? GAIT.clip : GAIT.freeClip);
-      else if (task.kind === 'gather' && !waiting && swing) { this.play(swing.clip); this.actions[swing.clip]!.time = task.progress * swing.cycle; }
+      else if (task.kind === 'gather' && !waiting && swing && armed) { this.play(swing.clip); this.actions[swing.clip]!.time = task.progress * swing.cycle; }
       else this.play(armed ? IDLE.clip : IDLE.freeClip);
       this.mixer.update(dt);
       // a crossfade blends the arms apart from the tool: hands back on the handle (in armed clips only)
       this.arms?.solve(armedWeight(Object.values(this.actions), this.current));
-      if (this.tool) this.showTool(this.tool, toolInTransit(Object.values(this.actions)));   // between hands and back
+      this.showTool(this.tool, toolInTransit(Object.values(this.actions)));   // hidden between hands and back
       if (this.strikeAt && this.tools && this.tool) this.nodes?.hit(this.strikeAt, this.tools[this.tool].tip.getWorldPosition(new THREE.Vector3()));
     }
     this.strikeAt = null;
     this.nodes?.update(state, dt, this.shown.pos);
+    this.pickups?.update(state, this.clock, dt, this.cam.camera, this.lighting.night);
     if (this.marker.visible) { this.markerT -= dt; this.marker.scale.setScalar(0.4 + this.markerT * 1.6); if (this.markerT <= 0) this.marker.visible = false; }
     this.cam.follow(this.shown.pos, Math.min(1, dt * 6));
     this.lighting.update(dayFraction(state.time), this.shown.pos, true, this.cam.dist);
@@ -178,7 +193,7 @@ export class View {
     this.village?.update(this.clock, this.lighting.night, this.cam.look, dt);
     const mist = new THREE.Color('#eef3f5').lerp(this.lighting.horizon, 0.4).multiplyScalar(1 - this.lighting.night * 0.45);
     this.fog.update(this.clock, this.cam.camera, state, mist);
-    this.falls?.update(this.clock, dt, this.cam.camera);
+    this.falls?.update(this.clock, dt, this.cam.camera, this.cam.look, this.lighting.horizon, mist);
     this.renderer.render(this.scene, this.cam.camera);
   }
 

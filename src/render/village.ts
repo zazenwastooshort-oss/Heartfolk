@@ -1,6 +1,7 @@
-// The village's buildings, props, gardens, trees, bushes, lanterns and hearth, placed from the layout using the
-// models in assets/models/village.glb. Everything that never moves is merged into one mesh per material, so a phone
-// draws the whole village in a few dozen calls. Windows, lamps and the forge glow at night; the hearth flickers;
+// The village's buildings, props, gardens, trees, bushes, lanterns and hearth (or the camp's trees, bushes and the
+// wreck's debris; the camp has no hearth until its campfire is built), placed from the layout using the models in
+// assets/models/village.glb. Everything that never moves is merged into one mesh per material, so a phone draws the
+// whole village in a few dozen calls. Windows, lamps and the forge glow at night; the hearth flickers;
 // a small pool of lights follows the lanterns nearest the camera.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -56,9 +57,9 @@ export class VillageView {
         }
       }
     }
-    for (const t of layout.trees) { const o = place(TREE[t.kind]!, t.pos, r() * Math.PI * 2, t.size); if (t.y) o.position.y = t.y; }
-    if (layout.camp) place('Tent', layout.camp.tent.pos, layout.camp.tent.rot);
+    for (const t of layout.trees) place(TREE[t.kind]!, t.pos, r() * Math.PI * 2, t.size);
     for (const p of layout.bushes) place('Bush', p, r() * Math.PI * 2);
+    for (const d of layout.debris ?? []) place(d.model, d.pos, d.rot).position.y = -(d.y ?? 0);
     for (const p of layout.lanterns) {
       const face = Math.atan2(layout.hearth.pos.x - p.x, layout.hearth.pos.z - p.z) + Math.PI;   // lamp arm towards the hearth
       place('Lantern', p, face);
@@ -68,7 +69,8 @@ export class VillageView {
       const light = new THREE.PointLight('#ffb050', 0, 7, 1.8); scene.add(light); this.lampLights.push(light);
     }
 
-    const hearth = proto(layout.hearthModel ?? 'Hearth').clone(true);
+    // the camp's campfire is built later: until then nothing stands at its hearth (hearthModel null)
+    const hearth = layout.hearthModel === null ? new THREE.Group() : proto(layout.hearthModel ?? 'Hearth').clone(true);
     hearth.position.set(layout.hearth.pos.x, 0, layout.hearth.pos.z); scene.add(hearth);
     hearth.traverse(o => {
       const mesh = o as THREE.Mesh;

@@ -1,22 +1,24 @@
 // The panels laid over the game: each skill's level and XP, the backpack and the bank, the clock, hover text,
 // notices and floating "+xp" numbers. Reads state and listens to events; never changes the game.
 import * as THREE from 'three';
-import type { GameState } from '../core/state';
+import { currentGoal, owned, type GameState } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { View } from '../render/view';
 import type { SkillId } from '../data/skills';
 import type { BuildingKind, Layout } from '../world/layout';
 import { levelFor, levelBounds } from '../data/xp';
-import { ITEMS, SKILLS } from '../data/skills';
+import { ITEMS, SKILLS, TOOLS } from '../data/skills';
 import { BACKPACK_SLOTS } from '../data/hauling';
-import { GOALS } from '../data/goals';
+import { BOOK } from '../data/goals';
 import { clockLabel } from '../core/clock';
 
 const $ = (id: string) => document.getElementById(id)!;
 const el = (tag: string, className: string, text = '') => { const e = document.createElement(tag); e.className = className; e.textContent = text; return e; };
+/** What `n` of an item are called: "birch logs", "1 birch log" (ITEMS' `one`); his book is "book". */
+const itemName = (id: string, n: number) => id === BOOK ? 'book' : ((n === 1 && ITEMS[id]?.one) || ITEMS[id]?.name)?.toLowerCase() ?? id;
 /** "28 birch logs"; several are joined by commas, the last by `last` ("20 birch logs and 8 copper ore") */
 const itemList = (items: Record<string, number>, last = ', ') => {
-  const parts = Object.entries(items).filter(([, n]) => n > 0).map(([id, n]) => `${n.toLocaleString()} ${((n === 1 && ITEMS[id]?.one) || ITEMS[id]?.name)?.toLowerCase() ?? id}`);
+  const parts = Object.entries(items).filter(([, n]) => n > 0).map(([id, n]) => `${n.toLocaleString()} ${itemName(id, n)}`);
   return parts.length > 1 ? `${parts.slice(0, -1).join(', ')}${last}${parts.at(-1)}` : parts[0] ?? '';
 };
 
@@ -27,6 +29,7 @@ export class Hud {
   // events can arrive many at a time (catching up after the tab was in the background), so they are
   // gathered here and shown once per frame, above wherever the miner is
   private pendingXp = 0;
+  private pendingItems: Record<string, number> = {};
   private pendingLevel: { skill: SkillId; level: number } | null = null;
   private noticeTimer = 0;
   private hintGone = false;
@@ -52,8 +55,16 @@ export class Hud {
       else if (e.type === 'banked') this.notice(`Banked ${itemList(e.items, ' and ')}.`);
       else if (e.type === 'nothingToBank') this.notice('Your backpack is empty.');
       else if (e.type === 'noPath') this.notice("He can't find a way there.");
-      else if (e.type === 'noStorage') this.notice("Your backpack is full, and there's nowhere to store it yet.");
+      else if (e.type === 'noStorage') this.notice("Your backpack is full, and there's nowhere to store it yet. Open the backpack to drop something.");
       else if (e.type === 'levelUp') this.pendingLevel = { skill: e.skill, level: e.level };
+      else if (e.type === 'needTool') { const t = TOOLS[e.tool]; this.notice(`You need ${t.a} to ${t.use}.`); }
+      else if (e.type === 'noRoom') this.notice('Your backpack is full. Open the backpack to drop something.');
+      else if (e.type === 'dropped') this.notice(`Dropped ${itemList({ [e.item]: e.count })}.`);
+      else if (e.type === 'cantDrop') this.notice(`You won't find more ${itemName(e.item, 2)}, so you keep them.`);
+      else if (e.type === 'pickedUp') {
+        if (e.item) this.pendingItems[e.item] = (this.pendingItems[e.item] ?? 0) + e.count;
+        else this.notice('Your book! It came down the falls with you.');
+      }
       else if (e.type === 'levelTooLow') {
         const s = SKILLS[e.skill];
         this.notice(`You need ${s.name} level ${e.need} to ${s.verb.toLowerCase()} ${e.what.toLowerCase()}s.`);
@@ -69,14 +80,15 @@ export class Hud {
     const b = document.createElement('b'); b.textContent = thing ?? ''; el.append(b);
   }
 
-  /** The goal card: the first goal (data/goals), how much of what it needs has been gathered so far. Building it
-   *  comes in a later update, so a goal that has everything says so. */
+  /** The goal card: the goal currentGoal picks (the first whose needs aren't met yet), and how much of each it has
+   *  (carried or banked; the book once found). Making it comes in a later update, so the last goal, once it has
+   *  everything, says so. */
   private updateGoal(state: GameState): void {
-    const goal = GOALS[0]!, have = (id: string) => (state.player.backpack[id] ?? 0) + (state.bank[id] ?? 0);
-    const parts = Object.entries(goal.needs).map(([id, n]) => ({ id, n, got: Math.min(n, have(id)) }));
+    const goal = currentGoal(state);
+    const parts = Object.entries(goal.needs).map(([id, n]) => ({ id, n, got: Math.min(n, owned(state, id)) }));
     const got = parts.reduce((a, p) => a + p.got, 0), need = parts.reduce((a, p) => a + p.n, 0);
     $('goalTitle').textContent = goal.title;
-    $('goalCount').textContent = parts.map(p => `${p.got} / ${p.n} ${((p.n === 1 && ITEMS[p.id]?.one) || ITEMS[p.id]?.name)?.toLowerCase() ?? p.id}`).join(', ');
+    $('goalCount').textContent = parts.map(p => `${p.got} / ${p.n} ${itemName(p.id, p.n)}`).join(', ');
     ($('goalBar') as HTMLElement).style.width = `${need ? got / need * 100 : 100}%`;
     $('goalHint').textContent = got >= need ? goal.ready : goal.hint;
     $('goal').classList.toggle('ready', got >= need);
@@ -116,6 +128,8 @@ export class Hud {
     // the how-to-play hint fades once the player has sent the miner somewhere (or a save already has him busy)
     if (!this.hintGone && state.player.task.kind !== 'idle') { this.hintGone = true; $('hint').classList.add('gone'); }
     if (this.pendingXp) { this.float(`+${Math.round(this.pendingXp).toLocaleString()} xp`, false, state.player.pos); this.pendingXp = 0; }
+    for (const [item, n] of Object.entries(this.pendingItems)) this.float(`+${n} ${itemName(item, n)}`, false, state.player.pos);
+    this.pendingItems = {};
     if (this.pendingLevel) {
       this.float(`${SKILLS[this.pendingLevel.skill].name} level ${this.pendingLevel.level}!`, true, state.player.pos);
       this.pendingLevel = null;

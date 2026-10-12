@@ -6,6 +6,15 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.12', date: '12 Oct 2026', notes: [
+      'A long way down: the falls now pour out of the mist down a towering wall of rock, and you wash up below with nothing, not even your tools.',
+      'Wreckage came down with you. Tap the planks, the torn tarp, the smashed crate and your book to pick them up.',
+      'Stones and branches lie round the clearing. Pick them up by hand; they come back after a while.',
+      'The camp starts bare: no tent and no campfire until you build them. The goal at the top starts with salvaging the wreck.',
+      "Tap your backpack to see what's in it. With nowhere to store things yet, you can drop stones, branches, logs or ore to make room.",
+    ],
+  },
+  {
     version: '0.0.11', date: '12 Oct 2026', notes: [
       'A new beginning: you wash up below a waterfall and make camp at its foot.',
       'A goal at the top shows what to do next, starting with the campfire.',

@@ -3,7 +3,8 @@
 #   buildings: Bank, CityHall, Forge, Stall, StallBlue, Inn, House (cottage), HouseTall, HouseLong, Barn
 #   props: Hearth, Lantern, Well, NoticeBoard, Bench, Crates, Garden, Fence (one 2 m section along X)
 #   nature: TreeBirch, TreeOak, TreePine, Bush, StumpBirch, StumpOak (what a felled tree leaves)
-#   camp (where a new game starts): Tent, CampfireCold
+#   camp (where a new game starts): Tent, CampfireCold (built in later updates)
+#   things to pick up by hand: Plank, Tarp, CrateBroken, Book, Stone, Branch; wreck debris that stays: HullRib
 # Glowing parts are named so the game can light them at night: meshes using materials window_glass, lamp_glass,
 # forge_glow, flame, flame_core; the hearth's flames are nodes Flame and FlameCore.
 # Run: A:\Blender\blender-5.2.2-windows-x64\blender.exe -b --factory-startup -P assets-src/village_models.py
@@ -374,6 +375,80 @@ for i in range(4):
     a = i / 4 * math.tau + 0.3
     cyl("log", 0.055, 0.055, 0.7, (math.cos(a) * 0.08, math.sin(a) * 0.08, 0.1), "wood", r, seg=6,
         axis=Matrix.Rotation(a, 3, "Z") @ Matrix.Rotation(math.radians(82), 3, "Y"))
+
+
+# ---------- The wreck that washed up with him, and what lies round the camp: picked up by hand (src/data/pickups.ts) ----------
+r = root("Plank")                       # a weathered board, about 1 m, its far end snapped off
+box("board", (0.92, 0.17, 0.035), (-0.04, 0, 0.018), "wood", r, rot_y=math.radians(2))
+box("splinter", (0.16, 0.08, 0.03), (0.49, 0.04, 0.016), "wood", r, rot_z=math.radians(8), taper=0.6)
+box("splinter", (0.1, 0.05, 0.028), (0.47, -0.05, 0.015), "wood", r, rot_z=math.radians(-12), taper=0.5)
+for x in (-0.38, 0.3): box("nail", (0.02, 0.02, 0.01), (x, 0, 0.038), "iron", r)
+
+r = root("Tarp")                        # a torn canvas sheet, crumpled where the river dropped it
+random.seed(300)
+bm = bmesh.new()
+NX, NY, SX, SY = 7, 6, 1.15, 0.95
+grid = {}
+for i in range(NX + 1):
+    for j in range(NY + 1):
+        edge = i in (0, NX) or j in (0, NY)
+        x = (i / NX - 0.5) * SX + (random.random() - 0.5) * 0.08
+        y = (j / NY - 0.5) * SY + (random.random() - 0.5) * 0.08
+        z = 0.012 if edge else 0.02 + random.random() * 0.14 + 0.06 * math.sin(i * 1.3) * math.cos(j * 0.9)
+        grid[i, j] = bm.verts.new((x, y, max(0.012, z)))
+for i in range(NX):
+    for j in range(NY):
+        if (i, j) in ((NX - 1, NY - 1), (NX - 2, NY - 1), (NX - 1, NY - 2)): continue   # the torn corner
+        bm.faces.new((grid[i, j], grid[i + 1, j], grid[i + 1, j + 1], grid[i, j + 1]))
+bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+obj("canvas", bm, "canvas_dark", r)
+for x, y, a in ((-0.35, 0.2, 0.4), (0.15, -0.18, -0.7)):
+    box("fold", (0.42, 0.06, 0.05), (x, y, 0.07), "canvas", r, rot_z=a)
+box("rope", (0.5, 0.025, 0.025), (-0.5, -0.38, 0.015), "sack", r, rot_z=0.5)
+
+r = root("CrateBroken")                 # a crate smashed open on the rocks: its floor, two walls left, loose slats
+box("floor", (0.6, 0.6, 0.04), (0, 0, 0.02), "wood_dark", r)
+for x, h, a in ((-0.2, 0.42, 0), (0.0, 0.27, 4), (0.2, 0.35, -6)):      # the back wall, its slats snapped off
+    box("wall", (0.19, 0.04, h), (x, 0.28, 0.04 + h / 2), "wood", r, rot_y=math.radians(a))
+box("wall", (0.04, 0.6, 0.26), (-0.28, 0, 0.17), "wood", r)
+box("wall_broken", (0.04, 0.3, 0.34), (-0.28, 0.15, 0.21), "wood", r)
+box("corner", (0.06, 0.06, 0.44), (-0.28, 0.28, 0.24), "wood_dark", r)
+box("slat", (0.62, 0.12, 0.03), (0.12, -0.38, 0.12), "wood", r, rot_x=math.radians(-28), rot_z=math.radians(14))
+box("slat", (0.5, 0.12, 0.03), (0.45, 0.05, 0.016), "wood", r, rot_z=math.radians(70))
+box("slat_snapped", (0.3, 0.12, 0.03), (0.15, 0.05, 0.06), "wood_dark", r, rot_z=math.radians(-20), rot_y=math.radians(10))
+
+r = root("Book")                        # his book: a leather cover, pale page edges, lying a little open
+BW, BD = 0.3, 0.23
+box("cover_back", (BW, BD, 0.014), (0, 0, 0.007), "roof", r)
+box("pages", (BW - 0.016, BD - 0.014, 0.034), (0.004, 0, 0.031), "paper", r)
+box("spine", (0.02, BD, 0.06), (-BW / 2, 0, 0.03), "roof", r)
+cover = box("cover_front", (BW, BD, 0.014), (BW / 2, 0, 0.0), "roof", r)   # its own origin on the spine, the hinge
+cover.rotation_euler = (0, math.radians(-9), 0); cover.location = (-BW / 2, 0, 0.055)
+box("strap", (0.03, BD + 0.004, 0.05), (0.06, 0, 0.034), "door", r)
+box("bookmark", (0.018, 0.09, 0.004), (0.02, -BD / 2 - 0.03, 0.035), "red_cloth", r)
+
+r = root("Stone")                       # a fist-sized stone
+blob("stone", 0.085, (0, 0, 0.055), "stone", r, seed=310, squash=(1.25, 1.0, 0.72), subdiv=1, jitter=0.22)
+blob("chip", 0.035, (0.1, 0.05, 0.02), "stone_hi", r, seed=311, squash=(1.2, 1, 0.6), subdiv=0)
+
+r = root("Branch")                      # a fallen branch with a twig and a few leaves left on it
+cyl("stick", 0.032, 0.018, 0.95, (0, 0, 0.034), "bark", r, seg=6, axis=Matrix.Rotation(math.pi / 2, 3, "Y"))
+cyl("twig", 0.014, 0.008, 0.36, (0.1, -0.12, 0.03), "bark", r, seg=5,
+    axis=Matrix.Rotation(math.radians(-50), 3, "Z") @ Matrix.Rotation(math.pi / 2, 3, "Y"))
+cyl("twig", 0.012, 0.007, 0.24, (-0.28, 0.08, 0.03), "bark", r, seg=5,
+    axis=Matrix.Rotation(math.radians(35), 3, "Z") @ Matrix.Rotation(math.pi / 2, 3, "Y"))
+for i, (x, y) in enumerate(((0.21, -0.26), (0.16, -0.3), (-0.37, 0.15))):
+    blob("leaf", 0.045, (x, y, 0.03), "birch_leaf", r, seed=320 + i, squash=(1.3, 0.8, 0.35), subdiv=0)
+
+# ---------- Wreck debris that stays where it lies (not picked up) ----------
+r = root("HullRib")                     # a broken rib of the boat with a strake still nailed on, sunk half in the water
+for i in range(6):
+    a0, a1 = math.radians(-10 + i * 20), math.radians(10 + i * 20)
+    am = (a0 + a1) / 2; R = 1.1
+    box("rib", (0.11, 0.1, 0.42), (math.cos(am) * R - R, 0, math.sin(am) * R), "wood_dark", r, rot_y=-am)
+box("strake", (1.25, 0.04, 0.15), (-0.15, 0.06, 0.25), "wood", r, rot_y=math.radians(-12))
+box("strake", (0.8, 0.04, 0.14), (-0.5, -0.06, 0.62), "wood", r, rot_y=math.radians(-35), rot_z=math.radians(4))
+box("splinter", (0.12, 0.08, 0.2), (-1.15, 0, 1.12), "wood_dark", r, rot_y=math.radians(-80), taper=0.4)
 
 # ---------- export ----------
 path = os.path.join(OUT, "village.glb")

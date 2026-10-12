@@ -1,5 +1,6 @@
 // The ground and the river, drawn from the layout: grass, dirt roads and lanes, the paved town square, worn patches
-// by doors, rocks and trees, a sandy riverbank, grass tufts, and the river itself (a faceted water strip that gently moves).
+// by doors, rocks and trees, a sandy riverbank, grass tufts (kept off anything lying on the ground to pick up), and the
+// river itself (a faceted water strip that gently moves).
 import * as THREE from 'three';
 import type { Layout, NodeSpot, Vec2 } from '../world/layout';
 import { doorOf } from '../world/layout';
@@ -53,7 +54,7 @@ export function buildWorld(scene: THREE.Scene, layout: Layout): WorldView {
   }
   // the town square: a worn dirt circle laid with irregular pale paving stones
   if (layout.square > 0) dirt(layout.hearth.pos.x, layout.hearth.pos.z, layout.square + 0.6, layout.square + 0.6, 9000);
-  else dirt(layout.hearth.pos.x, layout.hearth.pos.z, 2.6, 2.6, 2200);          // trodden earth round a campfire
+  else if (layout.hearthModel !== null) dirt(layout.hearth.pos.x, layout.hearth.pos.z, 2.6, 2.6, 2200);   // trodden earth round a campfire
   for (let i = 0; i < (layout.square > 0 ? 1400 : 0); i++) {
     const a = r() * Math.PI * 2, d = Math.sqrt(r()) * (layout.square - 0.3);
     const x = layout.hearth.pos.x + Math.cos(a) * d, z = layout.hearth.pos.z + Math.sin(a) * d, sz = (0.28 + r() * 0.3) * px;
@@ -82,7 +83,9 @@ export function buildWorld(scene: THREE.Scene, layout: Layout): WorldView {
   while (k < n && tries++ < 80000) {
     const v = layout.village, p = { x: v.minX - 7 + r() * (v.maxX - v.minX + 16), z: v.minZ - 2 + r() * (v.maxZ - v.minZ + 4) };
     if (layout.falls && Math.hypot(p.x - layout.falls.pool.pos.x, p.z - layout.falls.pool.pos.z) < layout.falls.pool.radius + 0.6) continue;
-    if (Math.hypot(p.x - layout.hearth.pos.x, p.z - layout.hearth.pos.z) < layout.square + 0.8) continue;
+    if (layout.hearthModel !== null && Math.hypot(p.x - layout.hearth.pos.x, p.z - layout.hearth.pos.z) < layout.square + 0.8) continue;
+    // nothing to pick up hides in the grass
+    if (layout.pickups?.some(pk => Math.hypot(p.x - pk.pos.x, p.z - pk.pos.z) < 0.7)) continue;
     if (distToPolyline(p, layout.river.points) < layout.river.width / 2 + 1.4) continue;
     if (layout.paths.some(l => distToPolyline(p, l.points) < l.width * 0.5 + 0.3)) continue;
     if (layout.gardens.some(gd => Math.hypot(p.x - gd.pos.x, p.z - gd.pos.z) < Math.hypot(gd.w, gd.d) / 2 + 0.4)) continue;
