@@ -20,6 +20,7 @@ import { BackpackList } from './ui/backpack';
 import { Book } from './ui/book';
 import { AwayNote } from './ui/away';
 import { CombatHud } from './ui/combat';
+import { showArmour } from './ui/armour';
 import { AWAY } from './data/away';
 
 // An artifact viewer can swap in a new version of the page while it is open and hand the game's snapshot
@@ -115,6 +116,7 @@ function start(data: HotData): void {
       view.draw(state, dt);
       hud.update(state, dt);
       combat.update(dt);
+      showArmour(state);                                            // the armour line in the panel (chunk D)
       pack.update(state);
       book.update();
       awayNote.update();

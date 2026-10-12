@@ -34,7 +34,7 @@ import { BushesView } from './bushes';
 import { FishingView, rodModel } from './fishing';
 import { CookingView } from './cooking';
 import { ArmIK, armedWeight, toolInHand, toolInTransit } from './arms';
-import { WEAPON_MODELS } from './gear';
+import { WEAPON_MODELS, armourWorn, wearGear } from './gear';
 
 /** While he builds something: a placeholder motion, bowing down to it and back up, `rate` bows a second. */
 const BUILD_BOW = { lean: 0.42, dip: 0.08, rate: 1.3 };
@@ -120,6 +120,7 @@ export class View {
   private handle?: THREE.Object3D;       // the handle both tools share
   private toolHidden = false;
   private toolsSet = false;
+  private armour = '';                   // the armour drawn on him (chunk D), its ids joined: wearGear only on a change
   private mixer?: THREE.AnimationMixer;
   private arms?: ArmIK;
   private actions: Record<string, THREE.AnimationAction> = {};
@@ -271,6 +272,9 @@ export class View {
         : swing?.tool === 'rod' && task.kind === 'gather' && owns('rod') ? 'rod'
         : swing && carries(swing.tool) ? swing.tool : carries(this.tool) ? this.tool : TOOL_IDS.find(carries) ?? null;
       if (tool !== this.tool) this.showTool(tool);
+      // the armour he wears (chunk D: the hide cap, vest and shield), on him all the time once made (render/gear.ts)
+      const armour = armourWorn(state.equipment);
+      if (armour.join() !== this.armour) { wearGear(this.miner, armour); this.armour = armour.join(); }
       const waiting = task.kind === 'gather' && !!state.nodes[task.nodeId]?.depletedUntil;
       // in his hands only at work with the right tool; otherwise on his back (or he has none)
       const armed = tool !== null && toolInHand(p) && (!swing || swing.tool === tool);

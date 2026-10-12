@@ -90,6 +90,20 @@ export const GOALS: Goal[] = [
     page: 'Cook your fish slowly over the fire. A few may burn at first, but you will soon get the knack of it.',
     hint: 'Tap the campfire to cook your fish. If some burn, catch a few more.',
     ready: 'You have a cooked meal.', needs: { cooked_fish: 5 } },
+  // chapter 2, hide armour (chunk D), one block that goes after the rats: a cap, a vest and a shield of rat hides, each a
+  // making goal (made where he stands and worn at once), each making him harder to hit
+  { id: 'hide_cap', title: 'A hide cap',
+    page: 'Rat hide is tough stuff, and two hides stitched together make a snug cap. Armour makes you harder to hit.',
+    hint: 'Fight rats in the woods for their hides.',
+    ready: 'You have it all. Tap Make.', needs: MAKES.hide_cap.needs, makes: 'hide_cap' },
+  { id: 'hide_vest', title: 'A hide vest',
+    page: 'Four hides make a vest to cover your chest. The more armour you wear, the harder you are to hit.',
+    hint: 'Fight rats in the woods for more hides.',
+    ready: 'You have it all. Tap Make.', needs: MAKES.hide_vest.needs, makes: 'hide_vest' },
+  { id: 'hide_shield', title: 'A hide shield',
+    page: 'Stretch hides over a frame of branches and strap it to your arm. With a cap, a vest and a shield, fewer bites will get through.',
+    hint: 'Fight rats in the woods for more hides, and gather branches from the ground.',
+    ready: 'You have it all. Tap Make.', needs: MAKES.hide_shield.needs, makes: 'hide_shield' },
 ];
 
 /** What the goal card says once every goal is finished (allGoalsDone in core/state), and the last page of his book

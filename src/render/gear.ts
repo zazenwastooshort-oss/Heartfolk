@@ -1,17 +1,18 @@
 // What he wears, drawn in code (chapter 2, 0.0.22). His one weapon so far, the stone club: a heavy branch with a round
 // stone lashed on, carried on the tool's bone so it swings with the handle like the axe (render/view.ts shows it while
 // he practises on the training dummy); each weapon has its own model, by its id in GEAR (data/combat.ts). And the hide
-// armour for chunk D, not worn in play yet: wearGear(character, worn) shows the pieces in `worn` on the right bones and
-// hides the others: a hide cap on his head, a hide vest over his chest (on the hips bone, which carries the torso in
-// miner.glb), a round hide shield on his left forearm. Brown leather with cream stitch lines, low-poly and flat-shaded.
+// armour (chunk D; render/view.ts puts on him what he wears, armourWorn): wearGear(character, worn) shows the pieces in
+// `worn` on the right bones and hides the others: a hide cap on his head, a hide vest over his chest (on the hips
+// bone, which carries the torso in miner.glb), a round hide shield on his left forearm. Brown leather with cream
+// stitch lines, low-poly and flat-shaded.
 // Each piece is built the first time it is worn, merged into one mesh per colour (parts.ts: the full armour is 10
 // meshes, its materials shared by every piece and everyone wearing one), and then only shown or hidden. `character` is
 // miner.glb's Miner node (or a copy of it, such as a goblin's: creatures.ts); ids it doesn't know are ignored, so a list
 // of everything he wears can be passed as it is. Pieces are drawn in the frame of the mesh they sit on (the hair, the
 // torso, the forearm), whose sizes in miner.glb they are fitted to. Placeholders, quick to change. Reads nothing from
-// the game.
+// the game but what it is given.
 import * as THREE from 'three';
-import type { GearId } from '../data/combat';
+import { SLOTS, type GearId, type Slot } from '../data/combat';
 import { flat, mergeByMaterial } from './parts';
 
 /** The stone club, his first weapon: a heavier branch than the tools' handle, widening to the end, with a round stone
@@ -146,6 +147,11 @@ export const ARMOUR_MODELS: Record<ArmourId, { bone: string; frame?: string; bui
   hide_vest: { bone: 'hips', build: hideVest },
   hide_shield: { bone: 'fore_l', frame: 'forearm_l', build: hideShield },
 };
+
+/** What wearGear puts on him from what he wears (GameState.equipment, given by the view): every piece but his weapon,
+ *  which the view draws as a tool, in his hands or on his back. */
+export const armourWorn = (equipment: Readonly<Record<Slot, GearId | null>>): GearId[] =>
+  SLOTS.flatMap(s => { const id = equipment[s]; return s !== 'weapon' && id ? [id] : []; });
 
 /** Show the pieces in `worn` on `character` (miner.glb's Miner, or a copy) and hide the rest. Cheap to call every
  *  frame: a piece is built, merged and put on its bone the first time it is worn, after that only shown or hidden. */
