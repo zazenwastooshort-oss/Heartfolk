@@ -344,10 +344,11 @@ describe('loading a damaged backpack or bank', () => {
   });
 
   it('keeps XP that is a number of 0 or more, and starts anything else from 0', () => {
-    const back = edited(raw => { raw.skills = { mining: '500', woodcutting: 1980, fishing: 300 }; });
-    expect(back.skills).toEqual({ mining: 0, woodcutting: 1980 });
-    expect(edited(raw => { raw.skills = { mining: -3, woodcutting: null }; }).skills).toEqual({ mining: 0, woodcutting: 0 });
-    expect(edited(raw => { raw.skills = null; }).skills).toEqual({ mining: 0, woodcutting: 0 });
+    const none = createState(VILLAGE).skills;
+    const back = edited(raw => { raw.skills = { mining: '500', woodcutting: 1980, fishing: 300, sailing: 40 }; });
+    expect(back.skills).toEqual({ ...none, woodcutting: 1980, fishing: 300 });
+    expect(edited(raw => { raw.skills = { mining: -3, woodcutting: null, attack: Infinity }; }).skills).toEqual(none);
+    expect(edited(raw => { raw.skills = null; }).skills).toEqual(none);
   });
 
   it('after loading a broken backpack he works, fills it and banks real counts', () => {

@@ -1,15 +1,16 @@
 // Everything that makes up a saved game. Systems change it; the renderer only reads it.
 import type { SkillId, ToolId } from '../data/skills';
-import { RESOURCES, TOOL_IDS } from '../data/skills';
+import { RESOURCES, SKILLS, TOOL_IDS } from '../data/skills';
+import { HEALTH } from '../data/combat';
+import { levelFor } from '../data/xp';
 import type { Layout, Vec2 } from '../world/layout';
 import { BOOK, GOALS, type Goal } from '../data/goals';
 import { PICKUPS } from '../data/pickups';
 import { makeDef, type MakeId } from '../data/making';
 import { DAY_SECONDS } from './clock';
 
-/** The save format. 9 since 0.0.21: the firewood pile's logs, stoking from the pile, and stoking again after the player
- *  stopped it. */
-export const SAVE_VERSION = 9;
+/** The save format. 10 since 0.0.22: his health, and the combat and food skills. */
+export const SAVE_VERSION = 10;
 
 /** gather: working a rock or a tree; progress runs 0..1 through one swing of that skill's tool. `mayMoveOn` is set
  *  when the node runs out while he works it, so he can move on to another; a node that was already down when he got
@@ -93,7 +94,12 @@ export interface GameState {
   /** the player stopped him on his way to stoke the fire tonight (0.0.21): he sets off again once he has nothing to
    *  do, the same night */
   stokeAgain: boolean;
+  /** his health (chapter 2, 0.0.22): up to maxHealth, which grows with Vitality; food heals it (systems/food.ts) */
+  health: number;
 }
+
+/** His health at most (0.0.22): HEALTH in data/combat.ts, by his Vitality level. */
+export const maxHealth = (state: GameState) => HEALTH.base + (levelFor(state.skills.vitality) - 1) * HEALTH.perLevel;
 
 /** How many of something he has, for the goals (data/goals): an item carried or stored (the bank, or the camp's
  *  chest), or his book (BOOK), 1 once he has found it. */
@@ -155,7 +161,7 @@ export function createState(layout: Layout, seed = 1): GameState {
     time: DAY_SECONDS * 0.32,   // start mid-morning (about 7:40)
     seed,
     player: { pos: { ...layout.start }, heading: Math.PI / 2, path: [], task: { kind: 'idle' }, pending: null, backpack: {}, trip: null, stoke: null },
-    skills: { mining: 0, woodcutting: 0 },
+    skills: Object.fromEntries(Object.keys(SKILLS).map(id => [id, 0])) as Record<SkillId, number>,
     bank: {},
     nodes: Object.fromEntries(layout.nodes.map(n => [n.id, { id: n.id, depletedUntil: 0 }])),
     parcels: Object.fromEntries(layout.parcels.map(p => [p.id, { claimed: false }])),
@@ -168,5 +174,6 @@ export function createState(layout: Layout, seed = 1): GameState {
     fireLow: false,
     woodpile: 0,
     stokeAgain: false,
+    health: HEALTH.base,
   };
 }

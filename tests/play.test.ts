@@ -265,7 +265,7 @@ describe('saving', () => {
     const s = deserialize(JSON.stringify(v2), VILLAGE);
     expect(s.version).toBe(SAVE_VERSION);
     expect(s.player.task).toEqual({ kind: 'gather', nodeId: 'copper1', progress: 0.25 });
-    expect(s.skills).toEqual({ mining: 900, woodcutting: 0 });
+    expect(s.skills).toEqual({ ...fresh.skills, mining: 900 });
     expect(s.bank).toEqual({ copper_ore: 12 });
     expect(s.player.backpack).toEqual({});
     expect(s.nodes.birch1).toEqual({ id: 'birch1', depletedUntil: 0 });
@@ -276,7 +276,7 @@ describe('saving', () => {
     const { backpack: _b, trip: _t, ...player } = s0.state.player;
     const v3 = { ...s0.state, version: 3, player, bank: { birch_logs: 120, copper_ore: 40 } };
     const s = deserialize(JSON.stringify(v3), VILLAGE);
-    expect(SAVE_VERSION).toBe(9);
+    expect(SAVE_VERSION).toBe(10);
     expect(s.version).toBe(SAVE_VERSION);
     expect(s.bank).toEqual({ birch_logs: 120, copper_ore: 40 });
     expect(s.player.backpack).toEqual({});

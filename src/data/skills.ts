@@ -2,7 +2,11 @@
 // time: seconds per item at tool tier 1 (about 3x the prototype's since 0.0.21: the owner found gathering far too quick
 // for an idle game, 12 Oct 2026); xp: per item; value: gold at the merchant.
 
-export type SkillId = 'mining' | 'woodcutting';
+/** The skills worked at a node (a rock, a tree) with a tool swung at it: each has a swing (SWINGS in data/animation). */
+export type GatherSkill = 'mining' | 'woodcutting';
+/** Chapter 2, holding the camp (0.0.22): the combat skills, Attack, Strength and Defence as in OSRS, and Vitality,
+ *  which sets his health (not Hitpoints, so it differs a bit: the owner, 12 Oct 2026); Fishing and Cooking for food. */
+export type SkillId = GatherSkill | 'attack' | 'strength' | 'defence' | 'vitality' | 'fishing' | 'cooking';
 
 /** verb: what the hover text and notices call working a node of this skill */
 export interface SkillDef { id: SkillId; name: string; verb: string; color: string }
@@ -10,10 +14,16 @@ export interface SkillDef { id: SkillId; name: string; verb: string; color: stri
 export const SKILLS: Record<SkillId, SkillDef> = {
   mining: { id: 'mining', name: 'Mining', verb: 'Mine', color: '#d8a35a' },
   woodcutting: { id: 'woodcutting', name: 'Woodcutting', verb: 'Chop', color: '#8fd36e' },
+  attack: { id: 'attack', name: 'Attack', verb: 'Train', color: '#c9705f' },
+  strength: { id: 'strength', name: 'Strength', verb: 'Train', color: '#d9a441' },
+  defence: { id: 'defence', name: 'Defence', verb: 'Train', color: '#7397c4' },
+  vitality: { id: 'vitality', name: 'Vitality', verb: 'Train', color: '#d8798e' },
+  fishing: { id: 'fishing', name: 'Fishing', verb: 'Fish', color: '#62b4c4' },
+  cooking: { id: 'cooking', name: 'Cooking', verb: 'Cook', color: '#c98a52' },
 };
 
 export interface ResourceDef {
-  id: string; skill: SkillId; name: string; item: string;
+  id: string; skill: GatherSkill; name: string; item: string;
   level: number; time: number; xp: number; value: number;
   /** chance a node runs out after each item (a rock loses its ore, a tree falls); it grows back after `respawn` seconds */
   deplete: number; respawn: number;
@@ -47,6 +57,12 @@ export const ITEMS: Record<string, ItemDef> = {
   tarp: { id: 'tarp', name: 'Tarps', one: 'Tarp', value: 1 },
   stone: { id: 'stone', name: 'Stones', one: 'Stone', value: 0 },
   branch: { id: 'branch', name: 'Branches', one: 'Branch', value: 0 },
+  // food (chapter 2, 0.0.22): berries picked near the camp, fish caught in the pool and the river and cooked at the
+  // campfire, sometimes burnt; what heals and by how much is FOOD in data/food.ts
+  berries: { id: 'berries', name: 'Berries', one: 'Berry', value: 1 },
+  raw_fish: { id: 'raw_fish', name: 'Raw fish', value: 2 },
+  cooked_fish: { id: 'cooked_fish', name: 'Cooked fish', value: 4 },
+  burnt_fish: { id: 'burnt_fish', name: 'Burnt fish', value: 0 },
 };
 
 /** The tools a skill's swing needs (SWINGS in data/animation). He owns each or not (GameState.tools): a new camp game

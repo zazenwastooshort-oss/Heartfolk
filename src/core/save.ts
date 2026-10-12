@@ -1,5 +1,5 @@
 // Saving: versioned JSON with a migration for every format change, so an update never wipes a village.
-import { SAVE_VERSION, createState, made, type Back, type GameState, type Stoke } from './state';
+import { SAVE_VERSION, createState, made, maxHealth, type Back, type GameState, type Stoke } from './state';
 import { siteOf, type Layout } from '../world/layout';
 import { navFor } from '../world/nav';
 import { ITEMS, SKILLS, TOOL_IDS, type SkillId, type ToolId } from '../data/skills';
@@ -57,6 +57,9 @@ const migrations: Record<number, (s: any) => any> = {
       player: { ...s.player, stoke: stoke && typeof stoke === 'object' ? { ...stoke, from: 'chest' } : null },
     };
   },
+  // 0.0.22: chapter 2. The combat and food skills start from 0 XP (as a new game has them, filled in below), and his
+  // health is full.
+  9: (s) => ({ ...s, health: null }),
 };
 
 /** The game as saved text. `savedAt` (since 0.0.20): the real time the game had been played up to when it was saved,
@@ -194,6 +197,9 @@ export function readSave(raw: string, layout: Layout): Loaded {
     stokeAgain: data.stokeAgain === true,
     parcels: { ...fresh.parcels, ...Object.fromEntries(Object.entries(data.parcels ?? {}).filter(([id]) => id in fresh.parcels)) },
   };
+  // his health: a number above 0 up to his most; anything else (none saved, from before 0.0.22, or damaged) is full
+  const max = maxHealth(state);
+  state.health = typeof data.health === 'number' && Number.isFinite(data.health) && data.health > 0 ? Math.min(data.health, max) : max;
   // the firewood pile's logs: a whole number up to what it holds, and none unless it stands
   if (state.built.includes('woodpile') && Number.isSafeInteger(data.woodpile) && data.woodpile > 0) state.woodpile = Math.min(data.woodpile, WOODPILE.max);
   state.nodes = { ...fresh.nodes, ...Object.fromEntries(Object.entries(data.nodes ?? {}).filter(([id]) => id in fresh.nodes)) } as GameState['nodes'];

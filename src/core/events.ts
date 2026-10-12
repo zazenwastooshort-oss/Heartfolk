@@ -52,6 +52,10 @@ export type GameEvent =
   | { type: 'stoked'; logs: number }
   /** nightfall, and no logs in the pile, the chest or the backpack: the fire burns low until it is next stoked */
   | { type: 'fireLow' }
+  /** he ate one `item` from his backpack (chapter 2, 0.0.22): it healed `healed`, and his health is now `health` */
+  | { type: 'ate'; item: string; healed: number; health: number }
+  /** asked to eat `item`: it isn't food ('notFood'), he carries none ('none'), or his health is full ('full') */
+  | { type: 'cantEat'; item: string; reason: 'notFood' | 'none' | 'full' }
   | { type: 'arrived' };
 
 type Handler = (e: GameEvent) => void;

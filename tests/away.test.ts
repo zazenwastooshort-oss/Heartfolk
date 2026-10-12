@@ -123,7 +123,7 @@ describe('saves say when they were written (format 8)', () => {
     const s = working();
     const v7 = JSON.stringify({ ...JSON.parse(serialize(s.state)), version: 7 });
     const loaded = readSave(v7, CAMP);
-    expect(SAVE_VERSION).toBe(9);
+    expect(SAVE_VERSION).toBe(10);
     expect(loaded.state.version).toBe(SAVE_VERSION);
     expect(loaded.savedAt).toBeNull();
     expect(loaded.state).toEqual(s.state);

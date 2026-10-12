@@ -16,6 +16,7 @@ import { BACKPACK_SLOTS } from '../data/hauling';
 import { BOOK, CAMP_DONE, GOALS } from '../data/goals';
 import { GATHERS } from '../data/pickups';
 import { MAKES, makeDef } from '../data/making';
+import { SWINGS } from '../data/animation';
 import { clockLabel } from '../core/clock';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -190,6 +191,8 @@ export class Hud {
       r.bar.style.width = `${lvl >= 99 ? 100 : (xp - lo) / (hi - lo) * 100}%`;
       r.text.textContent = `${Math.floor(xp).toLocaleString()} / ${hi.toLocaleString()} xp`;
       r.row.classList.toggle('active', id === this.active);
+      // the gathering skills from the start; the others (chapter 2: combat, fishing, cooking) once they have XP
+      r.row.hidden = xp <= 0 && !(id in SWINGS);
     }
     const carried = Object.values(state.player.backpack).reduce((a, n) => a + n, 0);
     $('packCount').textContent = `${carried} / ${BACKPACK_SLOTS}`;

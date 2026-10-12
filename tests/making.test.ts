@@ -351,7 +351,7 @@ describe('saving the campfire and the goals', () => {
   });
 
   it('a version 5 save that already salvaged the wreck counts it done, and building the fire keeps it done', () => {
-    expect(SAVE_VERSION).toBe(9);
+    expect(SAVE_VERSION).toBe(10);
     const s = readyForFire();
     const { built: _b, goalsDone: _g, ...rest } = JSON.parse(serialize(s.state));
     const v5 = { ...rest, version: 5 };

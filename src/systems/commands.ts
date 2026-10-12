@@ -11,6 +11,7 @@ import { levelOf } from './skills';
 import { gatherOf, onGround, roomFor } from './pickups';
 import { drop, isStore, stopStoking, stores } from './backpack';
 import { canMake, missingFor } from './making';
+import { eat } from './food';
 
 export type Command =
   | { type: 'walk'; to: Vec2 }
@@ -25,7 +26,9 @@ export type Command =
   | { type: 'drop'; item: string; count: number }
   /** make something (data/making.ts): the goal card's Build button, or a tap on its site. At the camp, a goal before
    *  the one that makes it still to finish, or without everything it needs, he says so and stays put. */
-  | { type: 'make'; id: MakeId };
+  | { type: 'make'; id: MakeId }
+  /** eat one of an item from the backpack (chapter 2, 0.0.22): food heals him; nothing else stops */
+  | { type: 'eat'; item: string };
 
 export const isClaimed = (state: GameState, parcelId: string | undefined) => !parcelId || !!state.parcels[parcelId]?.claimed;
 
@@ -34,6 +37,7 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     // dropping something doesn't send him anywhere: whatever he is doing carries on, a trip to the bank (the chest)
     // or stoking the fire included
     if (c.type === 'drop') { drop(state, c.item, c.count, events); continue; }
+    if (c.type === 'eat') { eat(state, c.item, events); continue; }
     let ok = true;
     if (c.type === 'walk') ok = walkTo(state, layout, c.to);
     else if (c.type === 'visit') ok = goVisit(state, layout, c.id, c.at);

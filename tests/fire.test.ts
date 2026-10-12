@@ -430,7 +430,7 @@ describe('saving the chest and the fire', () => {
     const { stokedNight: _n, fireLow: _l, ...rest } = JSON.parse(serialize(s.state));
     const { stoke: _s, ...player } = rest.player;
     const back = deserialize(JSON.stringify({ ...rest, player, version: 6 }), CAMP);
-    expect(SAVE_VERSION).toBe(9);
+    expect(SAVE_VERSION).toBe(10);
     expect(back.version).toBe(SAVE_VERSION);
     expect(back.stokedNight).toBe(-1);
     expect(back.fireLow).toBe(false);
