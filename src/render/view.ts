@@ -89,7 +89,7 @@ type Tool = Swing['tool'] | GearId;
 
 /** In builds the model is embedded in the page as a data: URL; decode it here rather than fetching it, because
  *  some hosts (artifact links) block fetch() of anything but their own files. The dev server serves a real file. */
-function loadModel(url: string) {
+export function loadModel(url: string) {
   const loader = new GLTFLoader();
   if (!url.startsWith('data:')) return loader.loadAsync(url);
   const comma = url.indexOf(','), head = url.slice(0, comma), body = url.slice(comma + 1);

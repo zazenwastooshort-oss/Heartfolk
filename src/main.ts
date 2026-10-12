@@ -11,6 +11,7 @@ import { awayOnOpening, catchUp, step } from './sim';
 import { applyCommands, type Command } from './systems/commands';
 import { FrameClock, openFor, tellAway, type Away, type AwaySummary, type Told } from './systems/away';
 import { View } from './render/view';
+import { showModels } from './render/showcase';
 import { Hud } from './ui/hud';
 import { bindInput } from './ui/input';
 import { News } from './ui/news';
@@ -64,6 +65,7 @@ function start(data: HotData): void {
   events.on(e => { if (e.type === 'strike') view.strike(e.nodeId); });     // chips fly where the tool lands
   events.on(e => { if (e.type === 'hit') view.hit(e.target, e.damage); }); // the training dummy wobbles when struck
   bindInput(view, layout, queue, label => hud.hover(label));
+  showModels(view, layout);                                         // dev only: ?models in the address shows chapter 2's models
   const pack = new BackpackList(queue);                             // what's in the backpack, to drop things
   const book = new Book(state, events, layout);                     // his book: a page per goal, opened from the goal card
   new News(!newGame);                                               // a returning player sees what changed since
