@@ -38,7 +38,7 @@ export class BackpackList {
     }
     if (!canDrop(item)) {
       const keep = document.createElement('small'); keep.textContent = "can't drop";
-      keep.title = 'Nothing else like it washed up, so he keeps it.';
+      keep.title = 'There is no other like it, so he keeps it.';
       row.append(keep);
       return row;
     }

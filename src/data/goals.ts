@@ -9,7 +9,8 @@
 // all of them finished the camp is set up: the card and the last page of his book say so (CAMP_DONE). Since 0.0.17
 // each goal is a page in his book (core/book.ts, ui/book.ts), with a few words of its own (`page`). Chapter 2, holding
 // the camp (0.0.22), goes on after the chest: a training dummy, a stone club (his first weapon), then practice on the
-// dummy, a goal that asks for levels (`levels`) rather than things; after food, the rats in the woods (their hides).
+// dummy, a goal that asks for levels (`levels`) rather than things; after food, the rats in the woods (their hides),
+// the hide armour, and last the goblin camp blocking the way down the river (the chief's torn map): the end of chapter 2.
 import { MAKES } from './making';
 import type { SkillId } from './skills';
 
@@ -109,8 +110,15 @@ export const GOALS: Goal[] = [
     page: 'Stretch hides over a frame of branches and strap it to your arm. With a cap, a vest and a shield, fewer bites will get through.',
     hint: 'Fight rats in the woods for more hides, and gather branches from the ground.',
     ready: 'You have it all. Tap Make.', needs: MAKES.hide_shield.needs, makes: 'hide_shield' },
+  // then the goblin camp where the river leaves the valley (its last part): beating the three goblins before any gets
+  // back up brings out their chief (a race: hitting hard and often wins it, so the page says what to train), and beaten,
+  // he leaves a torn map; the end of chapter 2
+  { id: 'goblins', title: 'The goblin camp',
+    page: 'Goblins have camped where the river leaves the valley, their chief in his tent. Bring food, wear armour, and train Attack and Strength.',
+    hint: 'Tap a goblin in the camp past the rats. Beat all three before they get back up, and their chief comes out.',
+    ready: 'You have the torn map.', needs: { old_map: 1 } },
 ];
 
 /** What the goal card says once every goal is finished (allGoalsDone in core/state), and the last page of his book
- *  under its words. */
-export const CAMP_DONE = { title: 'Your camp', text: 'Your camp is set up. More comes in later updates.' };
+ *  under its words: since the goblin camp, the end of chapter 2. */
+export const CAMP_DONE = { title: 'The way is open', text: 'The goblins are gone, and the way along the river is open. The old village waits beyond, in a later update.' };

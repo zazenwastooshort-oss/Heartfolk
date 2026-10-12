@@ -85,8 +85,14 @@ export interface AwaySummary {
   cooked?: number; burnt?: number;
   /** (chapter 2's rats) rats he beat, and the hides they left; left out until he beats one */
   beaten?: number; hides?: number;
-  /** times a rat knocked him out (he woke up back at camp); left out until one does */
+  /** times a rat knocked him out (he woke up back at camp); left out until one does. Since the goblin camp, anything
+   *  that knocked him out, and `knockedOutBy` what did each time: rats, goblins, the chief, or a mix of them */
   knockedOut?: number;
+  knockedOutBy?: 'rat' | 'goblin' | 'chief' | 'mixed';
+  /** (the goblin camp) goblins he beat, the chief left out; left out until he beats one */
+  goblins?: number;
+  /** he beat the goblin chief: the camp is cleared for good, and the chief left a torn map; only there when he did */
+  cleared?: true;
 }
 
 export const emptySummary = (): AwaySummary => ({ items: {}, xp: {}, levels: {}, stoked: 0, fireLow: 0, made: [], full: false });
@@ -104,11 +110,18 @@ export function tally(s: AwaySummary, e: GameEvent): void {
     case 'noStorage': s.full = true; break;
     case 'cantFight': if (e.reason === 'taught') s.taught = { target: e.target, skill: e.skill }; break;
     case 'cooked': s.cooked = (s.cooked ?? 0) + 1; if (e.burnt) s.burnt = (s.burnt ?? 0) + 1; break;
-    case 'beaten': s.beaten = (s.beaten ?? 0) + 1; if (e.item) s.hides = (s.hides ?? 0) + 1; break;
-    case 'knockedOut': s.knockedOut = (s.knockedOut ?? 0) + 1; break;
+    case 'beaten':
+      if (e.foe === 'goblin') s.goblins = (s.goblins ?? 0) + 1;
+      else if (!e.foe) { s.beaten = (s.beaten ?? 0) + 1; if (e.item) s.hides = (s.hides ?? 0) + 1; }
+      break;
+    case 'campCleared': s.cleared = true; break;
+    case 'knockedOut': s.knockedOut = (s.knockedOut ?? 0) + 1; s.knockedOutBy = byWhom(s.knockedOutBy, e.foe ?? 'rat'); break;
     default: break;
   }
 }
+
+/** What knocked him out each time: the same kind of creature every time, or a mix. */
+const byWhom = (was: AwaySummary['knockedOutBy'], now: NonNullable<AwaySummary['knockedOutBy']>) => was === undefined || was === now ? now : 'mixed';
 
 /** Add what he did in `more` to `into`: a later catch-up told in the same note (the game opened in a background tab and
  *  looked at later, say). */
@@ -126,13 +139,16 @@ export function addSummary(into: AwaySummary, more: AwaySummary): void {
   if (more.beaten) into.beaten = (into.beaten ?? 0) + more.beaten;
   if (more.hides) into.hides = (into.hides ?? 0) + more.hides;
   if (more.knockedOut) into.knockedOut = (into.knockedOut ?? 0) + more.knockedOut;
+  if (more.knockedOutBy) into.knockedOutBy = byWhom(into.knockedOutBy, more.knockedOutBy);
+  if (more.goblins) into.goblins = (into.goblins ?? 0) + more.goblins;
+  if (more.cleared) into.cleared = true;
 }
 
 /** Whether he did anything worth telling: gathered something, gained XP, saw to the fire, finished making something,
- *  cooked something, or (chapter 2) beat a rat or was knocked out by one. */
+ *  cooked something, or (chapter 2) beat a rat or a goblin, cleared the goblin camp, or was knocked out. */
 export const didSomething = (s: AwaySummary) =>
   Object.keys(s.items).length > 0 || Object.keys(s.xp).length > 0 || s.stoked > 0 || s.fireLow > 0 || s.made.length > 0 || !!s.cooked
-  || !!s.beaten || !!s.knockedOut;
+  || !!s.beaten || !!s.knockedOut || !!s.goblins || !!s.cleared;
 
 /** Whether the "While you were away" note shows: at least a minute of play (AWAY.note) was caught up, and he did
  *  something in it. */

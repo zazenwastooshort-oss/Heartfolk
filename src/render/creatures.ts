@@ -11,7 +11,8 @@
 // Given an attack clock (attackT: the seconds since this bite or swing began, the way the view holds the character's
 // swings to the simulation's task.progress), an attack plays one bite or swing and then holds still, ready, until
 // attackT starts again from 0; without one it loops on its own. The rat's bite is timed by data/rats.ts (RAT_BITE),
-// where the simulation lands it (systems/rats.ts); the goblin's GOBLIN.attackImpact is the render's own number for now.
+// where the simulation lands it (systems/rats.ts); the goblin's GOBLIN.attackImpact by data/goblins.ts (GOBLIN_SWING),
+// where the simulation lands its blow (systems/goblins.ts).
 // Both face +x at rotation 0, like the character, so `group.rotation.y = heading` (actors/player.ts headingOf) turns
 // one to face where it goes. The group's own transform is the caller's; the animation only moves what is inside it.
 // They read nothing from the game state.
@@ -21,6 +22,7 @@ import { toolInTransit } from './arms';
 import { mergeByMaterial } from './parts';
 import { ARMED_CLIPS, FADE, GAIT, SWINGS } from '../data/animation';
 import { RAT_BITE } from '../data/rats';
+import { GOBLIN_SWING } from '../data/goblins';
 
 const flat = (color: string, roughness = 0.9) => new THREE.MeshStandardMaterial({ color, roughness, flatShading: true });
 function part(geo: THREE.BufferGeometry, mat: THREE.Material, parent: THREE.Object3D, x = 0, y = 0, z = 0): THREE.Mesh {
@@ -173,7 +175,7 @@ export const GOBLIN = {
   ear: { length: 0.2, width: 0.06 },
   club: { wood: '#8a5f3a', knot: '#6a4628', from: -0.36, to: -1.16, thin: 0.03, thick: 0.078 },
   clips: { idle: 'IdleFree', walk: GAIT.freeClip, attack: SWINGS.woodcutting.clip, down: 'IdleFree' } as Record<GoblinPose, string>,
-  attackImpact: SWINGS.woodcutting.impact,
+  attackImpact: GOBLIN_SWING.lands,
   /** metres a second his walk covers at its own pace (the character's stride, at his size) */
   walkSpeed: GAIT.clipSpeed * GOBLIN_SCALE,
   fall: 0.45,

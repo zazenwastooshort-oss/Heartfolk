@@ -1,5 +1,5 @@
 // Saving: versioned JSON with a migration for every format change, so an update never wipes a village.
-import { SAVE_VERSION, createState, made, maxHealth, type Back, type Cook, type GameState, type Stoke } from './state';
+import { SAVE_VERSION, createState, made, maxHealth, owned, type Back, type Cook, type GameState, type Stoke } from './state';
 import { siteOf, type Layout } from '../world/layout';
 import { navFor } from '../world/nav';
 import { ITEMS, SKILLS, TOOL_IDS, type SkillId, type ToolId } from '../data/skills';
@@ -10,7 +10,9 @@ import { STOKE, WOODPILE } from '../data/fire';
 import { SLOTS, STYLES, gearDef, type CombatStyle, type GearId, type Slot } from '../data/combat';
 import { targetOf } from './targets';
 import { savedRats } from './rats';
+import { savedGoblins } from './goblins';
 import { KNOCKED_OUT } from '../data/rats';
+import { CHIEF } from '../data/goblins';
 
 export interface Storage { get(key: string): string | null; set(key: string, value: string): void }
 
@@ -225,6 +227,15 @@ export function readSave(raw: string, layout: Layout): Loaded {
   };
   // the rats round their nests (chapter 2): each keeps what it was doing that matters, or is a fresh one (core/rats.ts)
   state.rats = savedRats(data.rats, state, layout);
+  // the goblin camp (chapter 2): cleared for good only with the chief's torn map to show for it (carried, stored, or its
+  // goal done), so a damaged save never leaves that goal impossible; the chief out of his tent only while it isn't
+  // cleared; then each goblin keeps what it was doing that matters, or is a fresh one (core/goblins.ts). A save from
+  // before the goblin camp (0.0.22, 0.0.23) has the camp as new.
+  const camp = isRecord(data.goblinCamp) ? data.goblinCamp : {};
+  const cleared = !!layout.goblinCamp && camp.cleared === true
+    && (owned(state, CHIEF.drop) > 0 || GOALS.some(g => (g.needs[CHIEF.drop] ?? 0) > 0 && state.goalsDone.includes(g.id)));
+  state.goblinCamp = { chiefOut: !!layout.goblinCamp && !cleared && camp.chiefOut === true, cleared };
+  state.goblins = savedGoblins(data.goblins, state, layout);
   // his health: a number above 0 up to his most; anything else (none saved, from before 0.0.22, or damaged) is full
   const max = maxHealth(state);
   state.health = typeof data.health === 'number' && Number.isFinite(data.health) && data.health > 0 ? Math.min(data.health, max) : max;

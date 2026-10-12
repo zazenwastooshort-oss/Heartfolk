@@ -74,6 +74,8 @@ export const ITEMS: Record<string, ItemDef> = {
   burnt_fish: { id: 'burnt_fish', name: 'Burnt fish', value: 0 },
   // chapter 2, part 2: rats in the woods leave their hides, which hide armour is made from
   rat_hide: { id: 'rat_hide', name: 'Rat hides', one: 'Rat hide', value: 1 },
+  // the goblin camp: the goblin chief's torn map, of the way on down the river (it can't be dropped: canDrop)
+  old_map: { id: 'old_map', name: 'Torn maps', one: 'Torn map', value: 0 },
 };
 
 /** The tools a skill's swing needs (SWINGS in data/animation). He owns each or not (GameState.tools): a new camp game

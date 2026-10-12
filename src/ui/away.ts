@@ -1,8 +1,8 @@
 // "While you were away" (game 0.0.20): when he caught up at least a minute of play since you last looked (the game was
 // closed, or open in a background tab) and did something in it, a small note says how long you were away, how much of
-// it he worked, and what he did: what he gathered, the XP and any levels, the fire. "Got it" closes it. It waits while
-// "What's new", the welcome or his book is open, and steps aside if one opens over it. systems/away.ts counts; this
-// only words it and shows it. Changes nothing in the game.
+// it he worked, and what he did: what he gathered, the XP and any levels, the fire, the rats and goblins he beat and the
+// goblin camp cleared. "Got it" closes it. It waits while "What's new", the welcome or his book is open, and steps aside
+// if one opens over it. systems/away.ts counts; this only words it and shows it. Changes nothing in the game.
 import type { Away, AwaySummary } from '../systems/away';
 import { SKILLS, type SkillId } from '../data/skills';
 import { MAKES, makeDef } from '../data/making';
@@ -42,13 +42,24 @@ export function awayText(spans: Away[], s: AwaySummary): { lead: string; lines: 
   if (s.fireLow) lines.push(s.fireLow === 1 ? 'One night there were no logs, so the fire burned low.' : `On ${s.fireLow} nights there were no logs, so the fire burned low.`);
   if (s.cooked) lines.push(cookedText(s.cooked, s.burnt ?? 0));
   if (s.beaten) lines.push(beatenText(s.beaten, s.hides ?? 0));
+  // (the goblin camp) goblins beaten, and the camp cleared
+  if (s.goblins) lines.push(`He beat ${s.goblins === 1 ? 'a goblin' : `${s.goblins.toLocaleString()} goblins`}.`);
+  if (s.cleared) lines.push('He beat the goblin chief, and the goblins ran off for good. He found a torn map.');
   for (const id of s.made) lines.push(`He finished the ${MAKES[id].name.toLowerCase()}.`);
   if (s.full) lines.push('Then his backpack was full, with nowhere to store it.');
   // (0.0.22) he stopped at the training dummy's level limit
   if (s.taught) lines.push(`Then the ${makeDef(s.taught.target)?.name.toLowerCase() ?? 'training dummy'} couldn't teach him any more ${SKILLS[s.taught.skill].name}, so he stopped.`);
-  // (chapter 2) a rat knocked him out: he woke up back at camp, and stopped fighting
-  if (s.knockedOut) lines.push(s.knockedOut === 1 ? 'Then a rat knocked him out, and he woke up back at camp.' : `Rats knocked him out ${s.knockedOut} times, and each time he woke up back at camp.`);
+  // (chapter 2) a rat (or a goblin, the goblin chief) knocked him out: he woke up back at camp, and stopped fighting
+  if (s.knockedOut) lines.push(knockedOutText(s.knockedOut, s.knockedOutBy ?? 'rat'));
   return { lead, lines };
+}
+
+/** Being knocked out: "Then a goblin knocked him out, and he woke up back at camp.", "Rats knocked him out 2 times, and
+ *  each time he woke up back at camp."; by a mix of creatures, "He was knocked out 3 times, ...". */
+function knockedOutText(times: number, by: NonNullable<AwaySummary['knockedOutBy']>): string {
+  if (times === 1 && by !== 'mixed') return `Then ${{ rat: 'a rat', goblin: 'a goblin', chief: 'the goblin chief' }[by]} knocked him out, and he woke up back at camp.`;
+  const who = by === 'rat' ? 'Rats knocked him out' : by === 'goblin' ? 'Goblins knocked him out' : by === 'chief' ? 'The goblin chief knocked him out' : 'He was knocked out';
+  return `${who} ${times} times, and each time he woke up back at camp.`;
 }
 
 /** The rats he beat and the hides they left: "He beat 7 rats and found 3 rat hides." */

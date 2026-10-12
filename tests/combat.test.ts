@@ -146,7 +146,7 @@ describe('the dummy, the club and the goals (data)', () => {
     for (const n of Object.values(practice.levels!)) expect(n).toBeGreaterThanOrEqual(2);
     // the dummy can teach every level the goal asks, so it is never impossible
     for (const n of Object.values(practice.levels!)) expect(n!).toBeLessThan(DUMMY.maxLevel);
-    expect(CAMP_DONE.text).toMatch(/camp is set up/);
+    expect(CAMP_DONE.text).toMatch(/way along the river is open/);
   });
 
   it('the dummy is a structure at its own camp spot, of logs and branches, a few seconds; the club is gear made where he stands', () => {

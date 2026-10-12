@@ -11,7 +11,9 @@
 // (systems/hauling.ts). At 0 health he is knocked out: he slumps a moment and wakes at the camp by the shelter with half
 // his health back, keeping everything he carries and wears; the rat he fought heals back. It runs every step, so
 // catching up (away time) fights as playing does; the rats' pottering draws nothing from the shared randomness, so
-// everything else's luck is as it was.
+// everything else's luck is as it was. The goblin camp (systems/goblins.ts) fights the same way and shares what is
+// here: hitting back on a timer (attackHim), pottering about (potter), setting off with food, being knocked out and
+// waking at camp.
 import { maxHealth, type GameState, type RatState } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Rng } from '../core/rng';
@@ -99,14 +101,15 @@ export function wakeSpot(state: GameState, layout: Layout): { pos: Vec2; heading
   return { pos: { ...layout.start }, heading: Math.PI / 2 };
 }
 
-/** He slumps, knocked out by `by`: whatever he was doing stops, and the rat heals back. */
-function knockOut(state: GameState, by: string, events: EventBus): void {
+/** He slumps, knocked out by `by` (a rat; a goblin or the chief, `foe`: systems/goblins.ts sees to them): whatever he
+ *  was doing stops, and a rat heals back. */
+export function knockOut(state: GameState, by: string, events: EventBus, foe?: 'goblin' | 'chief'): void {
   const p = state.player, r = state.rats[by];
   state.health = 0;
   p.task = { kind: 'knockedOut', wakeAt: state.time + KNOCKED_OUT.slump, by };
   p.path = []; p.pending = null; p.trip = null; p.cook = null;
   if (r) { r.health = RAT.health; r.bite = null; }
-  events.emit({ type: 'knockedOut', by });
+  events.emit(foe ? { type: 'knockedOut', by, foe } : { type: 'knockedOut', by });
 }
 
 /** Knocked out, at `wakeAt` he wakes at the camp (wakeSpot) with half his health back. */
@@ -125,60 +128,91 @@ function eatBest(state: GameState, events: EventBus): void {
   if (food) eat(state, food, events);
 }
 
-/** A rat he fights bites on its timer (RatState.bite, from a moment after he starts: RAT.first); where a bite lands
- *  (BITE_LANDS into it) its roll against his defence says whether it hurts him, 0 to its max hit. Then, hurt below a
- *  share of his most, he eats; a bite that takes him to 0 knocks him out (one that does nothing never does). */
-function bite(state: GameState, spot: RatSpot, r: RatState, dt: number, rng: Rng, events: EventBus): void {
-  if (r.bite === null) r.bite = RAT.every - RAT.first;
-  const before = r.bite;
-  r.bite += dt;
-  if (r.bite >= RAT.every) r.bite -= RAT.every;               // the next bite begins
-  const lands = before < BITE_LANDS ? r.bite >= BITE_LANDS || r.bite < before : r.bite < before && r.bite >= BITE_LANDS;
-  if (!lands) return;
-  const attack = roll(RAT.attack + 9, RAT.attackBonus);
+/** How a creature that fights back attacks him: its attack level and bonus, the most an attack does, seconds from one
+ *  attack to the next (`every`), how long after he starts fighting it its first attack begins (`first`), and how far
+ *  into an attack it lands (`lands`): a rat's bite (RAT, BITE_LANDS), a goblin's swing (data/goblins.ts). */
+export interface Attacker { attack: number; attackBonus: number; maxHit: number; every: number; first: number; lands: number }
+
+/** A rat's bite. */
+const RAT_BITE: Attacker = { ...RAT, lands: BITE_LANDS };
+
+/** A creature `by` he fights attacks on its own timer (`timer`: the seconds since its attack under way began; null
+ *  before the first, which begins a moment after he starts: `first`); where an attack lands (`lands` into it) its roll
+ *  against his defence says whether it hurts him, 0 to its max hit. Then, hurt below a share of his most, he eats; an
+ *  attack that takes him to 0 knocks him out (one that does nothing never does; `foe`: a goblin or the chief, for what
+ *  is said). Returns the timer after `dt`, or null when he was knocked out. */
+export function attackHim(state: GameState, by: string, timer: number | null, a: Attacker, dt: number, rng: Rng, events: EventBus, foe?: 'goblin' | 'chief'): number | null {
+  let t = timer === null ? a.every - a.first : timer;
+  const before = t;
+  t += dt;
+  if (t >= a.every) t -= a.every;                             // the next attack begins
+  const lands = before < a.lands ? t >= a.lands || t < before : t < before && t >= a.lands;
+  if (!lands) return t;
+  const attack = roll(a.attack + 9, a.attackBonus);
   // his defence roll: his Defence level (the defensive style) and the armour he wears (systems/combat.ts)
   const defence = defenceRollOf(state);
-  const rolled = rng.next() < hitChance(attack, defence) ? Math.floor(rng.next() * (RAT.maxHit + 1)) : 0;
+  const rolled = rng.next() < hitChance(attack, defence) ? Math.floor(rng.next() * (a.maxHit + 1)) : 0;
   const damage = Math.min(rolled, Math.max(0, state.health));
   state.health -= damage;
-  events.emit({ type: 'bitten', by: spot.id, damage });
-  if (damage > 0 && state.health <= 0) { knockOut(state, spot.id, events); return; }
+  events.emit({ type: 'bitten', by, damage });
+  if (damage > 0 && state.health <= 0) { knockOut(state, by, events, foe); return null; }
   if (state.health < maxHealth(state) * FIGHT_FOOD.below) eatBest(state, events);
+  return t;
 }
 
-/** Somewhere new to scurry to, a short way from where the rat is: within its nest's roam, off the nest, on open ground in
- *  a straight line from it, and apart from the other rats (where they are and where they scurry to); or null when no
- *  such spot comes up just now. */
-function nextSpot(state: GameState, layout: Layout, spot: RatSpot, r: RatState): Vec2 | null {
-  const nest = spot.nest, nav = navFor(layout, state.built), others = ratsOf(layout).filter(o => o.id !== spot.id && o.nest === nest);
+/** A rat he fights bites on its timer (RatState.bite): attackHim. */
+function bite(state: GameState, spot: RatSpot, r: RatState, dt: number, rng: Rng, events: EventBus): void {
+  r.bite = attackHim(state, spot.id, r.bite, RAT_BITE, dt, rng, events);
+}
+
+/** Where a creature potters about: round `pos` (a rat's nest, the goblin camp's middle), never within `radius` + 0.4 of
+ *  it, and never further than `roam`. */
+export interface Ground { pos: Vec2; radius: number; roam: number }
+/** How it potters: moves of `hop` metres (shortest, longest) at `speed` metres a second, then it stays put for `rest`
+ *  seconds (shortest, longest), keeping `apart` metres from the others (POTTER for the rats, MILL for the goblins). */
+export interface Pace { hop: readonly [number, number]; speed: number; rest: readonly [number, number]; apart: number }
+/** A creature that potters about (a rat, a goblin): where it is, where it is going (or null while it stays put until
+ *  `restUntil`), and which way it faces. */
+export interface Potterer { pos: Vec2; to: Vec2 | null; restUntil: number; heading: number }
+
+/** Somewhere new to move to, a short way from where it is: within its ground's roam, off its middle, on open ground in
+ *  a straight line from it, and apart from the others (`others()`: where they are and where they move to); or null
+ *  when no such spot comes up just now. `index` sets its moves apart from the others'. */
+function nextSpot(state: GameState, layout: Layout, ground: Ground, index: number, r: Potterer, others: () => readonly Potterer[], pace: Pace): Vec2 | null {
+  const nav = navFor(layout, state.built);
   for (let k = 0; k < 6; k++) {
-    const a = noise(spot.index + 1, state.time + k * 0.37) * Math.PI * 2;
-    const len = POTTER.hop[0] + noise(state.time + 0.5, spot.index + k + 1) * (POTTER.hop[1] - POTTER.hop[0]);
+    const a = noise(index + 1, state.time + k * 0.37) * Math.PI * 2;
+    const len = pace.hop[0] + noise(state.time + 0.5, index + k + 1) * (pace.hop[1] - pace.hop[0]);
     let to = { x: r.pos.x + Math.cos(a) * len, z: r.pos.z + Math.sin(a) * len };
-    const out = dist(to, nest.pos);
-    if (out > nest.roam) to = { x: nest.pos.x + (to.x - nest.pos.x) / out * nest.roam, z: nest.pos.z + (to.z - nest.pos.z) / out * nest.roam };
-    if (dist(to, nest.pos) < nest.radius + 0.4 || dist(to, r.pos) < POTTER.hop[0] * 0.5) continue;
+    const out = dist(to, ground.pos);
+    if (out > ground.roam) to = { x: ground.pos.x + (to.x - ground.pos.x) / out * ground.roam, z: ground.pos.z + (to.z - ground.pos.z) / out * ground.roam };
+    if (dist(to, ground.pos) < ground.radius + 0.4 || dist(to, r.pos) < pace.hop[0] * 0.5) continue;
     if (!nav.walkable(to) || !nav.lineOfSight(r.pos, to)) continue;
-    if (others.some(o => { const s = state.rats[o.id]; return !!s && s.downUntil === null && (dist(s.pos, to) < POTTER.apart || (!!s.to && dist(s.to, to) < POTTER.apart)); })) continue;
+    if (others().some(s => dist(s.pos, to) < pace.apart || (!!s.to && dist(s.to, to) < pace.apart))) continue;
     return to;
   }
   return null;
 }
 
-/** A rat nobody fights potters about: on with its scurry, or once it has stayed put long enough, off on another. */
-function potter(state: GameState, layout: Layout, spot: RatSpot, r: RatState, dt: number): void {
+/** A creature nobody fights potters about its ground: on with its move, or once it has stayed put long enough, off on
+ *  another (nextSpot). It draws nothing from the shared randomness, so it is the same every time it is played. */
+export function potter(state: GameState, layout: Layout, ground: Ground, index: number, r: Potterer, others: () => readonly Potterer[], pace: Pace, dt: number): void {
   if (!r.to) {
     if (state.time < r.restUntil) return;
-    r.to = nextSpot(state, layout, spot, r);
+    r.to = nextSpot(state, layout, ground, index, r, others, pace);
     if (!r.to) { r.restUntil = state.time + 1; return; }    // nowhere free just now: it looks again in a moment
     r.heading = facing(r.pos, r.to);
   }
-  const d = dist(r.pos, r.to), step = POTTER.speed * dt;
+  const d = dist(r.pos, r.to), step = pace.speed * dt;
   if (d <= step) {
     r.pos = { ...r.to }; r.to = null;
-    r.restUntil = state.time + POTTER.rest[0] + noise(state.time, spot.index + 7) * (POTTER.rest[1] - POTTER.rest[0]);
+    r.restUntil = state.time + pace.rest[0] + noise(state.time, index + 7) * (pace.rest[1] - pace.rest[0]);
   } else r.pos = { x: r.pos.x + (r.to.x - r.pos.x) / d * step, z: r.pos.z + (r.to.z - r.pos.z) / d * step };
 }
+
+/** The other rats up at a rat's nest, for keeping apart from. */
+const otherRats = (state: GameState, layout: Layout, spot: RatSpot) => () =>
+  ratsOf(layout).flatMap(o => { const s = state.rats[o.id]; return o.id !== spot.id && o.nest === spot.nest && s && s.downUntil === null ? [s] : []; });
 
 /** His strikes took a rat's last health (systems/combat.ts): it topples over, maybe leaving a rat hide in his backpack
  *  (when there is room), and comes back at its nest RAT.back seconds later. */
@@ -200,8 +234,8 @@ function nearestUp(state: GameState, layout: Layout, nest: NestSpot, at: Vec2): 
   return best?.id ?? null;
 }
 
-/** Off to fight `id` (or wait by its nest, when it is down); with no way there he stops and says so. */
-function chase(state: GameState, layout: Layout, id: string, events: EventBus): void {
+/** Off to fight `id` (or wait by its nest or in its camp, when it is down); with no way there he stops and says so. */
+export function chase(state: GameState, layout: Layout, id: string, events: EventBus): void {
   if (goFight(state, layout, id)) return;
   state.player.task = { kind: 'idle' };
   events.emit({ type: 'noPath' });
@@ -223,6 +257,11 @@ function onward(state: GameState, layout: Layout, events: EventBus): void {
   const next = nearestUp(state, layout, spot.nest, p.pos);
   if (next) chase(state, layout, next, events);
   else if (dist(p.pos, spot.nest.pos) > spot.nest.roam + 1.5) chase(state, layout, spot.id, events);
+}
+
+/** A hurt creature nobody fights gets 1 health back every `every` seconds of play, never past `most`. */
+export function heal(state: GameState, r: { health: number }, most: number, every: number, dt: number): void {
+  if (r.health < most && Math.floor(state.time / every) > Math.floor((state.time - dt) / every)) r.health = Math.min(most, r.health + 1);
 }
 
 /** After systems/combat.ts in each step: he wakes if he was knocked out and it is time; rats his strikes beat topple
@@ -249,8 +288,8 @@ export function updateRats(state: GameState, layout: Layout, dt: number, rng: Rn
     const awaits = fights || (p.pending?.kind === 'fight' && p.pending.id === spot.id);
     if (awaits) { r.to = null; r.heading = facing(r.pos, p.pos); }
     else {
-      potter(state, layout, spot, r, dt);
-      if (r.health < RAT.health && Math.floor(state.time / RAT.regen) > Math.floor((state.time - dt) / RAT.regen)) r.health = Math.min(RAT.health, r.health + 1);
+      potter(state, layout, spot.nest, spot.index, r, otherRats(state, layout, spot), POTTER, dt);
+      heal(state, r, RAT.health, RAT.regen, dt);
     }
     if (fights) bite(state, spot, r, dt, rng, events); else r.bite = null;
   }

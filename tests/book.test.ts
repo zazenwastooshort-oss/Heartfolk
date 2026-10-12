@@ -96,13 +96,14 @@ describe('the pages of his book', () => {
     expect(new Set(GOALS.map(g => g.page)).size).toBe(GOALS.length);
   });
 
-  it('with every goal finished, the last page is the current one, done, and says the camp is set up (0.0.19)', () => {
+  it('with every goal finished, the last page is the current one, done, and says how it ends (0.0.19; since the goblin camp, chapter 2)', () => {
     const s = setup();
     s.state.goalsDone = GOALS.map(g => g.id);
     const pages = bookPages(s.state);
     expect(pages).toHaveLength(GOALS.length);
-    expect(pages.at(-1)).toMatchObject({ goal: GOALS.at(-1)!.id, current: true, done: true, hint: 'Your camp is set up. More comes in later updates.' });
-    expect(CAMP_DONE.text).toBe('Your camp is set up. More comes in later updates.');
+    const end = 'The goblins are gone, and the way along the river is open. The old village waits beyond, in a later update.';
+    expect(pages.at(-1)).toMatchObject({ goal: GOALS.at(-1)!.id, current: true, done: true, hint: end });
+    expect(CAMP_DONE).toEqual({ title: 'The way is open', text: end });
     // the pages before it have no hint, as finished pages never do
     expect(pages.slice(0, -1).every(p => p.done && !p.current && p.hint === '')).toBe(true);
   });
