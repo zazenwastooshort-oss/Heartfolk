@@ -6,6 +6,14 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.23', date: '12 Oct 2026', notes: [
+      'Rats have moved into the woods down the river. Tap one to fight it; they only fight back if you start it.',
+      'Beaten rats sometimes leave a hide, and come back to their nest after a while.',
+      "He eats when he's hurt, fish first, and takes food from the chest if he has none. If a rat knocks him out, he wakes up back at camp with everything he had.",
+      'Stitch rat hides into hide armour: a cap, a vest and a shield. Each goes on as soon as you make it and makes you harder to hit; the panel shows what you wear.',
+    ],
+  },
+  {
     version: '0.0.22', date: '12 Oct 2026', notes: [
       'Chapter 2 begins: once the storage chest is built, new goals help you hold the camp.',
       'Build a training dummy beside the camp and make a stone club, your first weapon. Tap the dummy and he practises by himself.',
