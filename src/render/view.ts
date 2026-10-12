@@ -35,7 +35,41 @@ const BUILD_BOW = { lean: 0.42, dip: 0.08, rate: 1.3 };
  *  turned into a chunky grey stone (`thick` times as thick) and the iron block behind it into the lashing that ties it
  *  to the handle; the pick's head the same grey stone (`pickThick` times as thick), its collar the lashing. The
  *  village's tools stay iron. */
-const STONE_TOOLS = { stone: '#8f8c86', lashing: '#b39867', thick: 1.8, pickThick: 1.4 };
+/** The camp's stone tools (0.0.16; chunkier since 0.0.21, as the owner asked): the axe's blade and the pick's head drawn
+ *  as knapped stones, rough many-faceted lumps grown out of the iron ones' shapes (`grow`, per axis; z is their
+ *  thickness), on a branch for a handle (`branch` colour, `handle` times thicker), bound with lashing. */
+const STONE_TOOLS = {
+  stone: '#8f8c86', pickStone: '#7d7a74', lashing: '#b39867', branch: '#7a5b3c', handle: 1.3,
+  axe: [1.12, 1.18, 2.8] as const, pick: [1.08, 1.2, 2.3] as const,
+};
+
+/** Draw `of` (the iron blade or pick head) as a knapped stone: an irregular faceted lump the size of its shape grown by
+ *  `grow`, a child of it, so the view shows and hides it with the tool; the iron mesh itself is no longer drawn. The
+ *  facets' corners move in and out by an amount that depends only on where they are, so faces that share one stay
+ *  joined. */
+function knapStone(of: THREE.Mesh, grow: readonly [number, number, number], color: string, seed: number): void {
+  of.geometry.computeBoundingBox();
+  const box = of.geometry.boundingBox!, size = box.getSize(new THREE.Vector3()), centre = box.getCenter(new THREE.Vector3());
+  const g = new THREE.IcosahedronGeometry(0.5, 0), pos = g.getAttribute('position') as THREE.BufferAttribute, v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    const h = Math.sin(v.x * 12.9898 + v.y * 78.233 + v.z * 37.719 + seed) * 43758.5453, k = 0.8 + 0.34 * (h - Math.floor(h));
+    pos.setXYZ(i, v.x * k, v.y * k, v.z * k);
+  }
+  g.scale(size.x * grow[0], size.y * grow[1], size.z * grow[2]);
+  g.computeVertexNormals();
+  const stone = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color, roughness: 0.95, flatShading: true }));
+  stone.position.copy(centre); stone.castShadow = true;
+  of.material = new THREE.MeshBasicMaterial({ visible: false });
+  of.add(stone);
+}
+
+/** Thicken `mesh` across its length (the handle into a branch): every axis but its longest times `by`. */
+function thicken(mesh: THREE.Mesh, by: number): void {
+  mesh.geometry.computeBoundingBox();
+  const size = mesh.geometry.boundingBox!.getSize(new THREE.Vector3()), long = size.x >= size.y && size.x >= size.z ? 'x' : size.y >= size.z ? 'y' : 'z';
+  for (const axis of ['x', 'y', 'z'] as const) if (axis !== long) mesh.scale[axis] *= by;
+}
 
 type Tool = Swing['tool'];
 
@@ -122,13 +156,15 @@ export class View {
     };
     this.handle = find('pick_handle');
     if (this.layout.camp) {
-      const stone = new THREE.MeshStandardMaterial({ color: STONE_TOOLS.stone, roughness: 0.95, flatShading: true });
+      // at the camp his tools are stone ones he made: knapped stone heads on a branch, bound with lashing
       const lashing = new THREE.MeshStandardMaterial({ color: STONE_TOOLS.lashing, roughness: 1 });
-      const blade = find('axe_blade') as THREE.Mesh, head = find('pick_head') as THREE.Mesh;
-      blade.material = stone; blade.scale.z *= STONE_TOOLS.thick;
-      head.material = stone; head.scale.z *= STONE_TOOLS.pickThick;
+      knapStone(find('axe_blade') as THREE.Mesh, STONE_TOOLS.axe, STONE_TOOLS.stone, 1);
+      knapStone(find('pick_head') as THREE.Mesh, STONE_TOOLS.pick, STONE_TOOLS.pickStone, 2);
       (find('axe_head') as THREE.Mesh).material = lashing;
       (find('pick_collar') as THREE.Mesh).material = lashing;
+      const handle = this.handle as THREE.Mesh;
+      handle.material = new THREE.MeshStandardMaterial({ color: STONE_TOOLS.branch, roughness: 1, flatShading: true });
+      thicken(handle, STONE_TOOLS.handle);
     }
     this.showTool(null);                 // until draw() knows which tools he owns
     this.nodes = new NodesView(this.scene, this.layout, find('Rock'), village.scene);

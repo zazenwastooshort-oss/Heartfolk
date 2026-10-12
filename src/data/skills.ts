@@ -19,14 +19,14 @@ export interface ResourceDef {
   deplete: number; respawn: number;
   /** seconds the worker pauses after it runs out before moving on to another: long enough to see a tree land */
   moveOnAfter: number;
-  /** ore colour for rocks, chip colour for trees */
+  /** ore colour for rocks (copper's is green since 0.0.21, as the owner asked), chip colour for trees */
   color: string;
   /** what is drawn: 'Rock' from miner.glb (tinted with `color`), or a tree from village.glb with the stump it leaves */
   model: string; stump?: string;
 }
 
 export const RESOURCES: Record<string, ResourceDef> = {
-  copper_rock: { id: 'copper_rock', skill: 'mining', name: 'Copper rock', item: 'copper_ore', level: 1, time: 7.5, xp: 12, value: 3, deplete: 0.3, respawn: 2.6, moveOnAfter: 0.5, color: '#c8763a', model: 'Rock' },
+  copper_rock: { id: 'copper_rock', skill: 'mining', name: 'Copper rock', item: 'copper_ore', level: 1, time: 7.5, xp: 12, value: 3, deplete: 0.3, respawn: 2.6, moveOnAfter: 0.5, color: '#3f9a6b', model: 'Rock' },
   tin_rock:    { id: 'tin_rock', skill: 'mining', name: 'Tin rock', item: 'tin_ore', level: 6, time: 8.5, xp: 16, value: 4, deplete: 0.3, respawn: 3.0, moveOnAfter: 0.5, color: '#c9ccd1', model: 'Rock' },
   iron_rock:   { id: 'iron_rock', skill: 'mining', name: 'Iron rock', item: 'iron_ore', level: 15, time: 10, xp: 30, value: 9, deplete: 0.35, respawn: 5.0, moveOnAfter: 0.5, color: '#9a6b55', model: 'Rock' },
   birch_tree:  { id: 'birch_tree', skill: 'woodcutting', name: 'Birch tree', item: 'birch_logs', level: 1, time: 7, xp: 10, value: 2, deplete: 0.15, respawn: 6, moveOnAfter: 1.0, color: '#e2c48e', model: 'TreeBirch', stump: 'StumpBirch' },

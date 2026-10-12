@@ -101,7 +101,7 @@ describe('the things to make (data/making.ts)', () => {
     expect(goal('stone_pickaxe')).toMatchObject({ title: 'A stone pickaxe', needs: { branch: 2, stone: 3 }, makes: 'stone_pickaxe' });
     expect(goal('copper')).toMatchObject({ title: 'Copper ore', needs: { copper_ore: 3 } });
     expect(goal('copper').makes).toBeUndefined();
-    expect(goal('copper').hint).toMatch(/orange lumps/);           // as the copper rocks look (render/nodes.ts)
+    expect(goal('copper').hint).toMatch(/green/);                  // as the copper rocks look (render/nodes.ts)
     // the chest is a making goal, built since 0.0.19
     expect(goal('chest')).toMatchObject({ title: 'A storage chest', needs: { birch_logs: 10, copper_ore: 3 }, makes: 'chest' });
     expect(makeDef('chest')).toBe(MAKES.chest);
