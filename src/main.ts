@@ -21,6 +21,7 @@ import { Book } from './ui/book';
 import { AwayNote } from './ui/away';
 import { CombatHud } from './ui/combat';
 import { RatsHud } from './ui/rats';
+import { goblinNotices } from './ui/goblins';
 import { showArmour } from './ui/armour';
 import { AWAY } from './data/away';
 
@@ -67,7 +68,8 @@ function start(data: HotData): void {
   }
   const hud = new Hud(view, events, layout, queue);                 // the goal card's Build button sends a command
   const combat = new CombatHud(state, view, events, layout, queue, hud);   // his health, what he trains, hits over the dummy
-  const rats = new RatsHud(state, view, events, layout, hud);       // (chapter 2) bars and numbers over the rats, and over him
+  const rats = new RatsHud(state, view, events, layout, hud);       // (chapter 2) bars and numbers over the rats and goblins, and over him
+  goblinNotices(events, hud);                                       // (chapter 2) the goblin chief coming out, the camp cleared
   events.on(e => { if (e.type === 'strike') view.strike(e.nodeId); });     // chips fly where the tool lands
   events.on(e => { if (e.type === 'hit') view.hit(e.target, e.damage); }); // the training dummy wobbles when struck
   bindInput(view, layout, queue, label => hud.hover(label));

@@ -3,14 +3,16 @@
 // stands there), what he has built (GameState.built: the campfire, round, and the tent, by its own shape), lantern
 // posts, props (the well, benches, crates), the water (the river and the pool below the falls, one shape:
 // world/water.ts), the bigger rocks at the foot of the camp's wall (world/falls.ts), the wreck's debris and (chapter 2)
-// the berry bushes and the rats' nests block; things lying on the ground to pick up, and rubble, don't. The forest and
-// land not yet claimed lie outside the walkable area.
+// the berry bushes, the rats' nests and the goblin camp's palisade, tent, totem and fire ring block (world/goblincamp.ts);
+// things lying on the ground to pick up, and rubble, don't. The forest and land not yet claimed lie outside the
+// walkable area, which is the layout's `village` and any more `land` joined to it (the camp's way down the river).
 import type { Area, Layout, Site, Vec2 } from './layout';
 import { inArea, siteOf } from './layout';
 import { makeDef } from '../data/making';
 import { PICKUPS } from '../data/pickups';
 import { waterOf } from './water';
 import { BLOCKING, footOf } from './falls';
+import { goblinCampBlocks } from './goblincamp';
 
 const CELL = 0.4;
 const MARGIN = 0.35;                 // keep this far from walls, so the character doesn't clip them
@@ -26,12 +28,23 @@ export function distToLine(p: Vec2, line: Vec2[]): number {
   return best;
 }
 
+/** The land he can walk on: the layout's `village`, and (chapter 2) any more `land` joined to it. */
+export const landOf = (layout: Layout): Area[] => [layout.village, ...(layout.land ?? [])];
+
+/** The box round all of it. */
+function boundsOf(land: Area[]): Area {
+  return { minX: Math.min(...land.map(a => a.minX)), maxX: Math.max(...land.map(a => a.maxX)), minZ: Math.min(...land.map(a => a.minZ)), maxZ: Math.max(...land.map(a => a.maxZ)) };
+}
+
 export class NavGrid {
   readonly nx: number; readonly nz: number;
   private blocked: Uint8Array;
+  /** the land within `area` he can walk on: `area` itself, or (with more `land` in the layout) the layout's land */
+  private land: Area[];
 
   /** built: what stands on the layout's sites (GameState.built): each blocks its site, like the village's hearth. */
   constructor(private area: Area, layout: Layout, built: readonly string[] = []) {
+    this.land = layout.land?.length ? landOf(layout) : [area];
     this.nx = Math.ceil((area.maxX - area.minX) / CELL);
     this.nz = Math.ceil((area.maxZ - area.minZ) / CELL);
     this.blocked = new Uint8Array(this.nx * this.nz);
@@ -42,6 +55,7 @@ export class NavGrid {
       return site ? [site] : [];
     });
     const square = (s: Site): s is Site & { w: number; d: number } => s.w !== undefined && s.d !== undefined;
+    const goblins = goblinCampBlocks(layout);
     const circles: [Vec2, number][] = [
       ...(layout.hearthModel !== null ? [[layout.hearth.pos, layout.hearth.radius] as [Vec2, number]] : []),
       ...sites.filter(s => !square(s)).map(s => [s.pos, s.radius] as [Vec2, number]),
@@ -58,6 +72,8 @@ export class NavGrid {
       ...(layout.debris ?? []).filter(d => d.radius > 0).map(d => [d.pos, d.radius] as [Vec2, number]),
       // (as wide as they are drawn: render/waterfall.ts stretches each to 1.12 of its radius one way, 0.88 the other)
       ...footOf(layout).rocks.filter(k => k.radius >= BLOCKING).map(k => [k.pos, k.radius * 1.05] as [Vec2, number]),
+      // (chapter 2) the goblin camp's totem and cold fire ring
+      ...goblins.circles,
     ];
     // a cell by the water is open only if all of it is dry land (its centre is half a diagonal from its corners), so
     // he walks right to the water's edge but never into it
@@ -67,10 +83,12 @@ export class NavGrid {
       ...layout.buildings.map(b => ({ pos: b.pos, rot: b.rot, hw: b.w / 2 + MARGIN, hd: b.d / 2 + MARGIN })),
       ...layout.gardens.map(g => ({ pos: g.pos, rot: g.rot, hw: g.w / 2 + 0.3 + MARGIN, hd: g.d / 2 + 0.3 + MARGIN })),
       ...sites.filter(square).map(s => ({ pos: s.pos, rot: s.rot ?? 0, hw: s.w / 2 + MARGIN, hd: s.d / 2 + MARGIN })),
+      // (chapter 2) the goblin camp's palisade, its gate and the chief's tent
+      ...goblins.rects.map(b => ({ pos: b.pos, rot: b.rot, hw: b.hw + MARGIN, hd: b.hd + MARGIN })),
     ];
     for (let iz = 0; iz < this.nz; iz++) for (let ix = 0; ix < this.nx; ix++) {
       const p = this.center(ix, iz);
-      let block = !inArea(area, p);                          // edge cells whose middle lies off the land
+      let block = !this.onLand(p);                           // edge cells whose middle lies off the land
       if (!block) for (const b of rects) {
         const dx = p.x - b.pos.x, dz = p.z - b.pos.z, c = Math.cos(b.rot), s = Math.sin(b.rot);
         const lx = dx * c - dz * s, lz = dx * s + dz * c;      // into the building's own frame
@@ -85,8 +103,12 @@ export class NavGrid {
   private center(ix: number, iz: number): Vec2 { return { x: this.area.minX + (ix + 0.5) * CELL, z: this.area.minZ + (iz + 0.5) * CELL }; }
   private cellOf(p: Vec2): [number, number] { return [Math.floor((p.x - this.area.minX) / CELL), Math.floor((p.z - this.area.minZ) / CELL)]; }
   private open(ix: number, iz: number): boolean { return ix >= 0 && iz >= 0 && ix < this.nx && iz < this.nz && !this.blocked[iz * this.nx + ix]; }
+  private onLand(p: Vec2): boolean { return this.land.some(a => inArea(a, p)); }
 
-  walkable(p: Vec2): boolean { return inArea(this.area, p) && this.open(...this.cellOf(p)); }
+  /** Whether he can stand at p. With more `land` joined to the layout's `village`, the land is whole cells (a cell is
+   *  land when its middle is), so no sliver where the pieces meet is off the land while its cell is open: a straight
+   *  walk from one piece to the other never leaves the land, and a save made anywhere on the way loads there. */
+  walkable(p: Vec2): boolean { return (this.land.length > 1 || this.onLand(p)) && this.open(...this.cellOf(p)); }
 
   /** The walkable spot closest to p (p itself if it is walkable), also for a point off the grid, such as a tap
    *  across the river. Searches square rings of cells round p's cell, outward. The first ring with an open cell
@@ -203,6 +225,6 @@ export function navFor(layout: Layout, built: readonly string[] = []): NavGrid {
   if (!grids) { grids = new Map(); cache.set(layout, grids); }
   const key = [...built].sort().join(',');
   let nav = grids.get(key);
-  if (!nav) { nav = new NavGrid(layout.village, layout, built); grids.set(key, nav); }
+  if (!nav) { nav = new NavGrid(boundsOf(landOf(layout)), layout, built); grids.set(key, nav); }
   return nav;
 }

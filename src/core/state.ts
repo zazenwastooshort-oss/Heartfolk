@@ -9,6 +9,8 @@ import { PICKUPS } from '../data/pickups';
 import { makeDef, type MakeId } from '../data/making';
 import { DAY_SECONDS } from './clock';
 import { freshRats } from './rats';
+import { freshGoblins } from './goblins';
+import { CHIEF } from '../data/goblins';
 
 /** The save format. 10 since 0.0.22: his health, and the combat and food skills. */
 export const SAVE_VERSION = 10;
@@ -25,9 +27,10 @@ export const SAVE_VERSION = 10;
  *  cook (chapter 2): cooking a raw fish over the campfire until `doneAt` (PlayerState.cook; systems/cooking.ts).
  *  fight (0.0.22): striking `target` (core/targets.ts: the training dummy, by id) with his weapon, over and over until
  *  sent elsewhere; progress runs 0..1 from one strike to the next (systems/combat.ts). Since chapter 2's rats a target
- *  can be a rat: while it is down (beaten, until it comes back) he waits by its nest, then goes on to the next.
- *  knockedOut (chapter 2's rats): `by` (a rat, by id) took his health to 0; he lies slumped until `wakeAt` (in-game
- *  seconds), then wakes at the camp (systems/rats.ts). */
+ *  can be a rat: while it is down (beaten, until it comes back) he waits by its nest, then goes on to the next; since
+ *  the goblin camp, a goblin (he waits in the camp) or the goblin chief.
+ *  knockedOut (chapter 2's rats): `by` (a rat, by id; or a goblin, the chief) took his health to 0; he lies slumped until
+ *  `wakeAt` (in-game seconds), then wakes at the camp (systems/rats.ts). */
 export type Task = { kind: 'idle' } | { kind: 'walk' } | { kind: 'gather'; nodeId: string; progress: number; mayMoveOn?: boolean }
   | { kind: 'pickup'; id: string; doneAt: number } | { kind: 'make'; id: MakeId; doneAt: number } | { kind: 'stoke'; doneAt: number }
   | { kind: 'cook'; doneAt: number } | { kind: 'fight'; target: string; progress: number }
@@ -89,6 +92,16 @@ export interface ParcelState { claimed: boolean }
  *  (core/rats.ts, savedRats). */
 export interface RatState { health: number; downUntil: number | null; pos: Vec2; heading: number; to: Vec2 | null; restUntil: number; bite: number | null }
 
+/** A goblin in the goblin camp, or its chief (chapter 2, its last part; core/goblins.ts, systems/goblins.ts): as a rat
+ *  (RatState), with `swing` for the seconds since its swing under way began while it fights him. The chief is never
+ *  down: in his tent (GoblinCamp.chiefOut false) he waits at its door, unseen; beaten, the camp is cleared and the
+ *  goblins are gone from the game. */
+export interface GoblinState { health: number; downUntil: number | null; pos: Vec2; heading: number; to: Vec2 | null; restUntil: number; swing: number | null }
+
+/** The goblin camp as a whole (chapter 2): whether the chief has come out of his tent (all three goblins were down at
+ *  once), and whether the camp is cleared for good (the chief beaten: no goblins, its gate standing open). */
+export interface GoblinCamp { chiefOut: boolean; cleared: boolean }
+
 export interface GameState {
   version: number;
   time: number;                 // in-game seconds since the save was created
@@ -129,6 +142,11 @@ export interface GameState {
   combatStyle: CombatStyle;
   /** (chapter 2) the rats round the layout's nests, by id (core/rats.ts): none in the village */
   rats: Record<string, RatState>;
+  /** (chapter 2) the goblins in the layout's goblin camp and their chief, by id (core/goblins.ts): none in the village,
+   *  and none once the camp is cleared */
+  goblins: Record<string, GoblinState>;
+  /** (chapter 2) the goblin camp: the chief out of his tent, the camp cleared */
+  goblinCamp: GoblinCamp;
 }
 
 /** His health at most (0.0.22): HEALTH in data/combat.ts, by his Vitality level. */
@@ -187,9 +205,10 @@ export function goalFirst(state: GameState, id: string): Goal | null {
 }
 
 /** Whether he may drop an item from his backpack: anything but the wreck's things (since chapter 2, food too: berries,
- *  cooked and burnt fish). The wreck came down only once (PICKUPS that never come back), so its planks and its tarp
- *  can't be dropped: a goal that needs them can never become impossible. */
-export const canDrop = (item: string) => !Object.values(PICKUPS).some(p => p.respawn === null && p.gives !== 'book' && p.gives.item === item);
+ *  cooked and burnt fish) and the goblin chief's torn map. The wreck came down only once (PICKUPS that never come back),
+ *  and the chief is beaten only once, so the planks, the tarp and the map can't be dropped: a goal that needs them can
+ *  never become impossible. */
+export const canDrop = (item: string) => item !== CHIEF.drop && !Object.values(PICKUPS).some(p => p.respawn === null && p.gives !== 'book' && p.gives.item === item);
 
 export function createState(layout: Layout, seed = 1): GameState {
   return {
@@ -214,5 +233,7 @@ export function createState(layout: Layout, seed = 1): GameState {
     equipment: Object.fromEntries(SLOTS.map(s => [s, null])) as Record<Slot, GearId | null>,
     combatStyle: 'attack',
     rats: freshRats(layout, DAY_SECONDS * 0.32),
+    goblins: freshGoblins(layout, DAY_SECONDS * 0.32),
+    goblinCamp: { chiefOut: false, cleared: false },
   };
 }

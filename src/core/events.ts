@@ -70,14 +70,22 @@ export type GameEvent =
   | { type: 'cantCook' }
   /** cooking, he has cooked every raw fish he had, carried or in the chest, so he stops */
   | { type: 'cookedAll' }
-  /** (chapter 2's rats, systems/rats.ts) a creature he fights bit him for `damage`, 0 for a miss */
+  /** (chapter 2's rats, systems/rats.ts) a creature he fights bit him (or, a goblin, struck him) for `damage`, 0 for a
+   *  miss */
   | { type: 'bitten'; by: string; damage: number }
-  /** he beat `target` (a rat): it topples over; `item` is what it left, which went into his backpack (a rat hide), or null */
-  | { type: 'beaten'; target: string; item: string | null }
+  /** he beat `target` (a rat; since the goblin camp a goblin or the chief, `foe`): it topples over; `item` is what it
+   *  left, which went into his backpack (a rat hide, the chief's torn map), or null */
+  | { type: 'beaten'; target: string; item: string | null; foe?: 'goblin' | 'chief' }
   /** a beaten rat came back at its nest */
   | { type: 'ratBack'; id: string }
-  /** `by` (a rat) took his health to 0: he slumps, then wakes up back at camp (wokeUp) */
-  | { type: 'knockedOut'; by: string }
+  /** (the goblin camp, systems/goblins.ts) a beaten goblin is up again in the camp */
+  | { type: 'goblinBack'; id: string }
+  /** all three goblins were down at once: the goblin chief comes out of his tent */
+  | { type: 'chiefOut' }
+  /** the goblin chief is beaten: the goblins are gone for good, and the camp's gate stands open */
+  | { type: 'campCleared' }
+  /** `by` (a rat; a goblin or the chief, `foe`) took his health to 0: he slumps, then wakes up back at camp (wokeUp) */
+  | { type: 'knockedOut'; by: string; foe?: 'goblin' | 'chief' }
   /** he woke up back at camp after `by` knocked him out, with half his health and everything he had */
   | { type: 'wokeUp'; by: string }
   /** setting off to fight with no food in his backpack, he goes by the chest for some first */

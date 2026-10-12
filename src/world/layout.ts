@@ -54,6 +54,16 @@ export interface DebrisSpot { model: string; pos: Vec2; rot: number; y?: number;
  *  far round its middle the mound reaches (it is in the way out to there: world/nav.ts), how many rats live round it
  *  (core/rats.ts gives them their ids) and how far from its middle they potter (`roam`). */
 export interface NestSpot { id: string; pos: Vec2; rot: number; radius: number; rats: number; roam: number }
+/** The goblin camp (chapter 2, its last part; world/camp.ts): a palisade ring of `sides` straight stretches round
+ *  `pos`, `radius` metres out to its corners; its way in, a gap, faces `way` (a heading as for buildings: 0 faces +z),
+ *  and its gate, shut until the camp is cleared, faces `gate` (towards the way on down the river); each heading is
+ *  turned to the middle of the nearest stretch. Inside, the chief's hide tent (`tent`, its door facing the middle), a
+ *  totem (`totem`, facing out of the way in) and a cold fire ring (`fire`); `goblins` goblins and their chief mill about
+ *  within `roam` of the middle (core/goblins.ts, systems/goblins.ts; world/goblincamp.ts sets the palisade out). */
+export interface GoblinCampSpot {
+  pos: Vec2; radius: number; sides: number; way: number; gate: number;
+  tent: Required<Site>; totem: Vec2; fire: { pos: Vec2; radius: number }; roam: number; goblins: number;
+}
 
 export interface Layout {
   /** land the player can walk on at the start */
@@ -88,6 +98,12 @@ export interface Layout {
   debris?: DebrisSpot[];
   /** (chapter 2) rats' nests, each with rats living round it (core/rats.ts, systems/rats.ts); none in the village */
   nests?: NestSpot[];
+  /** (chapter 2) the goblin camp blocking the way out of the valley; none in the village */
+  goblinCamp?: GoblinCampSpot;
+  /** (chapter 2) more land he can walk on beyond `village`, joined to it (touching or overlapping it; world/nav.ts): the
+   *  camp's way down the river to the goblin camp. Each starts at or past `village`'s west and north edges, so the
+   *  walking grid's cells stay put. */
+  land?: Area[];
   /** the tools a new game here starts with; all of them when not given (the village). At the camp he has none. */
   startTools?: ToolId[];
   /** the ground drawn in detail round the playable land (the village's is the default) */

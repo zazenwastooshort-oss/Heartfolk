@@ -56,11 +56,16 @@ export function goWork(state: GameState, layout: Layout, nodeId: string): boolea
 }
 
 /** Walk to stand `reach` metres from `at`, on the side nearest him if that side is free, fanning out round it if not;
- *  already about there, he stays. For striking something (0.0.22, systems/combat.ts: the training dummy). */
-export function goNear(state: GameState, layout: Layout, at: Vec2, reach: number, pending: GameState['player']['pending']): boolean {
+ *  already about there, he stays. For striking something (0.0.22, systems/combat.ts: the training dummy). `beside`
+ *  (the goblin chief, core/targets.ts): due east or west of it instead, the side nearer him unless there is no room
+ *  there, so the camera as it starts (looking north) sees it beside him, not hidden behind him. */
+export function goNear(state: GameState, layout: Layout, at: Vec2, reach: number, pending: GameState['player']['pending'], beside = false): boolean {
   const nav = navFor(layout, state.built), p = state.player;
   let d = sub(p.pos, at);
-  if (Math.abs(len(d) - reach) < 0.15 && nav.walkable(p.pos)) return setPath(state, [{ ...p.pos }], pending);
+  if (beside) {
+    const near = d.x < 0 ? -1 : 1;
+    d = { x: [near, -near].find(s => nav.walkable({ x: at.x + s * reach, z: at.z })) ?? near, z: 0 };
+  } else if (Math.abs(len(d) - reach) < 0.15 && nav.walkable(p.pos)) return setPath(state, [{ ...p.pos }], pending);
   if (len(d) < 1e-4) d = { x: -1, z: 0 };
   const base = Math.atan2(d.z, d.x);
   for (let k = 0; k <= 18; k++) {

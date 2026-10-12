@@ -9,7 +9,9 @@
 // every blend into an armed clip. Since chapter 2: the berry bushes, the fishing spots, the rod he fishes with (held
 // only while he fishes, with the armed Idle clip, too long to carry on his back), its line and float, and a fish on a
 // stick over the campfire while he cooks. Since chapter 2's rats: the rats and their nest (render/rats.ts), his lean into
-// a strike at a rat, standing ready while he waits for them, and toppling over when one knocks him out.
+// a strike at a rat, standing ready while he waits for them, and toppling over when one knocks him out. Since the goblin
+// camp: its palisade, tent, totem and fire ring and the goblins in it (render/goblins.ts, from a load of miner.glb of
+// their own).
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import minerUrl from '../../assets/models/miner.glb?url';
@@ -37,6 +39,7 @@ import { CookingView } from './cooking';
 import { ArmIK, armedWeight, toolInHand, toolInTransit } from './arms';
 import { WEAPON_MODELS, armourWorn, wearGear } from './gear';
 import { RatsView } from './rats';
+import { GoblinsView } from './goblins';
 import { targetOf } from '../core/targets';
 
 /** While he builds something: a placeholder motion, bowing down to it and back up, `rate` bows a second. */
@@ -130,6 +133,7 @@ export class View {
   private fishing?: FishingView;
   private cooking?: CookingView;
   private rats?: RatsView;
+  private goblins?: GoblinsView;
   private slump = 0;                     // how far he has toppled over, knocked out (0..1)
   private spots: Map<string, NodeSpot>;
   private miner?: THREE.Object3D;
@@ -177,7 +181,8 @@ export class View {
   }
 
   private async load(): Promise<void> {
-    const [gltf, village] = await Promise.all([loadModel(minerUrl), loadModel(villageUrl)]);
+    // (the goblin camp) the goblins need miner.glb loaded for them alone, shared by them all (goblinModel)
+    const [gltf, village, goblinMiner] = await Promise.all([loadModel(minerUrl), loadModel(villageUrl), this.layout.goblinCamp ? loadModel(minerUrl) : null]);
     this.village = new VillageView(this.scene, this.layout, village.scene);
     this.pickables.push(...this.village.pickables);
     gltf.scene.traverse(o => { if ((o as THREE.Mesh).isMesh) { o.castShadow = true; o.receiveShadow = true; } });
@@ -223,6 +228,8 @@ export class View {
     this.cooking = new CookingView(this.scene, this.layout);
     this.rats = new RatsView(this.scene, this.layout);
     this.pickables.push(...this.rats.pickables);
+    this.goblins = new GoblinsView(this.scene, this.layout, village.scene, goblinMiner);
+    this.pickables.push(...this.goblins.pickables);
     this.scene.add(this.miner);
     this.arms = new ArmIK(this.miner);   // reads the rest pose, so before the mixer first runs
     this.mixer = new THREE.AnimationMixer(this.miner);
@@ -270,6 +277,9 @@ export class View {
   /** Where rat `id` is drawn (chapter 2), or null while it isn't: for the numbers and the health bar over it. */
   ratPos(id: string): THREE.Vector3 | null { return this.rats?.posOf(id) ?? null; }
 
+  /** Where creature `id` is drawn (a rat, a goblin, the goblin chief), or null while it isn't. */
+  foePos(id: string): THREE.Vector3 | null { return this.rats?.posOf(id) ?? this.goblins?.posOf(id) ?? null; }
+
   draw(state: GameState, dt: number): void {
     const p = state.player;
     if (this.miner && this.mixer) {
@@ -311,7 +321,7 @@ export class View {
         // beat is down he stands ready; striking a rat he leans in
         const t = task.progress * strikeEvery(state.equipment.weapon), target = targetOf(state, this.layout, task.target);
         if (target?.foe?.down) this.play(IDLE.clip);
-        else if (t < STRIKE.cycle) { this.play(STRIKE.clip); this.actions[STRIKE.clip]!.time = t; if (target?.foe) lean = lowLean(t); }
+        else if (t < STRIKE.cycle) { this.play(STRIKE.clip); this.actions[STRIKE.clip]!.time = t; if (target?.foe?.kind === 'rat') lean = lowLean(t); }
         else this.play(IDLE.clip);
       }
       else this.play(armed ? IDLE.clip : IDLE.freeClip);
@@ -342,6 +352,7 @@ export class View {
     this.fishing?.update(state, this.clock, dt, rodTip, this.lighting.night);
     this.cooking?.update(state);
     this.rats?.update(state, this.clock, dt);
+    this.goblins?.update(state, this.clock, dt);
     if (this.marker.visible) { this.markerT -= dt; this.marker.scale.setScalar(0.4 + this.markerT * 1.6); if (this.markerT <= 0) this.marker.visible = false; }
     this.cam.follow(this.shown.pos, Math.min(1, dt * 6));
     this.lighting.update(dayFraction(state.time), this.shown.pos, true, this.cam.dist);

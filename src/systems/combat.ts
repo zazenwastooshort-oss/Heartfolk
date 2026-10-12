@@ -13,7 +13,7 @@ import { allGoalsDone, currentGoal, goalMet, maxHealth, type GameState } from '.
 import type { EventBus } from '../core/events';
 import type { Rng } from '../core/rng';
 import type { Layout } from '../world/layout';
-import { targetOf, type Target } from '../core/targets';
+import { foeOf, targetOf, type Target } from '../core/targets';
 import { goNear } from '../actors/player';
 import { COMBAT, GEAR, HEALTH, SLOTS, STRIKE, STYLES, strikeEvery, type CombatStyle, type GearDef, type GearId } from '../data/combat';
 import { addXp, levelOf } from './skills';
@@ -88,10 +88,11 @@ export function mayFight(state: GameState, layout: Layout, id: string, events: E
   return true;
 }
 
-/** Walk to stand within striking reach of `id`, on the side nearest him; there he starts fighting it (actors/player). */
+/** Walk to stand within striking reach of `id`, on the side nearest him (beside it, for the goblin chief: Target.beside);
+ *  there he starts fighting it (actors/player). */
 export function goFight(state: GameState, layout: Layout, id: string): boolean {
   const target = targetOf(state, layout, id);
-  return !!target && goNear(state, layout, target.pos, strikeReach(target), { kind: 'fight', id });
+  return !!target && goNear(state, layout, target.pos, strikeReach(target), { kind: 'fight', id }, target.beside);
 }
 
 /** Choose what fighting trains (the panel's Train choice; a style command). It doesn't stop what he is doing. */
@@ -108,12 +109,12 @@ function regenerate(state: GameState, dt: number): void {
 }
 
 /** He strikes: the hit (or miss) is announced, and damage gives XP, the style he trains last so its row lights up. A
- *  creature (chapter 2: a rat) loses that much health, never more than it has (systems/rats.ts sees to it once it is
- *  beaten). */
+ *  creature (chapter 2: a rat, a goblin) loses that much health, never more than it has (systems/rats.ts and
+ *  systems/goblins.ts see to it once it is beaten). */
 function strike(state: GameState, layout: Layout, target: Target, rng: Rng, events: EventBus): void {
   const rolled = rollStrike(state, target, rng), style = state.combatStyle;
   const damage = target.foe ? Math.min(rolled, target.foe.health) : rolled;
-  if (target.foe && damage > 0) state.rats[target.id]!.health -= damage;
+  if (target.foe && damage > 0) foeOf(state, target.id)!.health -= damage;
   events.emit({ type: 'hit', target: target.id, damage });
   if (damage <= 0) return;
   const xp = damage * target.xp, most = maxHealth(state), level = levelOf(state, style);

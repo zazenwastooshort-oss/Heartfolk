@@ -1,53 +1,55 @@
-// The rats in the HUD (chapter 2, holding the camp, part 2): a small health bar over a rat while it is hurt, the numbers
-// that float up over a rat he strikes (as over the training dummy: ui/combat.ts) and over him when a rat bites (a calm
-// red; 0 for a miss), and the notices that go with fighting rats: going by the chest for food first, the food he takes
-// along, and waking up back at camp after a rat knocked him out. Reads state and listens to events; never changes the
-// game.
+// The creatures in the HUD (chapter 2, holding the camp, part 2: the rats; since its last part the goblins and their
+// chief too): a small health bar over one while it is hurt, the numbers that float up over one he strikes (as over the
+// training dummy: ui/combat.ts) and over him when one bites or strikes him (a calm red; 0 for a miss), and the notices
+// that go with fighting them: going by the chest for food first, the food he takes along, and waking up back at camp
+// after one knocked him out. Reads state and listens to events; never changes the game.
 import * as THREE from 'three';
 import type { GameState } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { View } from '../render/view';
 import type { Layout } from '../world/layout';
-import { ratsOf } from '../core/rats';
-import { RAT } from '../data/rats';
+import { foeIds, foeKind, foeName, targetOf, type Foe } from '../core/targets';
 import { itemList, type Hud } from './hud';
 
 const $ = (id: string) => document.getElementById(id)!;
 
-/** The numbers: how long one shows and how far it rises (seconds, pixels), how high over a rat's feet and over his they
- *  start (metres: his lower than the "+xp" floats over his head, ui/hud.ts, and `side` pixels off to the side away from
- *  the rat that bit him, so they read apart), and how many at once at most (catching up can bring many at once). The bar
- *  over a hurt rat: how high over its feet. */
-const HITS = { life: 1.1, rise: 26, rat: 0.8, him: 1.4, side: 30, most: 4 };
-const BAR = { at: 0.66 };
+/** The numbers: how long one shows and how far it rises (seconds, pixels), how high over his feet they start (metres:
+ *  lower than the "+xp" floats over his head, ui/hud.ts, and `side` pixels off to the side away from the creature that
+ *  hit him, so they read apart), and how many at once at most (catching up can bring many at once). Over a creature,
+ *  by its kind: how high over its feet its bar is and its numbers start (metres). */
+const HITS = { life: 1.1, rise: 26, him: 1.4, side: 30, most: 4 };
+const OVER: Record<Foe['kind'], { bar: number; hit: number }> = {
+  rat: { bar: 0.66, hit: 0.8 }, goblin: { bar: 1.6, hit: 1.75 }, chief: { bar: 1.85, hit: 2.0 },
+};
 
 /** The notices, in plain words. */
 export const RAT_TEXT = {
   fetchFood: 'Off to the chest for some food first.',
   tookFood: (items: Record<string, number>) => `You take ${itemList(items, ' and ')} along.`,
-  wokeUp: `A ${RAT.name.toLowerCase()} knocked you out. You wake up back at camp, a bit bruised.`,
+  /** `name`: what knocked him out ("Rat", "Goblin chief") */
+  wokeUp: (name: string) => `${name === 'Goblin chief' ? 'The goblin chief' : `A ${name.toLowerCase()}`} knocked you out. You wake up back at camp, a bit bruised.`,
 };
 
 export class RatsHud {
   /** the numbers showing: where each started, how long it has shown, and (over him) how far to the side, in pixels */
   private hits: { el: HTMLElement; pos: THREE.Vector3; t: number; dx: number }[] = [];
-  /** numbers to show on the next frame, over a rat (its id) or over him (bitten by the rat `by`) */
-  private pending: { rat: string | null; damage: number; by?: string }[] = [];
+  /** numbers to show on the next frame, over a creature (its id) or over him (hit by the creature `by`) */
+  private pending: { foe: string | null; damage: number; by?: string }[] = [];
   private bars = new Map<string, { el: HTMLElement; fill: HTMLElement }>();
 
-  constructor(private state: GameState, private view: View, events: EventBus, layout: Layout, hud: Hud) {
-    for (const spot of ratsOf(layout)) {
+  constructor(private state: GameState, private view: View, events: EventBus, private layout: Layout, hud: Hud) {
+    for (const id of foeIds(layout)) {
       const el = document.createElement('div'), fill = document.createElement('i');
       el.className = 'overhead foe'; el.hidden = true; el.append(fill);
       $('floats').append(el);
-      this.bars.set(spot.id, { el, fill });
+      this.bars.set(id, { el, fill });
     }
     events.on(e => {
-      if (e.type === 'hit' && this.bars.has(e.target)) this.pending.push({ rat: e.target, damage: e.damage });
-      else if (e.type === 'bitten') this.pending.push({ rat: null, damage: e.damage, by: e.by });
+      if (e.type === 'hit' && this.bars.has(e.target)) this.pending.push({ foe: e.target, damage: e.damage });
+      else if (e.type === 'bitten') this.pending.push({ foe: null, damage: e.damage, by: e.by });
       else if (e.type === 'fetchFood') hud.notice(RAT_TEXT.fetchFood);
       else if (e.type === 'tookFood') hud.notice(RAT_TEXT.tookFood(e.items));
-      else if (e.type === 'wokeUp') hud.notice(RAT_TEXT.wokeUp);
+      else if (e.type === 'wokeUp') hud.notice(RAT_TEXT.wokeUp(foeName(layout, e.by) ?? 'Rat'));
     });
   }
 
@@ -59,25 +61,26 @@ export class RatsHud {
 
   update(dt: number): void {
     const box = this.view.renderer.domElement.getBoundingClientRect();
-    // a bar over each rat that is up and hurt
+    // a bar over each creature that is up and hurt
     for (const [id, bar] of this.bars) {
-      const r = this.state.rats[id], at = r && r.downUntil === null && r.health < RAT.health ? this.view.ratPos(id) : null;
+      const foe = targetOf(this.state, this.layout, id)?.foe, at = foe && !foe.down && foe.health < foe.maxHealth ? this.view.foePos(id) : null;
       bar.el.hidden = !at;
-      if (!at) continue;
-      const p = this.onPage(at.setY(BAR.at), box);
+      if (!at || !foe) continue;
+      const p = this.onPage(at.setY(OVER[foe.kind].bar), box);
       bar.el.style.left = `${p.x}px`; bar.el.style.top = `${p.y}px`;
-      bar.fill.style.width = `${Math.max(0, r!.health / RAT.health) * 100}%`;
+      bar.fill.style.width = `${Math.max(0, foe.health / foe.maxHealth) * 100}%`;
     }
-    // new numbers: over the rat struck (0 for a miss), or over him when bitten, in a calm red, beside him on the side
-    // away from the rat
+    // new numbers: over the creature struck (0 for a miss), or over him when hit, in a calm red, beside him on the side
+    // away from what hit him
     for (const n of this.pending.slice(-HITS.most)) {
-      const at = n.rat ? this.view.ratPos(n.rat)?.setY(HITS.rat) : this.view.minerPos().setY(HITS.him);
+      const kind = n.foe ? foeKind(this.layout, n.foe) : null;
+      const at = n.foe ? this.view.foePos(n.foe)?.setY(OVER[kind ?? 'rat'].hit) : this.view.minerPos().setY(HITS.him);
       if (!at) continue;
-      const from = !n.rat && n.by ? this.view.ratPos(n.by) : null;
-      const dx = n.rat ? 0 : (from && this.onPage(from, box).x > this.onPage(at, box).x ? -1 : 1) * HITS.side;
+      const from = !n.foe && n.by ? this.view.foePos(n.by) : null;
+      const dx = n.foe ? 0 : (from && this.onPage(from, box).x > this.onPage(at, box).x ? -1 : 1) * HITS.side;
       if (this.hits.length >= HITS.most) this.hits.shift()!.el.remove();
       const el = document.createElement('div');
-      el.className = n.damage > 0 ? (n.rat ? 'hit' : 'hit me') : 'hit zero'; el.textContent = String(n.damage);
+      el.className = n.damage > 0 ? (n.foe ? 'hit' : 'hit me') : 'hit zero'; el.textContent = String(n.damage);
       $('floats').append(el);
       this.hits.push({ el, pos: at, t: 0, dx });
     }
