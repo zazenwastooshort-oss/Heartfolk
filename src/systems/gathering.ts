@@ -2,8 +2,9 @@
 // chance to yield an item, and nodes run out and grow back. Expected time per item matches the resource's `time`
 // in data/skills. When a node runs out while he works it, the character moves on to the nearest free one of the same
 // kind if that is quicker than waiting for it to grow back; a stump or empty rock the player sends him to, he waits at.
-// What he gathers goes into his backpack; with it full he stops, and systems/hauling takes him to the bank.
-import type { GameState } from '../core/state';
+// What he gathers goes into his backpack; with it full he stops, and systems/hauling takes him to the bank. Since
+// 0.0.21 he also stops once the camp's current goal has enough of what he gathers (goalHasEnough in core/state).
+import { goalHasEnough, type GameState } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Rng } from '../core/rng';
 import type { Layout, NodeSpot, Vec2 } from '../world/layout';
@@ -35,6 +36,13 @@ export function updateGathering(state: GameState, layout: Layout, dt: number, rn
   const node = state.nodes[task.nodeId], spot = layout.nodes.find(n => n.id === task.nodeId);
   if (!node || !spot) { state.player.task = { kind: 'idle' }; return; }
   const res = RESOURCES[spot.resource]!;
+  const tool = SWINGS[res.skill].tool;
+  if (!state.tools[tool]) {
+    // can't happen in play (commands refuse a node without its tool); a hand-edited save, or a tool lost one day
+    state.player.task = { kind: 'idle' };
+    events.emit({ type: 'needTool', tool, skill: res.skill });
+    return;
+  }
   if (levelOf(state, res.skill) < res.level) {
     // can only happen with an old save; commands already refuse nodes above the player's level
     state.player.task = { kind: 'idle' };
@@ -69,6 +77,9 @@ export function updateGathering(state: GameState, layout: Layout, dt: number, rn
       task.mayMoveOn = true;
       events.emit({ type: 'nodeDepleted', nodeId: node.id });
     }
+    // the camp's goal has all it needs of this: he stops, rather than fill the backpack with more
+    const enough = goalHasEnough(state, layout, res.item);
+    if (enough) { state.player.task = { kind: 'idle' }; events.emit({ type: 'goalEnough', item: res.item, goal: enough.id }); }
   }
 }
 

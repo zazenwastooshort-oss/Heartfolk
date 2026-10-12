@@ -26,14 +26,18 @@ const scene = new THREE.Scene();
 const cam = new OrbitCamera();
 const lighting = new Lighting(scene);
 
-async function loadVillage() {
+/** In the built page the models are embedded as data: URLs, and artifact links block fetch() of those, so decode them
+ *  here (as render/view.ts does for the game). village.glb is copied in from main: it has the wreck models. */
+function loadModel(url: string) {
   const loader = new GLTFLoader();
-  // chunk A's village.glb has the wreck models (Plank, CrateBroken...); fall back to this branch's copy
-  try { return await loader.loadAsync('/@fs/A:/Hearthfolk/assets/models/village.glb'); } catch { return loader.loadAsync(villageUrl); }
+  if (!url.startsWith('data:')) return loader.loadAsync(url);
+  const comma = url.indexOf(','), head = url.slice(0, comma), body = url.slice(comma + 1);
+  const bytes = head.endsWith(';base64') ? Uint8Array.from(atob(body), c => c.charCodeAt(0)) : new TextEncoder().encode(decodeURIComponent(body));
+  return loader.parseAsync(bytes.buffer, '');
 }
 
-const [miner, village] = await Promise.all([new GLTFLoader().loadAsync(minerUrl), loadVillage()]);
-const camp = new CampStandIn(village.scene);
+const [miner, village] = await Promise.all([loadModel(minerUrl), loadModel(villageUrl)]);
+const camp = new CampStandIn(village.scene, miner.scene.getObjectByName('Rock')!);
 scene.add(camp.group);
 const hero = miner.scene.getObjectByName('Miner')!;
 for (const n of ['pick_head', 'pick_collar', 'axe_head', 'axe_blade', 'pick_handle']) { const o = miner.scene.getObjectByName(n); if (o) o.visible = false; }
@@ -94,11 +98,13 @@ function frame(now: number) {
     if (playing) t += dt;
     const f = openingFrame(SITE, endCam, t, reduced);
     view.update(f, dt); overlay.update(f);
+    camp.setMist(f.camera.pos.y < 12);                // the waterfall's mist only once the camera is down near the pool
     scrub.value = String(f.t);
     read.textContent = `t ${f.t.toFixed(2)}  shot ${f.shot}  ${f.hero.pose}  story ${f.story.toFixed(2)}${f.speed < 0.99 ? ` (x${f.speed.toFixed(2)})` : ''}`;
     if (f.done && playing) finish();
   } else {
     cam.follow(hero.position, 1);
+    camp.setMist(true);
     read.textContent = 'done: the game camera';
   }
   pauseBtn.textContent = playing ? 'Pause' : 'Play';

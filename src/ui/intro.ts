@@ -1,5 +1,7 @@
-// The welcome for a new player: what the game is about and what to do first. Shown once, at the start of a brand-new
-// game, before the how-to-play hint; remembered in this browser only. Changes nothing in the game.
+// The welcome for a new player: how he got here (thrown over the falls, washed up with nothing but the wreck) and
+// what to do first (tap things on the ground to gather them; the goal shows what is next); the words are in
+// index.html. Shown once, at the start of a brand-new game, before the how-to-play hint; remembered in this browser
+// only. Changes nothing in the game.
 
 const SEEN_KEY = 'hearthfolk_intro_seen';
 

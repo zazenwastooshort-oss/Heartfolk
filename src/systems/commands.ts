@@ -1,36 +1,79 @@
 // The only way the UI changes the game: it queues commands, and the simulation applies them at the start of a step.
-import type { GameState } from '../core/state';
+import { goalFirst, type GameState } from '../core/state';
+import { isNight } from '../core/clock';
 import type { EventBus } from '../core/events';
 import type { Layout, Vec2 } from '../world/layout';
-import { walkTo, goWork, goVisit } from '../actors/player';
+import { walkTo, goWork, goVisit, goPickup, goMake } from '../actors/player';
 import { RESOURCES } from '../data/skills';
+import { SWINGS } from '../data/animation';
+import { makeDef, type MakeId } from '../data/making';
 import { levelOf } from './skills';
+import { gatherOf, onGround, roomFor } from './pickups';
+import { drop, isStore, stopStoking, stores } from './backpack';
+import { canMake, missingFor } from './making';
 
 export type Command =
   | { type: 'walk'; to: Vec2 }
   | { type: 'work'; nodeId: string }
-  /** a building (by id), or land that isn't the player's yet (parcel id, with where it was tapped) */
-  | { type: 'visit'; id: string; at?: Vec2 };
+  /** a building (by id), something he built (the storage chest, to empty the backpack into it), or land that isn't
+   *  the player's yet (parcel id, with where it was tapped) */
+  | { type: 'visit'; id: string; at?: Vec2 }
+  /** something lying on the ground (layout.pickups, by id): walk over and pick it up; a plank, stone or branch starts
+   *  gathering more like it (systems/pickups) */
+  | { type: 'pickup'; id: string }
+  /** drop `count` of an item from the backpack (all of it when `count` is more than he carries) */
+  | { type: 'drop'; item: string; count: number }
+  /** make something (data/making.ts): the goal card's Build button, or a tap on its site. At the camp, a goal before
+   *  the one that makes it still to finish, or without everything it needs, he says so and stays put. */
+  | { type: 'make'; id: MakeId };
 
 export const isClaimed = (state: GameState, parcelId: string | undefined) => !parcelId || !!state.parcels[parcelId]?.claimed;
 
 export function applyCommands(state: GameState, layout: Layout, queue: Command[], events: EventBus): void {
   for (const c of queue.splice(0)) {
+    // dropping something doesn't send him anywhere: whatever he is doing carries on, a trip to the bank (the chest)
+    // or stoking the fire included
+    if (c.type === 'drop') { drop(state, c.item, c.count, events); continue; }
     let ok = true;
     if (c.type === 'walk') ok = walkTo(state, layout, c.to);
     else if (c.type === 'visit') ok = goVisit(state, layout, c.id, c.at);
-    else {
+    else if (c.type === 'pickup') {
+      if (!onGround(state, layout, c.id)) continue;
+      // no room for it: where there is a bank (or the camp's chest), gathering starts with a trip to empty the
+      // backpack (systems/hauling), as working a tree does; otherwise he says so and stays put
+      const toBankFirst = !!gatherOf(layout, c.id) && stores(state, layout).length > 0;
+      if (!roomFor(state, layout, c.id) && !toBankFirst) { events.emit({ type: 'noRoom' }); continue; }
+      ok = goPickup(state, layout, c.id);
+    } else if (c.type === 'make') {
+      const def = makeDef(c.id), task = state.player.task;
+      // not here, already made (built, or a tool he owns), or already at work on it: nothing to do
+      if (!def || !canMake(state, layout, def) || (task.kind === 'make' && task.id === def.id)) continue;
+      // the camp's goals come in order: the campfire waits until the wreck is salvaged
+      const first = layout.camp ? goalFirst(state, def.id) : null;
+      if (first) { events.emit({ type: 'goalFirst', make: def.id, goal: first.id }); continue; }
+      const missing = missingFor(state, def);
+      if (Object.keys(missing).length) { events.emit({ type: 'missing', make: def.id, items: missing }); continue; }
+      ok = goMake(state, layout, def.id);
+    } else {
       const spot = layout.nodes.find(n => n.id === c.nodeId);
       const res = spot && RESOURCES[spot.resource];
       if (!spot || !res) continue;
+      const tool = SWINGS[res.skill].tool;
       if (!isClaimed(state, spot.parcel)) { ok = goVisit(state, layout, spot.parcel!, spot.pos); }
+      // without the tool for it he can't work it at all, so he doesn't set off
+      else if (!state.tools[tool]) { events.emit({ type: 'needTool', tool, skill: res.skill }); continue; }
       else if (levelOf(state, res.skill) < res.level) { events.emit({ type: 'levelTooLow', skill: res.skill, need: res.level, what: res.name }); continue; }
       else ok = goWork(state, layout, c.nodeId);
     }
     if (!ok) { events.emit({ type: 'noPath' }); continue; }
-    // the player's command wins over a trip to the bank (the backpack keeps its items), unless it sends him to the
-    // bank anyway. Sent to work with a full backpack, hauling starts a new trip at once.
-    const toBank = c.type === 'visit' && layout.buildings.find(b => b.id === c.id)?.kind === 'bank';
-    if (!toBank) state.player.trip = null;
+    // the player's command wins over a trip to the bank or the chest (the backpack keeps its items), unless it sends
+    // him there anyway. Sent to work (or to gather) with a full backpack, hauling starts a new trip at once. It wins
+    // over stoking the fire too (systems/fire.ts): logs he carries go back where he took them from, and (0.0.21) he
+    // sets off again once he has nothing to do, the same night. A tap on the pile or the chest while he is on his way
+    // there for the logs sends him where he was going: at the chest he empties the backpack too, and stokes on.
+    const toStore = c.type === 'visit' && isStore(state, layout, c.id), stoke = state.player.stoke;
+    if (!toStore) state.player.trip = null;
+    if (stoke && stoke.logs === 0 && c.type === 'visit' && c.id === stoke.from) { if (c.id === 'chest') stoke.empty = true; }
+    else if (stoke) { stopStoking(state); if (isNight(state.time)) state.stokeAgain = true; }
   }
 }

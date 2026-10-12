@@ -5,18 +5,24 @@
 // out of an arm's reach, the tool is drawn in toward the shoulders until both grips are in reach; then each arm's
 // upper arm and forearm turn so its hand (marker HandL/HandR on fore_l/r) lands on its grip (GripL/GripR on the
 // tool), the elbow bending toward its pole (PoleL/PoleR on the hips). Inside a single clip it changes nothing.
-// The tool is only in his hands while he works (toolInHand); on every walk, and whenever else he isn't working, the
-// free clips carry it on his back with the arms keyed on their own, and ArmIK leaves them be (armedWeight).
+// The tool is in his hands while he works and on short hops to the next tree or rock (toolInHand); on longer walks,
+// and whenever else he isn't working, the free clips carry it on his back with the arms keyed on their own, and ArmIK
+// leaves them be (armedWeight).
 import * as THREE from 'three';
 import type { PlayerState } from '../core/state';
-import { ARMED_CLIPS } from '../data/animation';
+import { ARMED_CLIPS, SHORT_HOP } from '../data/animation';
 
-/** Whether he has the tool in his hands: only while he works a node (waiting at a stump or an empty rock included).
- *  On every walk (to work, back to work from the bank, on to the next tree or rock, to the bank, to a tapped spot, to
- *  a building) and the rest of the time (standing about, the moment at the bank door) it is on his back and his arms
- *  are free: he sheathes it to walk and takes it out when he reaches the node (the owner, 11 Oct 2026). */
-export function toolInHand(p: Pick<PlayerState, 'task'>): boolean {
-  return p.task.kind === 'gather';
+/** Whether he has the tool in his hands: while he works a node (waiting at a stump or an empty rock included), and
+ *  since 0.0.21 on a short walk to one (under SHORT_HOP along his path: on to the next tree or rock, or the last stretch
+ *  of a longer walk to work). On longer walks (to work from afar, back to work from the bank) and on every other walk
+ *  (to the bank, a tapped spot, a building), and the rest of the time (standing about, the moment at the bank door) it
+ *  is on his back and his arms are free (the owner, 11 and 12 Oct 2026). */
+export function toolInHand(p: Pick<PlayerState, 'task' | 'pending' | 'path' | 'pos'>): boolean {
+  if (p.task.kind === 'gather') return true;
+  if (p.task.kind !== 'walk' || p.pending?.kind !== 'node') return false;
+  let left = 0, at = p.pos;
+  for (const w of p.path) { left += Math.hypot(w.x - at.x, w.z - at.z); at = w; if (left >= SHORT_HOP) return false; }
+  return true;
 }
 
 /** How much of the blended pose comes from clips that hold the tool, for ArmIK.solve: 0 while the clip being faded

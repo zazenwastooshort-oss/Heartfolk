@@ -6,6 +6,92 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.21', date: '12 Oct 2026', notes: [
+      'Gathering is slower and calmer: a log or a lump of ore every 7 or 8 seconds to begin with, quicker as he levels.',
+      "He stops gathering once your current goal has enough, so your backpack no longer fills up with things you don't need yet.",
+      'Firewood is now a pile beside the fire: chop 10 logs, then tap Stack. At nightfall he stokes the fire from the pile first. Tap the pile to stack more logs on it.',
+      'The shelter needs its own 10 logs now, since the firewood stays in the pile.',
+      'Hopping to the next tree or rock, he keeps his axe or pick in his hands.',
+      'If you send him somewhere while he is off to stoke the fire, he goes back to it once he has nothing to do.',
+      'With the game open in another tab or your screen off, time simply counts as play, at full speed and with no limit. The "While you were away" note is only for coming back after closing the game.',
+      'Copper rocks are flecked with green now.',
+      'Your stone axe and pickaxe look the part: rough knapped stone heads on a branch, bound with lashing.',
+    ],
+  },
+  {
+    version: '0.0.20', date: '12 Oct 2026', notes: [
+      'He keeps working while the game is closed, at a fifth of his speed, for up to 2 hours. After that he waits for you to come back.',
+      'When you come back, a short note says how long you were away and what he did: what he gathered, the XP and levels he earned, and whether he stoked the fire.',
+      'With the game left open, in another tab or with your screen off, he works at full speed, and the note shows when you come back to it.',
+      'Away time counts from the next time you close the game.',
+    ],
+  },
+  {
+    version: '0.0.19', date: '12 Oct 2026', notes: [
+      'Build your storage chest beside the shelter. Once you have 10 logs and 3 copper ore, tap Build the storage chest on the goal card, or tap the chest spot.',
+      "The chest is your camp's storage. When your backpack fills up, he carries it to the chest, empties it and goes back to work. Tap the chest to empty your backpack into it yourself. The panel shows what is in the chest, and it counts for your goals.",
+      'At nightfall (20:00) he takes a few logs from the chest, or from his backpack, and stokes the campfire, then goes back to what he was doing. Once a night.',
+      'With no logs at all, the fire burns low that night. Nothing is lost, and it burns brightly again once he stokes it.',
+      'With the chest built, your camp is set up. More comes in later updates.',
+    ],
+  },
+  {
+    version: '0.0.18', date: '12 Oct 2026', notes: [
+      'Build your shelter. Once you have the firewood, tap Build the shelter on the goal card, or tap the shelter spot by the fire. It takes the tarp, 4 planks and 10 logs, and your tent stays up when you come back.',
+      'Then make a stone pickaxe from 2 branches and 3 stones, right where you stand, and mine 3 copper ore from the grey rocks with orange lumps.',
+      'If you already had a pickaxe from an earlier version, you keep it, and the stone pickaxe goal is done for you.',
+      'After the copper comes a storage chest. Building it comes in the next update. Your book has a page for each new goal.',
+    ],
+  },
+  {
+    version: '0.0.17', date: '12 Oct 2026', notes: [
+      'Your book opens when you pick it up on the shore. It has a page for each goal: a few words about it, what you need with a tick for each thing you have, and a hint.',
+      'Once you have your book, tap the goal card to open it at your current goal. Turn the pages with Previous and Next, or the arrow keys, and close it with the cross or Esc.',
+      'Finished goals stay ticked and marked Done. The pages after your current goal are still stuck together from the river.',
+    ],
+  },
+  {
+    version: '0.0.16', date: '12 Oct 2026', notes: [
+      'Make your stone axe. Once the campfire is lit and you have 2 branches and 2 stones, tap Make the stone axe on the goal card. You work on it a few seconds, right where you stand.',
+      'Then tap a birch tree to chop it. The next goal is Firewood: 10 birch logs.',
+      'If you already had an axe from an earlier version, you keep it, and the stone axe goal is done for you.',
+      'After the firewood comes a shelter. Building it comes in a later update.',
+    ],
+  },
+  {
+    version: '0.0.15', date: '12 Oct 2026', notes: [
+      'Build your campfire. Once the wreck is salvaged and you have 3 planks and 4 stones, tap Build on the goal card, or tap the fire spot (the ring on the bare earth in the middle of the camp).',
+      'You work there a few seconds, and the fire is lit: it flickers, smokes a little, and lights up the camp at night. It stays lit when you come back.',
+      'Before that, you are told what to finish first, or what you still need.',
+      'Finished goals stay finished, so using planks for the fire never sends you back to salvaging. Next up: a stone axe.',
+    ],
+  },
+  {
+    version: '0.0.14', date: '12 Oct 2026', notes: [
+      'Tap a plank and you pick up every plank on the bank, one after another, the two in the smashed crate too. When they are all in your backpack, you stop.',
+      'Tap a stone or a branch and you keep gathering them, nearest first. When none are left, you wait beside the next one to come back, until your backpack is full. While you wait, a ring on the ground fills up until it is back.',
+      'The torn tarp and your book are picked up on their own, as before.',
+      'Tap the grass, or anything else, to stop or do something different.',
+    ],
+  },
+  {
+    version: '0.0.13', date: '12 Oct 2026', notes: [
+      'The pool below the falls and the river are one stretch of water now, with a natural shoreline and a pebbly sandy bank all the way round.',
+      'The river winds a little, its banks gently curving and its width changing as it goes, and it flows on out of sight instead of stopping.',
+      'The foot of the mountain looks like one: a slope of fallen rock against the wall, boulders big and small, rubble, moss and ferns fading into the grass. The bigger rocks are in your way; you step over the small ones.',
+      'No more trees standing in the river: trees and bushes keep off the water and its bank.',
+    ],
+  },
+  {
+    version: '0.0.12', date: '12 Oct 2026', notes: [
+      'A long way down: the falls now pour out of the mist down a towering wall of rock, and you wash up below with nothing, not even your tools.',
+      'Wreckage came down with you. Tap the planks, the torn tarp, the smashed crate and your book to pick them up.',
+      'Stones and branches lie round the clearing. Pick them up by hand; they come back after a while.',
+      'The camp starts bare: no tent and no campfire until you build them. The goal at the top starts with salvaging the wreck.',
+      "Tap your backpack to see what's in it. With nowhere to store things yet, you can drop stones, branches, logs or ore to make room.",
+    ],
+  },
+  {
     version: '0.0.11', date: '12 Oct 2026', notes: [
       'A new beginning: you wash up below a waterfall and make camp at its foot.',
       'A goal at the top shows what to do next, starting with the campfire.',

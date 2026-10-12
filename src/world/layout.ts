@@ -9,6 +9,11 @@
 //   5. the edges: the copper quarry, the birch woods and the oaks by the river (rocks and trees to work), the forest,
 //      and land not yet claimed
 
+import type { PickupKind } from '../data/pickups';
+import type { ToolId } from '../data/skills';
+import type { SiteId } from '../data/making';
+import { SHORE_CLEAR, waterShape } from './water';
+
 export interface Vec2 { x: number; z: number }
 export interface Area { minX: number; maxX: number; minZ: number; maxZ: number }
 
@@ -32,13 +37,19 @@ export interface GardenSpot { pos: Vec2; rot: number; w: number; d: number }
  *  size: scale of a tree's model. */
 export interface NodeSpot { id: string; resource: string; pos: Vec2; radius: number; size?: number; parcel?: string }
 export type TreeKind = 'birch' | 'oak' | 'pine';
-/** y: the height of the ground it stands on, when that isn't 0 (the clifftop above the waterfall at the camp) */
-export interface TreeSpot { pos: Vec2; kind: TreeKind; size: number; y?: number }
+export interface TreeSpot { pos: Vec2; kind: TreeKind; size: number }
 export interface Parcel { id: string; name: string; area: Area }
-/** The waterfall a new game starts below (world/camp.ts): the river runs along the clifftop (`upper`, `height` metres
- *  up), pours over the cliff face at `lip` (the cliff runs east-west along z = lip.z) into `pool`, and flows on as
- *  the layout's `river`. */
-export interface Falls { lip: Vec2; width: number; height: number; pool: { pos: Vec2; radius: number }; upper: Vec2[] }
+/** The waterfall a new game starts below (world/camp.ts): water pours out of the mist down a towering mountain wall
+ *  whose foot runs east-west along z = lip.z, `width` metres wide where it lands in `pool`, and flows on as the
+ *  layout's `river`. `height` is how high the wall is drawn before it is lost in mist and cloud; its top, where the
+ *  water comes over, is never seen. */
+export interface Falls { lip: Vec2; width: number; height: number; pool: { pos: Vec2; radius: number } }
+/** Something lying on the ground to pick up by hand (data/pickups.ts): a plank or the book from the wreck, a stone, a
+ *  branch. rot: radians round the vertical axis. Pickups don't block walking. */
+export interface PickupSpot { id: string; kind: PickupKind; pos: Vec2; rot: number }
+/** Scenery that stays where it lies (the wreck's broken hull ribs at the water's edge): a model in village.glb,
+ *  sunk `y` metres into the ground or water, blocking `radius` metres of walkable ground (0 for none). */
+export interface DebrisSpot { model: string; pos: Vec2; rot: number; y?: number; radius: number }
 
 export interface Layout {
   /** land the player can walk on at the start */
@@ -58,11 +69,20 @@ export interface Layout {
   /** roads (wide) and lanes (narrow), drawn as dirt */
   paths: { points: Vec2[]; width: number }[];
   parcels: Parcel[];
-  /** the model drawn at the hearth: the village's big Hearth, or the camp's campfire */
-  hearthModel?: string;
-  /** the camp a new game starts at: where the tent stands */
-  camp?: { tent: { pos: Vec2; rot: number } };
+  /** the model drawn at the hearth: the village's big Hearth when not given, or null for nothing there yet (the camp,
+   *  whose campfire is built there: siteOf, data/making.ts). With nothing there, nothing is in the way either. */
+  hearthModel?: string | null;
+  /** the camp a new game starts at: the spots where his shelter, a tent, and his storage chest are built (siteOf
+   *  'tent' and 'chest'; nothing stands there until then): each one's middle, which way it faces (towards the fire),
+   *  how far round it it reaches (its ring, and where he stands to build it), and its width and depth, which are in
+   *  the way once it stands. The campfire is built at `hearth`; the firewood pile (0.0.21) beside it. */
+  camp?: { tent: Required<Site>; chest: Required<Site>; woodpile: Required<Site> };
   falls?: Falls;
+  /** things lying on the ground to pick up by hand (the camp's wreck, stones and branches) */
+  pickups?: PickupSpot[];
+  debris?: DebrisSpot[];
+  /** the tools a new game here starts with; all of them when not given (the village). At the camp he has none. */
+  startTools?: ToolId[];
   /** the ground drawn in detail round the playable land (the village's is the default) */
   ground?: Area;
 }
@@ -93,6 +113,24 @@ export function doorOf(b: BuildingSpot): Vec2 {
 
 export const inArea = (a: Area, p: Vec2) => p.x >= a.minX && p.x <= a.maxX && p.z >= a.minZ && p.z <= a.maxZ;
 
+/** A place where something is built: its middle; how far round it the thing built there reaches (the ring drawn
+ *  round it until then; he stands just beyond it to build); which way it faces (rot as for buildings: 0 faces +z;
+ *  none for the round campfire); and for a thing with corners (the tent), its width across and depth along that way.
+ *  Once built it is in the way (world/nav.ts): a round thing out to its radius, one with corners by its w x d. */
+export interface Site { pos: Vec2; radius: number; rot?: number; w?: number; d?: number }
+
+/** Where something is built (MAKES' `at` in data/making.ts) in this layout: the camp's hearth, where nothing stands
+ *  until its campfire is built (the village's already has its big Hearth), the camp's tent spot, where his shelter
+ *  goes, and the camp's chest spot beside it; or null where this layout has no such place. A structure built there
+ *  stands on it and is in the way (world/nav.ts). */
+export function siteOf(layout: Layout, id: SiteId): Site | null {
+  if (id === 'hearth') return layout.hearthModel === null ? layout.hearth : null;
+  if (id === 'tent') return layout.camp?.tent ?? null;
+  if (id === 'chest') return layout.camp?.chest ?? null;
+  if (id === 'woodpile') return layout.camp?.woodpile ?? null;
+  return null;
+}
+
 // a scatter that is the same every time
 function seeded(seed: number) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
@@ -111,6 +149,10 @@ function forest(): TreeSpot[] {
 }
 
 const W = (x: number, z: number): Vec2 => ({ x, z });
+
+// the river along the west edge; the forest keeps off it and its bank
+const RIVER = { points: [W(-26.4, -36), W(-25.9, -20), W(-26.7, -8), W(-25.8, 4), W(-26.5, 16), W(-26.0, 36)], width: 3.4 };
+const WATER = waterShape(RIVER);
 
 export const VILLAGE: Layout = {
   village: { minX: -23.5, maxX: 25, minZ: -24.5, maxZ: 24.5 },
@@ -176,14 +218,14 @@ export const VILLAGE: Layout = {
     { pos: W(-21.8, -22.4), kind: 'pine', size: 1.1 }, { pos: W(22.8, 21.6), kind: 'pine', size: 1.0 },
     { pos: W(-21.6, 22.2), kind: 'pine', size: 1.05 }, { pos: W(13.8, -14.2), kind: 'pine', size: 1.0 },
     { pos: W(12.4, 11.2), kind: 'pine', size: 0.9 },
-    ...forest(),
+    ...forest().filter(t => WATER.edge(t.pos) > SHORE_CLEAR),
   ],
   bushes: [W(-4.6, -6.8), W(4.4, -6.9), W(-6.2, 11.4), W(12.8, -5.6), W(-14.2, -10.4), W(20.6, -3.2), W(-3.2, -17.8), W(3.4, 11.6)],
   lanterns: [
     W(3.0, -6.4), W(-3.0, -6.4), W(6.8, 1.0), W(-6.8, -1.2), W(1.4, 7.0), W(-1.4, -7.0),
     W(15.0, 1.6), W(-15.0, -1.6), W(1.6, 14.0), W(5.9, -14.0), W(-6.0, -13.0),
   ],
-  river: { points: [W(-26.4, -36), W(-25.9, -20), W(-26.7, -8), W(-25.8, 4), W(-26.5, 16), W(-26.0, 36)], width: 3.4 },
+  river: RIVER,
   paths: [
     // main roads out of the square
     { points: [W(-4.6, -5.0), W(-5.2, -15.0), W(-5.6, -26)], width: 2.4 },                // north-west, past the forge
