@@ -1,14 +1,15 @@
 // Making things (data/making.ts): sent to make something, he walks to where it is made (beside its site, or he stays
 // where he stands), works there `time` seconds, and then what it needs is taken from his backpack (then the bank) and
-// it is made: a structure stands at its site from then on (GameState.built; it is in the way, world/nav.ts), or he
-// owns a new tool. Without everything it needs he doesn't set off, and is told what's missing (commands); if
-// something went missing while he worked, he stops and is told the same.
+// it is made: a structure stands at its site from then on (GameState.built; it is in the way, world/nav.ts), he owns
+// a new tool, or (0.0.22) he wears new gear (the stone club). Without everything it needs he doesn't set off, and is
+// told what's missing (commands); if something went missing while he worked, he stops and is told the same.
 import { made, owned, type GameState } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Layout } from '../world/layout';
 import { siteOf } from '../world/layout';
 import { MAKES, type MakeDef } from '../data/making';
 import { useUp } from './backpack';
+import { wear } from './combat';
 
 /** What he still lacks to make `def`: item id to how many more (empty when he has it all, carried or banked). */
 export function missingFor(state: GameState, def: MakeDef): Record<string, number> {
@@ -34,6 +35,7 @@ export function updateMaking(state: GameState, layout: Layout, events: EventBus)
   // the firewood pile: its logs aren't used up but stacked in it, for stoking the fire
   if (def.pile) state.woodpile += def.needs[def.pile] ?? 0;
   if (def.gives.kind === 'structure') state.built.push(def.id);
+  else if (def.gives.kind === 'gear') wear(state, def.gives.gear);         // gear (0.0.22): he puts it on
   else state.tools[def.gives.tool] = true;
   events.emit({ type: 'made', make: def.id });
 }

@@ -4,10 +4,13 @@
 import type { GameEvent } from './events';
 import { allGoalsDone, currentGoal, goalFinished, goalMet, owned, type GameState } from './state';
 import { CAMP_DONE, GOALS, type Goal } from '../data/goals';
+import { levelFor } from '../data/xp';
+import type { SkillId } from '../data/skills';
 
 /** One line of what a goal needs: `got` of `need` (carried or stored, as the card counts; never more than `need`),
- *  ticked (`done`) once there are enough. */
-export interface BookLine { id: string; need: number; got: number; done: boolean }
+ *  ticked (`done`) once there are enough. A `level` line (0.0.22) is a skill level the goal asks for: `id` is the skill,
+ *  `got` his level in it ("Attack level 2 / 3"). */
+export interface BookLine { id: string; need: number; got: number; done: boolean; level?: true }
 
 /** One page: its number (from 1), its goal's title, the book's words for it (`text`), what it needs, the hint (the
  *  goal's ready text instead once everything is there; none on a finished page, whose ticks and Done mark say it
@@ -21,10 +24,15 @@ export interface BookPage {
  *  needed. A finished goal has every line ticked, even after its things were used up (the campfire's planks). */
 export function goalLines(state: GameState, goal: Goal): BookLine[] {
   const finished = goalFinished(state, goal);
-  return Object.entries(goal.needs).map(([id, need]) => {
+  const items = Object.entries(goal.needs).map(([id, need]) => {
     const got = finished ? need : Math.min(need, owned(state, id));
     return { id, need, got, done: got >= need };
   });
+  const levels = Object.entries(goal.levels ?? {}).map(([id, need]): BookLine => {
+    const got = finished ? need! : Math.min(need!, levelFor(state.skills[id as SkillId] ?? 0));
+    return { id, need: need!, got, done: got >= need!, level: true };
+  });
+  return [...items, ...levels];
 }
 
 /** The pages to show: one per goal from the first up to the goal he is on (currentGoal), and none after it. Once

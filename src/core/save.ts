@@ -7,6 +7,8 @@ import { PICKUPS } from '../data/pickups';
 import { BOOK, GOALS } from '../data/goals';
 import { makeDef, type MakeId } from '../data/making';
 import { STOKE, WOODPILE } from '../data/fire';
+import { SLOTS, STYLES, gearDef, type CombatStyle, type GearId, type Slot } from '../data/combat';
+import { targetOf } from './targets';
 
 export interface Storage { get(key: string): string | null; set(key: string, value: string): void }
 
@@ -36,7 +38,8 @@ const migrations: Record<number, (s: any) => any> = {
   // can't send the card back to it.
   5: (s) => {
     const have = (id: string) => id === BOOK ? (s.hasBook === true ? 1 : 0) : (savedItems(s.player?.backpack)[id] ?? 0) + (savedItems(s.bank)[id] ?? 0);
-    const met = GOALS.filter(g => !g.makes && Object.entries(g.needs).every(([id, n]) => have(id) >= n));
+    // (a goal that asks for levels, 0.0.22, didn't exist then: it isn't counted)
+    const met = GOALS.filter(g => !g.makes && !g.levels && Object.entries(g.needs).every(([id, n]) => have(id) >= n));
     return { ...s, built: [], goalsDone: met.map(g => g.id) };
   },
   // 0.0.19: the storage chest, and stoking the fire at night. No chest stood before, so no night has been seen to
@@ -121,6 +124,13 @@ function savedBuilt(v: unknown, layout: Layout): MakeId[] {
   return [...new Set(v.filter(ok))] as MakeId[];
 }
 
+/** What he wears (0.0.22): in each slot, gear that exists and goes in that slot; anything else is nothing. */
+function savedEquipment(v: unknown, fresh: Record<Slot, GearId | null>): Record<Slot, GearId | null> {
+  const out = { ...fresh };
+  if (isRecord(v)) for (const slot of SLOTS) { const def = typeof v[slot] === 'string' ? gearDef(v[slot] as string) : null; if (def?.slot === slot) out[slot] = def.id; }
+  return out;
+}
+
 /** Goals finished: ids GOALS still has, each once. */
 function savedGoals(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
@@ -134,6 +144,7 @@ function savedBack(v: unknown, state: GameState, layout: Layout): Back | null {
   if (typeof v.nodeId === 'string') return v.nodeId in state.nodes ? { nodeId: v.nodeId } : null;
   if (typeof v.pickupId === 'string') return (layout.pickups ?? []).some(x => x.id === v.pickupId) ? { pickupId: v.pickupId } : null;
   if (typeof v.make === 'string') return makeable(state, layout, v.make) ? { make: v.make as MakeId } : null;
+  if (typeof v.fight === 'string') return targetOf(state, layout, v.fight) && state.equipment.weapon ? { fight: v.fight } : null;
   const to = v.to as { x?: unknown; z?: unknown } | undefined;
   if (isRecord(to) && Number.isFinite(to.x) && Number.isFinite(to.z)) return { to: { x: to.x as number, z: to.z as number } };
   return null;
@@ -196,6 +207,9 @@ export function readSave(raw: string, layout: Layout): Loaded {
     woodpile: 0,
     stokeAgain: data.stokeAgain === true,
     parcels: { ...fresh.parcels, ...Object.fromEntries(Object.entries(data.parcels ?? {}).filter(([id]) => id in fresh.parcels)) },
+    // what he wears and what fighting trains (0.0.22): anything unknown is as a new game has it
+    equipment: savedEquipment(data.equipment, fresh.equipment),
+    combatStyle: STYLES.includes(data.combatStyle) ? data.combatStyle as CombatStyle : fresh.combatStyle,
   };
   // his health: a number above 0 up to his most; anything else (none saved, from before 0.0.22, or damaged) is full
   const max = maxHealth(state);
@@ -215,8 +229,12 @@ export function readSave(raw: string, layout: Layout): Loaded {
   if (p.task.kind === 'pickup' && (!pickupThere(p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
   // making something: only something that can still be made here, with a time it is done
   if (p.task.kind === 'make' && (!makeable(state, layout, p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
+  // fighting (0.0.22): only something there to fight (the dummy, built), with a weapon, part way from one strike to the next
+  if (p.task.kind === 'fight' && (!targetOf(state, layout, p.task.target) || !state.equipment.weapon
+    || !Number.isFinite(p.task.progress) || p.task.progress < 0 || p.task.progress >= 1)) p.task = { kind: 'idle' };
   if ((p.pending?.kind === 'node' && !(p.pending.id in state.nodes)) || (p.pending?.kind === 'pickup' && !pickupThere(p.pending.id))
-    || (p.pending?.kind === 'make' && !makeable(state, layout, p.pending.id))) {
+    || (p.pending?.kind === 'make' && !makeable(state, layout, p.pending.id))
+    || (p.pending?.kind === 'fight' && (!targetOf(state, layout, p.pending.id) || !state.equipment.weapon))) {
     p.pending = null; p.path = []; if (p.task.kind === 'walk') p.task = { kind: 'idle' };
   }
   // a trip only makes sense on the way to the bank or waiting at its door, back to a node that still exists or to

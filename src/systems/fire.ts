@@ -35,16 +35,18 @@ function logsFrom(state: GameState, layout: Layout): 'woodpile' | 'chest' | null
 }
 
 /** What he is doing, to go back to after stoking: on a trip to the chest, back to what the trip goes back to; working
- *  or on the way to work; gathering or picking something up; on the way to make something; walking to a spot. Null
- *  for nothing (he stays by the fire). */
+ *  or on the way to work; gathering or picking something up; on the way to make something; walking to a spot;
+ *  (0.0.22) practising on the training dummy or on the way to it. Null for nothing (he stays by the fire). */
 function backOf(state: GameState): Back | null {
   const p = state.player, task = p.task, pending = p.pending;
   if (p.trip) return 'nodeId' in p.trip ? { nodeId: p.trip.nodeId } : { pickupId: p.trip.pickupId };
   if (task.kind === 'gather') return { nodeId: task.nodeId };
   if (task.kind === 'pickup') return { pickupId: task.id };
+  if (task.kind === 'fight') return { fight: task.target };
   if (pending?.kind === 'node') return { nodeId: pending.id };
   if (pending?.kind === 'pickup') return { pickupId: pending.id };
   if (pending?.kind === 'make') return { make: pending.id };
+  if (pending?.kind === 'fight') return { fight: pending.id };
   if (task.kind === 'walk' && !pending && p.path.length) return { to: { ...p.path.at(-1)! } };
   return null;
 }

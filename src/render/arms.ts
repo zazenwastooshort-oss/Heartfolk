@@ -16,9 +16,10 @@ import { ARMED_CLIPS, SHORT_HOP } from '../data/animation';
  *  since 0.0.21 on a short walk to one (under SHORT_HOP along his path: on to the next tree or rock, or the last stretch
  *  of a longer walk to work). On longer walks (to work from afar, back to work from the bank) and on every other walk
  *  (to the bank, a tapped spot, a building), and the rest of the time (standing about, the moment at the bank door) it
- *  is on his back and his arms are free (the owner, 11 and 12 Oct 2026). */
+ *  is on his back and his arms are free (the owner, 11 and 12 Oct 2026). Fighting (0.0.22: practising on the training
+ *  dummy) his weapon is in his hands, as a tool is at work. */
 export function toolInHand(p: Pick<PlayerState, 'task' | 'pending' | 'path' | 'pos'>): boolean {
-  if (p.task.kind === 'gather') return true;
+  if (p.task.kind === 'gather' || p.task.kind === 'fight') return true;
   if (p.task.kind !== 'walk' || p.pending?.kind !== 'node') return false;
   let left = 0, at = p.pos;
   for (const w of p.path) { left += Math.hypot(w.x - at.x, w.z - at.z); at = w; if (left >= SHORT_HOP) return false; }

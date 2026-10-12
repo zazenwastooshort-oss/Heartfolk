@@ -1,6 +1,7 @@
 // Draws the game: the ground and river, the village, fog over unclaimed land, the rocks and trees, things lying on the
 // ground to pick up, what he builds (the campfire, the shelter), and the character with the tool for the job (pick or
-// axe; at the camp they are the stone pickaxe and stone axe he made) and the matching animation, placed
+// axe; at the camp they are the stone pickaxe and stone axe he made; since 0.0.22 his stone club while he practises on
+// the training dummy, swung with the axe's Chop clip, resting between strikes) and the matching animation, placed
 // from the game state every frame, plus effects (chips, the click cross). It reads state; it never changes it. The
 // tool is in his hands while he works and on his back otherwise, every walk included (toolInHand picks the armed or
 // the free clip), hidden for the moment it moves between the two. A tool he doesn't own is never drawn: with none he
@@ -14,8 +15,9 @@ import type { GameState } from '../core/state';
 import type { Layout, NodeSpot } from '../world/layout';
 import { footOf } from '../world/falls';
 import { waterOf } from '../world/water';
-import { RESOURCES, TOOL_IDS } from '../data/skills';
+import { RESOURCES, TOOL_IDS, type ToolId } from '../data/skills';
 import { ARMED_CLIPS, FADE, GAIT, IDLE, SWINGS, type Swing } from '../data/animation';
+import { STRIKE, strikeEvery, type GearId } from '../data/combat';
 import { dayFraction } from '../core/clock';
 import { Lighting } from './lighting';
 import { OrbitCamera } from './camera';
@@ -27,6 +29,7 @@ import { NodesView } from './nodes';
 import { PickupsView } from './pickups';
 import { StructuresView } from './structures';
 import { ArmIK, armedWeight, toolInHand, toolInTransit } from './arms';
+import { WEAPON_MODELS } from './gear';
 
 /** While he builds something: a placeholder motion, bowing down to it and back up, `rate` bows a second. */
 const BUILD_BOW = { lean: 0.42, dip: 0.08, rate: 1.3 };
@@ -71,7 +74,9 @@ function thicken(mesh: THREE.Mesh, by: number): void {
   for (const axis of ['x', 'y', 'z'] as const) if (axis !== long) mesh.scale[axis] *= by;
 }
 
-type Tool = Swing['tool'];
+/** What he can have in his hands: the tools, or (0.0.22) his weapon, by its id in GEAR (the stone club; its model is in
+ *  render/gear.ts). */
+type Tool = Swing['tool'] | GearId;
 
 /** In builds the model is embedded in the page as a data: URL; decode it here rather than fetching it, because
  *  some hosts (artifact links) block fetch() of anything but their own files. The dev server serves a real file. */
@@ -98,7 +103,7 @@ export class View {
   private structures?: StructuresView;
   private spots: Map<string, NodeSpot>;
   private miner?: THREE.Object3D;
-  private tools?: Record<Tool, { parts: THREE.Object3D[]; tip: THREE.Object3D }>;
+  private tools?: Partial<Record<Tool, { parts: THREE.Object3D[]; tip: THREE.Object3D }>>;
   private tool: Tool | null = null;      // the tool drawn (null: none, he owns no tool)
   private handle?: THREE.Object3D;       // the handle both tools share
   private toolHidden = false;
@@ -109,6 +114,7 @@ export class View {
   private current?: THREE.AnimationAction;
   private shown = { pos: new THREE.Vector3(), heading: 0, ready: false };
   private strikeAt: string | null = null;
+  private hitAt: { target: string; damage: number } | null = null;
   private marker = new THREE.Group();
   private markerT = 0;
   readonly pickables: THREE.Object3D[] = [];
@@ -154,6 +160,8 @@ export class View {
       pick: { parts: [find('pick_head'), find('pick_collar')], tip: find('PickTip') },
       axe: { parts: [find('axe_head'), find('axe_blade')], tip: find('AxeTip') },
     };
+    // each weapon (0.0.22) on the axe's bone, so it swings like the axe, landing where the blade would
+    for (const [id, model] of Object.entries(WEAPON_MODELS)) this.tools[id as GearId] = { parts: [model(find('axe_blade').parent!)], tip: find('AxeTip') };
     this.handle = find('pick_handle');
     if (this.layout.camp) {
       // at the camp his tools are stone ones he made: knapped stone heads on a branch, bound with lashing
@@ -210,6 +218,9 @@ export class View {
   /** The tool struck a node. Shown on the next frame, once, however many strikes arrive at once (catching up). */
   strike(nodeId: string): void { this.strikeAt = nodeId; }
 
+  /** His weapon struck `target` (0.0.22: the training dummy wobbles). Shown on the next frame, once, like strike(). */
+  hit(target: string, damage: number): void { this.hitAt = { target, damage }; }
+
   /** World position of the character as currently drawn. */
   minerPos(): THREE.Vector3 { return this.shown.pos.clone(); }
 
@@ -227,15 +238,24 @@ export class View {
       const workId = task.kind === 'gather' ? task.nodeId : p.pending?.kind === 'node' ? p.pending.id : null;
       const spot = workId ? this.spots.get(workId) : undefined;
       const swing = spot ? SWINGS[RESOURCES[spot.resource]!.skill] : null;
-      // the tool for the job if he owns it, else the one he last had out, else any he owns, else none
-      const owns = (t: Tool | null): t is Tool => t !== null && state.tools[t];
-      const tool = swing && owns(swing.tool) ? swing.tool : owns(this.tool) ? this.tool : TOOL_IDS.find(owns) ?? null;
+      // fighting (0.0.22: practising on the training dummy), or on his way to: the weapon he wears (the stone club)
+      const fighting = task.kind === 'fight' || p.pending?.kind === 'fight', weapon = state.equipment.weapon;
+      // the tool for the job if he owns it, else the one he last had out, else any he owns, else none; a weapon while he
+      // wears it, drawn by its own model (render/gear.ts)
+      const owns = (t: Tool | null): t is Tool => t !== null && (Object.hasOwn(WEAPON_MODELS, t) ? t === weapon : !!state.tools[t as ToolId]);
+      const tool = fighting && owns(weapon) ? weapon : swing && owns(swing.tool) ? swing.tool : owns(this.tool) ? this.tool : TOOL_IDS.find(owns) ?? null;
       if (tool !== this.tool) this.showTool(tool);
       const waiting = task.kind === 'gather' && !!state.nodes[task.nodeId]?.depletedUntil;
       // in his hands only at work with the right tool; otherwise on his back (or he has none)
       const armed = tool !== null && toolInHand(p) && (!swing || swing.tool === tool);
       if (task.kind === 'walk') this.play(armed ? GAIT.clip : GAIT.freeClip);
       else if (task.kind === 'gather' && !waiting && swing && armed) { this.play(swing.clip); this.actions[swing.clip]!.time = task.progress * swing.cycle; }
+      else if (task.kind === 'fight' && armed) {
+        // a strike: the Chop swing at the start of each round of his weapon, then he rests, the club still in his hands,
+        // until the next (systems/combat.ts strikes on the same timer)
+        const t = task.progress * strikeEvery(state.equipment.weapon);
+        if (t < STRIKE.cycle) { this.play(STRIKE.clip); this.actions[STRIKE.clip]!.time = t; } else this.play(IDLE.clip);
+      }
       else this.play(armed ? IDLE.clip : IDLE.freeClip);
       // building, or stoking the fire: he bows down to it and back up, over and over (a placeholder until there is a
       // clip for it)
@@ -246,9 +266,10 @@ export class View {
       // a crossfade blends the arms apart from the tool: hands back on the handle (in armed clips only)
       this.arms?.solve(armedWeight(Object.values(this.actions), this.current));
       this.showTool(this.tool, toolInTransit(Object.values(this.actions)));   // hidden between hands and back
-      if (this.strikeAt && this.tools && this.tool) this.nodes?.hit(this.strikeAt, this.tools[this.tool].tip.getWorldPosition(new THREE.Vector3()));
+      if (this.strikeAt && this.tools && this.tool) this.nodes?.hit(this.strikeAt, this.tools[this.tool]!.tip.getWorldPosition(new THREE.Vector3()));
     }
-    this.strikeAt = null;
+    if (this.hitAt) this.structures?.hit(this.hitAt.target, this.hitAt.damage, p.pos);
+    this.strikeAt = null; this.hitAt = null;
     this.nodes?.update(state, dt, this.shown.pos);
     this.pickups?.update(state, this.clock, dt, this.cam.camera, this.lighting.night);
     this.structures?.update(state, this.clock, dt, this.lighting.night);

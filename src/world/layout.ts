@@ -75,8 +75,9 @@ export interface Layout {
   /** the camp a new game starts at: the spots where his shelter, a tent, and his storage chest are built (siteOf
    *  'tent' and 'chest'; nothing stands there until then): each one's middle, which way it faces (towards the fire),
    *  how far round it it reaches (its ring, and where he stands to build it), and its width and depth, which are in
-   *  the way once it stands. The campfire is built at `hearth`; the firewood pile (0.0.21) beside it. */
-  camp?: { tent: Required<Site>; chest: Required<Site>; woodpile: Required<Site> };
+   *  the way once it stands. The campfire is built at `hearth`; the firewood pile (0.0.21) beside it. The training
+   *  dummy (0.0.22) stands at `dummy`, round (no width and depth): a post with a crossbar, in the way out to its radius. */
+  camp?: { tent: Required<Site>; chest: Required<Site>; woodpile: Required<Site>; dummy: Site };
   falls?: Falls;
   /** things lying on the ground to pick up by hand (the camp's wreck, stones and branches) */
   pickups?: PickupSpot[];
@@ -128,6 +129,7 @@ export function siteOf(layout: Layout, id: SiteId): Site | null {
   if (id === 'tent') return layout.camp?.tent ?? null;
   if (id === 'chest') return layout.camp?.chest ?? null;
   if (id === 'woodpile') return layout.camp?.woodpile ?? null;
+  if (id === 'dummy') return layout.camp?.dummy ?? null;
   return null;
 }
 

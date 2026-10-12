@@ -18,6 +18,7 @@ import { Intro } from './ui/intro';
 import { BackpackList } from './ui/backpack';
 import { Book } from './ui/book';
 import { AwayNote } from './ui/away';
+import { CombatHud } from './ui/combat';
 import { AWAY } from './data/away';
 
 // An artifact viewer can swap in a new version of the page while it is open and hand the game's snapshot
@@ -59,7 +60,9 @@ function start(data: HotData): void {
     return;
   }
   const hud = new Hud(view, events, layout, queue);                 // the goal card's Build button sends a command
+  const combat = new CombatHud(state, view, events, layout, queue, hud);   // his health, what he trains, hits over the dummy
   events.on(e => { if (e.type === 'strike') view.strike(e.nodeId); });     // chips fly where the tool lands
+  events.on(e => { if (e.type === 'hit') view.hit(e.target, e.damage); }); // the training dummy wobbles when struck
   bindInput(view, layout, queue, label => hud.hover(label));
   const pack = new BackpackList(queue);                             // what's in the backpack, to drop things
   const book = new Book(state, events, layout);                     // his book: a page per goal, opened from the goal card
@@ -109,6 +112,7 @@ function start(data: HotData): void {
       simulate(real);
       view.draw(state, dt);
       hud.update(state, dt);
+      combat.update(dt);
       pack.update(state);
       book.update();
       awayNote.update();

@@ -56,6 +56,14 @@ export type GameEvent =
   | { type: 'ate'; item: string; healed: number; health: number }
   /** asked to eat `item`: it isn't food ('notFood'), he carries none ('none'), or his health is full ('full') */
   | { type: 'cantEat'; item: string; reason: 'notFood' | 'none' | 'full' }
+  /** he struck `target` (core/targets.ts) for `damage`, 0 for a miss (systems/combat.ts, 0.0.22) */
+  | { type: 'hit'; target: string; damage: number }
+  /** he can't fight `target`: he has no weapon ('weapon'), or it has taught him all it can of `skill`, the style he
+   *  trains ('taught': the dummy's level limit), so he stops or doesn't set off */
+  | { type: 'cantFight'; target: string; reason: 'weapon' | 'taught'; skill: SkillId }
+  /** fighting, the skill he trains reached the level the camp's current goal asks for it, and the goal still asks for
+   *  another (0.0.22): he carries on, and the player may choose another to train */
+  | { type: 'goalLevel'; skill: SkillId; level: number; goal: string }
   | { type: 'arrived' };
 
 type Handler = (e: GameEvent) => void;

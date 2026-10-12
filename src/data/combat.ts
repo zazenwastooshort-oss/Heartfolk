@@ -1,5 +1,55 @@
 // Combat (chapter 2, holding the camp, 0.0.22), as tables. Attack, Strength and Defence work as in OSRS; Vitality sets
-// his health (the owner, 12 Oct 2026: not Hitpoints, so it differs a bit).
+// his health (the owner, 12 Oct 2026: not Hitpoints, so it differs a bit). The formulas are in systems/combat.ts; what
+// he can fight is core/targets.ts (the training dummy for now, the rats later).
+import { SWINGS } from './animation';
+import type { SkillId } from './skills';
 
-/** His health at most (maxHealth in core/state.ts): `base` at Vitality level 1, `perLevel` more for each level after. */
-export const HEALTH = { base: 10, perLevel: 1 };
+/** His health at most (maxHealth in core/state.ts): `base` at Vitality level 1, `perLevel` more for each level after.
+ *  regen: while hurt he gets 1 health back every `regen` seconds of play (systems/combat.ts). */
+export const HEALTH = { base: 10, perLevel: 1, regen: 30 };
+
+/** What he trains while he fights (GameState.combatStyle), chosen in the panel: as in OSRS, the style gives +3 to the
+ *  skill it trains (accurate: Attack, aggressive: Strength, defensive: Defence), and the XP goes to that skill. */
+export type CombatStyle = Extract<SkillId, 'attack' | 'strength' | 'defence'>;
+export const STYLES: CombatStyle[] = ['attack', 'strength', 'defence'];
+
+/** styleBonus: what the style he trains adds to that skill's level in the rolls (OSRS: +3). vitality: the share of
+ *  the XP for each point of damage that goes to Vitality as well (OSRS gives Hitpoints a third). */
+export const COMBAT = { styleBonus: 3, vitality: 1 / 3 };
+
+/** Where gear is worn (GameState.equipment). Weapons first; armour (head, body, shield) comes with the hide armour. */
+export type Slot = 'weapon' | 'head' | 'body' | 'shield';
+export const SLOTS: Slot[] = ['weapon', 'head', 'body', 'shield'];
+
+export type GearId = 'stone_club';
+
+/** Gear he wears (made by a MAKES row that gives it, data/making.ts): the slot it goes in, and its bonuses as in OSRS:
+ *  `attack` to his accuracy, `strength` to his max hit, `defence` against being hit. A weapon has a `speed`: seconds
+ *  from one strike to the next (at least STRIKE.cycle, the swing itself; he rests for the rest of it). */
+export interface GearDef { id: GearId; name: string; slot: Slot; attack: number; strength: number; defence: number; speed?: number }
+
+export const GEAR: Record<GearId, GearDef> = {
+  // a heavy branch with a round stone lashed on: slow and blunt (OSRS's 4-tick weapons strike every 2.4 seconds)
+  stone_club: { id: 'stone_club', name: 'Stone club', slot: 'weapon', attack: 4, strength: 6, defence: 0, speed: 2.4 },
+};
+
+export const gearDef = (id: string): GearDef | null => Object.hasOwn(GEAR, id) ? GEAR[id as GearId] : null;
+
+/** A strike with a weapon: the axe's Chop clip (a club swings like the axe, so no new clip is needed), the moment in it
+ *  the weapon lands (seconds), how long the swing lasts, and where he stands: `reach` metres from the middle of a target
+ *  whose radius is `refRadius`, further back from bigger ones. */
+export const STRIKE = {
+  clip: SWINGS.woodcutting.clip, impact: SWINGS.woodcutting.impact, cycle: SWINGS.woodcutting.cycle,
+  reach: SWINGS.woodcutting.reach, refRadius: SWINGS.woodcutting.refRadius,
+};
+
+/** Seconds from one strike to the next with `weapon` (GameState.equipment.weapon): its speed, never quicker than the
+ *  swing itself. The simulation strikes on it (systems/combat.ts) and the view swings on it (render/view.ts). */
+export const strikeEvery = (weapon: GearId | null) => Math.max(STRIKE.cycle, (weapon && GEAR[weapon].speed) || STRIKE.cycle);
+
+/** The training dummy (core/targets.ts): a post and crossbar with a stuffed sack body. It never hits back and never
+ *  falls. radius: the sack's, at striking height (for where he stands); defence, defenceBonus: how hard it is to hit,
+ *  as a creature's defence level and bonus; xp: XP for each point of damage, to the style he trains (three times OSRS's
+ *  4, so the first levels come in a few minutes); maxLevel: it teaches each style only up to this level (a call for the
+ *  owner), then says so and he stops. */
+export const DUMMY = { radius: 0.22, defence: 1, defenceBonus: 0, xp: 12, maxLevel: 10 };

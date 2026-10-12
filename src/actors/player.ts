@@ -1,8 +1,9 @@
 // The player's character: turning taps into a path round buildings, rocks and trees, walking it, and starting work
-// (or arriving at a building or beside something he built, stopping beside something to pick up, or starting to build
-// something) at the end.
+// (or arriving at a building or beside something he built, stopping beside something to pick up, starting to build
+// something, or (0.0.22) starting to strike something, the training dummy) at the end.
 import type { GameState } from '../core/state';
 import type { EventBus } from '../core/events';
+import { targetOf } from '../core/targets';
 import type { Layout, NodeSpot, Site, Vec2 } from '../world/layout';
 import { doorOf, siteOf } from '../world/layout';
 import { navFor, type NavGrid } from '../world/nav';
@@ -50,6 +51,23 @@ export function goWork(state: GameState, layout: Layout, nodeId: string): boolea
     const stand = { x: node.pos.x + Math.cos(a) * reach, z: node.pos.z + Math.sin(a) * reach };
     if (!nav.walkable(stand)) continue;
     if (setPath(state, nav.findPath(p.pos, stand), { kind: 'node', id: nodeId })) return true;
+  }
+  return false;
+}
+
+/** Walk to stand `reach` metres from `at`, on the side nearest him if that side is free, fanning out round it if not;
+ *  already about there, he stays. For striking something (0.0.22, systems/combat.ts: the training dummy). */
+export function goNear(state: GameState, layout: Layout, at: Vec2, reach: number, pending: GameState['player']['pending']): boolean {
+  const nav = navFor(layout, state.built), p = state.player;
+  let d = sub(p.pos, at);
+  if (Math.abs(len(d) - reach) < 0.15 && nav.walkable(p.pos)) return setPath(state, [{ ...p.pos }], pending);
+  if (len(d) < 1e-4) d = { x: -1, z: 0 };
+  const base = Math.atan2(d.z, d.x);
+  for (let k = 0; k <= 18; k++) {
+    const a = base + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 9);
+    const stand = { x: at.x + Math.cos(a) * reach, z: at.z + Math.sin(a) * reach };
+    if (!nav.walkable(stand)) continue;
+    if (setPath(state, nav.findPath(p.pos, stand), pending)) return true;
   }
   return false;
 }
@@ -151,6 +169,7 @@ export function updatePlayer(state: GameState, layout: Layout, dt: number, event
         if (pending?.kind === 'node') p.task = { kind: 'gather', nodeId: pending.id, progress: 0 };
         else if (pending?.kind === 'pickup') p.task = { kind: 'pickup', id: pending.id, doneAt: state.time + PICKUP_PAUSE };
         else if (pending?.kind === 'make') p.task = { kind: 'make', id: pending.id, doneAt: state.time + MAKES[pending.id].time };
+        else if (pending?.kind === 'fight') p.task = { kind: 'fight', target: pending.id, progress: 0 };
         else {
           p.task = { kind: 'idle' };
           if (pending?.kind === 'visit') {
@@ -164,12 +183,13 @@ export function updatePlayer(state: GameState, layout: Layout, dt: number, event
     } else {
       p.pos = { x: p.pos.x + d.x / dist * step, z: p.pos.z + d.z / dist * step };
     }
-  } else if (p.task.kind === 'gather' || p.task.kind === 'pickup' || p.task.kind === 'make' || p.task.kind === 'stoke') {
-    // face what he works, picks up, builds or stokes
+  } else if (p.task.kind === 'gather' || p.task.kind === 'pickup' || p.task.kind === 'make' || p.task.kind === 'stoke' || p.task.kind === 'fight') {
+    // face what he works, picks up, builds, stokes or (0.0.22) strikes
     const task = p.task;
     const at = task.kind === 'gather' ? layout.nodes.find(n => n.id === task.nodeId)?.pos
       : task.kind === 'pickup' ? layout.pickups?.find(x => x.id === task.id)?.pos
-      : task.kind === 'make' ? makeAt(layout, task.id) : siteOf(layout, 'hearth')?.pos;
+      : task.kind === 'make' ? makeAt(layout, task.id) : task.kind === 'fight' ? targetOf(state, layout, task.target)?.pos
+      : siteOf(layout, 'hearth')?.pos;
     if (at && len(sub(at, p.pos)) > 1e-3) p.heading = angleToward(p.heading, headingOf(sub(at, p.pos)), TURN_RATE * dt);
   }
   return null;

@@ -12,6 +12,8 @@ import { gatherOf, onGround, roomFor } from './pickups';
 import { drop, isStore, stopStoking, stores } from './backpack';
 import { canMake, missingFor } from './making';
 import { eat } from './food';
+import { goFight, mayFight, setStyle } from './combat';
+import type { CombatStyle } from '../data/combat';
 
 export type Command =
   | { type: 'walk'; to: Vec2 }
@@ -28,7 +30,12 @@ export type Command =
    *  the one that makes it still to finish, or without everything it needs, he says so and stays put. */
   | { type: 'make'; id: MakeId }
   /** eat one of an item from the backpack (chapter 2, 0.0.22): food heals him; nothing else stops */
-  | { type: 'eat'; item: string };
+  | { type: 'eat'; item: string }
+  /** fight something (core/targets.ts, by id; 0.0.22): a tap on the built training dummy sends him to practise on it.
+   *  Without a weapon, or with nothing left for it to teach in the style he trains, he says so and stays put. */
+  | { type: 'fight'; target: string }
+  /** choose what fighting trains (the panel's Train choice, 0.0.22); nothing else stops */
+  | { type: 'style'; style: CombatStyle };
 
 export const isClaimed = (state: GameState, parcelId: string | undefined) => !parcelId || !!state.parcels[parcelId]?.claimed;
 
@@ -38,6 +45,7 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     // or stoking the fire included
     if (c.type === 'drop') { drop(state, c.item, c.count, events); continue; }
     if (c.type === 'eat') { eat(state, c.item, events); continue; }
+    if (c.type === 'style') { setStyle(state, c.style); continue; }
     let ok = true;
     if (c.type === 'walk') ok = walkTo(state, layout, c.to);
     else if (c.type === 'visit') ok = goVisit(state, layout, c.id, c.at);
@@ -58,6 +66,10 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
       const missing = missingFor(state, def);
       if (Object.keys(missing).length) { events.emit({ type: 'missing', make: def.id, items: missing }); continue; }
       ok = goMake(state, layout, def.id);
+    } else if (c.type === 'fight') {
+      // nothing there to fight (the dummy not built), at it already, no weapon, or nothing left to learn: no setting off
+      if (!mayFight(state, layout, c.target, events)) continue;
+      ok = goFight(state, layout, c.target);
     } else {
       const spot = layout.nodes.find(n => n.id === c.nodeId);
       const res = spot && RESOURCES[spot.resource];

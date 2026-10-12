@@ -1,7 +1,7 @@
 // Everything that makes up a saved game. Systems change it; the renderer only reads it.
 import type { SkillId, ToolId } from '../data/skills';
 import { RESOURCES, SKILLS, TOOL_IDS } from '../data/skills';
-import { HEALTH } from '../data/combat';
+import { HEALTH, SLOTS, type CombatStyle, type GearId, type Slot } from '../data/combat';
 import { levelFor } from '../data/xp';
 import type { Layout, Vec2 } from '../world/layout';
 import { BOOK, GOALS, type Goal } from '../data/goals';
@@ -20,14 +20,17 @@ export const SAVE_VERSION = 10;
  *  Gathering (0.0.14) needs nothing more saved: what he picks up says which group he goes on with (PICKUPS' gather).
  *  make (0.0.15): working at something he makes (data/making.ts, by id), beside its site or where he stands; at
  *  `doneAt` (in-game seconds) its needs are taken and it is made (systems/making).
- *  stoke (0.0.19): stoking the campfire with the logs he carried from the chest (PlayerState.stoke) until `doneAt`. */
+ *  stoke (0.0.19): stoking the campfire with the logs he carried from the chest (PlayerState.stoke) until `doneAt`.
+ *  fight (0.0.22): striking `target` (core/targets.ts: the training dummy, by id) with his weapon, over and over until
+ *  sent elsewhere; progress runs 0..1 from one strike to the next (systems/combat.ts). */
 export type Task = { kind: 'idle' } | { kind: 'walk' } | { kind: 'gather'; nodeId: string; progress: number; mayMoveOn?: boolean }
-  | { kind: 'pickup'; id: string; doneAt: number } | { kind: 'make'; id: MakeId; doneAt: number } | { kind: 'stoke'; doneAt: number };
+  | { kind: 'pickup'; id: string; doneAt: number } | { kind: 'make'; id: MakeId; doneAt: number } | { kind: 'stoke'; doneAt: number }
+  | { kind: 'fight'; target: string; progress: number };
 
 /** What the player is walking towards: a resource node to work, a place to visit (a building or land), something
- *  on the ground to pick up, or where he makes something (data/making.ts). */
+ *  on the ground to pick up, where he makes something (data/making.ts), or (0.0.22) something to fight. */
 export type Pending = { kind: 'node'; id: string } | { kind: 'visit'; id: string } | { kind: 'pickup'; id: string }
-  | { kind: 'make'; id: MakeId } | null;
+  | { kind: 'make'; id: MakeId } | { kind: 'fight'; id: string } | null;
 
 /** On the way to the bank (or at the camp, since 0.0.19, the storage chest) to empty a full backpack; afterwards he
  *  goes back to work at `nodeId` (or the nearest free node like it), or (0.0.14) back to gathering things on the
@@ -36,8 +39,9 @@ export type Pending = { kind: 'node'; id: string } | { kind: 'visit'; id: string
 export type Trip = ({ nodeId: string } | { pickupId: string }) & { leaveAt?: number };
 
 /** What he goes back to after stoking the fire (0.0.19): working a node (or the nearest free one like it), gathering
- *  things off the ground like `pickupId` (or picking up that one), making something, or walking on to a spot. */
-export type Back = { nodeId: string } | { pickupId: string } | { make: MakeId } | { to: Vec2 };
+ *  things off the ground like `pickupId` (or picking up that one), making something, walking on to a spot, or (0.0.22)
+ *  fighting something (practising on the training dummy). */
+export type Back = { nodeId: string } | { pickupId: string } | { make: MakeId } | { to: Vec2 } | { fight: string };
 
 /** Stoking the fire (0.0.19; systems/fire.ts): at nightfall he left what he was doing (`back`, null for nothing),
  *  walks to where he takes the logs (`from`: the firewood pile since 0.0.21, or the storage chest; null when he took
@@ -96,6 +100,10 @@ export interface GameState {
   stokeAgain: boolean;
   /** his health (chapter 2, 0.0.22): up to maxHealth, which grows with Vitality; food heals it (systems/food.ts) */
   health: number;
+  /** what he wears (0.0.22): the gear in each slot (GEAR in data/combat.ts), or null; making gear puts it on */
+  equipment: Record<Slot, GearId | null>;
+  /** what fighting trains (0.0.22): Attack, Strength or Defence, chosen in the panel */
+  combatStyle: CombatStyle;
 }
 
 /** His health at most (0.0.22): HEALTH in data/combat.ts, by his Vitality level. */
@@ -108,15 +116,17 @@ export function owned(state: GameState, id: string): number {
   return (state.player.backpack[id] ?? 0) + (state.bank[id] ?? 0);
 }
 
-/** Whether he has everything a goal needs (owned). */
-export const goalMet = (state: GameState, goal: Goal) => Object.entries(goal.needs).every(([id, n]) => owned(state, id) >= n);
+/** Whether he has everything a goal needs (owned), and (0.0.22) every level it asks for. */
+export const goalMet = (state: GameState, goal: Goal) => Object.entries(goal.needs).every(([id, n]) => owned(state, id) >= n)
+  && Object.entries(goal.levels ?? {}).every(([id, n]) => levelFor(state.skills[id as SkillId] ?? 0) >= n!);
 
-/** Whether he has made `id` (data/making.ts): a structure that stands built, or a tool he owns. Something not in
- *  MAKES yet can't have been made. */
+/** Whether he has made `id` (data/making.ts): a structure that stands built, a tool he owns, or (0.0.22) gear he wears.
+ *  Something not in MAKES yet can't have been made. */
 export function made(state: GameState, id: string): boolean {
   const def = makeDef(id);
   if (!def) return false;
-  return def.gives.kind === 'structure' ? state.built.includes(def.id) : state.tools[def.gives.tool];
+  const gives = def.gives;
+  return gives.kind === 'structure' ? state.built.includes(def.id) : gives.kind === 'gear' ? SLOTS.some(s => state.equipment[s] === gives.gear) : state.tools[gives.tool];
 }
 
 /** Whether a goal is finished: a gathering goal once it has everything it needs, a making goal once its thing is made.
@@ -175,5 +185,7 @@ export function createState(layout: Layout, seed = 1): GameState {
     woodpile: 0,
     stokeAgain: false,
     health: HEALTH.base,
+    equipment: Object.fromEntries(SLOTS.map(s => [s, null])) as Record<Slot, GearId | null>,
+    combatStyle: 'attack',
   };
 }

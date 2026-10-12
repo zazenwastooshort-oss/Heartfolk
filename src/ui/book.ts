@@ -8,7 +8,7 @@ import type { GameState } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Layout } from '../world/layout';
 import { bookPages, opensBook, type BookPage } from '../core/book';
-import { itemName } from './hud';
+import { lineName } from './hud';
 
 const $ = (id: string) => document.getElementById(id)!;
 const el = (tag: string, className: string, text = '') => { const e = document.createElement(tag); e.className = className; e.textContent = text; return e; };
@@ -91,9 +91,10 @@ export class Book {
     ($('bookNext') as HTMLButtonElement).disabled = this.at === pages.length - 1;
   }
 
-  /** One thing the page's goal needs: a tick once there are enough, its name and how many of how many. */
+  /** One thing the page's goal needs: a tick once there are enough, its name and how many of how many (or a skill
+   *  level, 0.0.22: "Attack level", 2 / 3). */
   private line(line: BookPage['lines'][number]): HTMLElement {
-    const name = itemName(line.id, line.need), li = el('li', line.done ? 'done' : '');
+    const name = lineName(line), li = el('li', line.done ? 'done' : '');
     li.setAttribute('aria-label', `${name}: ${line.got} of ${line.need}${line.done ? ', done' : ''}`);
     const tick = el('span', 'tick'); tick.setAttribute('aria-hidden', 'true');      // the tick is drawn by the page's CSS
     li.append(tick, el('span', 'need-name', name.charAt(0).toUpperCase() + name.slice(1)), el('span', 'need-count', `${line.got} / ${line.need}`));

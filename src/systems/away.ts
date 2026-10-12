@@ -78,6 +78,9 @@ export interface AwaySummary {
   made: MakeId[];
   /** his backpack filled with nowhere to store it, so he stopped */
   full: boolean;
+  /** (0.0.22) he stopped practising on `target` (the training dummy) once it had taught him all it could of `skill`,
+   *  the style he trained (its level limit); only there when he did */
+  taught?: { target: string; skill: SkillId };
 }
 
 export const emptySummary = (): AwaySummary => ({ items: {}, xp: {}, levels: {}, stoked: 0, fireLow: 0, made: [], full: false });
@@ -93,6 +96,7 @@ export function tally(s: AwaySummary, e: GameEvent): void {
     case 'fireLow': s.fireLow++; break;
     case 'made': s.made.push(e.make); break;
     case 'noStorage': s.full = true; break;
+    case 'cantFight': if (e.reason === 'taught') s.taught = { target: e.target, skill: e.skill }; break;
     default: break;
   }
 }
@@ -107,6 +111,7 @@ export function addSummary(into: AwaySummary, more: AwaySummary): void {
   into.fireLow += more.fireLow;
   into.made.push(...more.made);
   into.full ||= more.full;
+  if (more.taught) into.taught = { ...more.taught };
 }
 
 /** Whether he did anything worth telling: gathered something, gained XP, saw to the fire or finished making something. */

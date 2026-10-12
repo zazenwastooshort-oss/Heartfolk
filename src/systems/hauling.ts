@@ -19,6 +19,7 @@ import { gatherOf, keepGathering, onGround, roomFor } from './pickups';
 import { PICKUPS } from '../data/pickups';
 import { RESOURCES } from '../data/skills';
 import { canMake } from './making';
+import { goFight } from './combat';
 
 /** The place to empty the backpack (a bank's door, or the camp's chest) nearest `at`, or null where there is none. */
 function nearestStore(state: GameState, layout: Layout, at: Vec2): string | null {
@@ -66,9 +67,11 @@ function startTrip(state: GameState, layout: Layout, trip: Trip, events: EventBu
 }
 
 /** Back to what he was doing before a trip to the bank or the chest, or (0.0.19) before stoking the fire: working a
- *  node, gathering things off the ground (or picking up the one he was after), making something, or walking on. */
+ *  node, gathering things off the ground (or picking up the one he was after), making something, walking on, or
+ *  (0.0.22) practising on the training dummy. */
 export function backToWork(state: GameState, layout: Layout, back: Trip | Back, events: EventBus): void {
   if ('to' in back) { walkTo(state, layout, back.to); return; }
+  if ('fight' in back) { goFight(state, layout, back.fight); return; }
   if ('make' in back) {
     const def = makeDef(back.make);
     if (def && canMake(state, layout, def)) goMake(state, layout, def.id);

@@ -1,16 +1,19 @@
 // Things he makes (game 0.0.15), as tables only: what each needs, where it is made, how long he works at it and what
 // it gives. The campfire came first, then the stone axe (0.0.16), then the shelter at the tent's spot and the stone
 // pickaxe (0.0.18), then the storage chest beside the shelter (0.0.19), the camp's storage like the village's bank,
-// and the firewood pile beside the fire (0.0.21), stacked with logs he stokes the fire from at night.
+// and the firewood pile beside the fire (0.0.21), stacked with logs he stokes the fire from at night. Chapter 2 (0.0.22):
+// the training dummy beside the camp, and the stone club, his first weapon, which he wears (gear: data/combat.ts).
 // systems/making.ts does the work.
 import type { ToolId } from './skills';
+import type { GearId } from './combat';
 
 /** Places in a layout where something is built (siteOf in world/layout.ts): 'hearth' is the camp's fire spot, 'tent'
  *  the camp's tent spot, 'chest' the camp's chest spot beside the shelter, 'woodpile' the spot beside the fire for the
- *  firewood pile. A new site is a name here and a line in siteOf. */
-export type SiteId = 'hearth' | 'tent' | 'chest' | 'woodpile';
+ *  firewood pile, 'dummy' the training dummy's spot beside the camp (0.0.22). A new site is a name here and a line in
+ *  siteOf. */
+export type SiteId = 'hearth' | 'tent' | 'chest' | 'woodpile' | 'dummy';
 
-export type MakeId = 'campfire' | 'stone_axe' | 'woodpile' | 'shelter' | 'stone_pickaxe' | 'chest';
+export type MakeId = 'campfire' | 'stone_axe' | 'woodpile' | 'shelter' | 'stone_pickaxe' | 'chest' | 'dummy' | 'stone_club';
 
 /** name: what it is called ("Campfire"). verb: what making it is called, for the hover text over its site
  *  ("Build|Campfire") and the goal card's button ("Build the campfire", "Make the stone axe").
@@ -18,8 +21,9 @@ export type MakeId = 'campfire' | 'stone_axe' | 'woodpile' | 'shelter' | 'stone_
  *  at: the site where it will stand (he works beside it), or 'here': made wherever he stands (a tool).
  *  time: seconds he works at it.
  *  gives: a structure, which stands at its site from then on (GameState.built) and is in the way like the village's
- *  hearth, or a tool he owns from then on (GameState.tools). Either is made once: a tool he already owns (the
- *  village's axe and pick, or an old camp save's) isn't made again.
+ *  hearth, or a tool he owns from then on (GameState.tools), or (0.0.22) gear he wears from then on (GameState.equipment;
+ *  GEAR in data/combat.ts). Each is made once: a tool he already owns (the village's axe and pick, or an old camp
+ *  save's), or gear he wears, isn't made again.
  *  done: the notice once it is made.
  *  pile: the item it needs isn't used up but stacked in it (the firewood pile's logs: GameState.woodpile). */
 export interface MakeDef {
@@ -27,7 +31,7 @@ export interface MakeDef {
   needs: Record<string, number>;
   at: SiteId | 'here';
   time: number;
-  gives: { kind: 'structure' } | { kind: 'tool'; tool: ToolId };
+  gives: { kind: 'structure' } | { kind: 'tool'; tool: ToolId } | { kind: 'gear'; gear: GearId };
   done: string;
   pile?: string;
 }
@@ -64,6 +68,18 @@ export const MAKES: Record<MakeId, MakeDef> = {
   chest: {
     id: 'chest', name: 'Storage chest', verb: 'Build', needs: { birch_logs: 10, copper_ore: 3 }, at: 'chest', time: 5,
     gives: { kind: 'structure' }, done: 'Your storage chest is built. A full backpack is emptied into it now.',
+  },
+  // chapter 2 (0.0.22): a post and crossbar of logs with a stuffed sack for a body, beside the camp; once he has a
+  // weapon, tapping it sends him to practise on it (systems/combat.ts)
+  dummy: {
+    id: 'dummy', name: 'Training dummy', verb: 'Build', needs: { birch_logs: 6, branch: 4 }, at: 'dummy', time: 5,
+    gives: { kind: 'structure' }, done: 'Your training dummy stands ready. Make a weapon, then tap the dummy to practise.',
+  },
+  // his first weapon: a heavy branch with a round stone lashed on, made where he stands like the stone tools; he wears
+  // it (GEAR in data/combat.ts) and swings it like the axe
+  stone_club: {
+    id: 'stone_club', name: 'Stone club', verb: 'Make', needs: { branch: 2, stone: 2 }, at: 'here', time: 3,
+    gives: { kind: 'gear', gear: 'stone_club' }, done: 'You made a stone club. Tap the training dummy to practise with it.',
   },
 };
 

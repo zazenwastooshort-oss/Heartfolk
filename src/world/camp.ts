@@ -2,8 +2,9 @@
 // that its top is never seen: the water pours out of the mist down a towering mountain wall to the north, into a pool,
 // and flows on to the south-west. He washes up on the pool's bank with nothing, and wreckage washed up with him:
 // planks, a torn tarp, a smashed crate and his book, strewn along the bank. Stones and branches lie round the clearing.
-// The camp starts bare: the campfire, the firewood pile, the shelter (a tent) and the storage chest have their spots
-// here and are built later. The village lies far up the river and comes much later (world/layout.ts, VILLAGE).
+// The camp starts bare: the campfire, the firewood pile, the shelter (a tent), the storage chest and (0.0.22) the
+// training dummy have their spots here and are built later. The village lies far up the river and comes much later
+// (world/layout.ts, VILLAGE).
 // Data only, like the village: x east, z south, in metres; the camera starts looking north at the falls.
 import type { Area, Falls, Layout, NodeSpot, PickupSpot, TreeKind, TreeSpot, Vec2 } from './layout';
 import type { PickupKind } from '../data/pickups';
@@ -33,6 +34,12 @@ const CHEST = W(0.9, 7.3), CHEST_SIZE = { w: 0.9, d: 0.56, radius: 0.6 };
 // where the firewood pile is stacked (0.0.21): beside the fire on its east side, end on to it, with room to walk
 // between them. Logs on two bearers, 1.2 m along and 0.6 across; its ring reaches just round its ends.
 const WOODPILE = W(4.6, 2.2), WOODPILE_SIZE = { w: 1.2, d: 0.6, radius: 0.75 };
+// where the training dummy stands (0.0.22): on the open grass west of the fire, between the shelter and the pool's bank,
+// clear of the camp's other spots and of the stones and branches, with room to walk all round it. A post with its
+// crossbar running east to west, side on to the camera as it starts (looking north), so it reads as a dummy (he
+// strikes it from whichever side is nearest); it is in the way out to its radius, which reaches past the crossbar's
+// ends.
+const DUMMY = W(-2.8, 1.2), DUMMY_SIZE = { radius: 0.5 };
 
 // the river from the pool south-west past the sandy bank, and the falls pouring into the pool
 const RIVER = { points: [W(-14, -11.2), W(-15.6, -2), W(-16.6, 8), W(-18.2, 20), W(-19.4, 36)], width: 3.4 };
@@ -86,10 +93,11 @@ export const CAMP: Layout = {
   river: RIVER,
   paths: [],                            // nobody has worn a track here yet
   parcels: [],
-  // the shelter's spot, the storage chest's and the firewood pile's (siteOf)
+  // the shelter's spot, the storage chest's, the firewood pile's and the training dummy's (siteOf)
   camp: {
     tent: { pos: TENT, rot: facing(TENT, FIRE), ...TENT_SIZE }, chest: { pos: CHEST, rot: facing(CHEST, FIRE), ...CHEST_SIZE },
     woodpile: { pos: WOODPILE, rot: facing(WOODPILE, FIRE), ...WOODPILE_SIZE },
+    dummy: { pos: DUMMY, rot: 0, ...DUMMY_SIZE },
   },
   falls: FALLS,
   pickups: pickups([

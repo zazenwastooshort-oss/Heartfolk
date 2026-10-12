@@ -150,6 +150,9 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
   width: max-content; max-width: calc(100% - 2 * var(--edge)); box-sizing: border-box; padding: 8px 12px; border-radius: 8px;
   background: var(--chip); color: #ffe7a3; font-size: 13px; text-align: center; pointer-events: none; opacity: 0; transition: opacity .3s ease-out; }
 .notice.show { opacity: 1; }
+/* (0.0.22) a notice is never hidden under the goal card: it is painted above it, and sits just under it when the card
+   reaches down past its spot (src/ui/hud.ts sets --below-card to the card's bottom) */
+.notice { z-index: 1; top: max(calc(192px + env(safe-area-inset-top, 0px)), var(--below-card, 0px)); }
 .mouse { display: none; }
 @media (hover: hover) and (pointer: fine) { .mouse { display: inline; } .touch { display: none; } }
 @media (hover: none) { .hover { display: none; } }
@@ -163,7 +166,7 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
   border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; gap: 5px; box-shadow: 0 2px 10px rgba(0, 0, 0, .3); pointer-events: none; }
 .skills { display: grid; gap: 6px; }
 .srow { display: grid; gap: 3px; }
-.srow + .srow { padding-top: 6px; border-top: 1px solid var(--line); }
+.srow:not([hidden]) ~ .srow { padding-top: 6px; border-top: 1px solid var(--line); }
 .skill .row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .skill .name { font-weight: 600; font-size: 13px; }
 .srow.active .name { color: var(--accent); }
@@ -188,6 +191,33 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
 .prow button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .bank { font-size: 12px; line-height: 1.3; }
 .bank .name { font-size: 12px; }
+/* chapter 2's combat (src/ui/combat.ts): his health with a bar, what he trains (a calm three-way choice), the numbers
+   that float up over what he strikes (muted brick for a hit, slate for a miss), and a small bar over his head when hurt */
+.hp { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.hp .name { font-size: 12px; }
+.hp .bar { flex: 1; }
+.hp .bar i { background: #8fc46e; }
+.hp small { font-variant-numeric: tabular-nums; }
+.train { display: flex; align-items: center; gap: 6px; font-size: 12px; pointer-events: auto; }
+.train .name { font-size: 12px; }
+.train button { flex: 1 1 0; min-width: 0; min-height: 38px; border: 1px solid rgba(241, 232, 212, .28); border-radius: 999px; padding: 4px 2px;
+  background: transparent; color: var(--muted); font: 600 11px/1 var(--body); cursor: pointer; }
+.train button.on { background: #3f6a35; border-color: rgba(241, 232, 212, .55); color: var(--ink); }
+.train button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.hit { position: absolute; transform: translate(-50%, -100%); min-width: 22px; box-sizing: border-box; padding: 4px 6px; border-radius: 999px;
+  text-align: center; font: 700 13px/1 var(--body); color: #f6ecd8; background: rgba(140, 66, 50, .88); box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
+.hit.zero { background: rgba(66, 86, 104, .85); }
+.overhead { position: absolute; transform: translate(-50%, -100%); width: 38px; height: 5px; border-radius: 3px; overflow: hidden;
+  background: rgba(20, 30, 18, .72); box-shadow: 0 0 0 1px rgba(0, 0, 0, .25); }
+.overhead i { display: block; height: 100%; background: #8fc46e; }
+.overhead.low i { background: #d9a441; }
+/* the skills (src/ui/hud.ts, 0.0.22): only the one gaining XP shows its whole row; every other is its name and level in
+   one line under it, so the panel stays small on a phone however many skills there are */
+.chips { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 12px; color: var(--muted); }
+.chips b { color: var(--accent); font-variant-numeric: tabular-nums; }
+.srow:not([hidden]) ~ .chips { padding-top: 6px; border-top: 1px solid var(--line); }
+/* on a short, wide screen (a phone on its side) the panel sits bottom right, clear of the goal card */
+@media (max-height: 500px) and (min-width: 600px) { .skill { left: auto; right: var(--edge); } }
 
 .msg { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; text-align: center; color: var(--chip-text); }
 @media (prefers-reduced-motion: reduce) { .bar i, .hint, .notice { transition: none; } }
@@ -254,6 +284,8 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
     <div class="packlist" id="packList" hidden></div>
     <div class="bank" id="bankRow"><span class="name" id="bankName">Bank</span> <span id="bank">empty</span></div>
     <div class="bank" id="pileRow" hidden><span class="name">Firewood pile</span> <span id="pile">0 logs</span></div>
+    <div class="hp" id="healthRow" hidden><span class="name">Health</span><span class="bar"><i id="healthBar"></i></span><small id="healthText">10 / 10</small></div>
+    <div class="train" id="trainRow" role="group" aria-label="What he trains when he fights" hidden><span class="name">Train</span></div>
   </div>
 </div>
 <script type="module" src="/src/main.ts"></script>

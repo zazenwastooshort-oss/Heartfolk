@@ -1,10 +1,11 @@
-// The panels laid over the game: each skill's level and XP, the backpack and what is stored (the bank, or at the
+// The panels laid over the game: each skill's level and XP (since 0.0.22 the skill gaining XP as a whole row with its
+// bar, the others by name and level in one line), the backpack and what is stored (the bank, or at the
 // camp the storage chest once it is built), the clock, hover text, notices and floating "+xp" numbers, and the goal
 // card with its Build button (tapping the card opens his book: ui/book.ts), which says the camp is set up once every
 // goal is done. Reads state and listens to events; never changes the game (the Build button sends a command).
 import * as THREE from 'three';
 import { allGoalsDone, currentGoal, made, type GameState } from '../core/state';
-import { goalLines } from '../core/book';
+import { goalLines, type BookLine } from '../core/book';
 import type { EventBus } from '../core/events';
 import type { Command } from '../systems/commands';
 import type { View } from '../render/view';
@@ -28,8 +29,12 @@ export const itemList = (items: Record<string, number>, last = ', ') => {
   const parts = Object.entries(items).filter(([, n]) => n > 0).map(([id, n]) => `${n.toLocaleString()} ${itemName(id, n)}`);
   return parts.length > 1 ? `${parts.slice(0, -1).join(', ')}${last}${parts.at(-1)}` : parts[0] ?? '';
 };
+/** What a goal's line (core/book.ts) is called: the thing it needs, or (0.0.22) a skill level, "Attack level". */
+export const lineName = (line: BookLine) => line.level ? `${SKILLS[line.id as SkillId]?.name ?? line.id} level` : itemName(line.id, line.need);
 
-interface SkillRow { row: HTMLElement; lvl: HTMLElement; bar: HTMLElement; text: HTMLElement }
+/** A skill's whole row (name, level, XP bar and count), and (0.0.22) its short form: its name and level in one line with
+ *  the others' (`chip`, its level `chipLvl`). */
+interface SkillRow { row: HTMLElement; lvl: HTMLElement; bar: HTMLElement; text: HTMLElement; chip: HTMLElement; chipLvl: HTMLElement }
 
 export class Hud {
   private floats: { el: HTMLElement; pos: THREE.Vector3; t: number }[] = [];
@@ -41,6 +46,7 @@ export class Hud {
   private noticeTimer = 0;
   private hintGone = false;
   private rows = new Map<SkillId, SkillRow>();
+  private chips = el('div', 'chips');
   private active: SkillId | null = null;
 
   private buildFor: string | null = null;     // what the goal card's Build button makes, while it shows
@@ -60,14 +66,18 @@ export class Hud {
       const def = this.buildFor && makeDef(this.buildFor);
       if (def) queue.push({ type: 'make', id: def.id });
     });
-    // one row per skill in data/skills, so a new skill shows up here without touching the page
+    // one row per skill in data/skills, so a new skill shows up here without touching the page; (0.0.22) only the skill
+    // gaining XP shows its whole row, the others their name and level in one line under it, so the panel stays small
+    // on a phone however many skills there are
     for (const s of Object.values(SKILLS)) {
       const row = el('div', 'srow'), head = el('div', 'row'), lvl = el('span', 'lvl', '1'), bar = el('i', ''), text = el('small', '');
       head.append(el('span', 'name', s.name), lvl);
       const track = el('div', 'bar'); track.append(bar); bar.style.background = s.color;
       row.append(head, track, text); $('skills').append(row);
-      this.rows.set(s.id, { row, lvl, bar, text });
+      const chip = el('span', 'chip', `${s.name} `), chipLvl = el('b', '', '1'); chip.append(chipLvl); this.chips.append(chip);
+      this.rows.set(s.id, { row, lvl, bar, text, chip, chipLvl });
     }
+    $('skills').append(this.chips);
     events.on(e => {
       if (e.type === 'xpGained') { this.pendingXp += e.amount; this.active = e.skill; }
       else if (e.type === 'visited') { const text = this.visitText(e.id); if (text) this.notice(text); }
@@ -126,13 +136,14 @@ export class Hud {
     }
     const goal = currentGoal(state);
     const parts = goalLines(state, goal);
-    const got = parts.reduce((a, p) => a + p.got, 0), need = parts.reduce((a, p) => a + p.need, 0), ready = got >= need;
+    // (a level line counts the levels gained past 1, so the bar starts empty)
+    const got = parts.reduce((a, p) => a + p.got - (p.level ? 1 : 0), 0), need = parts.reduce((a, p) => a + p.need - (p.level ? 1 : 0), 0), ready = got >= need;
     const def = goal.makes ? makeDef(goal.makes) : null, task = state.player.task, pending = state.player.pending;
     const building = !!def && task.kind === 'make' && task.id === def.id;
     const going = !!def && pending?.kind === 'make' && pending.id === def.id;
     const offer = !!def && ready && !building && !going && !made(state, def.id);
     $('goalTitle').textContent = goal.title;
-    $('goalCount').textContent = parts.map(p => `${p.got} / ${p.need} ${itemName(p.id, p.need)}`).join(', ');
+    $('goalCount').textContent = parts.map(p => p.level ? `${lineName(p)} ${p.got} / ${p.need}` : `${p.got} / ${p.need} ${itemName(p.id, p.need)}`).join(', ');
     ($('goalBar') as HTMLElement).style.width = `${need ? got / need * 100 : 100}%`;
     $('goalHint').textContent = building ? `Working on the ${def.name.toLowerCase()}...`
       : going ? `On the way to ${def.verb.toLowerCase()} the ${def.name.toLowerCase()}...` : ready ? goal.ready : goal.hint;
@@ -160,7 +171,8 @@ export class Hud {
     return text[b.kind];
   }
 
-  private notice(text: string): void {
+  /** Show a notice under the goal card for a few seconds (also used by ui/combat.ts). */
+  notice(text: string): void {
     // notices take the hint's place, and by then the player knows how to play, so the hint goes for good
     this.hintGone = true; $('hint').classList.add('gone');
     const el = $('notice'); el.textContent = text; el.classList.add('show'); this.noticeTimer = 3;
@@ -191,9 +203,14 @@ export class Hud {
       r.bar.style.width = `${lvl >= 99 ? 100 : (xp - lo) / (hi - lo) * 100}%`;
       r.text.textContent = `${Math.floor(xp).toLocaleString()} / ${hi.toLocaleString()} xp`;
       r.row.classList.toggle('active', id === this.active);
-      // the gathering skills from the start; the others (chapter 2: combat, fishing, cooking) once they have XP
-      r.row.hidden = xp <= 0 && !(id in SWINGS);
+      // the gathering skills from the start; the others (chapter 2: combat, fishing, cooking) once they have XP; the
+      // skill gaining XP as its whole row, the others by name and level in the line under it
+      const shown = xp > 0 || id in SWINGS;
+      r.row.hidden = !shown || id !== this.active;
+      r.chip.hidden = !shown || id === this.active;
+      r.chipLvl.textContent = String(lvl);
     }
+    this.chips.hidden = [...this.rows.values()].every(r => r.chip.hidden);
     const carried = Object.values(state.player.backpack).reduce((a, n) => a + n, 0);
     $('packCount').textContent = `${carried} / ${BACKPACK_SLOTS}`;
     $('packBar').style.width = `${Math.min(100, carried / BACKPACK_SLOTS * 100)}%`;
@@ -206,6 +223,11 @@ export class Hud {
     if (pile) $('pile').textContent = `${state.woodpile} ${state.woodpile === 1 ? 'log' : 'logs'}`;
     $('clock').textContent = clockLabel(state.time);
     if (this.layout.camp) this.updateGoal(state);
+    if (this.layout.camp) {
+      // (0.0.22) notices sit just under the goal card when it reaches down past their spot (a long hint, lines of levels)
+      const below = `${Math.round($('goal').getBoundingClientRect().bottom) + 8}px`, notice = $('notice');
+      if (notice.style.getPropertyValue('--below-card') !== below) notice.style.setProperty('--below-card', below);
+    }
     const b = this.view.renderer.domElement.getBoundingClientRect();
     for (let i = this.floats.length - 1; i >= 0; i--) {
       const f = this.floats[i]!; f.t += dt;

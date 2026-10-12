@@ -7,15 +7,22 @@
 // stone axe, firewood (since 0.0.21 a pile stacked beside the fire), the shelter, the stone pickaxe, copper ore, then
 // the storage chest (built since 0.0.19). With
 // all of them finished the camp is set up: the card and the last page of his book say so (CAMP_DONE). Since 0.0.17
-// each goal is a page in his book (core/book.ts, ui/book.ts), with a few words of its own (`page`).
+// each goal is a page in his book (core/book.ts, ui/book.ts), with a few words of its own (`page`). Chapter 2, holding
+// the camp (0.0.22), goes on after the chest: a training dummy, a stone club (his first weapon), then practice on the
+// dummy, a goal that asks for levels (`levels`) rather than things.
 import { MAKES } from './making';
+import type { SkillId } from './skills';
 
 /** needs: what it asks for (the goal card counts them). ready: what the card says once they are all there.
  *  page: what the goal's page in his book says, a sentence or two in the book's warm, plain voice.
  *  makes: for a making goal, the thing it makes (an id in MAKES, data/making.ts): it is finished once that is made,
  *  and with everything there the card offers to make it. A making goal whose thing isn't in MAKES yet (it comes in a
- *  later update) can't be finished, so the card waits on it with its `ready` text. */
-export interface Goal { id: string; title: string; page: string; hint: string; ready: string; needs: Record<string, number>; makes?: string }
+ *  later update) can't be finished, so the card waits on it with its `ready` text.
+ *  levels (0.0.22): skill levels it asks for as well, by skill; the card and the book show "Attack level 2 / 3". */
+export interface Goal {
+  id: string; title: string; page: string; hint: string; ready: string; needs: Record<string, number>; makes?: string;
+  levels?: Partial<Record<SkillId, number>>;
+}
 
 /** The key in `needs` for his book, which is not an item: it takes no backpack slot. */
 export const BOOK = 'book';
@@ -53,6 +60,19 @@ export const GOALS: Goal[] = [
     page: 'Everything you own is on your back. A sturdy chest by the shelter will keep it safe, and logs in it keep the fire going at night.',
     hint: 'Chop birch trees for logs, and keep 3 copper ore. If your backpack is full, open it and drop some spare ore.',
     ready: 'You have it all. Tap Build, or tap the chest spot beside the shelter.', needs: MAKES.chest.needs, makes: 'chest' },
+  // chapter 2, holding the camp (0.0.22)
+  { id: 'dummy', title: 'A training dummy',
+    page: "The woods won't stay quiet forever. A dummy of logs and sacking is a safe place to learn to fight.",
+    hint: 'Chop birch trees for logs, and gather branches from the ground.',
+    ready: 'You have it all. Tap Build, or tap the dummy spot beside the camp.', needs: MAKES.dummy.needs, makes: 'dummy' },
+  { id: 'stone_club', title: 'A stone club',
+    page: 'A heavy branch with a round stone lashed to its end. Nothing fancy, but it hits hard.',
+    hint: 'Gather branches and stones from the ground.',
+    ready: 'You have it all. Tap Make.', needs: MAKES.stone_club.needs, makes: 'stone_club' },
+  { id: 'practice', title: 'Practice',
+    page: 'Swing at the dummy until it feels natural. Learn to aim true, to hit hard, and to keep your guard up.',
+    hint: 'Tap the training dummy to practise. Choose what to train in the panel.',
+    ready: 'Well practised.', needs: {}, levels: { attack: 3, strength: 3, defence: 3 } },
 ];
 
 /** What the goal card says once every goal is finished (allGoalsDone in core/state), and the last page of his book

@@ -101,7 +101,7 @@ describe('the pages of his book', () => {
     s.state.goalsDone = GOALS.map(g => g.id);
     const pages = bookPages(s.state);
     expect(pages).toHaveLength(GOALS.length);
-    expect(pages.at(-1)).toMatchObject({ goal: 'chest', current: true, done: true, hint: 'Your camp is set up. More comes in later updates.' });
+    expect(pages.at(-1)).toMatchObject({ goal: GOALS.at(-1)!.id, current: true, done: true, hint: 'Your camp is set up. More comes in later updates.' });
     expect(CAMP_DONE.text).toBe('Your camp is set up. More comes in later updates.');
     // the pages before it have no hint, as finished pages never do
     expect(pages.slice(0, -1).every(p => p.done && !p.current && p.hint === '')).toBe(true);

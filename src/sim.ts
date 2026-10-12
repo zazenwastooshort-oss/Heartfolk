@@ -13,6 +13,7 @@ import { updatePickups } from './systems/pickups';
 import { updateMaking } from './systems/making';
 import { updateGoals } from './systems/goals';
 import { updateFire } from './systems/fire';
+import { updateCombat } from './systems/combat';
 import { closedFor, emptySummary, openFor, tally, type Away, type AwaySummary } from './systems/away';
 
 export interface SimContext { layout: Layout; rng: Rng; events: EventBus }
@@ -21,6 +22,7 @@ export function step(state: GameState, dt: number, ctx: SimContext): void {
   state.time += dt;
   const visited = updatePlayer(state, ctx.layout, dt, ctx.events);
   updateGathering(state, ctx.layout, dt, ctx.rng, ctx.events);
+  updateCombat(state, ctx.layout, dt, ctx.rng, ctx.events);     // fighting (the training dummy), and health coming back
   updatePickups(state, ctx.layout, ctx.events);
   // the camp's goals are written down as they finish, before making uses anything up
   if (ctx.layout.camp) updateGoals(state, ctx.events);

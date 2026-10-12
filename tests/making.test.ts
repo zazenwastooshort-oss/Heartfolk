@@ -85,7 +85,8 @@ describe('the things to make (data/making.ts)', () => {
   });
 
   it('the goals: salvage, the fire, the stone axe, firewood, the shelter, the stone pickaxe, copper, then the chest', () => {
-    expect(GOALS.map(g => g.id)).toEqual(['salvage', 'campfire', 'stone_axe', 'firewood', 'shelter', 'stone_pickaxe', 'copper', 'chest']);
+    // (chapter 2's goals follow the chest: tests/combat.test.ts)
+    expect(GOALS.map(g => g.id).slice(0, 8)).toEqual(['salvage', 'campfire', 'stone_axe', 'firewood', 'shelter', 'stone_pickaxe', 'copper', 'chest']);
     // every making goal that can be made asks for what its thing needs
     for (const g of GOALS) {
       if (!g.makes) continue;
@@ -872,8 +873,10 @@ describe('building the storage chest (0.0.19)', () => {
     expect(owned(s.state, 'copper_ore')).toBe(ore - 3);
     expect(owned(s.state, 'birch_logs')).toBe(logs - 10);
     run(s, 0.1);
-    expect(s.state.goalsDone).toEqual(GOALS.map(g => g.id));
-    expect(allGoalsDone(s.state)).toBe(true);
+    // every goal up to the chest is done; chapter 2's come after it (tests/combat.test.ts)
+    const chestAt = GOALS.findIndex(g => g.id === 'chest');
+    expect(s.state.goalsDone).toEqual(GOALS.slice(0, chestAt + 1).map(g => g.id));
+    expect(allGoalsDone(s.state)).toBe(chestAt === GOALS.length - 1);
     // he stands on open ground beside it; the chest itself is in the way, and stays built after a reload
     expect(navFor(CAMP, s.state.built).walkable(s.state.player.pos)).toBe(true);
     expect(navFor(CAMP, s.state.built).walkable(CHEST_SPOT.pos)).toBe(false);

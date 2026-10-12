@@ -5,7 +5,7 @@
 // only words it and shows it. Changes nothing in the game.
 import type { Away, AwaySummary } from '../systems/away';
 import { SKILLS, type SkillId } from '../data/skills';
-import { MAKES } from '../data/making';
+import { MAKES, makeDef } from '../data/making';
 import { itemList } from './hud';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -25,7 +25,8 @@ const worked = (a: Away) => `worked ${a.counted < a.real ? `for ${duration(a.cou
 
 /** The note's words: a lead saying how long you were away and how much of it he worked (`spans`: one stretch, or more
  *  when a later catch-up came while the note was still up), then a line each for what he gathered, each skill's XP (and
- *  the level it reached), the fire, what he finished making, and a backpack that filled with nowhere to store it. */
+ *  the level it reached), the fire, what he finished making, and a backpack that filled with nowhere to store it or
+ *  (0.0.22) practice that stopped at the training dummy's level limit. */
 export function awayText(spans: Away[], s: AwaySummary): { lead: string; lines: string[] } {
   const lead = spans.map((a, i) => i > 0 ? `Then ${duration(a.real)} more${a.open ? ' with the game open' : ''}, and he ${worked(a)}.`
     : `Away ${duration(a.real)}. ${a.open ? `The game was still open, so he ${worked(a)}.` : `He ${worked(a)}.`}`).join(' ');
@@ -40,6 +41,8 @@ export function awayText(spans: Away[], s: AwaySummary): { lead: string; lines: 
   if (s.fireLow) lines.push(s.fireLow === 1 ? 'One night there were no logs, so the fire burned low.' : `On ${s.fireLow} nights there were no logs, so the fire burned low.`);
   for (const id of s.made) lines.push(`He finished the ${MAKES[id].name.toLowerCase()}.`);
   if (s.full) lines.push('Then his backpack was full, with nowhere to store it.');
+  // (0.0.22) he stopped at the training dummy's level limit
+  if (s.taught) lines.push(`Then the ${makeDef(s.taught.target)?.name.toLowerCase() ?? 'training dummy'} couldn't teach him any more ${SKILLS[s.taught.skill].name}, so he stopped.`);
   return { lead, lines };
 }
 

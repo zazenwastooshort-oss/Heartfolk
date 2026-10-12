@@ -8,7 +8,9 @@
 // into it (stack his logs on it). Since 0.0.19
 // the fire flares up while he stokes it and settles back after, and burns low (smaller flames, dimmer light) on a
 // night there were no logs, until it is stoked again (FIRE_LOOK in data/fire.ts). The firewood pile (0.0.21, built in
-// code) shows as many logs as it holds, and a tap on it stacks the logs he carries. Models from
+// code) shows as many logs as it holds, and a tap on it stacks the logs he carries. The training dummy (0.0.22, built
+// in code): a post with crossbar arms and a stuffed sack body; once built, a hit area tagged userData.fightId sends him
+// to practise on it, and it wobbles a little each time he strikes it. Models from
 // assets/models/village.glb: CampfireCold's stones and ash, the wreck's Plank, the village Hearth's flames, the Tent.
 // Reads state; never changes it.
 import * as THREE from 'three';
@@ -24,8 +26,13 @@ const POP = 0.5;                   // seconds a structure takes to settle in onc
 const SMOKE = { puffs: 7, life: 3.6, rise: 2.4, drift: 0.5 };            // the campfire's smoke
 
 interface Puff { sprite: THREE.Sprite; age: number }
+/** A wobble after a strike (the training dummy): seconds since, how far it leans at most (radians), and which way, in
+ *  the model's own frame (the top leans along x and z) */
+interface Wobble { t: number; amp: number; x: number; z: number }
 interface SiteView {
-  def: MakeDef; pos: Vec2; plan: THREE.Group; fill: THREE.Mesh; hit: THREE.Mesh; storeHit: THREE.Mesh | null;
+  def: MakeDef; pos: Vec2; rot: number; plan: THREE.Group; fill: THREE.Mesh; hit: THREE.Mesh; storeHit: THREE.Mesh | null;
+  /** once built, the hit area that sends him to fight it (the training dummy), and the part that wobbles when struck */
+  fightHit: THREE.Mesh | null; sway: THREE.Object3D | null; wobble: Wobble | null;
   model: THREE.Group; flames: THREE.Object3D[]; light: THREE.PointLight | null; smoke: Puff[];
   /** the firewood pile's logs, bottom row first: as many show as it holds */
   logs: THREE.Object3D[] | null;
@@ -61,7 +68,7 @@ export class StructuresView {
       if (def.gives.kind !== 'structure' || def.at === 'here' || !build) continue;
       const site = siteOf(layout, def.at);
       if (!site) continue;
-      const { model, flames, plan: outline, store, logs } = build(proto);
+      const { model, flames, plan: outline, store, logs, fight, sway } = build(proto);
       // before it is built: a faint outline of it inside a ring on the ground, which fills up while he builds
       const plan = new THREE.Group(); plan.position.set(site.pos.x, 0, site.pos.z);
       outline.rotation.y = site.rot ?? 0;
@@ -81,6 +88,13 @@ export class StructuresView {
         storeHit.position.set(site.pos.x, 0.45, site.pos.z); storeHit.userData.storeId = def.id; storeHit.visible = false;
         scene.add(storeHit); this.pickables.push(storeHit);
       }
+      // once built, something to fight (the training dummy) can be tapped to practise on it: tall, like the dummy
+      let fightHit: THREE.Mesh | null = null;
+      if (fight) {
+        fightHit = new THREE.Mesh(new THREE.CylinderGeometry(site.radius, site.radius, 1.7, 12), new THREE.MeshBasicMaterial({ visible: false }));
+        fightHit.position.set(site.pos.x, 0.85, site.pos.z); fightHit.userData.fightId = def.id; fightHit.visible = false;
+        scene.add(fightHit); this.pickables.push(fightHit);
+      }
       // once built
       model.position.set(site.pos.x, 0, site.pos.z); model.rotation.y = site.rot ?? 0; model.visible = false;
       model.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = !flames.includes(m); m.receiveShadow = true; } });
@@ -96,8 +110,19 @@ export class StructuresView {
           smoke.push({ sprite, age: i / SMOKE.puffs * SMOKE.life });
         }
       }
-      this.views.push({ def, pos: site.pos, plan, fill, hit, storeHit, model, flames, light, smoke, logs: logs ?? null, shown: null, pop: 1, flare: 0, low: 0 });
+      this.views.push({ def, pos: site.pos, rot: site.rot ?? 0, plan, fill, hit, storeHit, fightHit, sway: sway ?? null, wobble: null,
+        model, flames, light, smoke, logs: logs ?? null, shown: null, pop: 1, flare: 0, low: 0 });
     }
+  }
+
+  /** He struck `target` (the training dummy) from `from`: it leans away from him and wobbles back, more for a hit that
+   *  did damage than for a miss. */
+  hit(target: string, damage: number, from: Vec2): void {
+    const v = this.views.find(x => x.def.id === target);
+    if (!v?.sway) return;
+    const dx = v.pos.x - from.x, dz = v.pos.z - from.z, d = Math.hypot(dx, dz) || 1, c = Math.cos(v.rot), s = Math.sin(v.rot);
+    // away from him, in the model's own frame (it is turned by its site's rot)
+    v.wobble = { t: 0, amp: damage > 0 ? WOBBLE.hit : WOBBLE.miss, x: (dx * c - dz * s) / d, z: (dx * s + dz * c) / d };
   }
 
   /** t: seconds; night: 0 by day .. 1 at night. */
@@ -109,6 +134,7 @@ export class StructuresView {
         if (built && v.shown === false) v.pop = 0;               // just built: it settles in
         v.plan.visible = v.hit.visible = !built; v.model.visible = built;
         if (v.storeHit) v.storeHit.visible = built;
+        if (v.fightHit) v.fightHit.visible = built;
         for (const pt of v.smoke) pt.sprite.visible = built;
         v.shown = built;
       }
@@ -124,6 +150,13 @@ export class StructuresView {
         continue;
       }
       if (v.logs) v.logs.forEach((log, i) => { log.visible = i < state.woodpile; });
+      // struck (the training dummy): it leans away and wobbles back, dying away
+      if (v.sway && v.wobble) {
+        const w = v.wobble; w.t += dt;
+        const lean = w.amp * Math.exp(-w.t * WOBBLE.decay) * Math.sin(w.t * WOBBLE.rate * Math.PI * 2);
+        v.sway.rotation.set(lean * w.z, 0, -lean * w.x);
+        if (w.t > WOBBLE.last) { v.wobble = null; v.sway.rotation.set(0, 0, 0); }
+      }
       if (v.pop < 1) {
         v.pop = Math.min(1, v.pop + dt / POP);
         v.model.scale.setScalar(0.7 + 0.3 * (1 - Math.pow(1 - v.pop, 3)));
@@ -152,7 +185,44 @@ export class StructuresView {
  *  flames (which flicker), if any; the outline drawn faintly at its site until then; and whether things are stored in
  *  it (the chest: a tap empties the backpack into it). Tools (the stone axe and pickaxe) have none: the view draws
  *  them on him. */
-type Built = { model: THREE.Group; flames: THREE.Object3D[]; plan: THREE.Object3D; store?: boolean; logs?: THREE.Object3D[] };
+type Built = {
+  model: THREE.Group; flames: THREE.Object3D[]; plan: THREE.Object3D; store?: boolean; logs?: THREE.Object3D[];
+  /** it can be fought (the training dummy): a tap on it sends him to strike it; `sway` is the part that wobbles */
+  fight?: boolean; sway?: THREE.Object3D;
+};
+
+/** The training dummy's look (0.0.22), in metres: a post on two crossed feet, crossbar arms wrapped at the ends, a
+ *  stuffed sack for a body (where the swing lands: STRIKE in data/combat.ts meets it at about 0.9 m up) and a small sack
+ *  for a head, tied with rope. Its arms run across the way it faces (+z; at the camp south, towards the camera as it
+ *  starts, so they are seen side on). A placeholder, quick to change. */
+const DUMMY_LOOK = { wood: '#7a5b3c', feet: '#6a4b31', sack: '#c9ab7c', head: '#d4bb8f', rope: '#7d6440', post: 1.48, arms: 1.2, span: 0.84 };
+/** How it wobbles when struck: the most it leans (radians) for a hit that did damage and for a miss, how quickly it
+ *  sways back and forth (a second), how fast it settles, and when it is still again (seconds). */
+const WOBBLE = { hit: 0.11, miss: 0.05, rate: 2.2, decay: 3.2, last: 1.6 };
+
+/** The dummy: its feet stay put; everything above them is `sway`, which leans from its foot. */
+function dummyModel(): { model: THREE.Group; sway: THREE.Group } {
+  const model = new THREE.Group(), sway = new THREE.Group(), L = DUMMY_LOOK;
+  const mat = (color: string) => new THREE.MeshStandardMaterial({ color, roughness: 0.95, flatShading: true });
+  const wood = mat(L.wood), sack = mat(L.sack), rope = mat(L.rope);
+  for (const [w, d] of [[0.62, 0.09], [0.09, 0.62]] as const) {
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(w, 0.06, d), mat(L.feet)); foot.position.y = 0.03; model.add(foot);
+  }
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, L.post, 7), wood); post.position.y = L.post / 2;
+  // the sack body: a stuffed, bulging bag round the post
+  const body = new THREE.Mesh(new THREE.LatheGeometry([0.12, 0.2, 0.225, 0.23, 0.215, 0.18, 0.1, 0.04].map((r, i) => new THREE.Vector2(r, i * 0.082)), 8), sack);
+  body.position.y = 0.62;
+  const tie = (r: number, y: number) => { const t = new THREE.Mesh(new THREE.TorusGeometry(r, 0.014, 4, 10), rope); t.rotation.x = Math.PI / 2; t.position.y = y; return t; };
+  const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.115, 1), mat(L.head)); head.position.y = 1.36; head.scale.y = 1.1;
+  const arms = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, L.span, 6), wood); arms.rotation.z = Math.PI / 2; arms.position.y = L.arms;
+  sway.add(post, body, tie(0.163, 0.66), tie(0.232, 0.9), head, tie(0.06, 1.245), arms);
+  for (const x of [-1, 1]) {
+    const wrap = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.13, 7), sack); wrap.rotation.z = Math.PI / 2; wrap.position.set(x * (L.span / 2 - 0.07), L.arms, 0);
+    sway.add(wrap);
+  }
+  model.add(sway);
+  return { model, sway };
+}
 
 /** The firewood pile's look (0.0.21): logs lying across two bearers (along its depth, +z faces the fire), in rows that
  *  step in as they go up, WOODPILE.max of them in all; a placeholder, quick to change. */
@@ -241,4 +311,7 @@ const BUILD: Partial<Record<MakeId, (proto: (name: string) => THREE.Object3D) =>
   // the firewood pile beside the fire: as many logs as it holds; until it is built, a full pile faint. A tap on it
   // stacks the logs he carries on it
   woodpile: () => { const { model, logs } = woodpileModel(); return { model, logs, flames: [], plan: woodpileModel().model, store: true }; },
+  // the training dummy beside the camp (0.0.22); until it is built, the whole dummy faint. A tap on it sends him to
+  // practise, and it wobbles when struck
+  dummy: () => { const { model, sway } = dummyModel(); return { model, sway, flames: [], plan: dummyModel().model, fight: true }; },
 };
