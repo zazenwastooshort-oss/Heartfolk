@@ -10,7 +10,7 @@ export const BOOK = 'book';
 
 export const GOALS: Goal[] = [
   { id: 'salvage', title: 'Salvage the wreck', hint: 'Pick up what washed up along the bank.',
-    ready: 'You have it all.', needs: { plank: 6, tarp: 1, [BOOK]: 1 } },
+    ready: 'You have it all.', needs: { plank: 7, tarp: 1, [BOOK]: 1 } },
   { id: 'campfire', title: 'A fire for the night', hint: 'Gather stones from the ground.',
     ready: 'You have it all. Making the fire comes in the next update.', needs: { plank: 3, stone: 4 } },
 ];

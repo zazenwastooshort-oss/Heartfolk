@@ -291,9 +291,9 @@ describe('the wreck, stones and branches', () => {
 
   it('the card counts what is banked as well as carried, and goes back a goal if something is lost', () => {
     const s = setup();
-    s.state.hasBook = true; s.state.bank = { plank: 4, tarp: 1 }; s.state.player.backpack = { plank: 2 };
+    s.state.hasBook = true; s.state.bank = { plank: 4, tarp: 1 }; s.state.player.backpack = { plank: 3 };
     expect(currentGoal(s.state).id).toBe('campfire');
-    s.state.player.backpack = { plank: 1 };
+    s.state.player.backpack = { plank: 2 };
     expect(currentGoal(s.state).id).toBe('salvage');
   });
 
