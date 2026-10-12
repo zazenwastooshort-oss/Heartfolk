@@ -1,7 +1,8 @@
 // Where a new game starts (12 Oct 2026): a clearing at the foot of a waterfall. He went over the falls from so high
 // that its top is never seen: the water pours out of the mist down a towering mountain wall to the north, into a pool,
 // and flows on to the south-west. He washes up on the pool's bank with nothing, and wreckage washed up with him:
-// planks, a torn tarp, a smashed crate and his book, strewn along the bank. Stones and branches lie round the clearing.
+// planks, a torn tarp, a smashed crate and his book, strewn along the bank. Stones and branches lie round the clearing,
+// and (for building, data/building.ts) reeds and clay along the river bank.
 // The camp starts bare: the campfire, the firewood pile, the shelter (a tent), the storage chest and (0.0.22) the
 // training dummy have their spots here and are built later. Since chapter 2 berry bushes grow in a patch east of the
 // fire, fish rise in the pool and along the river, and rats live round a nest in the edge of the woods downriver; past
@@ -145,6 +146,10 @@ export const CAMP: Layout = {
     ['branch', -9.6, 4.2, 0.7], ['branch', 2.4, 12.4, 1.8],
     // chapter 2: berry bushes in a patch east of the fire, between the ways to the birches, with room to walk between
     ['bush', 7.3, 1.9, 0.3], ['bush', 8.9, 0.8, 2.1], ['bush', 9.0, 3.1, 4.0], ['bush', 10.6, 1.9, 1.2], ['bush', 10.4, 4.1, 5.3],
+    // building materials (data/building.ts): reeds at the river's edge downstream of the wreck, cut for their fibre, and
+    // patches of clay in the bank between them, dug out a lump at a time
+    ['reeds', -13.5, 1.6, 0.4], ['reeds', -13.75, 3.0, 2.2], ['reeds', -14.05, 4.5, 1.1], ['reeds', -14.6, 8.0, 3.0], ['reeds', -14.85, 9.1, 0.7],
+    ['clay', -12.75, -1.0, 0.3], ['clay', -14.35, 6.9, 1.9], ['clay', -14.6, 10.3, 0.9],
   ]),
   // broken ribs of the wrecked boat, washed up at the water's edge (the pool's, by the start, and the river's)
   debris: [

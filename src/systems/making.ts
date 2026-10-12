@@ -10,6 +10,7 @@ import { siteOf } from '../world/layout';
 import { MAKES, type MakeDef } from '../data/making';
 import { useUp } from './backpack';
 import { wear } from './combat';
+import { stagedDef } from '../core/building';
 
 /** What he still lacks to make `def`: item id to how many more (empty when he has it all, carried or banked). */
 export function missingFor(state: GameState, def: MakeDef): Record<string, number> {
@@ -21,7 +22,7 @@ export function missingFor(state: GameState, def: MakeDef): Record<string, numbe
 /** Whether `def` can be made in this layout: its site is here (or it is made anywhere), and it isn't made yet: a
  *  structure not built, a tool he doesn't own (the village's axe, or one an old camp save kept). */
 export const canMake = (state: GameState, layout: Layout, def: MakeDef) =>
-  (def.at === 'here' || siteOf(layout, def.at) !== null) && !made(state, def.id);
+  (def.at === 'here' || siteOf(layout, def.at) !== null) && !made(state, def.id) && !stagedDef(def.id);   // (built in stages: systems/building.ts)
 
 export function updateMaking(state: GameState, layout: Layout, events: EventBus): void {
   const p = state.player, task = p.task;

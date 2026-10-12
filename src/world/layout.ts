@@ -145,8 +145,9 @@ export interface Site { pos: Vec2; radius: number; rot?: number; w?: number; d?:
 /** Where something is built (MAKES' `at` in data/making.ts) in this layout: the camp's hearth, where nothing stands
  *  until its campfire is built (the village's already has its big Hearth), the camp's tent spot, where his shelter
  *  goes, and the camp's chest spot beside it; or null where this layout has no such place. A structure built there
- *  stands on it and is in the way (world/nav.ts). */
-export function siteOf(layout: Layout, id: SiteId): Site | null {
+ *  stands on it and is in the way (world/nav.ts). Something the player places himself ('placed', data/building.ts) has
+ *  no fixed site: GameState.placed says where it stands (core/building.ts). */
+export function siteOf(layout: Layout, id: SiteId | 'placed'): Site | null {
   if (id === 'hearth') return layout.hearthModel === null ? layout.hearth : null;
   if (id === 'tent') return layout.camp?.tent ?? null;
   if (id === 'chest') return layout.camp?.chest ?? null;

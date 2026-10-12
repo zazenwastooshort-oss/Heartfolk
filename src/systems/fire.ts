@@ -45,10 +45,12 @@ function backOf(state: GameState): Back | null {
   if (task.kind === 'gather') return { nodeId: task.nodeId };
   if (task.kind === 'pickup') return { pickupId: task.id };
   if (task.kind === 'fight') return { fight: task.target };
+  if (task.kind === 'raise') return { raise: task.id };
   if (pending?.kind === 'node') return { nodeId: pending.id };
   if (pending?.kind === 'pickup') return { pickupId: pending.id };
   if (pending?.kind === 'make') return { make: pending.id };
   if (pending?.kind === 'fight') return { fight: pending.id };
+  if (pending?.kind === 'raise') return { raise: pending.id };
   if (task.kind === 'walk' && !pending && p.path.length) return { to: { ...p.path.at(-1)! } };
   return null;
 }

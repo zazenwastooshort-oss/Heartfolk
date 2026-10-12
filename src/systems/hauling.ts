@@ -26,6 +26,7 @@ import { targetOf } from '../core/targets';
 import { canCook, fishToCook, goCook } from './cooking';
 import { canSleep, goToBed } from './sleep';
 import { isNight } from '../core/clock';
+import { backToBuilding } from './building';
 
 /** The place to empty the backpack (a bank's door, or the camp's chest) nearest `at`, or null where there is none. */
 function nearestStore(state: GameState, layout: Layout, at: Vec2): string | null {
@@ -84,6 +85,7 @@ function startTrip(state: GameState, layout: Layout, trip: Trip, events: EventBu
 export function backToWork(state: GameState, layout: Layout, back: Trip | Back, events: EventBus): void {
   if ('to' in back) { walkTo(state, layout, back.to); return; }
   if ('fight' in back) { setOffToFight(state, layout, back.fight, events); return; }
+  if ('raise' in back) { backToBuilding(state, layout, back.raise, events); return; }
   if ('sleep' in back) { if (canSleep(state, layout) && isNight(state.time) && !goToBed(state, layout)) events.emit({ type: 'noPath' }); return; }
   if ('cook' in back) {
     if (canCook(state, layout) && fishToCook(state, layout) && !goCook(state, layout)) events.emit({ type: 'noPath' });

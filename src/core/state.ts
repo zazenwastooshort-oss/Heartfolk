@@ -37,12 +37,17 @@ export type Task = { kind: 'idle' } | { kind: 'walk' } | { kind: 'gather'; nodeI
   | { kind: 'cook'; doneAt: number } | { kind: 'fight'; target: string; progress: number }
   | { kind: 'knockedOut'; wakeAt: number; by: string }
   /** asleep in the shelter until dawn (systems/sleep.ts) */
-  | { kind: 'sleep' };
+  | { kind: 'sleep' }
+  /** building something in stages beside it (data/building.ts, systems/building.ts): how far along it is, is
+   *  GameState.underway, so it stays when he is sent elsewhere */
+  | { kind: 'raise'; id: MakeId };
 
 /** What the player is walking towards: a resource node to work, a place to visit (a building or land), something
  *  on the ground to pick up, where he makes something (data/making.ts), or (0.0.22) something to fight. */
 export type Pending = { kind: 'node'; id: string } | { kind: 'visit'; id: string } | { kind: 'pickup'; id: string }
-  | { kind: 'make'; id: MakeId } | { kind: 'fight'; id: string } | null;
+  | { kind: 'make'; id: MakeId } | { kind: 'fight'; id: string }
+  /** on his way to build something in stages (systems/building.ts) */
+  | { kind: 'raise'; id: MakeId } | null;
 
 /** On the way to the bank (or at the camp, since 0.0.19, the storage chest) to empty a full backpack; afterwards he
  *  goes back to work at `nodeId` (or the nearest free node like it), or (0.0.14) back to gathering things on the
@@ -56,7 +61,11 @@ export type Trip = ({ nodeId: string } | { pickupId: string } | { fight: string;
  *  things off the ground like `pickupId` (or picking up that one), making something, walking on to a spot, or (chapter
  *  2, 0.0.22) cooking at the campfire or fighting something (practising on the training dummy). */
 export type Back = { nodeId: string } | { pickupId: string } | { make: MakeId } | { to: Vec2 } | { cook: true } | { fight: string }
-  | { sleep: true };
+  | { sleep: true } | { raise: MakeId };
+
+/** Where the player put something down to build (the Build list; data/building.ts): its middle, on the half-metre
+ *  grid, and how many quarter turns it is turned from facing south (0 to 3). */
+export interface Placed { pos: Vec2; turn: number }
 
 /** Stoking the fire (0.0.19; systems/fire.ts): at nightfall he left what he was doing (`back`, null for nothing),
  *  walks to where he takes the logs (`from`: the firewood pile since 0.0.21, or the storage chest; null when he took
@@ -154,6 +163,11 @@ export interface GameState {
   /** the in-game time he stays well rested until, after a full night's sleep in the shelter (systems/sleep.ts); 0 for
    *  not rested */
   restedUntil: number;
+  /** where each thing he placed himself stands (data/building.ts, by id), begun or built; none in an old save */
+  placed: Partial<Record<MakeId, Placed>>;
+  /** things built in stages that he has begun but not finished (by id): the seconds he has worked at each so far. What
+   *  each needs was taken when he began. Once finished it is in `built` instead */
+  underway: Partial<Record<MakeId, number>>;
 }
 
 /** Whether there is a shelter to sleep in (systems/sleep.ts): built at this layout's tent spot (never in the village). */
@@ -246,5 +260,7 @@ export function createState(layout: Layout, seed = 1): GameState {
     goblins: freshGoblins(layout, DAY_SECONDS * 0.32),
     goblinCamp: { chiefOut: false, cleared: false },
     restedUntil: 0,
+    placed: {},
+    underway: {},
   };
 }

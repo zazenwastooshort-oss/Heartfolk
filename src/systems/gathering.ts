@@ -15,6 +15,7 @@ import { addXp, levelOf } from './skills';
 import { isClaimed } from './commands';
 import { addToBackpack, backpackFull } from './backpack';
 import { restedFactor } from './sleep';
+import { peelBark } from './building';
 
 // He pauses RESOURCES[...].moveOnAfter seconds after a node runs out (a tree is seen to land), then looks for another.
 export const MOVE_ON_EVERY = 0.5;     // then look again this often while still waiting; cheap when time is caught up
@@ -73,6 +74,7 @@ export function updateGathering(state: GameState, layout: Layout, dt: number, rn
     addToBackpack(state, res.item);
     events.emit({ type: 'itemGained', item: res.item, count: 1 });
     addXp(state, res.skill, res.xp, events);
+    peelBark(state, layout, res.id, events);                  // now and then a strip of bark off a birch log
     if (rng.next() < res.deplete) {
       node.depletedUntil = state.time + res.respawn;
       task.mayMoveOn = true;

@@ -6,6 +6,8 @@
 // the berry bushes, the rats' nests and the goblin camp's palisade, tent, totem and fire ring block (world/goblincamp.ts);
 // things lying on the ground to pick up, and rubble, don't. The forest and land not yet claimed lie outside the
 // walkable area, which is the layout's `village` and any more `land` joined to it (the camp's way down the river).
+// Things the player placed himself (data/building.ts: GameState.placed) block by their own width and depth, like the
+// chest, begun or built.
 import type { Area, Layout, Site, Vec2 } from './layout';
 import { inArea, siteOf } from './layout';
 import { makeDef } from '../data/making';
@@ -16,6 +18,17 @@ import { goblinCampBlocks } from './goblincamp';
 
 const CELL = 0.4;
 const MARGIN = 0.35;                 // keep this far from walls, so the character doesn't clip them
+
+/** Something the player placed himself (data/building.ts; core/building.ts works it out from GameState.placed), as it
+ *  is in the way: its middle, its turn (radians, as a building's rot) and its width and depth. */
+export interface PlacedRect { pos: Vec2; rot: number; w: number; d: number }
+
+/** Whether a walking-grid cell whose middle is `p` is blocked by `r`: within it, with room kept round it as for a
+ *  building. */
+export function blockedBy(r: PlacedRect, p: Vec2): boolean {
+  const dx = p.x - r.pos.x, dz = p.z - r.pos.z, c = Math.cos(r.rot), s = Math.sin(r.rot);
+  return Math.abs(dx * c - dz * s) <= r.w / 2 + MARGIN && Math.abs(dx * s + dz * c) <= r.d / 2 + MARGIN;
+}
 
 /** Distance from p to the nearest point of a polyline. */
 export function distToLine(p: Vec2, line: Vec2[]): number {
@@ -42,8 +55,9 @@ export class NavGrid {
   /** the land within `area` he can walk on: `area` itself, or (with more `land` in the layout) the layout's land */
   private land: Area[];
 
-  /** built: what stands on the layout's sites (GameState.built): each blocks its site, like the village's hearth. */
-  constructor(private area: Area, layout: Layout, built: readonly string[] = []) {
+  /** built: what stands on the layout's sites (GameState.built): each blocks its site, like the village's hearth.
+   *  placed: what the player placed himself (data/building.ts), begun or built. */
+  constructor(private area: Area, layout: Layout, built: readonly string[] = [], placed: readonly PlacedRect[] = []) {
     this.land = layout.land?.length ? landOf(layout) : [area];
     this.nx = Math.ceil((area.maxX - area.minX) / CELL);
     this.nz = Math.ceil((area.maxZ - area.minZ) / CELL);
@@ -83,6 +97,8 @@ export class NavGrid {
       ...layout.buildings.map(b => ({ pos: b.pos, rot: b.rot, hw: b.w / 2 + MARGIN, hd: b.d / 2 + MARGIN })),
       ...layout.gardens.map(g => ({ pos: g.pos, rot: g.rot, hw: g.w / 2 + 0.3 + MARGIN, hd: g.d / 2 + 0.3 + MARGIN })),
       ...sites.filter(square).map(s => ({ pos: s.pos, rot: s.rot ?? 0, hw: s.w / 2 + MARGIN, hd: s.d / 2 + MARGIN })),
+      // what the player placed himself, by its own width and depth
+      ...placed.map(r => ({ pos: r.pos, rot: r.rot, hw: r.w / 2 + MARGIN, hd: r.d / 2 + MARGIN })),
       // (chapter 2) the goblin camp's palisade, its gate and the chief's tent
       ...goblins.rects.map(b => ({ pos: b.pos, rot: b.rot, hw: b.hw + MARGIN, hd: b.hd + MARGIN })),
     ];
@@ -159,6 +175,39 @@ export class NavGrid {
     return true;
   }
 
+  /** The open ground he can walk to from `from` (or the nearest open spot to it) now, and with the cells for which
+   *  `also` says so blocked as well (something about to be placed: data/building.ts): whether a spot is among each
+   *  (`before`, `after`), and how many cells of the first would be cut off from him (`lost`), not counting those cells
+   *  themselves. For placing things, so nothing is cut off. */
+  cutOff(from: Vec2, also: (p: Vec2) => boolean): { lost: number; before: (p: Vec2) => boolean; after: (p: Vec2) => boolean } {
+    const was = this.flood(from), now = this.flood(from, also);
+    let lost = 0;
+    for (let i = 0; i < was.length; i++) {
+      if (!was[i] || now[i]) continue;
+      const ix = i % this.nx;
+      if (!also(this.center(ix, (i - ix) / this.nx))) lost++;
+    }
+    const among = (seen: Uint8Array) => (p: Vec2) => { const [ix, iz] = this.cellOf(p); return ix >= 0 && iz >= 0 && ix < this.nx && iz < this.nz && !!seen[iz * this.nx + ix]; };
+    return { lost, before: among(was), after: among(now) };
+  }
+
+  /** The cells reachable from `from` (or the nearest open spot to it) by steps along the grid, with `also` blocking too. */
+  private flood(from: Vec2, also: (p: Vec2) => boolean = () => false): Uint8Array {
+    const open = (ix: number, iz: number) => this.open(ix, iz) && !also(this.center(ix, iz));
+    const seen = new Uint8Array(this.nx * this.nz), start = this.walkable(from) ? from : this.nearestWalkable(from);
+    const [sx, sz] = this.cellOf(start), queue: number[] = [];
+    if (open(sx, sz)) { seen[sz * this.nx + sx] = 1; queue.push(sz * this.nx + sx); }
+    for (let i = 0; i < queue.length; i++) {
+      const c = queue[i]!, cx = c % this.nx, cz = (c - cx) / this.nx;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const ix = cx + dx, iz = cz + dz, n = iz * this.nx + ix;
+        if (ix < 0 || iz < 0 || ix >= this.nx || iz >= this.nz || seen[n] || !open(ix, iz)) continue;
+        seen[n] = 1; queue.push(n);
+      }
+    }
+    return seen;
+  }
+
   /** Waypoints from `from` to `to` (excluding `from`), or null when there is no way through. */
   findPath(from: Vec2, to: Vec2): Vec2[] | null {
     const start = this.walkable(from) ? from : this.nearestWalkable(from);
@@ -218,13 +267,14 @@ export class NavGrid {
 }
 
 const cache = new WeakMap<Layout, Map<string, NavGrid>>();
-/** The walking grid for the land the player has, with what he has built on it (GameState.built), one kept per
- *  layout and set of built things. Land claims (step 7) will rebuild it with more area. */
-export function navFor(layout: Layout, built: readonly string[] = []): NavGrid {
+/** The walking grid for the land the player has, with what he has built on it (GameState.built) and (data/building.ts)
+ *  what he placed himself (placedRects in core/building.ts), one kept per layout and set of built and placed things.
+ *  Land claims (step 7) will rebuild it with more area. */
+export function navFor(layout: Layout, built: readonly string[] = [], placed: readonly PlacedRect[] = []): NavGrid {
   let grids = cache.get(layout);
   if (!grids) { grids = new Map(); cache.set(layout, grids); }
-  const key = [...built].sort().join(',');
+  const key = [...built].sort().join(',') + placed.map(r => `|${r.pos.x},${r.pos.z},${r.rot},${r.w},${r.d}`).join('');
   let nav = grids.get(key);
-  if (!nav) { nav = new NavGrid(boundsOf(landOf(layout)), layout, built); grids.set(key, nav); }
+  if (!nav) { nav = new NavGrid(boundsOf(landOf(layout)), layout, built, placed); grids.set(key, nav); }
   return nav;
 }

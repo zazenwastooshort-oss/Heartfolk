@@ -151,9 +151,9 @@ describe('windows in the page (index.html)', () => {
   const windows = [...html.matchAll(/<section class="win[^"]*" id="(\w+)" data-win="(\w+)" data-width="(\d+)"[^>]*>([\s\S]*?)<\/section>\s*(?=<section class="win|<\/div>)/g)];
   const buttons = [...html.matchAll(/<button class="rail-btn" type="button" data-opens="(\w+)" aria-controls="(\w+)"[^>]*>([\s\S]*?)<\/button>/g)];
 
-  it('has the four windows, in the order of their buttons: backpack, skills, book, settings', () => {
-    expect(windows.map(m => m[2])).toEqual(['backpack', 'skills', 'book', 'settings']);
-    expect(buttons.map(m => m[1])).toEqual(['backpack', 'skills', 'book', 'settings']);
+  it('has the five windows, in the order of their buttons: backpack, skills, build, book, settings', () => {
+    expect(windows.map(m => m[2])).toEqual(['backpack', 'skills', 'build', 'book', 'settings']);
+    expect(buttons.map(m => m[1])).toEqual(['backpack', 'skills', 'build', 'book', 'settings']);
   });
 
   it('every window has a title bar with its title and a close button, and a button in the row that opens it', () => {
@@ -173,9 +173,9 @@ describe('windows in the page (index.html)', () => {
     }
   });
 
-  it("the book's button waits until he has his book", () => {
+  it("the book's button waits until he has his book, and the Build button until there is something to build", () => {
     const hidden = (b: RegExpMatchArray) => /^<button[^>]* hidden>/.test(b[0]);
-    expect(buttons.filter(hidden).map(b => b[1])).toEqual(['book']);
+    expect(buttons.filter(hidden).map(b => b[1])).toEqual(['build', 'book']);
   });
 
   it("the notes over the game share the look, and their x does what their own button does", () => {

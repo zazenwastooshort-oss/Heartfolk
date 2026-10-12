@@ -7,7 +7,9 @@
 export type GatherSkill = 'mining' | 'woodcutting' | 'fishing';
 /** Chapter 2, holding the camp (0.0.22): the combat skills, Attack, Strength and Defence as in OSRS, and Vitality,
  *  which sets his health (not Hitpoints, so it differs a bit: the owner, 12 Oct 2026); Fishing and Cooking for food. */
-export type SkillId = GatherSkill | 'attack' | 'strength' | 'defence' | 'vitality' | 'fishing' | 'cooking';
+export type SkillId = GatherSkill | 'attack' | 'strength' | 'defence' | 'vitality' | 'fishing' | 'cooking'
+  /** building things in stages (data/building.ts) */
+  | 'carpentry';
 
 /** verb: what the hover text and notices call working a node of this skill */
 export interface SkillDef { id: SkillId; name: string; verb: string; color: string }
@@ -21,6 +23,7 @@ export const SKILLS: Record<SkillId, SkillDef> = {
   vitality: { id: 'vitality', name: 'Vitality', verb: 'Train', color: '#d8798e' },
   fishing: { id: 'fishing', name: 'Fishing', verb: 'Fish', color: '#62b4c4' },
   cooking: { id: 'cooking', name: 'Cooking', verb: 'Cook', color: '#c98a52' },
+  carpentry: { id: 'carpentry', name: 'Carpentry', verb: 'Build', color: '#c9a36b' },
 };
 
 export interface ResourceDef {
@@ -76,6 +79,11 @@ export const ITEMS: Record<string, ItemDef> = {
   rat_hide: { id: 'rat_hide', name: 'Rat hides', one: 'Rat hide', value: 1 },
   // the goblin camp: the goblin chief's torn map, of the way on down the river (it can't be dropped: canDrop)
   old_map: { id: 'old_map', name: 'Torn maps', one: 'Torn map', value: 0 },
+  // building materials (data/building.ts): fibre cut from the reeds along the river bank, clay dug there, and bark
+  // peeled now and then while chopping birch
+  fibre: { id: 'fibre', name: 'Fibre', one: 'Bundle of fibre', value: 1 },
+  bark: { id: 'bark', name: 'Bark', one: 'Strip of bark', value: 1 },
+  clay: { id: 'clay', name: 'Clay', one: 'Lump of clay', value: 1 },
 };
 
 /** The tools a skill's swing needs (SWINGS in data/animation). He owns each or not (GameState.tools): a new camp game

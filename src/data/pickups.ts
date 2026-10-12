@@ -3,7 +3,7 @@
 // hand the same way. Tables only. Where each one lies (or grows) is the layout's `pickups` (world/camp.ts); which have
 // been taken (a bush: picked bare), and until when, is GameState.taken.
 
-export type PickupKind = 'plank' | 'tarp' | 'crate' | 'book' | 'stone' | 'branch' | 'bush';
+export type PickupKind = 'plank' | 'tarp' | 'crate' | 'book' | 'stone' | 'branch' | 'bush' | 'reeds' | 'clay';
 
 /** What tapping one starts (0.0.14, the owner: the idle feel from the start): he gathers every one of the same
  *  group, nearest first, like moving on from tree to tree. A group whose pieces never come back (the wreck's planks)
@@ -11,16 +11,19 @@ export type PickupKind = 'plank' | 'tarp' | 'crate' | 'book' | 'stone' | 'branch
  *  the backpack is full.
  *  name: the hover text ("Gather|Planks") and the notice once none are left ("That's all the planks."); verb: the
  *  hover text's word for it, where it isn't "Gather" ("Pick|Berries"). */
-export type GatherId = 'planks' | 'stones' | 'branches' | 'berries';
+export type GatherId = 'planks' | 'stones' | 'branches' | 'berries' | 'reeds' | 'clay';
 export const GATHERS: Record<GatherId, { name: string; verb?: string }> = {
   planks: { name: 'Planks' },
   stones: { name: 'Stones' },
   branches: { name: 'Branches' },
   berries: { name: 'Berries', verb: 'Pick' },
+  // building materials (data/building.ts)
+  reeds: { name: 'Reeds', verb: 'Cut' },
+  clay: { name: 'Clay', verb: 'Dig' },
 };
 
 /** name: the hover text for one picked up on its own ("Pick up|Torn tarp"); model: in assets/models/village.glb (none
- *  for a plant, drawn in code).
+ *  for a plant, drawn in code), or one drawn in code by render/materials.ts (the reeds and the clay).
  *  gives: what goes into his backpack (`count` of `item`), or 'book': his book, which he keeps apart from the backpack
  *  (it takes no slot; GameState.hasBook).
  *  respawn: seconds until another lies at the same spot, or null for never (the wreck comes down only once).
@@ -48,6 +51,10 @@ export const PICKUPS: Record<PickupKind, PickupDef> = {
   branch: { kind: 'branch', name: 'Branch', model: 'Branch', gives: { item: 'branch', count: 1 }, respawn: 110, gather: 'branches' },
   // chapter 2: a berry bush by the camp, a couple of berries a picking; they grow back in a minute and a bit
   bush:   { kind: 'bush', name: 'Berry bush', model: '', gives: { item: 'berries', count: 2 }, respawn: 80, gather: 'berries', plant: { radius: 0.4 }, pause: 1.6 },
+  // building materials (data/building.ts): a clump of reeds at the river's edge, cut for their fibre, and a patch of
+  // clay in the bank, dug out a lump at a time; both come back after a while
+  reeds:  { kind: 'reeds', name: 'Reeds', model: 'Reeds', gives: { item: 'fibre', count: 1 }, respawn: 90, gather: 'reeds', pause: 1.2 },
+  clay:   { kind: 'clay', name: 'Clay', model: 'ClayPatch', gives: { item: 'clay', count: 1 }, respawn: 120, gather: 'clay', pause: 1.8 },
 };
 
 /** Seconds he stands beside a pickup before it goes into his backpack: long enough to see him stop for it. */
