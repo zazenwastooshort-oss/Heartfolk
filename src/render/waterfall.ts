@@ -1,27 +1,28 @@
 // The waterfall at the camp (world/camp.ts, Falls): a towering mountain wall whose top is lost in mist and cloud, the
-// water pouring out of the mist down its face, and the pool at its foot with foam rings and spray. The wall is wide
-// and curves forward into rock shoulders at the sides, so from the clearing its ends are never seen. The river below
-// the pool is drawn by world.ts like any river. Moves with time only; reads no game state.
-// Cheap on phones: the wall, the mist curtain, the cloud puffs, the boulders at its foot and the spray are one mesh
-// each; only the boulders cast shadows (the sun is always to the south, so the wall's own shadow falls behind it).
+// water pouring out of the mist down its face, foam rings and spray where it lands in the pool, and the foot of the
+// mountain: a scree slope banked up against the wall, broken rock of every size on and below it, moss and ferns (laid
+// out headless in world/falls.ts, which walking uses too). The wall is wide and curves forward into rock shoulders at
+// the sides, so from the clearing its ends are never seen. The pool and the river are drawn by world.ts as one body of
+// water (world/water.ts). Moves with time only; reads no game state.
+// Cheap on phones: the wall, the mist curtain, the cloud puffs, the foot (slope, rocks and ferns) and the spray are one
+// mesh each; only the foot casts shadows (the sun is always to the south, so the wall's own shadow falls behind it).
 // The mist, the cloud and the water fading in all sit low enough for a low, zoomed-out camera to see them: its view
 // reaches only about 15 m up the wall on a wide screen and 20-30 m on a phone held upright, so higher up is never
 // seen. The camera never goes behind the wall or the falling water (`clearance`, which render/camera.ts keeps it in
-// front of); the boulders at the foot, which it can pass over, are cut away round the camera and its line of sight to
-// the character, the mist thins out near the camera, and cloud and spray thin out where they would hide him or fill
-// the screen.
+// front of); the foot, which it can pass over, is cut away round the camera and its line of sight to the character,
+// the mist thins out near the camera, and cloud and spray thin out where they would hide him or fill the screen.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { Falls } from '../world/layout';
+import type { Water } from '../world/water';
+import { APRON, slopeY, wallFootZ, type Foot } from '../world/falls';
 
 function seeded(seed: number) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
 const LEAN = 0.14;              // the face leans back this far for every metre up
 const TOP = 1.3;                // the wall and the water go on this many times `height` up, into the mist
-const SPAN = 112;               // the wall runs this far either side of the clearing...
-const STRAIGHT = 38;            // ...straight for this far, then curving forward into shoulders
-const CURVE = 0.011;            // how sharply the shoulders come forward
-const CENTRE_X = 0;             // the clearing the wall stands round
+const SPAN = 112;               // the wall runs this far either side of the clearing
+const CENTRE_X = 0;            // the clearing the wall stands round (its foot: wallFootZ in world/falls.ts)
 const MIST_FROM = 5;            // the mist starts this many metres up, is half there by MIST_HALF, most of the way by
 const MIST_HALF = 11;           // MIST_THICK...
 const MIST_THICK = 18;
@@ -86,11 +87,12 @@ export class FallsView {
   /** How far in front of footZ - LEAN * y the frontmost rock or water is, measured from the geometry itself. */
   private front = -Infinity;
 
-  constructor(scene: THREE.Scene, private falls: Falls) {
-    const { lip, width, height: H, pool } = falls, r = seeded(9);
+  /** foot: the rocks and ferns at the foot of the wall (world/falls.ts, footOf); water: the pool and river's shape. */
+  constructor(scene: THREE.Scene, private falls: Falls, foot: Foot, water: Water) {
+    const { lip, width, height: H } = falls, r = seeded(9);
     const top = H * TOP, half = width / 2;
     /** Where the foot of the wall is at x (its line curves forward into the shoulders), before the rock's jags. */
-    const footZ = this.footZ = (x: number) => { const out = Math.max(0, Math.abs(x - CENTRE_X) - STRAIGHT); return lip.z - 0.3 + CURVE * out * out; };
+    const footZ = this.footZ = (x: number) => wallFootZ(falls, x);
     /** Note how far in front of the leaning foot line a point of the wall or the water is. */
     const reachesTo = (x: number, y: number, z: number) => { this.front = Math.max(this.front, z - footZ(x) + LEAN * Math.max(0, y)); };
 
@@ -119,8 +121,8 @@ export class FallsView {
         const up = ab.subVectors(tri[1]!, tri[0]!).cross(ac.subVectors(tri[2]!, tri[0]!)).normalize().y;   // how much it faces up
         c.copy(stone).multiplyScalar(tone[i]! * (0.95 + r() * 0.1));
         if (Math.abs(mx - lip.x) < half + 4) c.lerp(wet, 0.6);
-        else if (up > 0.42) c.lerp(moss, Math.min(1, (up - 0.42) * 2.4));
-        if (my < 3) c.lerp(moss, 0.5 * (1 - my / 3));
+        else if (up > 0.36) c.lerp(moss, Math.min(1, (up - 0.36) * 2.6));
+        if (my < 6) c.lerp(moss, 0.4 * (1 - my / 6) * (0.6 + 0.4 * Math.sin(mx * 0.23)));
         for (const p of tri) { pos.push(p.x, p.y, p.z); col.push(c.r, c.g, c.b); }
       }
     }
@@ -133,24 +135,81 @@ export class FallsView {
     const wall = new THREE.Mesh(wallGeo, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
     wall.receiveShadow = true; scene.add(wall);
 
-    // big stones fallen at the foot of the wall, merged into one mesh; two flank the pool
-    const stones: THREE.BufferGeometry[] = [];
-    const boulder = (x: number, y: number, z: number, rad: number, tone: number) => {
-      const g = new THREE.IcosahedronGeometry(rad, 0);
-      g.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(x, y, z),
-        new THREE.Quaternion().setFromEuler(new THREE.Euler(r() * 6, r() * 6, r() * 6)), new THREE.Vector3(1.15, 0.8 + r() * 0.4, 0.75)));
-      const n = g.attributes.position!.count, k = new THREE.Color('#8a8d92').multiplyScalar(tone), cs: number[] = [];
-      for (let i = 0; i < n; i++) cs.push(k.r, k.g, k.b);
+    // the foot of the mountain, merged into one mesh and coloured per facet: a scree slope banked up against the wall,
+    // the rocks lying on and below it (world/falls.ts: boulders, smaller rocks, rubble), moss on the stones facing up,
+    // and ferns where the slope meets the grass
+    const parts: THREE.BufferGeometry[] = [];
+    const greyStone = new THREE.Color('#8a8d92'), warmStone = new THREE.Color('#8e8578'), mossy = new THREE.Color('#5f8a48');
+    const fc = new THREE.Color(), A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3();
+    /** Add a non-indexed geometry, each facet coloured by `shade(facet middle, how much it faces up)`. */
+    const add = (geo: THREE.BufferGeometry, shade: (mx: number, mz: number, up: number) => THREE.Color) => {
+      const g = geo.index ? geo.toNonIndexed() : geo, p = g.attributes.position!, cs: number[] = [];
+      for (const name of Object.keys(g.attributes)) if (name !== 'position') g.deleteAttribute(name);
+      for (let i = 0; i < p.count; i += 3) {
+        A.fromBufferAttribute(p, i); B.fromBufferAttribute(p, i + 1).sub(A); C.fromBufferAttribute(p, i + 2).sub(A);
+        const up = B.cross(C).normalize().y, k = shade(A.x, A.z, up);
+        for (let j = 0; j < 3; j++) cs.push(k.r, k.g, k.b);
+      }
       g.setAttribute('color', new THREE.Float32BufferAttribute(cs, 3));
-      stones.push(g);
+      parts.push(g);
     };
-    for (let x = CENTRE_X - STRAIGHT - 6; x <= CENTRE_X + STRAIGHT + 6; x += 3.2 + r() * 2) {
-      if (Math.abs(x - lip.x) < half + 2.6) continue;
-      boulder(x, 0.5 + r() * 0.6, footZ(x) + 0.2, 1.1 + r() * 0.8, 0.82 + r() * 0.25);
+    // the slope: a strip along the foot, from up against the wall (tucked in under its face) down to the ground
+    const across = [-0.3, 0.12, 0.32, 0.52, 0.7, 0.86, 1.03], slope: THREE.Vector3[][] = [];
+    for (let x = CENTRE_X - 58; x <= CENTRE_X + 58; x += 0.9 + r() * 0.4) {
+      slope.push(across.map((u, k) => {
+        const z = footZ(x) + u * APRON + (k > 0 && k < across.length - 1 ? (r() - 0.5) * 0.3 : 0), h = slopeY(falls, water, x, z);
+        const y = h > 0.02 ? h + (k === across.length - 1 ? -0.06 : (r() - 0.4) * 0.5 * Math.min(1, h / 0.6)) : -0.06;
+        return new THREE.Vector3(x + (k ? (r() - 0.5) * 0.45 : 0), y, z);
+      }));
     }
-    for (const side of [-1, 1]) boulder(lip.x + side * (half + 2.2), 0.7, lip.z + 0.6, 1.5, 0.78);
-    // the camera can go over them, and near or behind one when the wall pulls it in close: they are cut away round the
-    // camera and round its line of sight to the character (between the two only), so they never hide him or fill the
+    const scree = new THREE.Color('#7f7a72'), toe = new THREE.Color('#6e7c52'), sp: number[] = [];
+    for (let i = 0; i < slope.length - 1; i++) for (let k = 0; k < across.length - 1; k++) {
+      const a = slope[i]![k]!, b = slope[i + 1]![k]!, d = slope[i]![k + 1]!, e = slope[i + 1]![k + 1]!;
+      if (Math.max(a.y, b.y, d.y, e.y) < 0.05) continue;                  // nothing rises here (where the water lands)
+      for (const t of [[a, e, b], [a, d, e]]) for (const v of t) sp.push(v.x, v.y, v.z);
+    }
+    const slopeGeo = new THREE.BufferGeometry(); slopeGeo.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+    add(slopeGeo, (mx, mz, up) => {
+      fc.copy(scree).lerp(r() < 0.5 ? greyStone : warmStone, r() * 0.6).multiplyScalar(0.84 + r() * 0.28);
+      if (up > 0.5 && Math.sin(mx * 0.35 + Math.sin(mx * 0.11) * 3) > 0.25) fc.lerp(mossy, 0.45 + r() * 0.25);   // mossy patches
+      return fc.lerp(toe, 0.55 * Math.max(0, (mz - footZ(mx)) / APRON - 0.55) / 0.45);                        // into the grass
+    });
+    // the rocks: boulders rounded and chunky, smaller rocks and rubble more broken
+    for (const k of foot.rocks) {
+      const geo = k.kind === 'boulder' ? new THREE.IcosahedronGeometry(1, 0) : k.kind === 'rock' ? new THREE.DodecahedronGeometry(1, 0)
+        : r() < 0.5 ? new THREE.OctahedronGeometry(1, 0) : new THREE.TetrahedronGeometry(1, 0);
+      const flat = k.kind === 'boulder' ? 0.72 + r() * 0.35 : k.kind === 'rock' ? 0.55 + r() * 0.3 : 0.45 + r() * 0.3;
+      const tilt = k.kind === 'boulder' ? 0.3 : 3;
+      geo.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(k.pos.x, k.y, k.pos.z),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler((r() - 0.5) * tilt, r() * 6.3, (r() - 0.5) * tilt)),
+        new THREE.Vector3(1.12 * k.radius, flat * k.radius, 0.88 * k.radius)));
+      const base = new THREE.Color().copy(greyStone).lerp(warmStone, r()).multiplyScalar(k.tone);
+      const mossOn = k.kind === 'boulder' ? 0.7 : k.kind === 'rock' ? 0.35 : 0.08;
+      add(geo, (_x, _z, up) => {
+        fc.copy(base).multiplyScalar(0.92 + r() * 0.14);
+        return up > 0.55 && r() < mossOn ? fc.lerp(mossy, 0.5 + r() * 0.3) : fc;
+      });
+    }
+    // ferns: a few arching fronds each
+    const fern = new THREE.Color('#4e8a3a'), fp: number[] = [];
+    for (const f of foot.ferns) {
+      const y = slopeY(falls, water, f.x, f.z), n = 5 + Math.floor(r() * 3), turn = r() * 6.3;
+      for (let i = 0; i < n; i++) {
+        const a = turn + (i / n) * Math.PI * 2 + (r() - 0.5) * 0.5, L = 0.45 + r() * 0.35, ca = Math.cos(a), sa = Math.sin(a), w = 0.09;
+        const base = [f.x, y + 0.02, f.z], tip = [f.x + ca * L, y + 0.1, f.z + sa * L];
+        const mid = (s: number) => [f.x + ca * L * 0.5 - sa * w * s, y + 0.3 * L + 0.05, f.z + sa * L * 0.5 + ca * w * s];
+        for (const t of [[base, mid(1), tip], [base, tip, mid(-1)]]) {
+          // facing up
+          const [p0, p1, p2] = (t[1]![2]! - t[0]![2]!) * (t[2]![0]! - t[0]![0]!) - (t[1]![0]! - t[0]![0]!) * (t[2]![2]! - t[0]![2]!) < 0 ? [t[0]!, t[2]!, t[1]!] : t;
+          fp.push(...p0!, ...p1!, ...p2!);
+        }
+      }
+    }
+    const fernGeo = new THREE.BufferGeometry(); fernGeo.setAttribute('position', new THREE.Float32BufferAttribute(fp, 3));
+    add(fernGeo, () => fc.copy(fern).multiplyScalar(0.85 + r() * 0.3));
+    const stones = parts;
+    // the camera can go over the foot, and near or into it when the wall pulls it in close: it is cut away round the
+    // camera and round its line of sight to the character (between the two only), so it never hides him or fills the
     // screen
     const rockMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
     rockMat.onBeforeCompile = shader => {
@@ -171,7 +230,8 @@ export class FallsView {
           if (keep < (BAYER[q.x + q.y * 4] + 0.5) / 16.0) discard;
         }`);
     };
-    const rocks = new THREE.Mesh(mergeGeometries(stones, false)!, rockMat);
+    const footGeo = mergeGeometries(stones, false)!; footGeo.computeVertexNormals();
+    const rocks = new THREE.Mesh(footGeo, rockMat);
     rocks.castShadow = true; rocks.receiveShadow = true; scene.add(rocks);
 
     // the falling water: a bright sheet in its groove and a fainter, wider one for body, leaning back with the wall
@@ -229,9 +289,7 @@ export class FallsView {
       new THREE.MeshBasicMaterial({ map: puffTex, transparent: true, opacity: 0.7, depthWrite: false, color: '#eef3f5' }), this.cloudAt.length);
     this.clouds.frustumCulled = false; this.clouds.renderOrder = 4; scene.add(this.clouds);
 
-    // the pool at the foot, lighter where the water churns
-    const poolMesh = new THREE.Mesh(new THREE.CircleGeometry(pool.radius, 28), new THREE.MeshStandardMaterial({ color: '#4d93cc', roughness: 0.2 }));
-    poolMesh.rotation.x = -Math.PI / 2; poolMesh.position.set(pool.pos.x, 0.07, pool.pos.z); poolMesh.receiveShadow = true; scene.add(poolMesh);
+    // foam rings spreading where the water lands (the pool itself is drawn with the river, render/world.ts)
     for (let i = 0; i < 3; i++) {
       const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.75, 24), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, depthWrite: false }));
       ring.rotation.x = -Math.PI / 2; ring.position.set(lip.x, 0.1, lip.z + 1.4); scene.add(ring); this.rings.push(ring);

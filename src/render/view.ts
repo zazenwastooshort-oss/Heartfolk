@@ -11,6 +11,8 @@ import minerUrl from '../../assets/models/miner.glb?url';
 import villageUrl from '../../assets/models/village.glb?url';
 import type { GameState } from '../core/state';
 import type { Layout, NodeSpot } from '../world/layout';
+import { footOf } from '../world/falls';
+import { waterOf } from '../world/water';
 import { RESOURCES, TOOL_IDS } from '../data/skills';
 import { ARMED_CLIPS, FADE, GAIT, IDLE, SWINGS, type Swing } from '../data/animation';
 import { dayFraction } from '../core/clock';
@@ -79,7 +81,7 @@ export class View {
     this.lighting = new Lighting(this.scene);
     this.fog = new FogView(this.scene, layout);
     if (layout.falls) {
-      this.falls = new FallsView(this.scene, layout.falls);
+      this.falls = new FallsView(this.scene, layout.falls, footOf(layout), waterOf(layout));
       const falls = this.falls;
       this.cam.clearance = p => falls.clearance(p);      // the camera stays in front of the wall and the falls
     }

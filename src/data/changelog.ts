@@ -6,6 +6,14 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.13', date: '12 Oct 2026', notes: [
+      'The pool below the falls and the river are one stretch of water now, with a natural shoreline and a pebbly sandy bank all the way round.',
+      'The river winds a little, its banks gently curving and its width changing as it goes, and it flows on out of sight instead of stopping.',
+      'The foot of the mountain looks like one: a slope of fallen rock against the wall, boulders big and small, rubble, moss and ferns fading into the grass. The bigger rocks are in your way; you step over the small ones.',
+      'No more trees standing in the river: trees and bushes keep off the water and its bank.',
+    ],
+  },
+  {
     version: '0.0.12', date: '12 Oct 2026', notes: [
       'A long way down: the falls now pour out of the mist down a towering wall of rock, and you wash up below with nothing, not even your tools.',
       'Wreckage came down with you. Tap the planks, the torn tarp, the smashed crate and your book to pick them up.',

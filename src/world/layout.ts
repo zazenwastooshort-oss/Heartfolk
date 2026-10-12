@@ -11,6 +11,7 @@
 
 import type { PickupKind } from '../data/pickups';
 import type { ToolId } from '../data/skills';
+import { SHORE_CLEAR, waterShape } from './water';
 
 export interface Vec2 { x: number; z: number }
 export interface Area { minX: number; maxX: number; minZ: number; maxZ: number }
@@ -128,6 +129,10 @@ function forest(): TreeSpot[] {
 
 const W = (x: number, z: number): Vec2 => ({ x, z });
 
+// the river along the west edge; the forest keeps off it and its bank
+const RIVER = { points: [W(-26.4, -36), W(-25.9, -20), W(-26.7, -8), W(-25.8, 4), W(-26.5, 16), W(-26.0, 36)], width: 3.4 };
+const WATER = waterShape(RIVER);
+
 export const VILLAGE: Layout = {
   village: { minX: -23.5, maxX: 25, minZ: -24.5, maxZ: 24.5 },
   start: { x: 1.4, z: 3.2 },
@@ -192,14 +197,14 @@ export const VILLAGE: Layout = {
     { pos: W(-21.8, -22.4), kind: 'pine', size: 1.1 }, { pos: W(22.8, 21.6), kind: 'pine', size: 1.0 },
     { pos: W(-21.6, 22.2), kind: 'pine', size: 1.05 }, { pos: W(13.8, -14.2), kind: 'pine', size: 1.0 },
     { pos: W(12.4, 11.2), kind: 'pine', size: 0.9 },
-    ...forest(),
+    ...forest().filter(t => WATER.edge(t.pos) > SHORE_CLEAR),
   ],
   bushes: [W(-4.6, -6.8), W(4.4, -6.9), W(-6.2, 11.4), W(12.8, -5.6), W(-14.2, -10.4), W(20.6, -3.2), W(-3.2, -17.8), W(3.4, 11.6)],
   lanterns: [
     W(3.0, -6.4), W(-3.0, -6.4), W(6.8, 1.0), W(-6.8, -1.2), W(1.4, 7.0), W(-1.4, -7.0),
     W(15.0, 1.6), W(-15.0, -1.6), W(1.6, 14.0), W(5.9, -14.0), W(-6.0, -13.0),
   ],
-  river: { points: [W(-26.4, -36), W(-25.9, -20), W(-26.7, -8), W(-25.8, 4), W(-26.5, 16), W(-26.0, 36)], width: 3.4 },
+  river: RIVER,
   paths: [
     // main roads out of the square
     { points: [W(-4.6, -5.0), W(-5.2, -15.0), W(-5.6, -26)], width: 2.4 },                // north-west, past the forge

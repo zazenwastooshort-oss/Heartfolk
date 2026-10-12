@@ -5,8 +5,10 @@
 // The camp starts bare: the tent and the campfire have their spots here but are built later. The village lies far up
 // the river and comes much later (world/layout.ts, VILLAGE).
 // Data only, like the village: x east, z south, in metres; the camera starts looking north at the falls.
-import type { Area, Layout, NodeSpot, PickupSpot, TreeKind, TreeSpot, Vec2 } from './layout';
+import type { Area, Falls, Layout, NodeSpot, PickupSpot, TreeKind, TreeSpot, Vec2 } from './layout';
 import type { PickupKind } from '../data/pickups';
+import { SHORE_CLEAR, waterShape } from './water';
+import { APRON, wallFootZ } from './falls';
 
 const W = (x: number, z: number): Vec2 => ({ x, z });
 const facing = (from: Vec2, to: Vec2) => Math.atan2(to.x - from.x, to.z - from.z);
@@ -22,12 +24,20 @@ function seeded(seed: number) { let s = seed; return () => (s = (s * 16807) % 21
 // where the campfire and the tent will be built (later updates): nothing stands there yet
 const FIRE = W(2.4, 3.0), TENT = W(-1.6, 5.8);
 
-/** Woods all round the clearing. */
+// the river from the pool south-west past the sandy bank, and the falls pouring into the pool
+const RIVER = { points: [W(-14, -11.2), W(-15.6, -2), W(-16.6, 8), W(-18.2, 20), W(-19.4, 36)], width: 3.4 };
+const FALLS: Falls = { lip: W(-14, -15.2), width: 3.6, height: 70, pool: { pos: W(-14, -11.2), radius: 3.8 } };
+const WATER = waterShape(RIVER, FALLS);
+
+/** Woods all round the clearing, kept off the water and its bank and off the scree at the foot of the wall. */
 function woods(): TreeSpot[] {
   const r = seeded(13), out: TreeSpot[] = [];
+  const dry = (p: Vec2) => WATER.edge(p) > SHORE_CLEAR && p.z > wallFootZ(FALLS, p.x) + APRON + 1;
   const ring = (n: number, a: Area, kinds: TreeKind[]) => {
     for (let i = 0; i < n; i++) {
-      const pos = W(a.minX + r() * (a.maxX - a.minX), a.minZ + r() * (a.maxZ - a.minZ));
+      let pos = W(a.minX + r() * (a.maxX - a.minX), a.minZ + r() * (a.maxZ - a.minZ));
+      for (let tries = 0; !dry(pos) && tries < 20; tries++) pos = W(a.minX + r() * (a.maxX - a.minX), a.minZ + r() * (a.maxZ - a.minZ));
+      if (!dry(pos)) continue;
       out.push({ pos, kind: kinds[Math.floor(r() * kinds.length)]!, size: 0.85 + r() * 0.5 });
     }
   };
@@ -63,14 +73,11 @@ export const CAMP: Layout = {
   trees: woods(),
   bushes: [W(-10.6, 3.2), W(14.6, 12.4), W(1.8, 13.6), W(-9.4, 12.6), W(15.2, 1.2)],
   lanterns: [],
-  river: { points: [W(-14, -11.2), W(-15.6, -2), W(-16.6, 8), W(-18.2, 20), W(-19.4, 36)], width: 3.4 },
+  river: RIVER,
   paths: [],                            // nobody has worn a track here yet
   parcels: [],
   camp: { tent: { pos: TENT, rot: facing(TENT, FIRE) } },
-  falls: {
-    lip: W(-14, -15.2), width: 3.6, height: 70,
-    pool: { pos: W(-14, -11.2), radius: 3.8 },
-  },
+  falls: FALLS,
   pickups: pickups([
     // the wreck, strewn along the bank where he washes up: the book beside him, planks at the water's edge
     ['book', -7.9, -6.7, 0.6],
@@ -85,9 +92,9 @@ export const CAMP: Layout = {
     ['branch', 7.0, -6.6, 0.4], ['branch', 10.4, -1.4, 2.2], ['branch', 11.2, 7.6, 1.3], ['branch', -4.6, 9.4, 2.9],
     ['branch', -9.6, 4.2, 0.7], ['branch', 2.4, 12.4, 1.8],
   ]),
-  // broken ribs of the wrecked boat, half in the water
+  // broken ribs of the wrecked boat, washed up at the water's edge (the pool's, by the start, and the river's)
   debris: [
-    { model: 'HullRib', pos: W(-10.4, -10.3), rot: 2.2, y: 0.05, radius: 0.5 },
+    { model: 'HullRib', pos: W(-9.8, -10.2), rot: 2.2, y: 0.05, radius: 0.5 },
     { model: 'HullRib', pos: W(-14.5, 2.6), rot: -0.5, y: 0.1, radius: 0.6 },
   ],
   startTools: [],                       // he washes up with nothing

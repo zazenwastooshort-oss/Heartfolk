@@ -1,5 +1,6 @@
 // The camp below the falls, where a new game starts (src/world/camp.ts): he washes up with nothing, the camp is bare,
-// everything to work or pick up is in reach from where he washes up, the pool and the river are not walkable, and
+// everything to work or pick up is in reach from where he washes up, the water (the pool and the river, one shape:
+// world/water.ts) is not walkable, and
 // picking up the wreck completes the first goal, however full the backpack got first.
 import { describe, expect, it } from 'vitest';
 import { canDrop, createState, currentGoal, goalMet, owned, SAVE_VERSION } from '../src/core/state';
@@ -10,7 +11,8 @@ import { deserialize, serialize } from '../src/core/save';
 import { step } from '../src/sim';
 import { CAMP } from '../src/world/camp';
 import { VILLAGE, inArea, type Vec2 } from '../src/world/layout';
-import { navFor, distToLine } from '../src/world/nav';
+import { navFor } from '../src/world/nav';
+import { waterOf } from '../src/world/water';
 import { goPickup, PICKUP_REACH, reachFor } from '../src/actors/player';
 import { applyCommands, type Command } from '../src/systems/commands';
 import { backpackCount } from '../src/systems/backpack';
@@ -20,6 +22,8 @@ import { PICKUPS, PICKUP_PAUSE, type PickupKind } from '../src/data/pickups';
 import { BACKPACK_SLOTS } from '../src/data/hauling';
 
 const nav = navFor(CAMP);
+/** How far from the water's edge: negative in the water (the shape walking and drawing use). */
+const wet = (p: Vec2) => waterOf(CAMP).edge(p);
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.z - b.z);
 const pickups = CAMP.pickups!;
 const ofKind = (kind: PickupKind) => pickups.filter(p => p.kind === kind);
@@ -70,14 +74,13 @@ describe('the camp below the falls', () => {
     expect(nav.walkable(pool.pos)).toBe(false);
     for (const p of CAMP.river.points) expect(nav.walkable(p)).toBe(false);
     // all along the bank, the last walkable step towards the river is on dry land right at its edge
-    const half = CAMP.river.width / 2;
     for (const z of [-5, -2, 0, 2, 5, 8, 11]) expect(nav.findPath(CAMP.start, { x: -12.2, z }), `z ${z}`).not.toBeNull();
     let checked = 0;
     for (let z = -6; z <= 12; z += 0.1) {
       let x = -12.2;
       if (!nav.walkable({ x, z })) continue;                  // a bush or a wreck rib in the way
       while (nav.walkable({ x: x - 0.02, z })) x -= 0.02;
-      const edge = distToLine({ x, z }, CAMP.river.points) - half;
+      const edge = wet({ x, z });
       if (edge > 2) continue;                                 // stopped by something else on the bank
       expect(edge, `z ${z.toFixed(1)}`).toBeGreaterThan(0);
       expect(edge, `z ${z.toFixed(1)}`).toBeLessThan(0.8);
@@ -85,12 +88,12 @@ describe('the camp below the falls', () => {
     }
     expect(checked).toBeGreaterThan(150);
     // a step into the water is inside the land's bounds, but not walkable
-    for (const wet of [{ x: -15.2, z: 2 }, { x: -14.6, z: -2 }, { x: -15.4, z: 6 }]) {
-      expect(inArea(CAMP.village, wet)).toBe(true);
-      expect(distToLine(wet, CAMP.river.points)).toBeLessThan(half);
-      expect(nav.walkable(wet), `${wet.x}, ${wet.z}`).toBe(false);
+    for (const p of [{ x: -15.2, z: 2 }, { x: -14.6, z: -2 }, { x: -15.4, z: 6 }, { x: -12.2, z: -9.6 }]) {
+      expect(inArea(CAMP.village, p)).toBe(true);
+      expect(wet(p)).toBeLessThan(0);
+      expect(nav.walkable(p), `${p.x}, ${p.z}`).toBe(false);
     }
-    for (const n of CAMP.nodes) expect(dist(n.pos, pool.pos), n.id).toBeGreaterThan(pool.radius + n.radius + 0.5);
+    for (const n of CAMP.nodes) expect(wet(n.pos), n.id).toBeGreaterThan(n.radius + 0.5);
   });
 
   it('sent across the river, he walks to the near bank opposite where was tapped', () => {
@@ -110,9 +113,11 @@ describe('the camp below the falls', () => {
     send(s, { type: 'walk', to: { x: -25, z: 3 } });
     expect(s.log.some(e => e.type === 'noPath')).toBe(false);
     runUntil(s, () => s.state.player.task.kind === 'idle', 30);
-    const end = s.state.player.pos;
-    expect(Math.abs(end.z - 3)).toBeLessThan(1);
-    expect(distToLine(end, CAMP.river.points) - CAMP.river.width / 2).toBeLessThan(1);
+    // where the bank is nearest the tap: a little down it, where the river bends west, never far
+    const end = s.state.player.pos, nearest = open.reduce((a, b) => dist(b, { x: -25, z: 3 }) < dist(a, { x: -25, z: 3 }) ? b : a);
+    expect(dist(end, nearest)).toBeLessThan(0.6);
+    expect(Math.abs(end.z - 3)).toBeLessThan(3);
+    expect(wet(end)).toBeLessThan(1);
   });
 
   it('starts bare: no tent and no campfire in the way, their spots kept for later, and no tools', () => {
@@ -171,8 +176,7 @@ describe('the wreck, stones and branches', () => {
       expect(PICKUPS[p.kind], p.id).toBeDefined();
       expect(inArea(CAMP.village, p.pos), p.id).toBe(true);
       // on dry land, out of the pool and the river
-      expect(dist(p.pos, CAMP.falls!.pool.pos), p.id).toBeGreaterThan(CAMP.falls!.pool.radius);
-      expect(distToLine(p.pos, CAMP.river.points), p.id).toBeGreaterThan(CAMP.river.width / 2);
+      expect(wet(p.pos), p.id).toBeGreaterThan(0);
     }
     expect(new Set(pickups.map(p => p.id)).size).toBe(pickups.length);
     const planks = ofKind('plank').length + ofKind('crate').length * (PICKUPS.crate.gives as { count: number }).count;
@@ -184,8 +188,7 @@ describe('the wreck, stones and branches', () => {
     expect(dist(ofKind('book')[0]!.pos, CAMP.start)).toBeLessThan(2.5);
     for (const kind of WRECK) for (const p of ofKind(kind)) expect(dist(p.pos, CAMP.start), p.id).toBeLessThan(10);
     // a couple of planks right at the water's edge
-    const edge = (p: Vec2) => Math.min(dist(p, CAMP.falls!.pool.pos) - CAMP.falls!.pool.radius, distToLine(p, CAMP.river.points) - CAMP.river.width / 2);
-    expect(ofKind('plank').filter(p => edge(p.pos) < 0.8).length).toBeGreaterThanOrEqual(2);
+    expect(ofKind('plank').filter(p => wet(p.pos) < 0.8).length).toBeGreaterThanOrEqual(2);
     expect(ofKind('stone').length).toBeGreaterThanOrEqual(5);
     expect(ofKind('branch').length).toBeGreaterThanOrEqual(5);
     // nothing he needs is hidden in the trees or bushes

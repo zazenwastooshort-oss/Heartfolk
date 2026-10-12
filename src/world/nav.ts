@@ -1,10 +1,13 @@
 // Walking: a grid over the village marking where a person can stand, A* paths across it, and smoothing so the
 // paths are straight lines between corners. Buildings, fenced gardens, rocks, tree trunks, the hearth (when one
-// stands there), lantern posts, props (the well, benches, crates), the pool below the falls, the river and the
-// wreck's debris block; things lying on the ground to pick up don't. The forest and land not yet claimed lie outside
-// the walkable area.
+// stands there), lantern posts, props (the well, benches, crates), the water (the river and the pool below the falls,
+// one shape: world/water.ts), the bigger rocks at the foot of the camp's wall (world/falls.ts) and the wreck's debris
+// block; things lying on the ground to pick up, and rubble, don't. The forest and land not yet claimed lie outside the
+// walkable area.
 import type { Area, Layout, Vec2 } from './layout';
 import { inArea } from './layout';
+import { waterOf } from './water';
+import { BLOCKING, footOf } from './falls';
 
 const CELL = 0.4;
 const MARGIN = 0.35;                 // keep this far from walls, so the character doesn't clip them
@@ -35,13 +38,14 @@ export class NavGrid {
       ...layout.bushes.map(b => [b, 0.45] as [Vec2, number]),
       ...layout.lanterns.map(l => [l, 0.2] as [Vec2, number]),
       ...layout.props.map(p => [p.pos, p.radius] as [Vec2, number]),
-      // at the camp: the pool at the foot of the falls, and the wreck's ribs at the water's edge
-      ...(layout.falls ? [[layout.falls.pool.pos, layout.falls.pool.radius + 0.2] as [Vec2, number]] : []),
+      // at the camp: the wreck's ribs at the water's edge, and the rocks fallen at the foot of the wall
       ...(layout.debris ?? []).filter(d => d.radius > 0).map(d => [d.pos, d.radius] as [Vec2, number]),
+      // (as wide as they are drawn: render/waterfall.ts stretches each to 1.12 of its radius one way, 0.88 the other)
+      ...footOf(layout).rocks.filter(k => k.radius >= BLOCKING).map(k => [k.pos, k.radius * 1.05] as [Vec2, number]),
     ];
-    // a cell by the river is open only if all of it is dry land (its centre is half a diagonal from its corners), so
+    // a cell by the water is open only if all of it is dry land (its centre is half a diagonal from its corners), so
     // he walks right to the water's edge but never into it
-    const river = layout.river, riverClear = river.width / 2 + CELL * Math.SQRT1_2;
+    const water = waterOf(layout), waterClear = CELL * Math.SQRT1_2;
     // gardens block with their fence, a little larger than the soil
     const rects = [
       ...layout.buildings.map(b => ({ pos: b.pos, rot: b.rot, hw: b.w / 2 + MARGIN, hd: b.d / 2 + MARGIN })),
@@ -56,7 +60,7 @@ export class NavGrid {
         if (Math.abs(lx) <= b.hw && Math.abs(lz) <= b.hd) { block = true; break; }
       }
       if (!block) for (const [c, r] of circles) if (Math.hypot(p.x - c.x, p.z - c.z) <= r + MARGIN * 0.5) { block = true; break; }
-      if (!block && distToLine(p, river.points) <= riverClear) block = true;   // where the land reaches the water
+      if (!block && water.edge(p) <= waterClear) block = true;   // where the land reaches the water
       if (block) this.blocked[iz * this.nx + ix] = 1;
     }
   }
