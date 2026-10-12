@@ -1,7 +1,8 @@
 // The backpack and the bank: what the character carries, one item per slot (BACKPACK_SLOTS in data/hauling), and
 // what the bank keeps. Gathering fills the backpack; it is emptied into the bank when he reaches the bank
-// (systems/hauling decides when he goes).
-import type { GameState } from '../core/state';
+// (systems/hauling decides when he goes). Where there is no bank yet (the camp) a full backpack is made room in by
+// dropping things he can find again (canDrop).
+import { canDrop, type GameState } from '../core/state';
 import type { EventBus } from '../core/events';
 import { BACKPACK_SLOTS } from '../data/hauling';
 
@@ -15,6 +16,17 @@ export function addToBackpack(state: GameState, item: string): boolean {
   const pack = state.player.backpack;
   pack[item] = (pack[item] ?? 0) + 1;
   return true;
+}
+
+/** Drop up to `count` of an item from the backpack; it is gone for good. Something he can't find again (canDrop: the
+ *  wreck's planks and tarp) is refused, and he keeps it. Dropping takes no time and doesn't stop what he is doing. */
+export function drop(state: GameState, item: string, count: number, events: EventBus): void {
+  const pack = state.player.backpack, have = Object.hasOwn(pack, item) ? pack[item]! : 0;
+  const n = Math.min(have, Math.floor(count));
+  if (!(n > 0)) return;
+  if (!canDrop(item)) { events.emit({ type: 'cantDrop', item }); return; }
+  if (n === have) delete pack[item]; else pack[item] = have - n;
+  events.emit({ type: 'dropped', item, count: n });
 }
 
 /** Empty the backpack into the bank and say what was banked, or that there was nothing to bank. */

@@ -8,12 +8,14 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
 bpy.ops.import_scene.gltf(filepath=os.path.join(ROOT, "assets", "models", "village.glb"))
 order = ["House", "HouseTall", "HouseLong", "Bank", "CityHall", "Inn", "Forge", "Barn", "Stall", "StallBlue", "Hearth", "Well",
-         "NoticeBoard", "Bench", "Crates", "Garden", "Fence", "Lantern", "TreeBirch", "TreeOak", "TreePine", "Bush", "StumpBirch", "StumpOak", "Tent", "CampfireCold"]
+         "NoticeBoard", "Bench", "Crates", "Garden", "Fence", "Lantern", "TreeBirch", "TreeOak", "TreePine", "Bush", "StumpBirch", "StumpOak", "Tent", "CampfireCold",
+         "Plank", "Tarp", "CrateBroken", "Book", "Stone", "Branch", "HullRib"]
 x = 0.0
 for name in order:
     o = bpy.data.objects[name]
     w = {"CityHall": 8, "Inn": 8, "Barn": 7.5, "Bank": 7, "House": 6, "HouseTall": 6, "HouseLong": 8, "Forge": 6.5, "Stall": 4.5,
-         "StallBlue": 4.5, "Garden": 4, "Fence": 3}.get(name, 3)
+         "StallBlue": 4.5, "Garden": 4, "Fence": 3,
+         "Plank": 1.6, "Tarp": 1.6, "CrateBroken": 1.4, "Book": 1.0, "Stone": 0.8, "Branch": 1.4, "HullRib": 2.6}.get(name, 3)
     o.location = (x + w / 2, 0, 0); x += w
 bpy.ops.mesh.primitive_plane_add(size=200, location=(x / 2, 0, 0))
 ground = bpy.context.object

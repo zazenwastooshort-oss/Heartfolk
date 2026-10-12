@@ -41,4 +41,21 @@ export const ITEMS: Record<string, ItemDef> = {
   iron_ore: { id: 'iron_ore', name: 'Iron ore', value: 9 },
   birch_logs: { id: 'birch_logs', name: 'Birch logs', one: 'Birch log', value: 2 },
   oak_logs: { id: 'oak_logs', name: 'Oak logs', one: 'Oak log', value: 6 },
+  // materials picked up by hand at the camp (data/pickups.ts): what he builds his first things from
+  plank: { id: 'plank', name: 'Planks', one: 'Plank', value: 1 },
+  tarp: { id: 'tarp', name: 'Tarps', one: 'Tarp', value: 1 },
+  stone: { id: 'stone', name: 'Stones', one: 'Stone', value: 0 },
+  branch: { id: 'branch', name: 'Branches', one: 'Branch', value: 0 },
 };
+
+/** The tools a skill's swing needs (SWINGS in data/animation). He owns each or not (GameState.tools): a new camp game
+ *  starts with none, and working a tree or rock without its tool is refused. `a`: the tool with its article, and
+ *  `use`: what it is for, for the notice "You need an axe to chop trees." */
+export type ToolId = 'axe' | 'pick';
+export interface ToolDef { id: ToolId; name: string; a: string; use: string }
+
+export const TOOLS: Record<ToolId, ToolDef> = {
+  axe: { id: 'axe', name: 'Axe', a: 'an axe', use: 'chop trees' },
+  pick: { id: 'pick', name: 'Pickaxe', a: 'a pickaxe', use: 'mine rocks' },
+};
+export const TOOL_IDS = Object.keys(TOOLS) as ToolId[];

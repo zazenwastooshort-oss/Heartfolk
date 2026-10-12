@@ -35,6 +35,13 @@ export function updateGathering(state: GameState, layout: Layout, dt: number, rn
   const node = state.nodes[task.nodeId], spot = layout.nodes.find(n => n.id === task.nodeId);
   if (!node || !spot) { state.player.task = { kind: 'idle' }; return; }
   const res = RESOURCES[spot.resource]!;
+  const tool = SWINGS[res.skill].tool;
+  if (!state.tools[tool]) {
+    // can't happen in play (commands refuse a node without its tool); a hand-edited save, or a tool lost one day
+    state.player.task = { kind: 'idle' };
+    events.emit({ type: 'needTool', tool, skill: res.skill });
+    return;
+  }
   if (levelOf(state, res.skill) < res.level) {
     // can only happen with an old save; commands already refuse nodes above the player's level
     state.player.task = { kind: 'idle' };

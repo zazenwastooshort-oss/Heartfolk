@@ -1,0 +1,1066 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Making Do · Handbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Caveat:wght@500;600&family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..900,0..100,0..1;1,9..144,400..900,0..100,0..1&family=Literata:ital,opsz,wght@0,7..72,400..700;1,7..72,400..600&display=swap" rel="stylesheet">
+<style>
+/* Making Do: the printed-handbook direction for Hearthfolk's survival book.
+   The book is a physical object, so it keeps one material look (paper, card, ink, foil) on every screen.
+   Print pages use container units: 100cqw = the 120 mm trim width, so 1 mm = 0.833cqw and 1 pt = 0.294cqw.
+   Game pages swap the same tokens for pixel sizes (body 16 px) instead of shrinking the print page. */
+:root{
+  --desk:#211913; --desk-2:#2b2119; --cream:#f1e8d4; --cream-2:#d8cab0; --muted:#a99a7f; --copper:#e8a65e;
+  --green:#2c4a26; --green-d:#1e341b; --panel:rgba(30,52,27,.95); --line:rgba(241,232,212,.16);
+  --paper:#f1e8d4; --card:#e6d9bd; --ink:#231b14; --ink-2:#5a4c3d; --rust:#9b471d; --pencil:#5e5a55;
+  --f-display:"Fraunces", Georgia, serif; --f-text:"Literata", Georgia, serif;
+  --f-label:"Barlow Condensed", "Arial Narrow", sans-serif; --f-pencil:"Caveat", "Segoe Print", cursive;
+  --gutter:16px;
+  --noise:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .22 0 0 0 0 .12 .32 0 0 0 -.09'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --mottle:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.008' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .33 0 0 0 0 .17 .34 0 0 0 -.13'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E");
+  --light:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='l'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.7' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 .9 .22 0 0 0 -.08'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23l)'/%3E%3C/svg%3E");
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--desk) var(--noise);color:var(--cream);font:16px/1.55 var(--f-text);overflow-x:hidden}
+a{color:var(--copper)}
+main{max-width:1080px;margin:0 auto;padding:0 var(--gutter) 80px}
+
+/* ---------- presentation chrome ---------- */
+.top{padding:48px 0 20px;max-width:720px}
+.kicker{margin:0 0 10px;font:600 13px/1.3 var(--f-label);letter-spacing:.08em;color:var(--muted)}
+h1{margin:0;font:800 clamp(40px,8vw,64px)/1 var(--f-display);font-variation-settings:"SOFT" 100,"WONK" 0;color:var(--copper);letter-spacing:-.01em}
+.lede{margin:14px 0 0;font-size:17px;line-height:1.55;color:var(--cream-2)}
+.nav{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 0;padding:0;list-style:none}
+.nav a{display:inline-block;padding:7px 13px;border-radius:999px;background:var(--panel);border:1px solid var(--line);color:var(--cream);text-decoration:none;font:600 14px/1 var(--f-label);letter-spacing:.04em}
+.nav a:hover,.nav a:focus-visible{border-color:var(--copper);outline:none}
+.block{padding:56px 0 8px}
+.block>h2{margin:0 0 6px;font:700 28px/1.15 var(--f-display);color:var(--cream)}
+.block>.note{margin:0 0 26px;max-width:680px;color:var(--cream-2);font-size:15.5px}
+.cap{max-width:920px;margin:14px auto 40px;font-size:14px;line-height:1.5;color:var(--muted)}
+.cap b{font:700 14px/1 var(--f-label);letter-spacing:.06em;color:var(--copper);margin-right:6px}
+
+/* ---------- cover ---------- */
+.wrap{display:grid;grid-template-columns:120fr 5.5fr 120fr;max-width:860px;margin:0 auto;border-radius:19px;box-shadow:0 20px 40px rgba(0,0,0,.5)}
+.cover{position:relative;aspect-ratio:2/3;container-type:inline-size;overflow:hidden;color:#eadfc4;background-color:#2d4827;
+  background-image:
+    radial-gradient(ellipse at 28% 22%,rgba(255,255,255,.08),transparent 55%),
+    radial-gradient(ellipse at 90% 105%,rgba(0,0,0,.32),transparent 60%),
+    repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px),
+    repeating-linear-gradient(90deg,rgba(0,0,0,.09) 0 1px,transparent 1px 3px),
+    var(--light);
+  box-shadow:inset 0 0 0 .5cqw rgba(255,255,255,.05),inset 0 0 7cqw rgba(0,0,0,.38)}
+.front{border-radius:0 4.5cqw 4.5cqw 0}
+.back{border-radius:4.5cqw 0 0 4.5cqw}
+.spine{position:relative;background:#28411f;background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px),linear-gradient(90deg,rgba(0,0,0,.35),rgba(255,255,255,.05) 40%,rgba(0,0,0,.3));
+  display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:14px 0;container-type:size}
+.spine span{writing-mode:vertical-rl;font:800 clamp(7px,60cqw,13px)/1 var(--f-display);font-variation-settings:"SOFT" 100;white-space:nowrap}
+.spine .s-no{writing-mode:horizontal-tb;font:700 clamp(7px,55cqw,12px)/1 var(--f-label)}
+.foil{background:linear-gradient(100deg,#b46d34 0%,#f3c690 24%,#cf8a4c 43%,#f6d6a8 60%,#a9632d 80%,#e8a65e 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 -.25cqw 0 rgba(0,0,0,.45)) drop-shadow(0 .2cqw 0 rgba(255,255,255,.07))}
+.cv-frame{position:absolute;inset:6cqw 6cqw 6cqw 7cqw;border:.55cqw solid rgba(0,0,0,.28);border-radius:2.2cqw;box-shadow:0 .35cqw 0 rgba(255,255,255,.06),inset 0 .35cqw 0 rgba(255,255,255,.05);pointer-events:none}
+.back .cv-frame{inset:6cqw 7cqw 6cqw 6cqw}
+.cv-in{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;text-align:center;padding:13cqw 12cqw 12cqw 13cqw}
+.cv-series{font:700 3.3cqw/1 var(--f-label);letter-spacing:.18em}
+.cv-emb{width:34cqw;margin:7cqw 0 6cqw;filter:drop-shadow(0 -.25cqw 0 rgba(0,0,0,.45))}
+.cv-emb svg{display:block;width:100%;height:auto}
+.cv-title{margin:0;white-space:nowrap;font:800 14.2cqw/.95 var(--f-display);font-variation-settings:"SOFT" 100,"WONK" 1;letter-spacing:-.01em}
+.cv-rule{width:44cqw;height:.5cqw;margin:5cqw 0 4cqw;background:linear-gradient(90deg,transparent,#e8a65e 20%,#f6d6a8 50%,#e8a65e 80%,transparent);opacity:.9}
+.cv-sub{margin:0;text-wrap:balance;font:italic 400 4.3cqw/1.35 var(--f-text);color:#e6dabd;max-width:64cqw}
+.cv-pub{margin-top:auto;font:600 4.6cqw/1 var(--f-display);font-variation-settings:"SOFT" 100}
+.cv-ed{margin-top:1.6cqw;font:600 2.7cqw/1 var(--f-label);letter-spacing:.16em;color:#d8cba9;opacity:.85}
+.cover .stain{width:92%;height:46%}
+.back .cv-in{align-items:flex-start;text-align:left;padding:13cqw 13cqw 12cqw 12cqw}
+.bk-title{font:800 7cqw/1 var(--f-display);font-variation-settings:"SOFT" 100,"WONK" 1;margin:0 0 5cqw}
+.bk-p{margin:0 0 3.6cqw;font:400 3.65cqw/1.5 var(--f-text);color:#e9dec4}
+.bk-p em{font-style:italic}
+.bk-list{margin:1cqw 0 0;padding:2.4cqw 0;border-top:.3cqw solid rgba(234,223,196,.35);border-bottom:.3cqw solid rgba(234,223,196,.35);font:600 3.2cqw/1.4 var(--f-label);letter-spacing:.06em;width:100%}
+.bk-foot{margin-top:auto;width:100%;display:flex;justify-content:space-between;align-items:flex-end;gap:4cqw}
+.bk-pub{font:600 3.2cqw/1.35 var(--f-label);letter-spacing:.06em;color:#d8cba9}
+.bk-pub b{display:block;font:600 4.4cqw/1.2 var(--f-display);font-variation-settings:"SOFT" 100;letter-spacing:0;color:#eadfc4}
+.barcode{flex:none;width:30cqw;background:#efe6cf;color:#2a2118;padding:2cqw 2.2cqw 1.6cqw;border-radius:.6cqw;text-align:center}
+.barcode svg{display:block;width:100%;height:11cqw}
+.barcode span{display:block;font:600 2.3cqw/1.2 var(--f-label);letter-spacing:.06em;margin-top:1cqw}
+
+/* ---------- pages (print) ---------- */
+.spread{display:grid;grid-template-columns:1fr 1fr;max-width:920px;margin:0 auto;box-shadow:0 18px 36px rgba(0,0,0,.5)}
+.page{position:relative;aspect-ratio:2/3;container-type:inline-size;overflow:hidden;background-color:var(--paper);background-image:var(--mottle),var(--noise);color:var(--ink);font-family:var(--f-text);
+  --m-top:10cqw; --m-bot:13.3cqw; --m-in:12.5cqw; --m-out:9.2cqw;
+  --fs:2.9cqw; --lh:1.4; --fs-s:2.45cqw; --fs-xs:2.15cqw; --fs-lab:2.2cqw; --fs-title:6.9cqw; --fs-story:3.2cqw; --num:17cqw; --sp:3.2cqw; --box:2.75cqw; --hair:max(1px,.17cqw); --tabw:5cqw; --tabh:17cqw;
+  /* print is two solid inks: every word and line is 100% black (or 100% copper-rust); hierarchy comes from weight, size and italic.
+     Tints are fills only: the rule box (13% copper-rust) and the tide-mark. The game swaps in the softer screen-only colours below. */
+  --ink-2:var(--ink); --line-c:var(--ink); --rule-fill:rgba(155,71,29,.13);
+  /* Field Notes rules print as a solid 0.1 mm copper-rust line; that is under a pixel here, so the mock draws 1 px at reduced strength */
+  --jot-c:rgba(155,71,29,.5)}
+.page::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:3}
+.verso::after{background:linear-gradient(to left,rgba(70,45,20,.26),rgba(70,45,20,.07) 3.5%,transparent 11%),linear-gradient(to right,rgba(90,65,30,.1),transparent 2.5%)}
+.recto::after{background:linear-gradient(to right,rgba(70,45,20,.26),rgba(70,45,20,.07) 3.5%,transparent 11%),linear-gradient(to left,rgba(90,65,30,.1),transparent 2.5%)}
+.pin{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;padding:var(--m-top) var(--m-out) var(--m-bot) var(--m-in)}
+.verso .pin{padding:var(--m-top) var(--m-in) var(--m-bot) var(--m-out)}
+.rh{position:absolute;z-index:2;top:calc(var(--m-top)*.42);left:var(--m-in);right:var(--m-out);display:flex;justify-content:space-between;gap:2cqw;
+  padding-bottom:.9cqw;border-bottom:var(--hair) solid var(--line-c);font:600 var(--fs-xs)/1 var(--f-label);letter-spacing:.08em;color:var(--ink-2)}
+.verso .rh{left:var(--m-out);right:var(--m-in)}
+.folio{position:absolute;z-index:2;bottom:calc(var(--m-bot)*.4);right:var(--m-out);font:700 var(--fs-s)/1 var(--f-label);letter-spacing:.04em;color:var(--ink)}
+.verso .folio{right:auto;left:var(--m-out)}
+/* thumb tab: a plain copper-rust block, 6 mm inside the trim plus 3 mm bleed, no word on it (the running head names the part) */
+.tab{position:absolute;z-index:2;top:22%;right:0;width:var(--tabw);height:var(--tabh);background:var(--rust)}
+.verso .tab{right:auto;left:0}
+.stain{position:absolute;right:0;bottom:0;width:80%;height:44%;pointer-events:none;z-index:0}
+.verso .stain,.back .stain{right:auto;left:0;transform:scaleX(-1)}
+.stain svg{display:block;width:100%;height:100%}
+
+/* chapter, left page: the job */
+.ch-head{display:flex;gap:3.2cqw;align-items:flex-end;margin:1cqw 0 var(--sp)}
+.ch-num{flex:none;width:var(--num);height:var(--num);background:var(--rust);color:var(--paper);display:grid;place-items:center;border-radius:.5cqw;
+  font:800 calc(var(--num)*.74)/1 var(--f-display);font-variation-settings:"SOFT" 100,"WONK" 0;padding-bottom:calc(var(--num)*.06)}
+.ch-lab{font:700 var(--fs-lab)/1.2 var(--f-label);letter-spacing:.1em;color:var(--rust)}
+.ch-title{margin:.5cqw 0 0;text-wrap:balance;font:650 var(--fs-title)/1.04 var(--f-display);font-variation-settings:"SOFT" 50,"WONK" 0;letter-spacing:-.01em}
+.story{margin:0 0 var(--sp);font:italic 400 var(--fs-story)/1.42 var(--f-text);color:var(--ink-2)}
+.meta{display:grid;grid-template-columns:1fr 1fr;gap:2.4cqw;margin:0 0 var(--sp);padding:1.3cqw 0 1.5cqw;border-top:var(--hair) solid var(--line-c);border-bottom:var(--hair) solid var(--line-c)}
+.meta div{min-width:0}
+.meta dt{font:700 var(--fs-xs)/1.2 var(--f-label);letter-spacing:.1em;color:var(--rust);margin-bottom:.35cqw}
+.meta dd{margin:0;font-size:var(--fs-s);line-height:1.3}
+.sec{margin:0 0 var(--sp)}
+.sec h4{display:flex;align-items:center;gap:1.6cqw;margin:0 0 1cqw;font:700 var(--fs-lab)/1.2 var(--f-label);letter-spacing:.1em;color:var(--ink)}
+.sec h4::after{content:"";flex:1;border-bottom:var(--hair) solid var(--line-c)}
+.parts{list-style:none;margin:0;padding:0}
+.parts li{display:flex;align-items:baseline;gap:1.2cqw;font-size:var(--fs);line-height:var(--lh)}
+.parts .dots{flex:1;border-bottom:max(1px,.24cqw) dotted var(--line-c);transform:translateY(-.28em)}
+.parts .q{font:700 calc(var(--fs)*1.08)/1 var(--f-label);font-variant-numeric:tabular-nums;min-width:1.6em;text-align:right}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:1.3cqw}
+.steps li{display:grid;grid-template-columns:var(--box) 1fr auto;gap:2cqw;align-items:start;font-size:var(--fs);line-height:1.36}
+.box{position:relative;width:var(--box);height:var(--box);margin-top:.18em;border:max(1px,.22cqw) solid var(--ink);border-radius:.2cqw}
+.box svg{position:absolute;left:-15%;top:-45%;width:150%;height:150%;overflow:visible}
+.pc{font:600 calc(var(--fs)*1.4)/1 var(--f-pencil);color:var(--pencil);white-space:nowrap;transform:rotate(-4deg) translateY(-.08em)}
+.steps .done .st{color:var(--ink-2)}
+.jot{flex:1;min-height:0;display:flex;flex-direction:column;margin:0}
+.jot .lines{flex:1;min-height:0;background:repeating-linear-gradient(to bottom,transparent 0 calc(var(--jot) - var(--hair)),var(--jot-c) calc(var(--jot) - var(--hair)) var(--jot));--jot:5.6cqw;background-position:0 .2cqw}
+
+/* chapter, right page: the picture */
+.fig{margin:0 0 1.6cqw}
+.fig svg{display:block;width:100%;height:auto}
+.fig figcaption{margin-top:.6cqw;font:italic 400 var(--fs-s)/1.35 var(--f-text);color:var(--ink-2)}
+.fig figcaption b{font:700 var(--fs-xs)/1 var(--f-label);font-style:normal;letter-spacing:.07em;color:var(--rust);margin-right:.7em}
+.legend{list-style:none;margin:0 0 var(--sp);padding:0;display:grid;gap:.9cqw}
+.legend li{display:grid;grid-template-columns:calc(var(--fs-s)*1.5) 1fr;gap:1.4cqw;font-size:var(--fs-s);line-height:1.38}
+.legend i{font:700 var(--fs-xs)/1 var(--f-label);font-style:normal;color:var(--rust);width:calc(var(--fs-s)*1.35);height:calc(var(--fs-s)*1.35);border:max(1px,.2cqw) solid var(--rust);border-radius:50%;display:grid;place-items:center;margin-top:.04em}
+sup{font-size:.68em;line-height:0;color:var(--rust);font-weight:700;margin-left:.08em}
+.rule{margin:0 0 var(--sp);padding:1.8cqw 2.4cqw 2.1cqw;border-top:1cqw solid var(--rust);background:var(--rule-fill);font-size:var(--fs-s);line-height:1.42}
+.rule .rn{display:block;margin-bottom:.8cqw;font:700 var(--fs-xs)/1 var(--f-label);letter-spacing:.12em;color:var(--rust)}
+.rule strong{display:block;margin-bottom:.4cqw;font:700 calc(var(--fs)*1.1)/1.2 var(--f-display);font-variation-settings:"SOFT" 50}
+.dw{display:grid;grid-template-columns:calc(var(--fs)*1.5) 1fr;gap:1.8cqw;align-items:center;margin:0 0 var(--sp);padding:1.4cqw 0;border-top:var(--hair) dashed var(--line-c);border-bottom:var(--hair) dashed var(--line-c);font-size:var(--fs-s);line-height:1.38}
+.dw svg{width:100%;height:auto;display:block}
+.dw b{font:700 var(--fs-xs)/1 var(--f-label);letter-spacing:.1em;color:var(--rust);margin-right:.5em}
+.game .dw{gap:9px;padding:7px 0}
+.foot{position:relative;margin:auto 0 0;padding-top:1.3cqw;font-size:var(--fs-xs);line-height:1.42;color:var(--ink-2)}
+.foot::before{content:"";position:absolute;top:0;left:0;width:28%;border-top:var(--hair) solid var(--line-c)}
+
+/* front matter */
+.inside{background-color:var(--card)}
+.inside .pin{color:#2c4a26}
+.ifc-h{margin:2cqw 0 1.5cqw;text-wrap:balance;font:750 7cqw/1.05 var(--f-display);font-variation-settings:"SOFT" 100,"WONK" 0}
+.ifc-p{margin:0 0 3cqw;font:italic 400 var(--fs-s)/1.45 var(--f-text)}
+.ifc-rules{list-style:none;margin:0 0 3cqw;padding:0;display:grid;gap:1.6cqw}
+.ifc-rules li{display:grid;grid-template-columns:6cqw 1fr;gap:1.5cqw;align-items:baseline;padding-bottom:1.6cqw;border-bottom:var(--hair) solid rgba(44,74,38,.3)}
+.ifc-rules b{font:800 5.4cqw/1 var(--f-display);font-variation-settings:"SOFT" 100}
+.ifc-rules span{font:600 3.25cqw/1.25 var(--f-display);font-variation-settings:"SOFT" 50}
+.ifc-rules em{display:block;font:600 var(--fs-xs)/1.3 var(--f-label);font-style:normal;letter-spacing:.08em;opacity:.75;margin-top:.4cqw}
+.ifc-also{margin-top:auto;font-size:var(--fs-xs);line-height:1.5}
+.ifc-also b{display:block;font:700 var(--fs-xs)/1.2 var(--f-label);letter-spacing:.1em;margin-bottom:.6cqw}
+
+.tp{align-items:center;text-align:center}
+.tp-series{margin-top:1cqw;font:700 var(--fs-xs)/1 var(--f-label);letter-spacing:.2em;color:var(--rust)}
+.tp-emb{width:22cqw;margin:5cqw 0 4cqw}
+.tp-emb svg{display:block;width:100%;height:auto}
+.tp-title{margin:0;font:800 12.5cqw/.95 var(--f-display);font-variation-settings:"SOFT" 100,"WONK" 1;letter-spacing:-.01em}
+.tp-sub{margin:2.4cqw 0 0;text-wrap:balance;font:italic 400 3.3cqw/1.35 var(--f-text);color:var(--ink-2);max-width:62cqw}
+.tp-rule{width:30cqw;margin:4.5cqw 0;border-top:var(--hair) solid var(--ink);border-bottom:var(--hair) solid var(--ink);height:.9cqw}
+.tp-blurb{margin:0 0 5cqw;text-wrap:pretty;font-size:var(--fs);line-height:1.45;max-width:66cqw}
+.plate{width:72cqw;padding:3cqw 3.4cqw 2.8cqw;border:var(--hair) solid var(--ink);outline:var(--hair) solid var(--ink);outline-offset:.8cqw;text-align:left}
+.plate .pl-lab{display:block;font:700 var(--fs-xs)/1 var(--f-label);letter-spacing:.1em;color:var(--rust)}
+.plate .pl-line{display:flex;align-items:flex-end;height:7cqw;border-bottom:var(--hair) solid var(--ink);margin:0 0 1.6cqw}
+.plate .pl-small{display:block;font:italic 400 var(--fs-xs)/1.45 var(--f-text);color:var(--ink-2)}
+.tp-pub{margin-top:auto;display:grid;gap:.9cqw}
+.tp-pub b{font:600 4cqw/1 var(--f-display);font-variation-settings:"SOFT" 100}
+.tp-pub span{font:600 var(--fs-xs)/1.2 var(--f-label);letter-spacing:.1em;color:var(--ink-2)}
+
+.ct-h{margin:1cqw 0 4cqw;font:750 7cqw/1.05 var(--f-display);font-variation-settings:"SOFT" 100,"WONK" 0}
+.toc{list-style:none;margin:0;padding:0;font-size:var(--fs)}
+.toc li{display:flex;align-items:baseline;gap:1.2cqw;line-height:1.5}
+.toc .n{width:4cqw;font:700 var(--fs)/1 var(--f-label);color:var(--rust)}
+.toc .dots{flex:1;border-bottom:max(1px,.24cqw) dotted var(--line-c);transform:translateY(-.28em)}
+.toc .p{font:700 var(--fs)/1 var(--f-label);font-variant-numeric:tabular-nums}
+.toc .part{margin:2.6cqw 0 .8cqw;font:700 var(--fs-lab)/1.2 var(--f-label);letter-spacing:.1em;color:var(--ink-2)}
+.toc .sub{margin:-.2cqw 0 0 5.2cqw;font:italic 400 var(--fs-s)/1.3 var(--f-text);color:var(--ink-2)}
+.toc .first{margin-top:0}
+.small-print{margin-top:auto;font:italic 400 var(--fs-xs)/1.45 var(--f-text);color:var(--ink-2);padding-top:1.4cqw;border-top:var(--hair) solid var(--line-c)}
+
+.ht-h{margin:1cqw 0 1.6cqw;font:750 6.2cqw/1.05 var(--f-display);font-variation-settings:"SOFT" 100,"WONK" 0}
+.ht-p{margin:0 0 2.4cqw;font-size:var(--fs-s);line-height:1.45}
+.ht-legend{list-style:none;margin:0 0 2.6cqw;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:.8cqw 3cqw}
+.ht-legend li{display:grid;grid-template-columns:calc(var(--fs-s)*1.5) 1fr;gap:1cqw;font-size:var(--fs-xs);line-height:1.35}
+.ht-legend i{font:700 var(--fs-xs)/1 var(--f-label);font-style:normal;color:var(--rust);width:calc(var(--fs-s)*1.3);height:calc(var(--fs-s)*1.3);border:max(1px,.2cqw) solid var(--rust);border-radius:50%;display:grid;place-items:center}
+.ht-notes{list-style:none;margin:0;padding:0;display:grid;gap:1.6cqw}
+.ht-notes li{position:relative;padding-left:3cqw;font-size:var(--fs-s);line-height:1.42}
+.ht-notes li::before{content:"";position:absolute;left:0;top:.5em;width:1.4cqw;height:1.4cqw;background:var(--rust)}
+.ht-notes b{font-family:var(--f-display);font-weight:700}
+
+/* ---------- game pages (phone) ---------- */
+/* Designed for a page area about 480 px tall (a 360 x 640 phone gives 496). No running head and no folio:
+   the page number lives in the bottom bar label. Text is 16 px; only the footnote (14.5) and Barlow labels (13) are smaller. */
+.page.game{aspect-ratio:auto;position:absolute;inset:0;border-radius:3px 5px 5px 3px;box-shadow:0 10px 30px rgba(0,0,0,.5),0 0 0 1px rgba(0,0,0,.25);
+  --m-top:16px; --m-bot:14px; --m-in:18px; --m-out:18px;
+  --fs:16px; --lh:1.45; --fs-s:16px; --fs-xs:13px; --fs-lab:13px; --fs-title:23px; --fs-story:16px; --num:44px; --sp:11px; --box:20px; --hair:1px; --tabw:5px; --tabh:58px;
+  --ink-2:#5a4c3d; --line-c:rgba(35,27,20,.42); --rule-fill:rgba(155,71,29,.1)}
+.game .pin{overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(155,71,29,.6) transparent}
+.game .pin::-webkit-scrollbar{width:4px}
+.game .pin::-webkit-scrollbar-thumb{background:rgba(155,71,29,.6);border-radius:2px}
+.game .rh,.game .folio{display:none}
+.game.verso::after{background:linear-gradient(to left,rgba(70,45,20,.18),transparent 6%)}
+.game.recto::after{background:linear-gradient(to right,rgba(70,45,20,.18),transparent 6%)}
+.game .ch-head{gap:11px;align-items:center;margin:0 0 var(--sp)}
+.game .ch-num{border-radius:3px}
+.game .ch-title{margin-top:2px}
+.game .story{line-height:1.4}
+.game .meta{grid-template-columns:1fr;gap:3px;padding:7px 0 8px}
+.game .meta div{display:grid;grid-template-columns:62px 1fr;gap:8px;align-items:baseline}
+.game .meta dt{margin:0}
+.game .meta dd{line-height:1.35}
+.game .sec h4{gap:8px;margin-bottom:5px}
+.game .parts .dots{border-bottom-width:1.5px}
+.game .steps{gap:8px}
+.game .steps li{gap:10px;line-height:1.36}
+.game .box{border-width:1.5px;border-radius:2px}
+.game .pc{font-size:25px}
+.game .fig{margin-bottom:8px}
+.game .fig figcaption{margin-top:3px;line-height:1.3}
+.game .legend{gap:5px}
+.game .legend li{gap:8px;line-height:1.36}
+.game .legend i{border-width:1.2px;font-size:13px}
+.game .rule{padding:9px 12px 11px;border-top-width:4px;line-height:1.4}
+.game .rule .rn{margin-bottom:4px}
+.game .rule strong{margin-bottom:2px}
+.game .foot{padding-top:7px;font-size:14.5px;line-height:1.4}
+.game .stain{opacity:.85}
+/* a page too long for one screen is split between whole blocks, never mid-line */
+.cont{display:flex;align-items:center;gap:8px;font:600 13px/1 var(--f-label);letter-spacing:.08em;color:var(--rust)}
+.cont::after{content:"";flex:1;border-bottom:1px solid var(--line-c)}
+.cont-top{margin:0 0 10px}
+.cont-bot{margin:auto 0 0;padding-top:10px;flex-direction:row-reverse}
+.cont-bot::after{margin-right:0}
+.measuring .foot,.measuring .cont-bot{margin-top:0}
+/* the fallback when even one block will not fit (big text settings, a browser with toolbars): a thin visible scrollbar and a cue */
+.more-cue{position:absolute;left:0;right:0;bottom:0;z-index:4;height:70px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:9px;pointer-events:none;
+  background:linear-gradient(to bottom,rgba(241,232,212,0),rgba(241,232,212,.96) 64%);opacity:0;transition:opacity .2s}
+.more-cue span{display:flex;align-items:center;gap:6px;padding:6px 12px 6px 11px;border-radius:999px;background:var(--panel);color:var(--cream);font:600 13px/1 var(--f-label);letter-spacing:.06em;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.more-cue svg{width:12px;height:12px}
+.game.has-more .more-cue{opacity:1}
+.tp-game .tp-series{margin-top:4px}
+.tp-game .tp-emb{width:72px;margin:16px 0 12px}
+.tp-game .tp-title{font-size:46px}
+.tp-game .tp-sub{font-size:16px;margin-top:10px;max-width:250px}
+.tp-game .tp-rule{width:110px;margin:16px 0;height:4px}
+.tp-game .tp-blurb{font-size:16px;margin-bottom:18px;max-width:280px}
+.tp-game .plate{width:100%;max-width:300px;padding:14px 16px 12px;outline-offset:3px}
+.tp-game .plate .pl-line{height:40px;margin-bottom:8px}
+.tp-game .tp-pub{gap:4px;padding-top:14px}
+.tp-game .tp-pub b{font-size:17px}
+.short .tp-game .tp-emb{width:54px;margin:10px 0 8px}
+.short .tp-game .tp-title{font-size:42px}
+.short .tp-game .tp-sub{margin-top:6px}
+.short .tp-game .tp-rule{margin:11px 0}
+.short .tp-game .tp-blurb{margin-bottom:12px}
+.short .tp-game .plate{padding:11px 14px 10px}
+.short .tp-game .plate .pl-line{height:34px;margin-bottom:6px}
+.short .tp-game .tp-pub{padding-top:10px}
+.pencil{font-family:var(--f-pencil);color:var(--pencil);font-weight:600}
+.pl-line .pencil{font-size:30px;line-height:1;padding:0 0 2px 6px;transform:rotate(-2deg)}
+.stuck{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.stuck svg{width:78%;height:auto}
+.stuck-note{margin:20px 6px 0;padding:12px 14px;border-radius:12px;background:var(--panel);color:var(--cream);font:500 14.5px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.stuck-note b{display:block;font:700 16px/1.2 var(--f-display);margin-bottom:3px;color:var(--copper)}
+
+/* phone frame and the game around the book */
+.phone-row{display:grid;grid-template-columns:auto 1fr;gap:44px;align-items:start}
+.phone-col{display:grid;gap:14px;justify-items:center}
+.sizes{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+.sizes button{padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--cream-2);font:600 14px/1 var(--f-label);letter-spacing:.04em;cursor:pointer;font-variant-numeric:tabular-nums}
+.sizes button[aria-pressed="true"]{border-color:var(--copper);color:var(--cream);box-shadow:inset 0 0 0 1px var(--copper)}
+.sizes button:focus-visible{outline:2px solid var(--copper);outline-offset:2px}
+.size-note{margin:0;font-size:13.5px;color:var(--muted);text-align:center;max-width:390px}
+.phone{--sw:390px;--sh:844px;width:calc(var(--sw) + 24px);padding:12px;border-radius:58px;background:#0e0c0a;box-shadow:0 0 0 2px #3b342c,0 30px 60px rgba(0,0,0,.55)}
+.phone.short{border-radius:40px}
+.screen{position:relative;width:var(--sw);height:var(--sh);border-radius:46px;overflow:hidden;background:#2c4a26;isolation:isolate;
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;user-select:none;-webkit-user-select:none}
+.g-scene{position:absolute;inset:-14px;transition:filter .35s}
+.g-scene svg{display:block;width:100%;height:100%}
+.g-scrim{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 45%,rgba(10,16,9,.45),rgba(6,10,5,.78));transition:opacity .35s}
+.is-open .g-scene{filter:blur(3px) saturate(.85)}
+.g-status{position:absolute;top:0;left:0;right:0;height:47px;display:flex;align-items:center;justify-content:space-between;padding:4px 30px 0 34px;color:var(--cream);font:600 15px/1 system-ui,-apple-system,"Segoe UI",sans-serif;z-index:2}
+.g-status i{display:inline-block;width:24px;height:11px;border:1.5px solid var(--cream);border-radius:3px;position:relative;opacity:.9}
+.g-status i::after{content:"";position:absolute;inset:1.5px 5px 1.5px 1.5px;background:var(--cream);border-radius:1px}
+.g-top{position:absolute;top:47px;left:16px;right:16px;height:48px;display:flex;align-items:center;justify-content:space-between;z-index:2}
+.g-title{font:700 17px/1.1 var(--f-display);color:var(--cream);text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.g-title small{display:block;font:500 12px/1.3 system-ui,-apple-system,"Segoe UI",sans-serif;color:#b6c0a2;text-shadow:none}
+.g-btn{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--cream);display:grid;place-items:center;cursor:pointer;padding:0;box-shadow:0 2px 10px rgba(0,0,0,.3)}
+.g-btn:focus-visible{outline:2px solid var(--copper);outline-offset:2px}
+.g-btn:disabled{opacity:.35;cursor:default}
+.g-btn svg{width:20px;height:20px}
+.g-stage{position:absolute;top:99px;bottom:98px;left:16px;right:16px;touch-action:pan-y;perspective:1400px}
+.g-bar{position:absolute;bottom:30px;left:16px;right:16px;height:56px;display:flex;align-items:center;justify-content:space-between;z-index:2}
+.g-bar .g-btn{width:54px;height:54px}
+.g-where{padding:9px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--line);color:var(--cream);font:600 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif;font-variant-numeric:tabular-nums}
+.g-home{position:absolute;bottom:8px;left:50%;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:rgba(241,232,212,.75);z-index:3}
+.g-reopen{position:absolute;right:16px;bottom:40px;z-index:2;display:none;align-items:center;gap:10px}
+.g-reopen .g-btn{width:58px;height:58px}
+.g-reopen span{padding:8px 12px;border-radius:10px;background:var(--panel);color:var(--cream);font-size:13px;border:1px solid var(--line)}
+/* short phones (iPhone SE/8, small Androids): a 20-24 px status bar, no home bar, tighter bars. 667 tall gives a 523 px page, 640 gives 496 */
+.screen.short{border-radius:28px}
+.screen.short .g-status{height:22px;padding:2px 22px 0 24px;font-size:13px}
+.screen.short .g-status i{width:20px;height:9px}
+.screen.short .g-top{top:22px}
+.screen.short .g-stage{top:72px;bottom:72px}
+.screen.short .g-bar{bottom:10px;height:54px}
+.screen.short .g-bar .g-btn{width:52px;height:52px}
+.screen.short .g-home{display:none}
+.screen.short .g-reopen{bottom:14px}
+.g-measure{visibility:hidden;pointer-events:none;z-index:-1}
+.screen:not(.is-open) .g-stage,.screen:not(.is-open) .g-bar,.screen:not(.is-open) #g-close,.screen:not(.is-open) .g-title{display:none}
+.screen:not(.is-open) .g-scrim{opacity:.15}
+.screen:not(.is-open) .g-reopen{display:flex}
+.in-next{animation:inNext .26s ease-out}
+.in-prev{animation:inPrev .26s ease-out}
+@keyframes inNext{from{transform:translateX(30px) rotateY(-8deg);opacity:0}to{transform:none;opacity:1}}
+@keyframes inPrev{from{transform:translateX(-30px) rotateY(8deg);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.in-next,.in-prev{animation:none}html{scroll-behavior:auto}}
+.notes{list-style:none;margin:0;padding:0;display:grid;gap:18px;max-width:440px}
+.notes li{padding-left:16px;border-left:2px solid rgba(232,166,94,.5);font-size:15px;line-height:1.5;color:var(--cream-2)}
+.notes b{display:block;font:700 16px/1.3 var(--f-display);color:var(--cream);margin-bottom:2px}
+
+/* print summary */
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.fact{padding:16px 18px;border-radius:12px;background:var(--panel);border:1px solid var(--line)}
+.fact h3{margin:0 0 4px;font:700 13px/1.2 var(--f-label);letter-spacing:.1em;color:var(--copper)}
+.fact p{margin:0;font-size:15px;line-height:1.45;color:var(--cream)}
+.fact p small{display:block;color:var(--muted);font-size:13.5px;margin-top:4px}
+.swatches{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:14px}
+.sw{display:flex;gap:10px;align-items:center;padding:8px;border-radius:10px;background:rgba(0,0,0,.18);border:1px solid var(--line)}
+.sw i{flex:none;width:38px;height:38px;border-radius:7px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+.sw span{font-size:13px;line-height:1.3;color:var(--cream-2)}
+.sw b{display:block;color:var(--cream);font:600 14px/1.2 var(--f-label);letter-spacing:.04em}
+
+@media (max-width:900px){
+  .phone-row{grid-template-columns:1fr;justify-items:center}
+  .notes{max-width:560px}
+}
+@media (max-width:760px){
+  .spread{grid-template-columns:1fr;max-width:440px;gap:18px;box-shadow:none}
+  .spread .page{box-shadow:0 12px 26px rgba(0,0,0,.45)}
+  .wrap{grid-template-columns:1fr;max-width:440px;gap:18px;box-shadow:none;border-radius:0}
+  .wrap .cover{box-shadow:inset 0 0 0 .5cqw rgba(255,255,255,.05),inset 0 0 7cqw rgba(0,0,0,.38),0 12px 26px rgba(0,0,0,.45)}
+  .wrap .spine{display:none}
+  .wrap .front{order:-1}
+}
+@media (max-width:446px){
+  .phone{width:auto;margin:0 calc(-1 * var(--gutter));padding:0;border-radius:0;background:none;box-shadow:none}
+  .phone.short{border-radius:0}
+  .screen,.screen.short{width:100vw;max-width:var(--sw);margin:0 auto;border-radius:0;height:min(var(--sh),100svh);min-height:560px}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="foil" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b46d34"/><stop offset=".25" stop-color="#f3c690"/><stop offset=".45" stop-color="#cf8a4c"/>
+      <stop offset=".62" stop-color="#f6d6a8"/><stop offset=".8" stop-color="#a9632d"/><stop offset="1" stop-color="#e8a65e"/>
+    </linearGradient>
+    <filter id="wobble" x="-20%" y="-20%" width="140%" height="140%"><feTurbulence type="fractalNoise" baseFrequency=".016" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="15"/><feGaussianBlur stdDeviation=".6"/></filter>
+    <filter id="wobble2" x="-20%" y="-20%" width="140%" height="140%"><feTurbulence type="fractalNoise" baseFrequency=".02" numOctaves="2" seed="11"/><feDisplacementMap in="SourceGraphic" scale="9"/><feGaussianBlur stdDeviation=".35"/></filter>
+  </defs>
+</svg>
+
+<main>
+  <header class="top">
+    <p class="kicker">Hearthfolk · the survival book · direction: the printed handbook</p>
+    <h1>Making Do</h1>
+    <p class="lede">A pocket field manual from a publisher that doesn't exist. Numbered chapters, tidy diagrams with lettered callouts, a rule in a box on every spread, and the jokes kept in the footnotes where they belong. A green cloth-grain card cover with a copper-foil title, and a tide-mark from the river.</p>
+    <ul class="nav">
+      <li><a href="#cover">Cover</a></li>
+      <li><a href="#opening">Opening pages</a></li>
+      <li><a href="#chapters">Chapters 1 to 3</a></li>
+      <li><a href="#game">In the game</a></li>
+      <li><a href="#print">To print it</a></li>
+    </ul>
+  </header>
+
+  <!-- COVER -->
+  <section class="block" id="cover">
+    <h2>The cover</h2>
+    <p class="note">Back, spine and front, laid flat at true proportions. Cream board printed forest green with a woven grain, so the cream lettering is the board showing through; matt laminated, one copper foil block, rounded corners. The tide-mark is printed, so every copy arrives already rescued.</p>
+    <div class="wrap">
+      <div class="cover back">
+        <div class="stain" data-stain="cover" data-seed="5"></div>
+        <div class="cv-frame"></div>
+        <div class="cv-in">
+          <p class="bk-title foil">Making Do</p>
+          <p class="bk-p">Most people buy this book before they need it. A few find it afterwards, on a riverbank, slightly damp.</p>
+          <p class="bk-p">Either way, <em>Making Do</em> starts where you are, with nothing, and gets you to a fire, a roof and a dry box to keep things in, one plain job at a time. Every chapter tells you what you need, what to do and what it should look like. None asks for anything you can't find or make by then.</p>
+          <div class="bk-list">24 chapters · a figure for each · 10 pages for your own notes</div>
+          <div class="bk-foot">
+            <div class="bk-pub"><b>Ottery &amp; Moss</b>Publishers of Useful Books<br>Price: two copper</div>
+            <div class="barcode" aria-label="Barcode panel"><svg viewBox="0 0 100 34" preserveAspectRatio="none" id="bars"></svg><span>ISBN panel</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="spine" aria-hidden="true"><span class="foil">Making Do</span><span class="s-no foil">7</span></div>
+      <div class="cover front">
+        <div class="stain" data-stain="cover" data-seed="2"></div>
+        <div class="cv-frame"></div>
+        <div class="cv-in">
+          <div class="cv-series foil">Field Series · No. 7</div>
+          <div class="cv-emb" data-emblem="foil" data-id="cv"></div>
+          <h3 class="cv-title foil">Making Do</h3>
+          <div class="cv-rule"></div>
+          <p class="cv-sub">A Pocket Handbook for the Unexpectedly Outdoors</p>
+          <div class="cv-pub foil">Ottery &amp; Moss</div>
+          <div class="cv-ed">Revised Edition</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- OPENING PAGES -->
+  <section class="block" id="opening">
+    <h2>Opening pages</h2>
+    <p class="note">The inside cover collects the rules, the title page says whose book it is, and page 3 explains how a chapter works by labelling one.</p>
+
+    <div class="spread">
+      <div class="page verso inside">
+        <div class="pin">
+          <h3 class="ifc-h">The Rules of Making Do</h3>
+          <p class="ifc-p">Seven to start with. Each one is earned in the chapter of the same number.</p>
+          <ol class="ifc-rules">
+            <li><b>1</b><span>Take stock first.<em>Chapter 1 · Salvage the Wreck</em></span></li>
+            <li><b>2</b><span>Build where you'll stay.<em>Chapter 2 · A Fire for the Night</em></span></li>
+            <li><b>3</b><span>Tools open doors.<em>Chapter 3 · A Sharp Edge</em></span></li>
+            <li><b>4</b><span>Feed the fire before it asks.<em>Chapter 4 · Firewood</em></span></li>
+            <li><b>5</b><span>Save up, then build.<em>Chapter 5 · A Roof</em></span></li>
+            <li><b>6</b><span>The right tool for the job.<em>Chapter 6 · Breaking Rock</em></span></li>
+            <li><b>7</b><span>Store what you don't carry.<em>Chapter 7 · Keeping Things Dry</em></span></li>
+          </ol>
+          <div class="ifc-also"><b>Also in the Field Series</b>No. 3 Knots, and How to Undo Them · No. 5 Edible or Not? · No. 9 Rivers, and Staying Out of Them</div>
+        </div>
+      </div>
+      <div class="page recto">
+        <div class="stain" data-stain="page" data-op="1" data-seed="3"></div>
+        <div class="pin tp">
+          <div class="tp-series">Field Series · No. 7</div>
+          <div class="tp-emb" data-emblem="ink" data-id="tp"></div>
+          <h3 class="tp-title">Making Do</h3>
+          <p class="tp-sub">A Pocket Handbook for the Unexpectedly Outdoors</p>
+          <div class="tp-rule"></div>
+          <p class="tp-blurb">Everything you need to make camp from nothing, in the order you'll need it, in plain words, with pictures.</p>
+          <div class="plate">
+            <span class="pl-lab">This book is the property of</span>
+            <span class="pl-line"></span>
+            <span class="pl-small">If found, please return it.<br>If found wet, please dry it first.</span>
+          </div>
+          <div class="tp-pub"><b>Ottery &amp; Moss</b><span>Publishers of Useful Books · Revised Edition</span></div>
+        </div>
+        <div class="folio">1</div>
+      </div>
+    </div>
+    <p class="cap"><b>Inside cover · p. 1</b> The inside of the cover card is printed in one colour, green. The name line on the title page is left blank in print; in the game it is pencilled in with the player's name.</p>
+
+    <div class="spread">
+      <div class="page verso">
+        <div class="stain" data-stain="page" data-op=".7" data-seed="8"></div>
+        <div class="pin">
+          <h3 class="ct-h">Contents</h3>
+          <ul class="toc">
+            <li class="first"><span class="n"></span>The Rules of Making Do<span class="dots"></span><span class="p">inside cover</span></li>
+            <li class="part">Part One · Camp</li>
+            <li><span class="n">1</span>Salvage the Wreck<span class="dots"></span><span class="p">4</span></li>
+            <li><span class="n">2</span>A Fire for the Night<span class="dots"></span><span class="p">6</span></li>
+            <li><span class="n">3</span>A Sharp Edge<span class="dots"></span><span class="p">8</span></li>
+            <li><span class="n">4</span>Firewood<span class="dots"></span><span class="p">10</span></li>
+            <li><span class="n">5</span>A Roof<span class="dots"></span><span class="p">12</span></li>
+            <li><span class="n">6</span>Breaking Rock<span class="dots"></span><span class="p">14</span></li>
+            <li><span class="n">7</span>Keeping Things Dry<span class="dots"></span><span class="p">16</span></li>
+            <li class="part">Part Two · The Road</li>
+            <li><span class="n"></span>Chapters 8 to 15<span class="dots"></span><span class="p">18</span></li>
+            <li class="part">Part Three · The Village</li>
+            <li><span class="n"></span>Chapters 16 to 24<span class="dots"></span><span class="p">34</span></li>
+            <li class="part">At the back</li>
+            <li><span class="n"></span>Field Notes<span class="dots"></span><span class="p">52</span></li>
+            <li><span class="n"></span>Index of Materials<span class="dots"></span><span class="p">62</span></li>
+            <li><span class="n"></span>About the Publishers<span class="dots"></span><span class="p">64</span></li>
+          </ul>
+          <p class="small-print">The publishers accept no responsibility for waterfalls.</p>
+        </div>
+        <div class="folio">2</div>
+      </div>
+      <div class="page recto">
+        <div class="stain" data-stain="page" data-op=".7" data-seed="9"></div>
+        <div class="rh"><span></span><span>How to Use This Book</span></div>
+        <div class="pin">
+          <h3 class="ht-h">How to Use This Book</h3>
+          <p class="ht-p">Each chapter is one job, set across two facing pages so the book can lie open while you work. Start at Chapter 1. No chapter needs anything from a later one.</p>
+          <figure class="fig" data-fig="0"><figcaption><b>Fig. 0.1</b>A chapter, labelled.</figcaption></figure>
+          <ol class="ht-legend">
+            <li><i>A</i>Chapter number and name</li>
+            <li><i>E</i>Steps. Tick each one off</li>
+            <li><i>B</i>What's going on</li>
+            <li><i>F</i>The figure, parts lettered</li>
+            <li><i>C</i>What it teaches; tools needed</li>
+            <li><i>G</i>The rule. Remember it</li>
+            <li><i>D</i>You will need: exact amounts</li>
+            <li><i>H</i>Footnotes. Read these too</li>
+          </ol>
+          <ul class="ht-notes">
+            <li><b>Quantities are exact.</b> Four stones means four. Three won't do, and five is showing off.</li>
+            <li><b>Tick in pencil.</b> Ink runs, and you've seen what water does.</li>
+            <li><b>Later pages may be stuck together.</b> Don't force them. They'll come apart when you get there.</li>
+          </ul>
+        </div>
+        <div class="folio">3</div>
+      </div>
+    </div>
+    <p class="cap"><b>pp. 2–3</b> Contents and how to use the book. The labelled chapter on page 3 is also the game's tutorial for reading its own pages.</p>
+  </section>
+
+  <!-- CHAPTERS -->
+  <section class="block" id="chapters">
+    <h2>Chapters 1 to 3</h2>
+    <p class="note">Every goal is one spread. Left page, the job: the chapter, a line of story, what it teaches, what you need and the steps to tick. Right page, the picture: a lettered figure, the rule, and a footnote. The thumb tab on the outer edge marks the part, so the book can be opened by feel.</p>
+    <div id="spreads"></div>
+  </section>
+
+  <!-- GAME -->
+  <section class="block" id="game">
+    <h2>In the game</h2>
+    <p class="note">Chapter 2 on a phone, as the player sees it with the campfire half gathered. One page per screen, re-set at 16 px rather than shrunk. Turn the pages with the arrows, a swipe or the arrow keys; close it with the ×. Switch the screen size to see how a short phone handles a page that won't fit.</p>
+    <div class="phone-row">
+      <div class="phone-col">
+      <div class="sizes" role="group" aria-label="Phone screen size">
+        <button type="button" data-w="390" data-h="844" aria-pressed="true">390 × 844</button>
+        <button type="button" data-w="375" data-h="667" aria-pressed="false">375 × 667</button>
+        <button type="button" data-w="360" data-h="640" aria-pressed="false">360 × 640</button>
+      </div>
+      <div class="phone" id="phone">
+        <div class="screen is-open" id="screen">
+          <div class="g-scene" id="scene"></div>
+          <div class="g-scrim"></div>
+          <div class="g-status"><span>9:41</span><i></i></div>
+          <div class="g-top">
+            <div class="g-title">Making Do<small>Your book · chapter 2 of 24</small></div>
+            <button class="g-btn" id="g-close" aria-label="Close the book"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 5l10 10M15 5L5 15"/></svg></button>
+          </div>
+          <div class="g-stage" id="stage" aria-live="polite"></div>
+          <div class="g-stage g-measure" id="measure" aria-hidden="true"></div>
+          <div class="g-bar">
+            <button class="g-btn" id="g-prev" aria-label="Previous page"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg></button>
+            <span class="g-where" id="g-where">Chapter 2 · page 6</span>
+            <button class="g-btn" id="g-next" aria-label="Next page"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 4.5L13 10l-5.5 5.5"/></svg></button>
+          </div>
+          <div class="g-reopen"><span>Your book</span><button class="g-btn" id="g-open" aria-label="Open the book"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5.5c2.8-1 5.5-.8 8 .8v13c-2.5-1.6-5.2-1.8-8-.8z"/><path d="M20 5.5c-2.8-1-5.5-.8-8 .8v13c2.5-1.6 5.2-1.8 8-.8z"/></svg></button></div>
+          <div class="g-home"></div>
+        </div>
+      </div>
+      <p class="size-note" id="size-note"></p>
+      </div>
+      <ul class="notes">
+        <li><b>Opens at the job in hand</b>Tapping the goal card, or the book in the pack, opens it at the current chapter's left page: what's needed and how far along you are.</li>
+        <li><b>Same page, set for the hand</b>The printed page is re-set, not shrunk: body text, legends and the rule at 16 px, one page per screen, no running head (the page number is in the bar). A printed spread becomes two screens, the job first and then the picture.</li>
+        <li><b>Short screens split, never cut</b>Pages are designed for a page area about 480 px tall. If one still won't fit, the game moves whole blocks to a second screen marked "Continued", and "Done when" goes back beside the rule, as in print. If even one block won't fit, the page scrolls, with a thin scrollbar and a "More below" cue.</li>
+        <li><b>The pencil is the game's</b>Ticks, counts like 2/4 and the player's name are pencilled in by the game. Printed copies leave them blank for their owner.</li>
+        <li><b>Pages ahead are stuck together</b>The river glued the rest of the book shut. Each chapter comes apart when you reach it, so the book never gives away what's next.</li>
+        <li><b>Game controls, book pages</b>The buttons are ordinary game interface, forest green with cream. The book itself keeps its paper and ink on every screen. Arrows, swipe, ← →, a controller's D-pad; close with ×, Esc or B.</li>
+        <li><b>Wide screens get two pages</b>Tablets held sideways, PCs and TVs show the job and the picture side by side, each laid out exactly like the phone page at the game's own sizes: 16 px body, 26 px on a TV. Type never shrinks to fit a window; when two pages won't fit, it shows one at a time.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- PRINT -->
+  <section class="block" id="print">
+    <h2>To print it</h2>
+    <p class="note">The short version of spec.md. Built to be made by any book printer in a short run, with no special processes beyond one foil block and a corner rounder.</p>
+    <div class="facts">
+      <div class="fact"><h3>Trim</h3><p>120 × 180 mm, portrait<small>A jacket-pocket size, and the same 2:3 shape as a page on a phone.</small></p></div>
+      <div class="fact"><h3>Pages</h3><p>64, in four sewn sections of 16<small>Front matter, 24 chapter spreads, notes, index.</small></p></div>
+      <div class="fact"><h3>Paper</h3><p>Munken Premium Cream, 100 gsm<small>Uncoated and warm. The page colour is the paper's own, never printed.</small></p></div>
+      <div class="fact"><h3>Binding</h3><p>Section-sewn softcover<small>300 gsm cream board, grain along the spine, printed green, matt laminated, copper foil, 6 mm rounded corners.</small></p></div>
+      <div class="fact"><h3>Ink</h3><p>Inside: black and one copper-rust<small>Every word and line is 100% of one ink; tints only for fills (rule box 13%, tide-mark). Cover: four-colour plus foil; inside the cover in green only.</small></p></div>
+      <div class="fact"><h3>Fonts</h3><p>Fraunces, Literata, Barlow Condensed<small>Caveat for the game's pencil. All SIL Open Font License: free for print and the game.</small></p></div>
+    </div>
+    <div class="swatches">
+      <div class="sw"><i style="background:#f1e8d4"></i><span><b>Paper</b>#F1E8D4</span></div>
+      <div class="sw"><i style="background:#231b14"></i><span><b>Ink</b>#231B14 · prints 100 K</span></div>
+      <div class="sw"><i style="background:#9b471d"></i><span><b>Copper-rust</b>#9B471D · solid, or 13% for the rule box</span></div>
+      <div class="sw"><i style="background:#5a4c3d"></i><span><b>Ink, soft</b>#5A4C3D · screen only</span></div>
+      <div class="sw"><i style="background:#2c4a26"></i><span><b>Cover green</b>#2C4A26 · on cream board</span></div>
+      <div class="sw"><i style="background:linear-gradient(120deg,#b46d34,#f3c690,#cf8a4c,#e8a65e)"></i><span><b>Copper foil</b>on screen #E8A65E</span></div>
+      <div class="sw"><i style="background:#5e5a55"></i><span><b>Pencil</b>#5E5A55 · game only</span></div>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ---------------- content (mirrors copy.md) ---------------- */
+const WORDS = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven'];
+const CHAPTERS = [
+  { n: 1, title: 'Salvage the Wreck',
+    story: 'You came down with the water, and so did some of your things. Before anything else, see what’s left.',
+    teaches: 'Picking things up', tools: 'None. Hands will do.',
+    parts: [['Planks', 7], ['Tarp, torn', 1], ['This book', 1]],
+    steps: [{ t: 'Find this book. You are holding it.', printed: true }, { t: 'Gather the 7 planks: 5 loose, 2 from the crate.', of: 7 }, { t: 'Gather the tarp.', of: 1 }],
+    caption: 'The wreck, as found.',
+    legend: [['A', 'Planks. Five loose, two of them in the shallows.'], ['B', 'The tarp. Torn, but still a tarp.'], ['C', 'The crate. Smashed, but good for two planks.{fn}'], ['D', 'This book. First box already ticked.']],
+    rule: ['Take stock first.', 'Everything the river brought down is yours now, and most of it is useful. Walk over to a thing to pick it up.'],
+    done: 'the planks, the tarp and this book are all in your pack.',
+    foot: 'Experts have looked at the rest of the crate and are sorry for your loss.' },
+  { n: 2, title: 'A Fire for the Night',
+    story: 'Night comes early at the bottom of a waterfall. A fire turns the place you landed into a camp.',
+    teaches: 'Building from parts', tools: 'None',
+    parts: [['Planks', 3], ['Stones', 4]],
+    steps: [{ t: 'Gather 4 stones from the riverbank.', of: 4 }, { t: 'Bring 3 planks from the wreck.', of: 3 }, { t: 'Build the fire at camp: stones in a ring, planks leaned in the middle (Fig. 2.1).' }],
+    caption: 'Fire ring, from above and from the side.',
+    legend: [['A', 'Stones, four, in a ring about a stride across.'], ['B', 'Planks, three, leaned together in the middle.'], ['C', 'Air in low, smoke out the top. Leave gaps.'], ['D', 'This book, at arm’s length.{fn}']],
+    rule: ['Build where you’ll stay.', 'Bring the parts to the spot you want it. It’s built the moment the last part arrives.'],
+    done: 'the fire is lit. Poking it is optional.',
+    foot: 'Planks are poor firewood and this book is worse. Chapter 4 has better ideas.' },
+  { n: 3, title: 'A Sharp Edge',
+    story: 'Hands are good for most things, but not trees. You need an edge. The river has spent a long time rounding every stone it owns, so look carefully.',
+    teaches: 'Making tools', tools: 'None',
+    parts: [['Branches', 2], ['Stones', 2]],
+    steps: [{ t: 'Gather 2 branches from under the trees.', of: 2 }, { t: 'Gather 2 stones: one flat, one round.', of: 2 }, { t: 'Make the stone axe (Fig. 3.1).' }],
+    caption: 'Stone axe, taken apart.',
+    legend: [['A', 'Handle. The straighter branch, about forearm long, split at the top.'], ['B', 'Lashing. Bark peeled from the other branch, wound tight.'], ['C', 'Head. The flat stone. Strike its edge with D until it bites.{fn}'], ['D', 'Hammerstone. The round one.']],
+    rule: ['Tools open doors.', 'Most things here need a tool before they’ll give you anything. Trees need an axe. This is your first tool. It won’t be your last.'],
+    done: 'you are holding a stone axe, and it holds together.',
+    foot: 'Test the edge on a branch, not a thumb. The publishers have had letters.' }
+];
+/* where the player is in the phone demo: chapter 1 done, chapter 2 half gathered */
+const STATE = { 1: [{ done: true }, { done: true }, { done: true }], 2: [{ have: 2 }, { have: 3, done: true }, {}] };
+
+/* ---------------- drawing helpers ---------------- */
+const INK = '#2a2118', RUST = '#9b471d', PAPER = '#f2e9d6';
+/* Two figure modes from the same drawing code.
+   Print: every line 100% black (detail lines are only thinner), so a two-ink job never screens a line into dots.
+   Game: detail lines in a softer screen-only brown, every stroke 1.4 times thicker, callout circles r 12 with 15-unit letters,
+   labels 13.5 units. A figure is about 300 to 320 px wide on a phone, so that is roughly 11 px circles, 14 px letters, 12.5 px labels. */
+let GAME = false, INK2 = INK;
+function figMode(game) { GAME = game; INK2 = game ? '#6a5a48' : INK; }
+const thick = s => GAME ? s.replace(/stroke-width="([\d.]+)"/g, (m, v) => `stroke-width="${Math.round(v * 140) / 100}"`) : s;
+const LBL = 'Barlow Condensed, Arial Narrow, sans-serif';
+function rnd(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const f = n => Math.round(n * 10) / 10;
+let CLIP = 0;
+const P = p => f(p[0]) + ',' + f(p[1]);
+function closed(pts) { const n = pts.length, m = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; let d = 'M' + P(m(pts[n - 1], pts[0])); for (let i = 0; i < n; i++) d += ' Q' + P(pts[i]) + ' ' + P(m(pts[i], pts[(i + 1) % n])); return d + 'Z'; }
+function open(pts) { let d = 'M' + P(pts[0]); for (let i = 0; i < pts.length - 1; i++) { const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2; d += ' C' + P([p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6]) + ' ' + P([p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6]) + ' ' + P(p2); } return d; }
+function blob(cx, cy, rx, ry, seed, n = 9, j = .16) { const r = rnd(seed), pts = []; for (let i = 0; i < n; i++) { const a = (i + r() * .5) / n * Math.PI * 2, k = 1 - j + r() * j * 2; pts.push([cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k]); } return closed(pts); }
+function stone(cx, cy, rx, ry, seed) { let s = `<path d="${blob(cx, cy, rx, ry, seed)}" fill="${PAPER}"/>`; for (let k = 0; k < 3; k++) { const x = cx + rx * (.05 + .18 * k), y = cy + ry * (.55 - .12 * k); s += `<path d="M${f(x)},${f(y)} l${f(rx * .22)},${f(-ry * .3)}" stroke-width=".6"/>`; } return s; }
+function dome(x1, x2, base, h, seed) { const r = rnd(seed), pts = [[x1, base]]; for (let i = 1; i < 6; i++) { const t = i / 6; pts.push([x1 + (x2 - x1) * t, base - h * Math.pow(Math.sin(Math.PI * t), .6) * (.9 + r() * .2)]); } pts.push([x2, base]); let s = `<path d="${open(pts)}Z" fill="${PAPER}"/>`; for (let k = 0; k < 3; k++) { const x = x1 + (x2 - x1) * (.62 + k * .1); s += `<path d="M${f(x)},${f(base - 1.5)} l${f(2.5)},${f(-h * .35)}" stroke-width=".6"/>`; } return s; }
+function plank(x1, y1, x2, y2, w, seed, opts = {}) {
+  const r = rnd(seed), dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, nx = -uy, ny = ux, h = w / 2;
+  const at = (t, o) => [x1 + ux * L * t + nx * o, y1 + uy * L * t + ny * o];
+  let end = opts.broken ? ` L${P(at(1, h * .2))} L${P(at(.94, -h * .1))} L${P(at(.98, -h))}` : ` L${P(at(1, -h))}`;
+  let s = `<path d="M${P(at(0, h))} L${P(at(1, h))}${end} L${P(at(0, -h))}Z" fill="${PAPER}"/>`;
+  s += `<path d="M${P(at(.08, -h * .25))} L${P(at(.55, -h * .2))}" stroke-width=".55"/><path d="M${P(at(.35, h * .2))} L${P(at(.9, h * .25))}" stroke-width=".55"/>`;
+  const k = at(.25 + r() * .4, (r() - .5) * h * .6); s += `<ellipse cx="${f(k[0])}" cy="${f(k[1])}" rx="1.7" ry="1" transform="rotate(${f(Math.atan2(dy, dx) * 57.3)} ${f(k[0])} ${f(k[1])})" stroke-width=".6"/>`;
+  return s;
+}
+function ribbon(axis, widths, wob) { const L = [], Rr = []; axis.forEach((p, i) => { const q = axis[Math.min(i + 1, axis.length - 1)], o = axis[Math.max(i - 1, 0)], dx = q[0] - o[0], dy = q[1] - o[1], d = Math.hypot(dx, dy), nx = -dy / d, ny = dx / d, w = widths[i] / 2, wb = (wob && wob[i]) || 0; L.push([p[0] + nx * (w + wb), p[1] + ny * (w + wb)]); Rr.push([p[0] - nx * (w - wb), p[1] - ny * (w - wb)]); }); return open(L) + ' L' + open(Rr.reverse()).slice(1) + 'Z'; }
+function arrow(x, y, a, sz = 5) { return `<path d="M${f(x + Math.cos(a + 2.6) * sz)},${f(y + Math.sin(a + 2.6) * sz)} L${f(x)},${f(y)} L${f(x + Math.cos(a - 2.6) * sz)},${f(y + Math.sin(a - 2.6) * sz)}"/>`; }
+function lab(x, y, t, anchor = 'start') { return `<text x="${x}" y="${y}" text-anchor="${anchor}" font-family="${LBL}" font-weight="600" font-size="${GAME ? 13.5 : 8.5}" letter-spacing="${GAME ? .4 : .6}" fill="${INK2}" stroke="none">${t}</text>`; }
+function co(L, cx, cy, px, py) { const dx = px - cx, dy = py - cy, d = Math.hypot(dx, dy) || 1, r = GAME ? 12 : 7.5, sx = cx + dx / d * r, sy = cy + dy / d * r; return `<path d="M${f(sx)},${f(sy)} L${f(px)},${f(py)}" stroke="${RUST}" stroke-width=".8" fill="none"/><circle cx="${px}" cy="${py}" r="${GAME ? 2.2 : 1.6}" fill="${RUST}"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="${PAPER}" stroke="${RUST}" stroke-width="1"/><text x="${cx}" y="${f(cy + (GAME ? 5.2 : 3.4))}" text-anchor="middle" font-family="${LBL}" font-weight="700" font-size="${GAME ? 15 : 10}" fill="${RUST}">${L}</text>`; }
+function svg(vb, label, body, callouts) { return thick(`<svg viewBox="${vb}" role="img" aria-label="${label}"><g fill="none" stroke="${INK}" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round">${body}</g>${callouts || ''}</svg>`); }
+
+/* ---------------- figures ---------------- */
+function fig1() {
+  const r = rnd(7); let s = '';
+  // the mountain wall and the falls, pouring out of the mist
+  s += `<path d="M52,0 L48,14 L55,27 L47,46 L53,62 L45,80 L50,94 L0,100"/>`;
+  [[6, 12, 40, 10], [4, 26, 44, 28], [8, 42, 40, 40], [3, 58, 42, 60], [6, 74, 38, 72], [4, 88, 36, 90]].forEach(([a, b, c, d]) => s += `<path d="M${a},${b} L${c},${d}" stroke-width=".55" stroke="${INK2}"/>`);
+  s += `<path d="M104,0 L108,16 L101,34 L109,52 L103,70 L112,86 L150,84 C190,80 240,76 320,70"/>`;
+  [[112, 10, 150, 8], [114, 28, 160, 30], [113, 46, 152, 44], [116, 62, 158, 64]].forEach(([a, b, c, d]) => s += `<path d="M${a},${b} L${c},${d}" stroke-width=".55" stroke="${INK2}"/>`);
+  // far bank: a ragged line of conifers, tall and short
+  for (let x = 168; x < 316; x += 9 + r() * 12) { const base = 84 - (x - 150) * .085, h = 14 + r() * 22, w = h * .32; s += `<path d="M${f(x)},${f(base - h)} L${f(x - w * .55)},${f(base - h * .55)} L${f(x - w * .25)},${f(base - h * .58)} L${f(x - w)},${f(base - 2)} L${f(x + w)},${f(base - 2)} L${f(x + w * .25)},${f(base - h * .58)} L${f(x + w * .55)},${f(base - h * .55)}Z" fill="${PAPER}" stroke-width=".75"/><path d="M${f(x)},${f(base - 2)} V${f(base + 1.5)}" stroke-width=".7"/>`; }
+  // mist where the water comes out of the sky
+  s += `<path d="M38,7 C60,3 80,10 104,6 C120,3 134,8 150,5 M30,15 C52,11 74,18 98,14 C112,12 126,16 140,13" stroke-width=".6" stroke="${INK2}" stroke-dasharray="7 3"/>`;
+  for (let x = 57; x <= 100; x += 4.8) { const w = r() * 2; s += `<path d="M${f(x)},0 C${f(x + 1.5)},22 ${f(x - 1.5)},44 ${f(x + w)},${f(70 + r() * 8)}" stroke-width=".7" stroke="${INK2}"/>`; }
+  for (let i = 0; i < 9; i++) { const x = 57 + i * 5.4, y = 82 + r() * 6; s += `<path d="M${f(x - 3)},${f(y)} q3,-5 6,0" stroke-width=".7"/>`; }
+  [[34, 6], [54, 10], [80, 15]].forEach(([rx, ry]) => s += `<path d="M${78 - rx},91 A${rx},${ry} 0 0 0 ${78 + rx},91" stroke-width=".6" stroke="${INK2}" stroke-dasharray="5 4"/>`);
+  for (let i = 0; i < 15; i++) { const x = 160 + r() * 150, y = 86 + r() * 14; s += `<path d="M${f(x)},${f(y)} h${f(6 + r() * 8)}" stroke-width=".55" stroke="${INK2}"/>`; }
+  // the near shore
+  s += `<path d="M0,122 C40,116 80,126 120,118 C170,108 220,116 260,106 C285,101 305,104 320,102"/>`;
+  s += `<path d="M0,117 C40,111 80,121 120,113 C170,103 220,111 260,101 C285,96 305,99 320,97" stroke-width=".5" stroke-dasharray="2 3" stroke="${INK2}"/>`;
+  for (let i = 0; i < 46; i++) { const x = r() * 320, y = 128 + r() * 84; s += `<ellipse cx="${f(x)}" cy="${f(y)}" rx="${f(1 + r() * 2.2)}" ry="${f(.8 + r() * 1.2)}" stroke-width=".5" stroke="${INK2}"/>`; }
+  // the smashed crate: its two good boards are the 2 planks the crate gives
+  s += `<path d="M20,160 L60,165 L58,198 L18,193Z" fill="${PAPER}"/><path d="M20,160 L33,150 L72,155 L60,165" fill="${PAPER}"/><path d="M60,165 L72,155 L70,186 L58,198" fill="${PAPER}"/>`;
+  s += `<path d="M19,171 L59,176 M19,182 L58,187 M33,150 L31,156 M46,152 L44,158 M60,165 L64,161" stroke-width=".6"/>`;
+  { const hole = 'M28,172 L34,167 L38,175 L44,169 L50,179 L43,188 L37,181 L30,189Z', id = 'crate' + (++CLIP);
+    let hatch = ''; for (let i = 0; i < 18; i++) hatch += `<path d="M${f(14 + i * 2.4)},192 l14,-28"/>`;
+    s += `<clipPath id="${id}"><path d="${hole}"/></clipPath><g clip-path="url(#${id})" stroke-width=".5">${hatch}</g><path d="${hole}" stroke-width=".8"/>`; }
+  [[23, 176], [54, 181], [23, 187], [53, 192]].forEach(([x, y]) => s += `<circle cx="${x}" cy="${y}" r=".7" fill="${INK}" stroke="none"/>`);
+  s += `<path d="M64,174 l3,-3 M66,180 l3,-3" stroke-width=".55"/>`;
+  // five loose planks: two in the shallows, three on the shingle
+  [[84, 114, 122, 104, true], [140, 100, 176, 108, true], [92, 142, 136, 132], [128, 168, 170, 158], [100, 198, 142, 190]].forEach((p, i) => {
+    s += plank(p[0], p[1], p[2], p[3], 7, 40 + i, { broken: i % 3 === 1 });
+    if (p[4]) s += `<path d="M${p[0] - 8},${p[1] + 5} q4,-2 8,0 M${p[2] + 2},${p[3] + 6} q4,-2 8,0 M${(p[0] + p[2]) / 2 - 4},${(p[1] + p[3]) / 2 + 8} q4,-2 8,0" stroke-width=".55" stroke="${INK2}"/>`;
+  });
+  // the tarp, torn
+  s += `<path d="M236,134 L280,124 L304,150 L292,176 L246,172 L232,152Z" fill="${PAPER}"/>`;
+  s += `<path d="M250,136 C254,148 256,160 262,171 M268,128 C270,140 274,152 276,170 M240,150 C256,152 276,150 300,152" stroke-width=".6"/>`;
+  s += `<path d="M252,140 l3,6 M255,138 l3,6 M271,132 l2,6 M273,131 l2,6" stroke-width=".45" stroke="${INK2}"/>`;
+  s += `<path d="M280,124 L284,132 L280,137 L287,142 L283,148" stroke-width=".9"/>`;
+  [[239, 136], [278, 127], [289, 172], [248, 169]].forEach(([x, y]) => s += `<circle cx="${x}" cy="${y}" r="1.4" stroke-width=".6"/>`);
+  // this book
+  s += `<g transform="translate(196,188) rotate(-8)"><rect x="-10" y="-7" width="20" height="14" rx="1" fill="${PAPER}"/><path d="M-7,-7 V7" /><circle cx="2" cy="0" r="2.6" stroke-width=".6"/><path d="M10,-5.5 h1.2 M10,-2 h1.2 M10,1.5 h1.2 M10,5 h1.2" stroke-width=".5"/></g>`;
+  const c = co('A', 172, 130, 122, 135) + co('B', 305, 113, 284, 134) + co('C', 12, 138, 30, 170) + co('D', 228, 200, 206, 190);
+  return svg('0 0 320 215', 'The wreck on the shore below the falls', s, c);
+}
+function fig2() {
+  let s = lab(10, 14, 'From above') + lab(186, 14, 'From the side');
+  const cx = 80, cy = 98, R = 46;
+  s += `<circle cx="${cx}" cy="${cy}" r="${R}" stroke-dasharray="2 3" stroke-width=".7" stroke="${INK2}"/>`;
+  [90, 210, 330].forEach((a, i) => { const t = a * Math.PI / 180; s += plank(cx + Math.cos(t) * 4, cy + Math.sin(t) * 4, cx + Math.cos(t) * 35, cy + Math.sin(t) * 35, 8, 11 + i); });
+  [[0, -1], [1, 0], [0, 1], [-1, 0]].forEach(([dx, dy], i) => s += stone(cx + dx * R, cy + dy * R, 12, 9, 3 + i));
+  s += `<path d="M${cx - 3},${cy} h6 M${cx},${cy - 3} v6" stroke="${RUST}" stroke-width=".9"/>`;
+  // a stride across
+  s += `<path d="M${cx - R - 12},170 H${cx + R + 12} M${cx - R - 12},166 v8 M${cx + R + 12},166 v8" stroke-width=".6" stroke="${INK2}"/>`;
+  s += `<text x="${cx}" y="183" text-anchor="middle" font-family="Literata, Georgia, serif" font-style="italic" font-size="${GAME ? 13.5 : 8.5}" fill="${INK2}" stroke="none">about a stride</text>`;
+  // the book, at arm's length
+  s += `<path d="M${f(cx + R * .74)},${f(cy + R * .74)} L143,148" stroke-dasharray="1.5 2.5" stroke-width=".7" stroke="${INK2}"/>`;
+  s += `<g transform="translate(152,154) rotate(-14)"><rect x="-8" y="-10" width="16" height="20" rx="1" fill="${PAPER}"/><path d="M-5.5,-10 V10"/><circle cx="1.5" cy="-1" r="2.2" stroke-width=".6"/></g>`;
+  // side view
+  const g = 172;
+  s += `<path d="M184,${g} H314"/>`; for (let x = 188; x < 314; x += 7) s += `<path d="M${x},${g + 1} l-5,6" stroke-width=".5" stroke="${INK2}"/>`;
+  s += dome(236, 262, g, 9, 5);
+  s += plank(286, g, 246, 86, 7, 21);
+  s += `<path d="M234,${g} C228,156 240,150 238,138 C246,148 250,154 248,162 C252,156 254,150 256,144 C263,156 264,166 259,${g}Z" fill="${RUST}" fill-opacity=".14" stroke="${RUST}" stroke-width="1"/>`;
+  s += `<path d="M242,${g} C239,164 245,160 245,154 C250,160 252,166 250,${g}" stroke="${RUST}" stroke-width=".8"/>`;
+  s += plank(212, g, 252, 86, 7, 22) + plank(246, g + 2, 250, 82, 7, 23);
+  s += dome(188, 218, g, 14, 6) + dome(276, 308, g, 13, 7);
+  s += `<path d="M190,130 C202,134 212,142 224,152" stroke-dasharray="3 2.5" stroke-width=".9"/>` + arrow(224, 152, Math.atan2(10, 12));
+  s += `<path d="M250,76 C246,66 256,58 250,46 C246,38 252,30 250,22" stroke-dasharray="3 2.5" stroke-width=".9"/>` + arrow(250, 22, -Math.PI / 2);
+  const c = co('A', 44, 32, 74, 49) + co('B', 206, 104, 228, 136) + co('C', 284, 44, 252, 52) + co('D', 170, 126, 154, 146);
+  return svg('0 0 320 192', 'Fire ring of four stones with three planks leaned together, from above and from the side', s, c);
+}
+function fig3() {
+  const r = rnd(12); let s = '';
+  // A: handle, the straighter branch, split at the top
+  const ax = [], ws = [], wob = [0, .8, -.6, .5, -.4, 0];
+  const hx = t => 50 + 42 * t, hy = t => 208 - 180 * t;
+  for (let i = 0; i <= 5; i++) { const t = i / 5; ax.push([hx(t), hy(t)]); ws.push(15 - 4 * t); }
+  s += `<path d="${ribbon(ax, ws, wob)}" fill="${PAPER}"/>`;
+  s += `<ellipse cx="${hx(1)}" cy="${hy(1)}" rx="5.4" ry="1.8" transform="rotate(13 ${hx(1)} ${hy(1)})" stroke-width=".8"/>`;
+  s += `<path d="M${hx(1)},${hy(1) + 1} L${f(hx(.86))},${f(hy(.86))}" stroke-width="1"/>`;
+  s += `<ellipse cx="${f(hx(0))}" cy="${f(hy(0))}" rx="7.4" ry="2.4" transform="rotate(13 ${f(hx(0))} ${f(hy(0))})" stroke-width=".8"/><circle cx="${f(hx(0))}" cy="${f(hy(0))}" r="1.6" stroke-width=".5"/>`;
+  for (let i = 0; i < 16; i++) { const t = .05 + i * .055, o = (r() - .5) * 8, x = hx(t) + .97 * o, y = hy(t) + .23 * o; s += `<path d="M${f(x)},${f(y)} l${f(42 * .03)},${f(-180 * .03)}" stroke-width=".5" stroke="${INK2}"/>`; }
+  [[.28, 4.5], [.6, -3.8]].forEach(([t, o]) => { const x = hx(t) + .97 * o, y = hy(t) + .23 * o; s += `<ellipse cx="${f(x)}" cy="${f(y)}" rx="1.6" ry="2.8" transform="rotate(13 ${f(x)} ${f(y)})" stroke-width=".7"/><path d="M${f(x - 2.4)},${f(y - 6)} q2.2,6 0,12" stroke-width=".45" stroke="${INK2}"/>`; });
+  // C: head, the flat stone, knapped to an edge
+  const head = [[128, 58], [138, 42], [164, 33], [196, 32], [222, 40], [242, 56], [224, 72], [196, 81], [164, 81], [138, 74]];
+  s += `<path d="M${head.map(P).join(' L')}Z" fill="${PAPER}" stroke-width="1.2"/>`;
+  s += `<path d="M164,33 L172,57 L164,81 M196,32 L202,56 L196,81 M138,42 L150,58 L138,74 M128,58 H150" stroke-width=".6"/>`;
+  s += `<path d="M222,40 L230,56 L224,72" stroke-width=".6"/>`;
+  s += `<path d="M222,40 C230,45 238,51 242,56 C238,61 231,67 224,72" stroke-width="1.9"/>`;
+  [[234, 48], [238, 55], [234, 63], [228, 68], [228, 44]].forEach(([x, y]) => s += `<path d="M${x},${y} q-4,1.5 -4.5,5" stroke-width=".55"/>`);
+  for (let i = 0; i < 7; i++) s += `<path d="M${152 + i * 9},${78 - (i % 2)} l6,-8" stroke-width=".5" stroke="${INK2}"/>`;
+  s += `<path d="M125,58 L98,44" stroke-dasharray="6 3 1.5 3" stroke-width=".7" stroke="${INK2}"/>` + `<g stroke="${INK2}" stroke-width=".8">${arrow(98, 44, Math.atan2(-14, -27), 4.5)}</g>`;
+  // B: lashing, bark peeled from the other branch
+  for (let i = 0; i < 5; i++) s += `<ellipse cx="${132 + i * 7}" cy="${132 - i * 5}" rx="15" ry="4.8" transform="rotate(-15 ${132 + i * 7} ${132 - i * 5})" fill="${PAPER}" stroke-width=".95"/>`;
+  s += `<path d="M174,108 c9,-3 13,3 22,-1 c7,-3 10,2 16,0 M174,111.5 c9,-3 13,3 22,-1 c7,-3 10,2 16,0 M212,107 l1.5,4" stroke-width=".75"/>`;
+  s += `<path d="M118,130 L88,100" stroke-dasharray="6 3 1.5 3" stroke-width=".7" stroke="${INK2}"/>` + `<g stroke="${INK2}" stroke-width=".8">${arrow(88, 100, Math.atan2(-30, -30), 4.5)}</g>`;
+  // the other branch, its bark peeling off
+  const bx = [[104, 204], [130, 202], [156, 200], [182, 198], [204, 197]];
+  s += `<path d="${ribbon(bx, [8, 8, 7.5, 7, 6.5])}" fill="${PAPER}"/>`;
+  s += `<ellipse cx="204" cy="197" rx="1.6" ry="3.3" stroke-width=".7"/>`;
+  for (let i = 0; i < 6; i++) s += `<path d="M${108 + i * 7},${201 + (i % 2) * 2.5} h4" stroke-width=".5" stroke="${INK2}"/>`;
+  s += `<path d="M152,196.5 v7 M156,196 v7" stroke-width=".45" stroke="${INK2}" stroke-dasharray="1 1.5"/>`;
+  s += `<path d="M160,196 C166,184 180,182 182,172 C183,165 177,163 174,168 M163.5,196.5 C169.5,185.5 184,184 185.5,173" stroke-width=".8"/>`;
+  // D: hammerstone, and the strike
+  s += stone(250, 164, 28, 21, 21);
+  for (let i = 0; i < 14; i++) s += `<circle cx="${f(230 + r() * 10)}" cy="${f(150 + r() * 9)}" r=".75" fill="${INK}" stroke="none"/>`;
+  s += `<path d="M234,140 C220,120 222,98 236,84" stroke-dasharray="3 2.5" stroke-width=".9"/>` + arrow(236, 84, Math.atan2(-14, 14));
+  // put together
+  s += `<rect x="256" y="6" width="58" height="92" stroke-width=".6" stroke="${INK2}" rx="1"/>` + lab(285, GAME ? 116 : 93, 'Put together', 'middle');
+  s += `<path d="${ribbon([[272, 84], [277, 52], [282, 20]], [5, 4.6, 4.2])}" fill="${PAPER}" stroke-width=".9"/>`;
+  s += `<path d="M280,33 L284,27 L296,24 L304,28 L310,33 L304,38 L296,41 L284,40Z" fill="${PAPER}" stroke-width=".9"/>`;
+  s += `<path d="M277,29 l7,6 M277,33 l7,6 M284,29 l-7,6 M284,33 l-7,6" stroke-width=".6"/>`;
+  const c = co('A', 26, 140, 58, 158) + co('B', 112, 160, 126, 138) + co('C', 168, 14, 180, 33) + co('D', 300, 182, 272, 172);
+  return svg('0 0 320 215', 'A stone axe taken apart: handle, lashing, head and hammerstone', s, c);
+}
+function fig0() {
+  let s = '';
+  s += `<rect x="26" y="10" width="134" height="178" fill="${PAPER}" stroke-width=".8"/><rect x="160" y="10" width="134" height="178" fill="${PAPER}" stroke-width=".8"/>`;
+  s += `<path d="M154,12 V186 M157,12 V186 M163,12 V186 M166,12 V186" stroke-width=".45" stroke="${INK2}"/>`;
+  s += `<rect x="38" y="24" width="22" height="22" rx="1" fill="${RUST}" stroke="none"/><text x="49" y="42" text-anchor="middle" font-family="Fraunces, Georgia, serif" font-weight="800" font-size="18" fill="${PAPER}" stroke="none">2</text>`;
+  s += `<path d="M66,30 H94" stroke="${RUST}" stroke-width="1.6"/><path d="M66,40 H140" stroke-width="3.6"/>`;
+  s += `<path d="M38,56 H146 M38,62 H146 M38,68 H110" stroke-width=".8" stroke="${INK2}"/>`;
+  s += `<path d="M38,76 H148 M38,92 H148" stroke-width=".5"/><path d="M40,81 H54 M94,81 H106" stroke="${RUST}" stroke-width="1"/><path d="M40,87 H82 M94,87 H130" stroke-width=".9"/>`;
+  s += `<path d="M38,101 H74" stroke-width="1.5"/>`;
+  [109, 116].forEach(y => s += `<path d="M38,${y} H60" stroke-width="1"/><path d="M63,${y} H137" stroke-dasharray="1 2" stroke-width=".7"/><path d="M141,${y} H147" stroke-width="1.8"/>`);
+  s += `<path d="M38,129 H62" stroke-width="1.5"/>`;
+  [138, 148, 158].forEach((y, i) => s += `<rect x="38" y="${y - 4}" width="6" height="6" stroke-width=".8"/><path d="M49,${y - 1} H${i === 2 ? 128 : 142}" stroke-width=".9"/>${i === 2 ? '<path d="M49,' + (y + 5) + ' H96" stroke-width=".9"/>' : ''}`);
+  s += `<path d="M38,180 h5" stroke-width="1.4"/>`;
+  s += `<path d="M172,20 H282" stroke-width=".45"/>`;
+  s += `<path d="M178,86 H272" stroke-width=".8"/>` + dome(184, 200, 86, 7, 2) + dome(250, 266, 86, 7, 3);
+  s += `<path d="M196,86 L224,36 M252,86 L222,36 M222,88 L224,34" stroke-width="1.6"/>`;
+  s += `<path d="M216,86 C212,76 220,72 220,64 C226,72 230,78 228,86Z" fill="${RUST}" fill-opacity=".15" stroke="${RUST}" stroke-width=".8"/>`;
+  s += `<path d="M172,98 H180" stroke="${RUST}" stroke-width="1.4"/><path d="M183,98 H236" stroke-width=".7" stroke="${INK2}"/>`;
+  [106, 112, 118].forEach(y => s += `<circle cx="175" cy="${y}" r="2" stroke="${RUST}" stroke-width=".7"/><path d="M181,${y} H262" stroke-width=".7"/>`);
+  s += `<rect x="172" y="126" width="110" height="30" fill="${RUST}" fill-opacity=".13" stroke="none"/><path d="M172,126 H282" stroke="${RUST}" stroke-width="3"/>`;
+  s += `<path d="M178,134 H192" stroke="${RUST}" stroke-width="1"/><path d="M178,141 H236" stroke-width="2"/><path d="M178,148 H272" stroke-width=".7" stroke="${INK2}"/>`;
+  s += `<path d="M172,166 H196" stroke-width=".5"/><path d="M172,172 H262 M172,177 H230" stroke-width=".6" stroke="${INK2}"/>`;
+  s += `<rect x="288" y="34" width="6" height="22" fill="${RUST}" stroke="none"/>`;
+  s += `<path d="M282,180 h5" stroke-width="1.4"/>`;
+  const c = co('A', 12, 30, 38, 32) + co('B', 12, 62, 38, 62) + co('C', 12, 86, 38, 84) + co('D', 12, 112, 38, 112) + co('E', 12, 146, 38, 144) + co('F', 308, 64, 256, 64) + co('G', 308, 140, 282, 140) + co('H', 308, 172, 262, 172);
+  return svg('0 0 320 196', 'A chapter spread with its parts lettered A to H', s, c);
+}
+const FIGS = { 0: fig0, 1: fig1, 2: fig2, 3: fig3 };
+
+function emblem(id, mode) {
+  /* Foil (cover, 40.8 mm wide, 0.34 mm a unit): ring lettering 12.6 units = 3.0 mm cap height with about 0.5 mm stems,
+     nothing finer than 1.3 units (0.44 mm), and the picture shrunk to 86% so it clears the lettering.
+     Ink (title page): the same stamp in copper-rust at the smaller, finer size. */
+  const foil = mode === 'foil', col = foil ? 'url(#foil)' : RUST, w = foil ? 1 : .85;
+  const ringR = foil ? 44 : 46.5, art = foil ? ' transform="translate(60 60) scale(.86) translate(-60 -60)"' : '';
+  return `<svg viewBox="0 0 120 120" aria-hidden="true"><g fill="none" stroke="${col}" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="60" cy="60" r="56" stroke-width="${2.6 * w}"/><circle cx="60" cy="60" r="${foil ? 40.5 : 42.5}" stroke-width="${1.3 * w}"/>
+    <g${art}>
+    <path d="M30,92 L76,58 M90,92 L44,58" stroke-width="${6 * w}"/><path d="M60,96 V64" stroke-width="${5 * w}"/>
+    <path d="M36,98 q6,-6 12,0 M54,100 q6,-6 12,0 M72,98 q6,-6 12,0" stroke-width="${2.2 * w}"/>
+    <path d="M60,26 C70,38 76,48 71,60 C68,67 63,70 60,70 C53,70 48,65 48,57 C48,49 53,46 55,38 C57,44 59,46 61,48 C62,41 61,33 60,26Z" fill="${col}" stroke="none"/>
+    </g>
+  </g>
+  <path id="ring-${id}" d="M60,60 m-${ringR},0 a${ringR},${ringR} 0 1,1 ${2 * ringR},0 a${ringR},${ringR} 0 1,1 -${2 * ringR},0" fill="none"/>
+  <text font-family="${LBL}" font-weight="700" font-size="${foil ? 12.6 : 9.2}" letter-spacing="${foil ? .9 : 1.6}" fill="${col}"><textPath href="#ring-${id}" textLength="${foil ? 274 : 286}" lengthAdjust="spacing">OTTERY &amp; MOSS · FIELD SERIES · NO. 7 ·</textPath></text></svg>`;
+}
+function stainSVG(kind, op, seed) {
+  const r = rnd(seed); let spots = '';
+  for (let i = 0; i < 5; i++) { const a = Math.PI + r() * Math.PI / 2, rx = 150 + r() * 70; spots += `<circle cx="${f(300 + Math.cos(a) * rx * 1.25)}" cy="${f(300 + Math.sin(a) * rx * .78)}" r="${f(3 + r() * 6)}"/>`; }
+  if (kind === 'cover') return `<svg viewBox="0 0 300 300" preserveAspectRatio="none" aria-hidden="true"><g filter="url(#wobble)">
+      <ellipse cx="300" cy="300" rx="255" ry="150" fill="#0b160a" fill-opacity=".2"/>
+      <ellipse cx="300" cy="300" rx="255" ry="150" fill="none" stroke="#d8cfa4" stroke-opacity=".13" stroke-width="2.4"/>
+      <ellipse cx="300" cy="300" rx="215" ry="118" fill="none" stroke="#08110a" stroke-opacity=".16" stroke-width="4"/>
+      <g fill="#0b160a" fill-opacity=".18">${spots}</g></g></svg>`;
+  /* inside pages: the tide-mark is a named tint of copper-rust, fills only. The body is about 7% at its strongest,
+     the dried edge a band about 2 mm wide (6 units of the 96 mm stain) at about 18%: wide enough to hold up on uncoated paper. */
+  return `<svg viewBox="0 0 300 300" preserveAspectRatio="none" aria-hidden="true"><g filter="url(#wobble2)">
+      <ellipse cx="300" cy="300" rx="${230 * op + 40}" ry="${150 * op + 30}" fill="${RUST}" fill-opacity="${(.075 * op).toFixed(3)}"/>
+      <ellipse cx="300" cy="300" rx="${230 * op + 40}" ry="${150 * op + 30}" fill="none" stroke="${RUST}" stroke-opacity="${(.18 * op).toFixed(2)}" stroke-width="6"/>
+      <ellipse cx="300" cy="300" rx="${190 * op + 30}" ry="${120 * op + 22}" fill="none" stroke="${RUST}" stroke-opacity="${(.08 * op).toFixed(2)}" stroke-width="5"/>
+      <g fill="${RUST}" fill-opacity="${(.07 * op).toFixed(3)}">${op > .5 ? spots : ''}</g></g></svg>`;
+}
+const DONE_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.2" fill="none" stroke="${RUST}" stroke-width="1.6"/><circle cx="12" cy="12" r="7.6" fill="none" stroke="${RUST}" stroke-width=".7"/><path d="M7.6,12.4 L10.6,15.4 L16.6,8.6" fill="none" stroke="${RUST}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const PENCIL_TICK = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5,12.5 C5.5,13.4 7.6,15.6 9.2,18.6 C12,12 15.6,6.8 21.5,2.6" fill="none" stroke="#5e5a55" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/><path d="M4.3,13.4 C6.1,14.4 7.8,16.2 9.3,19.2 C12.4,12.6 15.9,7.6 21.2,3.6" fill="none" stroke="#5e5a55" stroke-width=".8" stroke-linecap="round" opacity=".55"/></svg>`;
+const INK_TICK = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4,12.5 L9,18 L21,3.5" fill="none" stroke="${RUST}" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter"/></svg>`;
+
+/* ---------------- pages ---------------- */
+const fn = c => s => s.replace('{fn}', `<sup>${c.n}</sup>`);
+function chrome(side, folio, rhL, rhR, stainOp, seed) {
+  return `${stainOp ? `<div class="stain">${stainSVG('page', stainOp, seed)}</div>` : ''}
+    <div class="rh"><span>${rhL}</span><span>${rhR}</span></div>
+    <div class="tab"></div>
+    <div class="folio">${folio}</div>`;
+}
+/* one chapter's blocks; print and game assemble the same pieces */
+function pieces(c, game) {
+  figMode(game);
+  const st = game ? (STATE[c.n] || []) : [];
+  const steps = c.steps.map((s, i) => {
+    const g = st[i] || {}; const done = game ? g.done : false;
+    const tick = s.printed ? INK_TICK : (done ? PENCIL_TICK : '');
+    const count = game && s.of && !done && g.have != null ? `<span class="pc">${g.have}/${s.of}</span>` : '<span></span>';
+    return `<li class="${done || s.printed ? 'done' : ''}"><span class="box">${tick}</span><span class="st">${s.t}</span>${count}</li>`;
+  }).join('');
+  const parts = c.parts.map(([n, q]) => `<li><span>${n}</span><span class="dots"></span><span class="q">${q}</span></li>`).join('');
+  const legend = c.legend.map(([L, t]) => `<li><i>${L}</i><span>${fn(c)(t)}</span></li>`).join('');
+  const P = {
+    head: `<header class="ch-head"><div class="ch-num">${c.n}</div><div><div class="ch-lab">Chapter ${WORDS[c.n]}</div><h3 class="ch-title">${c.title}</h3></div></header>`,
+    story: `<p class="story">${c.story}</p>`,
+    meta: `<dl class="meta"><div><dt>Teaches</dt><dd>${c.teaches}</dd></div><div><dt>Tools</dt><dd>${c.tools}</dd></div></dl>`,
+    need: `<section class="sec"><h4>You will need</h4><ul class="parts">${parts}</ul></section>`,
+    steps: `<section class="sec"><h4>Steps</h4><ol class="steps">${steps}</ol></section>`,
+    done: `<p class="dw">${DONE_ICON}<span><b>Done when</b>${c.done}</span></p>`,
+    fig: `<figure class="fig">${FIGS[c.n]()}<figcaption><b>Fig. ${c.n}.1</b>${c.caption}</figcaption></figure>`,
+    legend: `<ol class="legend">${legend}</ol>`,
+    rule: `<aside class="rule"><span class="rn">Rule ${c.n}</span><strong>${c.rule[0]}</strong>${c.rule[1]}</aside>`,
+    foot: `<p class="foot"><sup>${c.n}</sup> ${c.foot}</p>`
+  };
+  figMode(false);
+  return P;
+}
+function verso(c, stainOp) {
+  const P = pieces(c, false);
+  return `<div class="page verso">${chrome('verso', 2 + 2 * c.n, 'Making Do', 'Part One · Camp', stainOp, 60 + c.n)}
+    <div class="pin">${P.head}${P.story}${P.meta}${P.need}${P.steps}<section class="sec jot"><h4>Notes</h4><div class="lines"></div></section></div></div>`;
+}
+function recto(c, stainOp) {
+  const P = pieces(c, false);
+  return `<div class="page recto">${chrome('recto', 3 + 2 * c.n, `Chapter ${c.n}`, c.title, stainOp, 80 + c.n)}
+    <div class="pin">${P.fig}${P.legend}${P.done}${P.rule}${P.foot}</div></div>`;
+}
+
+/* ---------------- game pages ---------------- */
+const MORE = `<div class="more-cue" aria-hidden="true"><span><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5L6 8l3.5-3.5"/></svg>More below</span></div>`;
+function gamePage(side, inner, o = {}) {
+  return `<div class="page ${side} game${o.cls ? ' ' + o.cls : ''}">${o.stain ? `<div class="stain">${stainSVG('page', o.stain, o.seed)}</div>` : ''}${o.tab === false ? '' : '<div class="tab"></div>'}<div class="pin${o.pin ? ' ' + o.pin : ''}">${inner}</div>${MORE}</div>`;
+}
+function gameTitle() {
+  return gamePage('recto', `<div class="tp-series">Field Series · No. 7</div>
+      <div class="tp-emb">${emblem('gt', 'ink')}</div>
+      <h3 class="tp-title">Making Do</h3>
+      <p class="tp-sub">A Pocket Handbook for the Unexpectedly Outdoors</p>
+      <div class="tp-rule"></div>
+      <p class="tp-blurb">Everything you need to make camp from nothing, in the order you'll need it, in plain words, with pictures.</p>
+      <div class="plate"><span class="pl-lab">This book is the property of</span><span class="pl-line"><span class="pencil">Sam</span></span><span class="pl-small">If found, please return it.<br>If found wet, please dry it first.</span></div>
+      <div class="tp-pub"><b>Ottery &amp; Moss</b><span>Publishers of Useful Books</span></div>`, { cls: 'tp-game', pin: 'tp', stain: 1, seed: 3, tab: false });
+}
+function stuckPage() {
+  const SOFT = '#6a5a48'; let lines = '';
+  for (let i = 0; i < 26; i++) { const y = 40 + i * 4.2, a = 1.6 + (i % 5) * .5; lines += `<path d="M18,${f(y)} C70,${f(y - a)} 120,${f(y + a)} 170,${f(y - a * .6)} S250,${f(y + a)} 282,${f(y)}" stroke-width="${i % 6 === 0 ? .9 : .5}" stroke="${i % 6 === 0 ? INK : SOFT}"/>`; }
+  return gamePage('verso', `<svg viewBox="0 0 300 190" aria-hidden="true"><g fill="none" stroke-linecap="round">
+        <path d="M14,36 C70,30 120,42 170,34 S250,44 286,36 L288,154 C250,162 200,150 150,158 S60,150 12,156Z" fill="#e7d9bb" stroke="${INK}" stroke-width="1.1"/>
+        ${lines}
+        <path d="M14,36 C10,80 16,120 12,156" stroke="${INK}" stroke-width="1.6"/>
+      </g>
+      <text x="150" y="184" text-anchor="middle" font-family="${LBL}" font-weight="600" font-size="13" letter-spacing="1" fill="${SOFT}">Pages 8 to 64</text></svg>
+      <div class="stuck-note"><b>Still stuck together</b>The river glued the rest of the book shut. Each chapter comes apart when you finish the one before it.</div>`, { pin: 'stuck', stain: 1, seed: 14, tab: false });
+}
+
+/* Fitting pages to the screen. Each printed page is a list of whole blocks. If they don't fit the page area,
+   the game moves whole blocks to a second screen (marked Continued). It never cuts a line and never shrinks the type.
+   "Done when" sits on the job page when it fits there; otherwise it goes back beside the rule, where print has it. */
+const CONT_TOP = 24, CONT_BOT = 24;
+let measureEl = null;
+function measureBlocks(side, blocks, o) {
+  measureEl.innerHTML = gamePage(side, blocks.map(b => b.html).join(''), { ...o, cls: ((o.cls || '') + ' measuring').trim() });
+  const pin = measureEl.querySelector('.pin'), cs = getComputedStyle(pin);
+  const avail = pin.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  const box = [...pin.children].map(e => [e.offsetTop, e.offsetTop + e.offsetHeight + parseFloat(getComputedStyle(e).marginBottom)]);
+  return { avail, box };
+}
+function paginate(blocks, side, o) {
+  const m = measureBlocks(side, blocks, o), out = [], n = blocks.length;
+  let i = 0;
+  while (i < n) {
+    const top = out.length ? CONT_TOP : 0;
+    let j;
+    if (m.box[n - 1][1] - m.box[i][0] + top <= m.avail) j = n;            // the rest fits
+    else {
+      j = i + 1;                                                           // always take one block (it scrolls if it alone is too tall)
+      while (j < n && m.box[j][1] - m.box[i][0] + top + CONT_BOT <= m.avail) j++;
+      while (j < n && j - i > 1 && blocks[j - 1].keep) j--;                // keep a heading or "Done when" with what follows
+    }
+    out.push(blocks.slice(i, j)); i = j;
+  }
+  return out;
+}
+function chapterScreens(c) {
+  const P = pieces(c, true), stain = c.n === 1 ? .5 : .38;
+  const b = (k, keep) => ({ k, html: P[k], keep: !!keep });
+  const vO = { stain, seed: 60 + c.n }, rO = { stain, seed: 80 + c.n };
+  const job = [b('head', true), b('story'), b('meta'), b('need'), b('steps')];
+  let jobPages = paginate([...job, b('done')], 'verso', vO), pic;
+  if (jobPages.length === 1) pic = [b('fig'), b('legend'), b('rule', true), b('foot')];
+  else { jobPages = paginate(job, 'verso', vO); pic = [b('fig'), b('legend'), b('done', true), b('rule', true), b('foot')]; }
+  const picPages = paginate(pic, 'recto', rO);
+  const mk = (pages, side, o, folio) => pages.map((bl, i) => ({
+    key: `${folio}:${i}`,
+    label: `Chapter ${c.n} · page ${folio}` + (pages.length > 1 ? ` · ${i + 1} of ${pages.length}` : ''),
+    html: gamePage(side, (i ? `<div class="cont cont-top">Page ${folio}, continued</div>` : '') + bl.map(x => x.html).join('') +
+      (i < pages.length - 1 ? `<div class="cont cont-bot">Continued ›</div>` : ''), o)
+  }));
+  return [...mk(jobPages, 'verso', vO, 2 + 2 * c.n), ...mk(picPages, 'recto', rO, 3 + 2 * c.n)];
+}
+
+/* ---------------- build the print spreads ---------------- */
+const STAINS = { 1: .55, 2: .38, 3: .24 };
+const CAPS = {
+  1: ' The first box is printed already ticked: picking up the book is the first step. Five loose planks and the two in the crate make the seven.',
+  2: ' The figure carries letters only, so the words can be edited or translated without redrawing it.',
+  3: ' The water stain shrinks chapter by chapter: the book went in from the front.'
+};
+document.getElementById('spreads').innerHTML = CHAPTERS.map(c =>
+  `<div class="spread">${verso(c, STAINS[c.n])}${recto(c, STAINS[c.n])}</div>
+   <p class="cap"><b>pp. ${2 + 2 * c.n}–${3 + 2 * c.n}</b>Chapter ${c.n} · ${c.title}.${CAPS[c.n]}</p>`).join('');
+document.querySelectorAll('[data-fig]').forEach(el => el.insertAdjacentHTML('afterbegin', FIGS[el.dataset.fig]()));
+document.querySelectorAll('[data-emblem]').forEach(el => el.innerHTML = emblem(el.dataset.id, el.dataset.emblem));
+document.querySelectorAll('[data-stain]').forEach(el => el.innerHTML = stainSVG(el.dataset.stain, +(el.dataset.op || 1), +(el.dataset.seed || 1)));
+(function bars() { const r = rnd(77); let x = 4, s = ''; while (x < 96) { const w = r() < .5 ? 1 : (r() < .6 ? 2 : 3); s += `<rect x="${x}" y="0" width="${w * .9}" height="34" fill="#2a2118"/>`; x += w + 1 + (r() < .4 ? 1 : 0); } document.getElementById('bars').innerHTML = s; })();
+
+/* ---------------- the game around the book ---------------- */
+document.getElementById('scene').innerHTML = `<svg viewBox="0 0 390 844" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfd9cf"/><stop offset=".35" stop-color="#9fb3a3"/><stop offset="1" stop-color="#6f8a74"/></linearGradient></defs>
+  <rect width="390" height="844" fill="url(#sky)"/>
+  <polygon points="0,90 70,40 120,70 150,0 240,0 270,60 330,30 390,80 390,470 0,470" fill="#5d6a5a"/>
+  <polygon points="0,140 60,120 110,150 120,470 0,470" fill="#4b5848"/><polygon points="270,150 330,120 390,150 390,470 280,470" fill="#4b5848"/>
+  <polygon points="150,0 240,0 236,440 156,440" fill="#d6e6e6"/><polygon points="170,0 200,0 198,440 172,440" fill="#eef6f4"/><polygon points="210,0 226,0 224,440 212,440" fill="#bfd6d8"/>
+  <ellipse cx="196" cy="470" rx="250" ry="70" fill="#4f8a99"/><ellipse cx="196" cy="452" rx="110" ry="26" fill="#e9f3f1" opacity=".75"/>
+  <polygon points="0,500 120,520 260,505 390,520 390,844 0,844" fill="#7d8a52"/><polygon points="0,560 390,580 390,844 0,844" fill="#3d6332"/>
+  <polygon points="20,640 50,520 80,640" fill="#2a4a24"/><polygon points="300,660 335,530 370,660" fill="#24401f"/><polygon points="330,700 360,600 390,700" fill="#2e5228"/>
+  <rect x="150" y="540" width="46" height="7" fill="#9b7a4e" transform="rotate(-12 173 543)"/><rect x="200" y="556" width="40" height="7" fill="#8d6c42" transform="rotate(18 220 559)"/>
+  <polygon points="250,540 290,532 300,556 262,562" fill="#7b8a8c"/><rect x="120" y="574" width="26" height="20" fill="#7a5a36"/>
+  <polygon points="176,640 186,600 196,640" fill="#e8d8b8"/><circle cx="186" cy="596" r="6" fill="#d8b48a"/>
+</svg>`;
+const stage = document.getElementById('stage'), where = document.getElementById('g-where'), prev = document.getElementById('g-prev'), next = document.getElementById('g-next'), screen = document.getElementById('screen');
+const phone = document.getElementById('phone'), sizeNote = document.getElementById('size-note');
+measureEl = document.getElementById('measure');
+const START = '6:0';                     /* the book opens at the current chapter's job page */
+let SCREENS = [], cur = 0, firstRun = true;
+function build(keepKey) {
+  SCREENS = [{ key: 'title', label: 'Title page', html: gameTitle() }, ...chapterScreens(CHAPTERS[0]), ...chapterScreens(CHAPTERS[1]),
+    { key: 'stuck', label: 'Pages 8 to 64', html: stuckPage() }];
+  measureEl.innerHTML = '';
+  let i = SCREENS.findIndex(x => x.key === keepKey);
+  if (i < 0 && keepKey) { const pg = keepKey.split(':')[0]; i = SCREENS.findIndex(x => x.key.split(':')[0] === pg); }
+  cur = i < 0 ? SCREENS.findIndex(x => x.key === START) : i;
+}
+function show(dir) {
+  stage.innerHTML = SCREENS[cur].html;
+  const page = stage.firstElementChild, pin = page.querySelector('.pin');
+  if (dir) page.classList.add(dir > 0 ? 'in-next' : 'in-prev');
+  const cue = () => page.classList.toggle('has-more', pin.scrollHeight - pin.scrollTop - pin.clientHeight > 4);
+  pin.addEventListener('scroll', cue, { passive: true }); cue();
+  where.textContent = SCREENS[cur].label; prev.disabled = cur === 0; next.disabled = cur === SCREENS.length - 1;
+}
+function relayout() {
+  if (!screen.classList.contains('is-open')) return;
+  const short = screen.clientHeight < 740;
+  screen.classList.toggle('short', short); phone.classList.toggle('short', short);
+  let key = SCREENS[cur] && SCREENS[cur].key;
+  if (firstRun) { const qp = new URLSearchParams(location.search).get('page'); key = qp || START; firstRun = false; } /* ?page=7:1 opens a given screen */
+  build(key); show(0);
+  const ch2 = SCREENS.filter(x => /^[67]:/.test(x.key)).length;
+  sizeNote.textContent = `Page area ${stage.clientWidth} × ${stage.clientHeight} px. Chapter 2 takes ${ch2} screens here.`;
+}
+function setSize(w, h) {
+  phone.style.setProperty('--sw', w + 'px'); phone.style.setProperty('--sh', h + 'px');
+  document.querySelectorAll('.sizes button').forEach(btn => btn.setAttribute('aria-pressed', String(+btn.dataset.w === w && +btn.dataset.h === h)));
+  relayout();
+}
+document.querySelectorAll('.sizes button').forEach(btn => btn.onclick = () => setSize(+btn.dataset.w, +btn.dataset.h));
+function turn(d) { const n = cur + d; if (n < 0 || n >= SCREENS.length || !screen.classList.contains('is-open')) return; cur = n; show(d); }
+prev.onclick = () => turn(-1); next.onclick = () => turn(1);
+document.getElementById('g-close').onclick = () => { screen.classList.remove('is-open'); document.getElementById('g-open').focus(); };
+document.getElementById('g-open').onclick = () => { screen.classList.add('is-open'); SCREENS = []; relayout(); cur = SCREENS.findIndex(x => x.key === START); show(0); };
+document.addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('.sizes')) return;
+  if (e.key === 'ArrowRight') turn(1); else if (e.key === 'ArrowLeft') turn(-1); else if (e.key === 'Escape') screen.classList.remove('is-open');
+});
+let sx = null; stage.addEventListener('pointerdown', e => { sx = e.clientX; });
+stage.addEventListener('pointerup', e => { if (sx == null) return; const dx = e.clientX - sx; sx = null; if (Math.abs(dx) > 45) turn(dx < 0 ? 1 : -1); });
+let rT = 0, lastH = 0, lastW = 0;
+addEventListener('resize', () => { clearTimeout(rT); rT = setTimeout(() => { if (screen.clientHeight !== lastH || screen.clientWidth !== lastW) { lastH = screen.clientHeight; lastW = screen.clientWidth; relayout(); } }, 150); });
+relayout(); lastH = screen.clientHeight; lastW = screen.clientWidth;
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(relayout);   /* re-fit once the real fonts have loaded */
+</script>
+</body>
+</html>

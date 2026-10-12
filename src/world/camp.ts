@@ -1,8 +1,12 @@
-// Where a new game starts (12 Oct 2026): a clearing at the foot of a waterfall. The river runs along the clifftop to
-// the north, pours over the cliff into a pool and flows on to the south-west; the character washes up on the pool's
-// bank and makes camp. The village lies far up the river and comes much later (world/layout.ts, VILLAGE).
+// Where a new game starts (12 Oct 2026): a clearing at the foot of a waterfall. He went over the falls from so high
+// that its top is never seen: the water pours out of the mist down a towering mountain wall to the north, into a pool,
+// and flows on to the south-west. He washes up on the pool's bank with nothing, and wreckage washed up with him:
+// planks, a torn tarp, a smashed crate and his book, strewn along the bank. Stones and branches lie round the clearing.
+// The camp starts bare: the tent and the campfire have their spots here but are built later. The village lies far up
+// the river and comes much later (world/layout.ts, VILLAGE).
 // Data only, like the village: x east, z south, in metres; the camera starts looking north at the falls.
-import type { Area, Layout, NodeSpot, TreeKind, TreeSpot, Vec2 } from './layout';
+import type { Area, Layout, NodeSpot, PickupSpot, TreeKind, TreeSpot, Vec2 } from './layout';
+import type { PickupKind } from '../data/pickups';
 
 const W = (x: number, z: number): Vec2 => ({ x, z });
 const facing = (from: Vec2, to: Vec2) => Math.atan2(to.x - from.x, to.z - from.z);
@@ -15,32 +19,36 @@ const rock = (id: string, resource: string, x: number, z: number): NodeSpot => (
 
 function seeded(seed: number) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
+// where the campfire and the tent will be built (later updates): nothing stands there yet
 const FIRE = W(2.4, 3.0), TENT = W(-1.6, 5.8);
-const CLIFF_HEIGHT = 7;
 
-/** Woods all round the clearing, and on the clifftop above the falls. */
+/** Woods all round the clearing. */
 function woods(): TreeSpot[] {
   const r = seeded(13), out: TreeSpot[] = [];
-  const ring = (n: number, a: Area, kinds: TreeKind[], y = 0, keepClear?: (p: Vec2) => boolean) => {
+  const ring = (n: number, a: Area, kinds: TreeKind[]) => {
     for (let i = 0; i < n; i++) {
       const pos = W(a.minX + r() * (a.maxX - a.minX), a.minZ + r() * (a.maxZ - a.minZ));
-      if (keepClear?.(pos)) continue;
-      out.push({ pos, kind: kinds[Math.floor(r() * kinds.length)]!, size: 0.85 + r() * 0.5, ...(y ? { y } : {}) });
+      out.push({ pos, kind: kinds[Math.floor(r() * kinds.length)]!, size: 0.85 + r() * 0.5 });
     }
   };
   ring(34, { minX: -32, maxX: 36, minZ: 16.5, maxZ: 34 }, ['pine', 'pine', 'oak', 'birch']);       // south
   ring(18, { minX: 17.5, maxX: 36, minZ: -13.5, maxZ: 16.5 }, ['pine', 'oak', 'birch']);         // east
   ring(16, { minX: -36, maxX: -20.5, minZ: -12, maxZ: 34 }, ['pine', 'oak']);                    // beyond the river
-  // on the clifftop, keeping back from the edge and off the river that runs to the falls
-  ring(40, { minX: -40, maxX: 40, minZ: -46, maxZ: -19 }, ['pine', 'pine', 'oak'], CLIFF_HEIGHT, p => Math.abs(p.x + 14) < 4.5);
   return out;
 }
 
+/** Things to pick up: [kind, x, z, rot]; ids are the kind and a number, in order. */
+function pickups(list: [PickupKind, number, number, number][]): PickupSpot[] {
+  const n: Partial<Record<PickupKind, number>> = {};
+  return list.map(([kind, x, z, rot]) => ({ id: `${kind}${(n[kind] = (n[kind] ?? 0) + 1)}`, kind, pos: W(x, z), rot }));
+}
+
 export const CAMP: Layout = {
-  village: { minX: -12, maxX: 16, minZ: -12.5, maxZ: 15 },
+  // the walkable land reaches the water's edge along the river (the river blocks walking, world/nav.ts)
+  village: { minX: -15.5, maxX: 16, minZ: -12.5, maxZ: 15 },
   start: W(-8.8, -7.6),                 // the pool's bank, where the river leaves him
-  hearth: { pos: FIRE, radius: 0.62 },  // the campfire (cold until he lights it)
-  hearthModel: 'CampfireCold',
+  hearth: { pos: FIRE, radius: 0.62 },  // where the campfire will be built
+  hearthModel: null,                    // ...but nothing is there yet
   square: 0,
   buildings: [],
   props: [],
@@ -49,20 +57,39 @@ export const CAMP: Layout = {
     tree('camp_birch1', 'birch_tree', 8.2, -7.6, 1.0), tree('camp_birch2', 'birch_tree', 11.6, -2.4, 0.95),
     tree('camp_birch3', 'birch_tree', 12.4, 6.4, 1.1), tree('camp_birch4', 'birch_tree', 6.4, 11.2, 1.0),
     tree('camp_birch5', 'birch_tree', -5.8, 10.4, 0.9),
-    // copper in boulders that came down off the cliff
+    // copper in boulders that came down off the mountain
     rock('camp_copper1', 'copper_rock', 9.8, -10.4), rock('camp_copper2', 'copper_rock', 13.8, -8.2),
   ],
   trees: woods(),
   bushes: [W(-10.6, 3.2), W(14.6, 12.4), W(1.8, 13.6), W(-9.4, 12.6), W(15.2, 1.2)],
   lanterns: [],
   river: { points: [W(-14, -11.2), W(-15.6, -2), W(-16.6, 8), W(-18.2, 20), W(-19.4, 36)], width: 3.4 },
-  paths: [{ points: [W(-8.6, -6.2), W(-3.4, -1.4), W(1.4, 2.0)], width: 1.0 }],   // a worn track from the pool to the fire
+  paths: [],                            // nobody has worn a track here yet
   parcels: [],
   camp: { tent: { pos: TENT, rot: facing(TENT, FIRE) } },
   falls: {
-    lip: W(-14, -15.2), width: 3.6, height: CLIFF_HEIGHT,
+    lip: W(-14, -15.2), width: 3.6, height: 70,
     pool: { pos: W(-14, -11.2), radius: 3.8 },
-    upper: [W(-14.6, -46), W(-13.2, -30), W(-14, -15.4)],
   },
+  pickups: pickups([
+    // the wreck, strewn along the bank where he washes up: the book beside him, planks at the water's edge
+    ['book', -7.9, -6.7, 0.6],
+    ['plank', -11.9, -7.5, 1.1], ['plank', -13.2, -4.0, 2.6], ['plank', -7.0, -10.4, -0.4],
+    ['plank', -12.6, 0.8, 0.3], ['plank', -5.6, -4.6, 1.9],
+    ['tarp', -12.0, -2.6, 0.8],
+    ['crate', -10.4, -5.6, 0.5],
+    // stones round the clearing and along the bank
+    ['stone', -9.6, -2.0, 0], ['stone', -3.0, -9.6, 1.2], ['stone', 3.6, -6.2, 2.1], ['stone', 5.2, 4.4, 0.4],
+    ['stone', -3.8, 7.6, 2.8], ['stone', 11.8, -11.4, 1.7], ['stone', -13.6, 6.4, 0.9],
+    // branches fallen under the birches and the bushes
+    ['branch', 7.0, -6.6, 0.4], ['branch', 10.4, -1.4, 2.2], ['branch', 11.2, 7.6, 1.3], ['branch', -4.6, 9.4, 2.9],
+    ['branch', -9.6, 4.2, 0.7], ['branch', 2.4, 12.4, 1.8],
+  ]),
+  // broken ribs of the wrecked boat, half in the water
+  debris: [
+    { model: 'HullRib', pos: W(-10.4, -10.3), rot: 2.2, y: 0.05, radius: 0.5 },
+    { model: 'HullRib', pos: W(-14.5, 2.6), rot: -0.5, y: 0.1, radius: 0.6 },
+  ],
+  startTools: [],                       // he washes up with nothing
   ground: { minX: -44, maxX: 44, minZ: -48, maxZ: 40 },
 };

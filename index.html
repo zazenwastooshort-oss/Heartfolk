@@ -77,12 +77,12 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
 .intro button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .hint.waiting { opacity: 0; }
 
-.hint { position: absolute; left: 50%; top: calc(166px + env(safe-area-inset-top, 0px)); transform: translateX(-50%);
+.hint { position: absolute; left: 50%; top: calc(192px + env(safe-area-inset-top, 0px)); transform: translateX(-50%);
   width: max-content; max-width: calc(100% - 2 * var(--edge)); box-sizing: border-box; padding: 8px 12px; border-radius: 8px;
   background: var(--chip); color: var(--chip-text); font-size: 13px; text-align: center; pointer-events: none; transition: opacity .5s ease-out; }
 .hint b { color: #ffffff; font-weight: 600; }
 .hint.gone { opacity: 0; }
-.notice { position: absolute; left: 50%; top: calc(166px + env(safe-area-inset-top, 0px)); transform: translateX(-50%);
+.notice { position: absolute; left: 50%; top: calc(192px + env(safe-area-inset-top, 0px)); transform: translateX(-50%);
   width: max-content; max-width: calc(100% - 2 * var(--edge)); box-sizing: border-box; padding: 8px 12px; border-radius: 8px;
   background: var(--chip); color: #ffe7a3; font-size: 13px; text-align: center; pointer-events: none; opacity: 0; transition: opacity .3s ease-out; }
 .notice.show { opacity: 1; }
@@ -107,10 +107,21 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
 .bar { height: 6px; background: var(--track); border-radius: 3px; overflow: hidden; }
 .bar i { display: block; height: 100%; width: 0; background: var(--xp); transition: width .25s ease-out; }
 .skill small { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-.pack { display: flex; align-items: center; gap: 8px; padding-top: 6px; border-top: 1px solid var(--line); }
+/* the backpack row opens what's in it (src/ui/backpack.ts), with buttons to drop things */
+.pack { display: flex; align-items: center; gap: 8px; width: 100%; margin: 0; padding: 6px 0 0; border: 0; border-top: 1px solid var(--line);
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; pointer-events: auto; }
+.pack:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .pack .bar { flex: 1; }
 .pack .bar i { background: var(--accent); }
 .pack.full small { color: var(--accent); font-weight: 700; }
+.pack .chev { width: 0; height: 0; border: 5px solid transparent; border-top-color: var(--muted); margin-top: 5px; }
+.pack[aria-expanded="true"] .chev { border-top-color: transparent; border-bottom-color: var(--muted); margin: 0 0 5px; }
+.packlist { display: grid; gap: 4px; max-height: 40vh; overflow-y: auto; pointer-events: auto; }
+.prow { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.prow .pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prow b { font-variant-numeric: tabular-nums; }
+.prow button { border: 0; border-radius: 999px; padding: 6px 9px; background: var(--button); color: var(--button-ink); font: 600 11px/1 var(--body); cursor: pointer; }
+.prow button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .bank { font-size: 12px; line-height: 1.3; }
 .bank .name { font-size: 12px; }
 
@@ -126,26 +137,26 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
     <div class="top-right"><div class="clock" id="clock">07:40</div><button class="ver" id="ver" type="button">What's new</button></div>
   </div>
   <div class="hint" id="hint">
-    <span class="touch"><b>Tap a tree</b> to chop it, <b>a rock</b> to mine it, <b>the grass</b> to walk. Drag to turn, pinch to zoom.</span>
-    <span class="mouse"><b>Click a tree</b> to chop it, <b>a rock</b> to mine it, <b>the grass</b> to walk. Drag or arrow keys to turn, scroll to zoom.</span>
+    <span class="touch"><b>Tap something on the ground</b> to pick it up, <b>the grass</b> to walk. Drag to turn, pinch to zoom.</span>
+    <span class="mouse"><b>Click something on the ground</b> to pick it up, <b>the grass</b> to walk. Drag or arrow keys to turn, scroll to zoom.</span>
   </div>
   <div class="notice" id="notice" role="status"></div>
   <div class="goal" id="goal" hidden>
     <div class="goal-head"><span>GOAL</span></div>
-    <div class="goal-title" id="goalTitle">Light the campfire</div>
+    <div class="goal-title" id="goalTitle">Salvage the wreck</div>
     <div class="bar"><i id="goalBar"></i></div>
-    <small class="goal-count" id="goalCount">0 / 5 birch logs</small>
-    <div class="goal-hint" id="goalHint">Chop birch trees for logs.</div>
+    <small class="goal-count" id="goalCount">0 / 7 planks, 0 / 1 tarp, 0 / 1 book</small>
+    <div class="goal-hint" id="goalHint">Pick up what washed up along the bank.</div>
   </div>
   <div class="intro" id="intro" role="dialog" aria-labelledby="introTitle" hidden>
     <h2 id="introTitle">Welcome to Hearthfolk</h2>
-    <p>The river swept you over the falls and left you on this bank with nothing but your tools. Make camp here, at the foot of the waterfall.</p>
+    <p>The river threw you over the falls, a very long way down. You washed up on this bank with nothing, not even your tools.</p>
+    <p>Something wrecked came down with you. Its pieces are strewn along the bank.</p>
     <ul>
-      <li>Tap a tree to chop it, or a rock to mine it. Your character keeps working until you send him somewhere else.</li>
-      <li>Build up your camp: a campfire first, then a shelter and a storage chest. The goal at the top shows what's next.</li>
-      <li>Every log and every piece of ore makes you better at your skills. One day you'll find what lies up the river.</li>
+      <li>Tap things on the ground to pick them up: planks, a torn tarp, a smashed crate, your book. Stones and branches too.</li>
+      <li>The goal at the top shows what's next.</li>
     </ul>
-    <button type="button" id="introOk">Make camp</button>
+    <button type="button" id="introOk">Get up</button>
   </div>
   <div class="news" id="news" role="dialog" aria-labelledby="newsTitle" hidden>
     <h2 id="newsTitle">What's new</h2>
@@ -154,7 +165,8 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
   </div>
   <div class="skill" aria-live="polite">
     <div class="skills" id="skills"></div>
-    <div class="pack" id="pack"><span class="name">Backpack</span><div class="bar"><i id="packBar"></i></div><small id="packCount">0 / 28</small></div>
+    <button class="pack" id="pack" type="button" aria-expanded="false" aria-controls="packList"><span class="name">Backpack</span><span class="bar"><i id="packBar"></i></span><small id="packCount">0 / 28</small><span class="chev" aria-hidden="true"></span></button>
+    <div class="packlist" id="packList" hidden></div>
     <div class="bank" id="bankRow"><span class="name">Bank</span> <span id="bank">empty</span></div>
   </div>
 </div>

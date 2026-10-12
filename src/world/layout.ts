@@ -9,6 +9,9 @@
 //   5. the edges: the copper quarry, the birch woods and the oaks by the river (rocks and trees to work), the forest,
 //      and land not yet claimed
 
+import type { PickupKind } from '../data/pickups';
+import type { ToolId } from '../data/skills';
+
 export interface Vec2 { x: number; z: number }
 export interface Area { minX: number; maxX: number; minZ: number; maxZ: number }
 
@@ -32,13 +35,19 @@ export interface GardenSpot { pos: Vec2; rot: number; w: number; d: number }
  *  size: scale of a tree's model. */
 export interface NodeSpot { id: string; resource: string; pos: Vec2; radius: number; size?: number; parcel?: string }
 export type TreeKind = 'birch' | 'oak' | 'pine';
-/** y: the height of the ground it stands on, when that isn't 0 (the clifftop above the waterfall at the camp) */
-export interface TreeSpot { pos: Vec2; kind: TreeKind; size: number; y?: number }
+export interface TreeSpot { pos: Vec2; kind: TreeKind; size: number }
 export interface Parcel { id: string; name: string; area: Area }
-/** The waterfall a new game starts below (world/camp.ts): the river runs along the clifftop (`upper`, `height` metres
- *  up), pours over the cliff face at `lip` (the cliff runs east-west along z = lip.z) into `pool`, and flows on as
- *  the layout's `river`. */
-export interface Falls { lip: Vec2; width: number; height: number; pool: { pos: Vec2; radius: number }; upper: Vec2[] }
+/** The waterfall a new game starts below (world/camp.ts): water pours out of the mist down a towering mountain wall
+ *  whose foot runs east-west along z = lip.z, `width` metres wide where it lands in `pool`, and flows on as the
+ *  layout's `river`. `height` is how high the wall is drawn before it is lost in mist and cloud; its top, where the
+ *  water comes over, is never seen. */
+export interface Falls { lip: Vec2; width: number; height: number; pool: { pos: Vec2; radius: number } }
+/** Something lying on the ground to pick up by hand (data/pickups.ts): a plank or the book from the wreck, a stone, a
+ *  branch. rot: radians round the vertical axis. Pickups don't block walking. */
+export interface PickupSpot { id: string; kind: PickupKind; pos: Vec2; rot: number }
+/** Scenery that stays where it lies (the wreck's broken hull ribs at the water's edge): a model in village.glb,
+ *  sunk `y` metres into the ground or water, blocking `radius` metres of walkable ground (0 for none). */
+export interface DebrisSpot { model: string; pos: Vec2; rot: number; y?: number; radius: number }
 
 export interface Layout {
   /** land the player can walk on at the start */
@@ -58,11 +67,18 @@ export interface Layout {
   /** roads (wide) and lanes (narrow), drawn as dirt */
   paths: { points: Vec2[]; width: number }[];
   parcels: Parcel[];
-  /** the model drawn at the hearth: the village's big Hearth, or the camp's campfire */
-  hearthModel?: string;
-  /** the camp a new game starts at: where the tent stands */
+  /** the model drawn at the hearth: the village's big Hearth when not given, or null for nothing there yet (the camp,
+   *  whose campfire is built later). With nothing there, nothing is in the way either. */
+  hearthModel?: string | null;
+  /** the camp a new game starts at: where its tent will stand once it is built (later updates; nothing stands there
+   *  until then, and the campfire will be at `hearth`) */
   camp?: { tent: { pos: Vec2; rot: number } };
   falls?: Falls;
+  /** things lying on the ground to pick up by hand (the camp's wreck, stones and branches) */
+  pickups?: PickupSpot[];
+  debris?: DebrisSpot[];
+  /** the tools a new game here starts with; all of them when not given (the village). At the camp he has none. */
+  startTools?: ToolId[];
   /** the ground drawn in detail round the playable land (the village's is the default) */
   ground?: Area;
 }

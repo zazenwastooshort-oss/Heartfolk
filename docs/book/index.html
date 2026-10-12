@@ -1,0 +1,159 @@
+<title>Hearthfolk Survival Book</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500..800;1,9..144,400..600&family=Caveat:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: a short brief, then the two books side by side as objects (cover + facts), then a plain comparison and the two open questions. One dark forest-green look, like the game's panels. */
+:root {
+  --ground: #16211a; --panel: #1e341b; --panel-2: #24401f; --line: rgba(241, 232, 212, .14);
+  --ink: #f1e8d4; --muted: #b6c0a2; --copper: #e8a65e; --button: #d4893c; --button-ink: #1b140c;
+  --f-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --f-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-hand: "Caveat", "Segoe Print", cursive;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--ground); color: var(--ink); font: 16px/1.55 var(--f-body); }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 40px 16px 80px; display: grid; gap: 56px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; }
+h1 { font-weight: 700; font-size: clamp(32px, 6vw, 50px); line-height: 1.04; letter-spacing: -.01em; }
+h2 { font-weight: 650; font-size: clamp(22px, 3vw, 28px); line-height: 1.15; }
+h3 { font-weight: 700; font-size: 26px; line-height: 1.1; }
+p { margin: 0; }
+.eyebrow { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.brief { display: grid; gap: 14px; max-width: 680px; }
+.brief .lede { font-size: 18px; color: #e4dac4; }
+
+/* the two books */
+.books { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+.book { display: grid; grid-template-rows: auto auto 1fr auto; gap: 18px; padding: 22px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); min-width: 0; }
+.book .tag { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--copper); }
+.head { display: grid; grid-template-columns: 112px 1fr; gap: 18px; align-items: center; }
+.head > div { display: grid; gap: 6px; min-width: 0; }
+.pitch { color: #ddd3bd; }
+.voice { font-family: var(--f-hand); font-size: 24px; line-height: 1.2; color: var(--ink); padding: 12px 14px; border-radius: 10px; background: rgba(0, 0, 0, .18); border-left: 3px solid var(--copper); }
+.voice small { display: block; font: 13px/1.3 var(--f-body); color: var(--muted); margin-top: 6px; }
+.facts { display: grid; gap: 8px; margin: 0; }
+.facts div { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: baseline; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.facts dt { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.facts dd { margin: 0; min-width: 0; }
+.open { display: inline-flex; justify-content: center; align-items: center; gap: 8px; padding: 12px 18px; border-radius: 999px; background: var(--button); color: var(--button-ink); font-weight: 650; text-decoration: none; }
+.open:hover { background: var(--copper); }
+.open:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+.open svg { width: 18px; height: 18px; }
+
+/* little CSS covers, true to each spec's proportions */
+.cover { width: 112px; max-width: 100%; border-radius: 4px 9px 9px 4px; position: relative; overflow: hidden; display: grid; align-content: center; justify-items: center; text-align: center; padding: 10px 8px; box-shadow: 0 10px 22px rgba(0, 0, 0, .45), inset 0 0 18px rgba(0, 0, 0, .35); }
+.cover b, .cover i { display: block; color: transparent; -webkit-background-clip: text; background-clip: text; background-image: linear-gradient(160deg, #f7d4a2, #e8a65e 40%, #b06d34 65%, #eab27a); }
+.cover.handbook { aspect-ratio: 120 / 180; background: #2d4827 repeating-linear-gradient(0deg, rgba(255, 255, 255, .035) 0 1px, transparent 1px 3px); }
+.cover.handbook::before { content: ""; position: absolute; inset: 7px 7px 7px 8px; border: 1.5px solid rgba(0, 0, 0, .28); border-radius: 3px; }
+.cover.handbook small { font-size: 7px; letter-spacing: .16em; text-transform: uppercase; color: #e8a65e; margin-bottom: 10px; }
+.cover.handbook b { font: 800 21px/.95 var(--f-display); }
+.cover.journal { aspect-ratio: 133 / 216; background: linear-gradient(160deg, #6c472b, #4a301d); }
+.cover.journal::after { content: ""; position: absolute; top: 0; bottom: 0; right: 9%; width: 6%; background: #24170d; box-shadow: -3px 0 6px rgba(0, 0, 0, .4); }
+.cover.journal i { font: italic 400 10px/1 var(--f-display); margin-bottom: 4px; }
+.cover.journal b { font: 650 17px/1 var(--f-display); }
+
+/* comparison */
+.compare { display: grid; gap: 14px; }
+.table-wrap { overflow-x: auto; border-radius: 14px; border: 1px solid var(--line); }
+table { width: 100%; min-width: 620px; border-collapse: collapse; }
+th, td { text-align: left; vertical-align: top; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+thead th { font: 650 16px/1.2 var(--f-display); background: var(--panel-2); }
+tbody th { width: 150px; font-weight: 600; font-size: 14px; color: var(--muted); }
+tbody tr:last-child > * { border-bottom: 0; }
+td { color: #e9e0cc; }
+
+/* decisions */
+.asks { display: grid; gap: 14px; }
+.asks ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; counter-reset: q; }
+.asks li { counter-increment: q; display: grid; grid-template-columns: 34px 1fr; gap: 12px; padding: 16px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); }
+.asks li::before { content: counter(q); display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--panel-2); color: var(--copper); font: 700 17px/1 var(--f-display); }
+.asks li div { display: grid; gap: 4px; min-width: 0; }
+.asks b { font-family: var(--f-display); font-size: 18px; font-weight: 650; }
+.asks p { color: #ddd3bd; }
+.next { color: var(--muted); max-width: 680px; }
+@media (max-width: 420px) {
+  .head { grid-template-columns: 84px 1fr; gap: 14px; }
+  .cover { width: 84px; }
+  .facts div { grid-template-columns: 1fr; gap: 2px; }
+}
+</style>
+
+<div class="wrap">
+  <header class="brief">
+    <p class="eyebrow">Hearthfolk · the book you wash up with</p>
+    <h1>Two ways to make the survival book</h1>
+    <p class="lede">The book is in the game from the first minute: its pages are your goals, in order. It also has to work as a real printed book, maybe as a Kickstarter reward. Two designers each made one direction, and each was reviewed for phone readability and for print, then polished. Open both, then tell me which one, or which parts of each.</p>
+  </header>
+
+  <section class="books" aria-label="The two directions">
+    <article class="book">
+      <div class="head">
+        <div class="cover handbook" aria-hidden="true"><small>Field Series · No. 7</small><b>Making<br>Do</b></div>
+        <div>
+          <p class="tag">Direction A · the printed handbook</p>
+          <h3>Making Do</h3>
+          <p class="pitch">A pocket field manual from a made-up publisher. Numbered chapters, tidy diagrams with lettered parts, a rule in a box on every spread, and the jokes kept in the footnotes.</p>
+        </div>
+      </div>
+      <p class="voice">"The publishers accept no responsibility for waterfalls."<small>Small print on the contents page</small></p>
+      <dl class="facts">
+        <div><dt>Each goal</dt><dd>One spread. Left: the job, what you need and steps to tick. Right: a lettered figure, the rule, a footnote.</dd></div>
+        <div><dt>Feel</dt><dd>Clean, calm and easy to follow. No characters; the book is the guide.</dd></div>
+        <div><dt>In the game</dt><dd>One page per screen in clear print at 16 px. Long pages split into a second screen. Pages ahead are stuck together until you reach them.</dd></div>
+        <div><dt>Printing</dt><dd>Softcover, 64 pages, two inks. The cheaper of the two to make.</dd></div>
+      </dl>
+      <a class="open" href="handbook/index.html">Open Making Do
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 4.5L13 10l-5.5 5.5"/></svg></a>
+    </article>
+
+    <article class="book">
+      <div class="head">
+        <div class="cover journal" aria-hidden="true"><i>A Field Guide to</i><b>Having<br>Nothing</b></div>
+        <div>
+          <p class="tag">Direction B · the field journal</p>
+          <h3>A Field Guide to Having Nothing</h3>
+          <p class="pitch">Ida Fenn's leather notebook. She went over the same falls years ago and wrote down how she got by. She gave it to her grandson, your character. Her ink is the guide; his pencil notes appear as you finish pages.</p>
+        </div>
+      </div>
+      <p class="voice">"Day nine. A fire, a roof, an axe, a pick and a box. That's not nothing, Nan."<small>His pencil note when page 7 is done</small></p>
+      <dl class="facts">
+        <div><dt>Each goal</dt><dd>One spread. Left: Ida's entry with boxes to tick and who taught her. Right: her pencil sketch, sometimes with a note taped in.</dd></div>
+        <div><dt>Feel</dt><dd>Personal and full of story. It brings people with it: Os the charcoal burner, Gret the miner, who could turn up later in the game.</dd></div>
+        <div><dt>In the game</dt><dd>One page per screen in handwriting at 22 px. Tap a sketch to see it big. An easy-read setting swaps the handwriting for print.</dd></div>
+        <div><dt>Printing</dt><dd>Hardcover notebook, 96 pages, full colour, elastic band and ribbon. Dearer to make, and more of a keepsake.</dd></div>
+      </dl>
+      <a class="open" href="journal/index.html">Open the field journal
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 4.5L13 10l-5.5 5.5"/></svg></a>
+    </article>
+  </section>
+
+  <section class="compare">
+    <h2>Side by side</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col"></th><th scope="col">Making Do</th><th scope="col">The field journal</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Size</th><td>120 × 180 mm, jacket-pocket size</td><td>130 × 210 mm, a large pocket notebook</td></tr>
+          <tr><th scope="row">Pages</th><td>64: 24 chapters, notes, index</td><td>96: 40 entries, notes, a map inside each cover</td></tr>
+          <tr><th scope="row">Cover</th><td>Green card with a copper foil title and a printed water stain</td><td>Tan leather-look hardcover, copper foil, band and ribbon</td></tr>
+          <tr><th scope="row">Inside</th><td>Black and one copper-rust ink on cream paper</td><td>Full colour on cream paper: ink, pencil, tape, stains</td></tr>
+          <tr><th scope="row">Voice</th><td>A dry, helpful publisher</td><td>A grandmother, her grandson and her teachers</td></tr>
+          <tr><th scope="row">Pictures</th><td>Clean diagrams with lettered parts</td><td>Pencil sketches, to be redrawn by an illustrator for print</td></tr>
+          <tr><th scope="row">Reading on a phone</th><td>Easiest: print type at 16 px</td><td>Handwriting, sized up to read like 15 px; easy-read option</td></tr>
+          <tr><th scope="row">Adds to the game</th><td>A tidy, neutral guide</td><td>A backstory and characters to meet later</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="asks">
+    <h2>Two things both books ask of the game</h2>
+    <ol>
+      <li><div><b>Seven planks, not six</b><p>Both books count 7 planks: 5 loose and 2 from the smashed crate, which is exactly what lies on the shore. 3 go into the fire and 4 into the shelter. The game's first goal asks for 6 right now. I'd change it to 7.</p></div></li>
+      <li><div><b>What the fire burns</b><p>They disagree here. Making Do has you put 10 logs on the fire. The journal says the fire runs on deadwood he picks up without being asked, so your logs go into the shelter instead. This is the open question about who feeds the fire.</p></div></li>
+    </ol>
+    <p class="next">Next, once you've picked: the book goes into the game (chunk B). It opens when you pick it up on the shore, and its pages become the goal card.</p>
+  </section>
+</div>

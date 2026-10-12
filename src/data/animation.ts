@@ -1,12 +1,13 @@
 // Timings baked into assets/models/miner.glb by assets-src/export_miner_glb.py (see assets/models/miner.json).
 // The simulation uses them so a swing's strike lands exactly when the animation's tool meets the rock or trunk.
 import meta from '../../assets/models/miner.json';
-import type { SkillId } from './skills';
+import type { SkillId, ToolId } from './skills';
 
-/** How a skill's swing looks and lands: the clip in miner.glb and the tool in hand, the length of one swing and the
- *  moment in it the tool strikes (seconds), and where to stand: `reach` metres from the centre of a node whose
- *  radius is `refRadius`, further back from bigger nodes (thicker trunks). */
-export interface Swing { clip: string; tool: 'pick' | 'axe'; cycle: number; impact: number; reach: number; refRadius: number }
+/** How a skill's swing looks and lands: the clip in miner.glb and the tool in hand (which he must own to work this
+ *  skill at all), the length of one swing and the moment in it the tool strikes (seconds), and where to stand:
+ *  `reach` metres from the centre of a node whose radius is `refRadius`, further back from bigger nodes (thicker
+ *  trunks). */
+export interface Swing { clip: string; tool: ToolId; cycle: number; impact: number; reach: number; refRadius: number }
 
 export const SWINGS: Record<SkillId, Swing> = {
   // every rock has radius 0.95 in the layout; the reach was measured on the rock model itself

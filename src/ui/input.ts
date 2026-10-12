@@ -1,17 +1,25 @@
-// Taps and drags on the scene: a tap sends a command (walk here, work this rock or tree, visit this building or land);
-// a drag turns the camera. Wheel and pinch zoom. Arrow keys turn the camera too.
+// Taps and drags on the scene: a tap sends a command (walk here, work this rock or tree, visit this building or land,
+// pick this up); a drag turns the camera. Wheel and pinch zoom. Arrow keys turn the camera too.
 import * as THREE from 'three';
 import type { View } from '../render/view';
 import type { Command } from '../systems/commands';
 import type { Layout } from '../world/layout';
 import { RESOURCES, SKILLS } from '../data/skills';
+import { PICKUPS } from '../data/pickups';
 
 type Target =
   | { kind: 'node'; id: string; point: THREE.Vector3 }
+  | { kind: 'pickup'; id: string; point: THREE.Vector3 }
   | { kind: 'building'; id: string; point: THREE.Vector3 }
   | { kind: 'parcel'; id: string; point: THREE.Vector3 }
   | { kind: 'ground'; point: THREE.Vector3 }
   | null;
+
+/** Whether an object is drawn: it and every parent visible. */
+function shown(o: THREE.Object3D | null): boolean {
+  for (; o; o = o.parent) if (!o.visible) return false;
+  return true;
+}
 
 export function bindInput(view: View, layout: Layout, queue: Command[], onHover: (label: string | null) => void): void {
   const el = view.renderer.domElement;
@@ -23,7 +31,8 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
     const b = el.getBoundingClientRect();
     ndc.set((e.clientX - b.left) / b.width * 2 - 1, -(e.clientY - b.top) / b.height * 2 + 1);
     ray.setFromCamera(ndc, view.cam.camera);
-    const hit = ray.intersectObjects(view.pickables, false)[0];
+    // something already picked up is hidden, but still in the scene: it can't be tapped
+    const hit = ray.intersectObjects(view.pickables, false).find(h => !h.object.userData.pickupId || shown(h.object));
     const ground = ray.intersectObjects(view.ground, false)[0];
     if (hit && (!ground || hit.distance <= ground.distance + 0.01)) {
       const u = hit.object.userData;
@@ -33,6 +42,7 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
         if (spot?.parcel) return { kind: 'parcel', id: spot.parcel, point: hit.point };
         return { kind: 'node', id: u.nodeId, point: hit.point };
       }
+      if (u.pickupId) return { kind: 'pickup', id: u.pickupId, point: hit.point };
       if (u.buildingId) return { kind: 'building', id: u.buildingId, point: hit.point };
       if (u.parcelId) return { kind: 'parcel', id: u.parcelId, point: hit.point };
     }
@@ -45,6 +55,7 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
       const res = RESOURCES[layout.nodes.find(n => n.id === t.id)!.resource]!;
       return `${SKILLS[res.skill].verb}|${res.name}`;
     }
+    if (t.kind === 'pickup') return `Pick up|${PICKUPS[layout.pickups!.find(p => p.id === t.id)!.kind].name}`;
     if (t.kind === 'building') return `Visit|${layout.buildings.find(b => b.id === t.id)!.name}`;
     return `Explore|${layout.parcels.find(p => p.id === t.id)!.name}`;
   }
@@ -80,6 +91,7 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
     if (!t) return;
     const at = { x: t.point.x, z: t.point.z };
     if (t.kind === 'node') { view.showMarker(t.point, true); queue.push({ type: 'work', nodeId: t.id }); }
+    else if (t.kind === 'pickup') { view.showMarker(t.point, true); queue.push({ type: 'pickup', id: t.id }); }
     else if (t.kind === 'building') { view.showMarker(t.point, true); queue.push({ type: 'visit', id: t.id }); }
     else if (t.kind === 'parcel') { view.showMarker(t.point, true); queue.push({ type: 'visit', id: t.id, at }); }
     else { view.showMarker(t.point, false); queue.push({ type: 'walk', to: at }); }
