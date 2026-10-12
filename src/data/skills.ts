@@ -72,6 +72,8 @@ export const ITEMS: Record<string, ItemDef> = {
   raw_fish: { id: 'raw_fish', name: 'Raw fish', value: 2 },
   cooked_fish: { id: 'cooked_fish', name: 'Cooked fish', value: 4 },
   burnt_fish: { id: 'burnt_fish', name: 'Burnt fish', value: 0 },
+  // chapter 2, part 2: rats in the woods leave their hides, which hide armour is made from
+  rat_hide: { id: 'rat_hide', name: 'Rat hides', one: 'Rat hide', value: 1 },
 };
 
 /** The tools a skill's swing needs (SWINGS in data/animation). He owns each or not (GameState.tools): a new camp game
