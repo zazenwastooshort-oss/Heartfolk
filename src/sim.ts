@@ -13,6 +13,7 @@ import { updatePickups } from './systems/pickups';
 import { updateMaking } from './systems/making';
 import { updateGoals } from './systems/goals';
 import { updateFire } from './systems/fire';
+import { updateCooking } from './systems/cooking';
 import { closedFor, emptySummary, openFor, tally, type Away, type AwaySummary } from './systems/away';
 
 export interface SimContext { layout: Layout; rng: Rng; events: EventBus }
@@ -28,8 +29,10 @@ export function step(state: GameState, dt: number, ctx: SimContext): void {
   // the camp's fire at night: at nightfall he leaves what he is doing to stoke it (hauling waits meanwhile); reaching
   // the chest for logs is stoking's to see to, so hauling doesn't empty the backpack there again in the same step
   const stoking = ctx.layout.camp ? updateFire(state, ctx.layout, visited, ctx.events) : false;
+  // cooking at the campfire (chapter 2): reaching the chest for raw fish is cooking's to see to, as for stoking
+  const cooking = ctx.layout.camp ? updateCooking(state, ctx.layout, stoking ? null : visited, ctx.rng, ctx.events) : false;
   // after gathering, so the item that fills the backpack sends him to the bank (the chest) in the same step
-  updateHauling(state, ctx.layout, stoking ? null : visited, ctx.events);
+  updateHauling(state, ctx.layout, stoking || cooking ? null : visited, ctx.events);
 }
 
 /** Catch up `seconds` of play in whole steps, one after another with nothing drawn in between: time the tab spent in

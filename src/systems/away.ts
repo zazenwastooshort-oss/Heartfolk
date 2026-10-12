@@ -78,6 +78,8 @@ export interface AwaySummary {
   made: MakeId[];
   /** his backpack filled with nowhere to store it, so he stopped */
   full: boolean;
+  /** fish he cooked at the campfire (chapter 2), and how many of them burnt; left out until he cooks one */
+  cooked?: number; burnt?: number;
 }
 
 export const emptySummary = (): AwaySummary => ({ items: {}, xp: {}, levels: {}, stoked: 0, fireLow: 0, made: [], full: false });
@@ -93,6 +95,7 @@ export function tally(s: AwaySummary, e: GameEvent): void {
     case 'fireLow': s.fireLow++; break;
     case 'made': s.made.push(e.make); break;
     case 'noStorage': s.full = true; break;
+    case 'cooked': s.cooked = (s.cooked ?? 0) + 1; if (e.burnt) s.burnt = (s.burnt ?? 0) + 1; break;
     default: break;
   }
 }
@@ -107,11 +110,14 @@ export function addSummary(into: AwaySummary, more: AwaySummary): void {
   into.fireLow += more.fireLow;
   into.made.push(...more.made);
   into.full ||= more.full;
+  if (more.cooked) into.cooked = (into.cooked ?? 0) + more.cooked;
+  if (more.burnt) into.burnt = (into.burnt ?? 0) + more.burnt;
 }
 
-/** Whether he did anything worth telling: gathered something, gained XP, saw to the fire or finished making something. */
+/** Whether he did anything worth telling: gathered something, gained XP, saw to the fire, finished making something or
+ *  cooked something. */
 export const didSomething = (s: AwaySummary) =>
-  Object.keys(s.items).length > 0 || Object.keys(s.xp).length > 0 || s.stoked > 0 || s.fireLow > 0 || s.made.length > 0;
+  Object.keys(s.items).length > 0 || Object.keys(s.xp).length > 0 || s.stoked > 0 || s.fireLow > 0 || s.made.length > 0 || !!s.cooked;
 
 /** Whether the "While you were away" note shows: at least a minute of play (AWAY.note) was caught up, and he did
  *  something in it. */

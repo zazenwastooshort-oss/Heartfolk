@@ -2,12 +2,13 @@
 // paths are straight lines between corners. Buildings, fenced gardens, rocks, tree trunks, the hearth (when one
 // stands there), what he has built (GameState.built: the campfire, round, and the tent, by its own shape), lantern
 // posts, props (the well, benches, crates), the water (the river and the pool below the falls, one shape:
-// world/water.ts), the bigger rocks at the foot of the camp's wall (world/falls.ts) and the wreck's debris block;
-// things lying on the ground to pick up, and rubble, don't. The forest and land not yet claimed lie outside the
-// walkable area.
+// world/water.ts), the bigger rocks at the foot of the camp's wall (world/falls.ts), the wreck's debris and (chapter 2)
+// the berry bushes block; things lying on the ground to pick up, and rubble, don't. The forest and land not yet claimed
+// lie outside the walkable area.
 import type { Area, Layout, Site, Vec2 } from './layout';
 import { inArea, siteOf } from './layout';
 import { makeDef } from '../data/making';
+import { PICKUPS } from '../data/pickups';
 import { waterOf } from './water';
 import { BLOCKING, footOf } from './falls';
 
@@ -47,6 +48,8 @@ export class NavGrid {
       ...layout.nodes.map(n => [n.pos, n.radius * 0.8] as [Vec2, number]),
       ...layout.trees.map(t => [t.pos, (t.kind === 'oak' ? 0.4 : 0.3) * t.size] as [Vec2, number]),
       ...layout.bushes.map(b => [b, 0.45] as [Vec2, number]),
+      // the berry bushes (chapter 2): growing there, picked or not
+      ...(layout.pickups ?? []).flatMap(x => { const plant = PICKUPS[x.kind].plant; return plant ? [[x.pos, plant.radius] as [Vec2, number]] : []; }),
       ...layout.lanterns.map(l => [l, 0.2] as [Vec2, number]),
       ...layout.props.map(p => [p.pos, p.radius] as [Vec2, number]),
       // at the camp: the wreck's ribs at the water's edge, and the rocks fallen at the foot of the wall

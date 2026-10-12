@@ -6,11 +6,13 @@
 // the one that comes back soonest and waits beside it. With no room for the next one, systems/hauling takes over:
 // to the bank and back, or, with nowhere to store it (the camp), he stops. The torn tarp and the book are picked up
 // on their own. Since 0.0.21 gathering also stops once the camp's current goal has enough of what he gathers
-// (goalHasEnough in core/state), so the backpack doesn't fill with more than it needs.
+// (goalHasEnough in core/state), so the backpack doesn't fill with more than it needs. The berry bushes (chapter 2)
+// are gathered the same way: picking one takes its berries and leaves it standing, bare until they grow back, and a
+// tap on a bare one sends him to wait beside it.
 import { goalHasEnough, type GameState } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Layout } from '../world/layout';
-import { PICKUPS, PICKUP_PAUSE, type GatherId } from '../data/pickups';
+import { PICKUPS, pauseFor, type GatherId } from '../data/pickups';
 import { BACKPACK_SLOTS } from '../data/hauling';
 import { goPickup } from '../actors/player';
 import { backpackCount } from './backpack';
@@ -18,6 +20,13 @@ import { backpackCount } from './backpack';
 /** Whether the pickup `id` is lying on the ground (it exists and isn't taken). */
 export const onGround = (state: GameState, layout: Layout, id: string) =>
   !!layout.pickups?.some(x => x.id === id) && !(id in state.taken);
+
+/** Whether a tap on the pickup `id` sends him to it: it is lying there, or it is a plant (a berry bush) picked bare,
+ *  which he waits beside until its fruit grows back. */
+export function tappable(state: GameState, layout: Layout, id: string): boolean {
+  const spot = layout.pickups?.find(x => x.id === id);
+  return !!spot && (!(id in state.taken) || (!!PICKUPS[spot.kind].plant && typeof state.taken[id] === 'number'));
+}
 
 /** The group tapping the pickup `id` gathers (GATHERS), or null for one picked up on its own (or one that isn't there). */
 export function gatherOf(layout: Layout, id: string): GatherId | null {
@@ -69,7 +78,7 @@ export function updatePickups(state: GameState, layout: Layout, events: EventBus
   if (!onGround(state, layout, spot.id)) {
     // beside a stone or branch that isn't back yet: he waits, and picks it up a moment after it lies there again
     const back = state.taken[spot.id];
-    if (typeof back === 'number') { task.doneAt = back + PICKUP_PAUSE; return; }
+    if (typeof back === 'number') { task.doneAt = back + pauseFor(spot.kind); return; }
     p.task = { kind: 'idle' };
     if (def.gather) keepGathering(state, layout, def.gather, def.gives === 'book' ? null : def.gives.item, events);
     return;

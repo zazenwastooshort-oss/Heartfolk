@@ -6,13 +6,18 @@ import type { GatherSkill, ToolId } from './skills';
 /** How a skill's swing looks and lands: the clip in miner.glb and the tool in hand (which he must own to work this
  *  skill at all), the length of one swing and the moment in it the tool strikes (seconds), and where to stand:
  *  `reach` metres from the centre of a node whose radius is `refRadius`, further back from bigger nodes (thicker
- *  trunks). */
-export interface Swing { clip: string; tool: ToolId; cycle: number; impact: number; reach: number; refRadius: number }
+ *  trunks). `steady` (fishing, chapter 2): the tool is held still rather than swung, so the clip plays at its own pace
+ *  instead of being driven by the swing; each `cycle` the float bobs under at `impact` (a bite), which lands a fish as
+ *  often as a strike yields an item. */
+export interface Swing { clip: string; tool: ToolId; cycle: number; impact: number; reach: number; refRadius: number; steady?: boolean }
 
 export const SWINGS: Record<GatherSkill, Swing> = {
   // every rock has radius 0.95 in the layout; the reach was measured on the rock model itself
   mining: { clip: 'Mine', tool: 'pick', cycle: meta.mine_cycle_s, impact: meta.mine_impact_s, reach: meta.reach_m, refRadius: 0.95 },
   woodcutting: { clip: 'Chop', tool: 'axe', cycle: meta.chop_cycle_s, impact: meta.chop_impact_s, reach: meta.chop_reach_m, refRadius: meta.chop_trunk_m },
+  // chapter 2: the rod held out over the water in the armed Idle pose (a placeholder until there is a clip for it), from
+  // the bank: he stands `reach` from a spot's middle (radius 0.4, out in the water), never in the water itself
+  fishing: { clip: 'Idle', tool: 'rod', cycle: 3, impact: 2.2, reach: 2.3, refRadius: 0.4, steady: true },
 };
 
 /** How the character gets about: `speed` metres a second on the ground (doubled from walking pace at the owner's

@@ -56,6 +56,12 @@ export type GameEvent =
   | { type: 'ate'; item: string; healed: number; health: number }
   /** asked to eat `item`: it isn't food ('notFood'), he carries none ('none'), or his health is full ('full') */
   | { type: 'cantEat'; item: string; reason: 'notFood' | 'none' | 'full' }
+  /** a fish came off the campfire (chapter 2, systems/cooking.ts): cooked (Cooking XP), or `burnt` */
+  | { type: 'cooked'; burnt: boolean }
+  /** asked to cook with no raw fish in the backpack or the chest: he stays put */
+  | { type: 'cantCook' }
+  /** cooking, he has cooked every raw fish he had, carried or in the chest, so he stops */
+  | { type: 'cookedAll' }
   | { type: 'arrived' };
 
 type Handler = (e: GameEvent) => void;

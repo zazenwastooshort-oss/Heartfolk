@@ -8,7 +8,7 @@ import { doorOf, siteOf } from '../world/layout';
 import { navFor, type NavGrid } from '../world/nav';
 import { GAIT, SWINGS } from '../data/animation';
 import { RESOURCES } from '../data/skills';
-import { PICKUP_PAUSE } from '../data/pickups';
+import { pauseFor } from '../data/pickups';
 import { BUILD_REACH, MAKES, makeDef, type MakeId } from '../data/making';
 
 export const WALK_SPEED = GAIT.speed;  // m/s
@@ -149,7 +149,10 @@ export function updatePlayer(state: GameState, layout: Layout, dt: number, event
         const pending = p.pending; p.pending = null;
         events.emit({ type: 'arrived' });
         if (pending?.kind === 'node') p.task = { kind: 'gather', nodeId: pending.id, progress: 0 };
-        else if (pending?.kind === 'pickup') p.task = { kind: 'pickup', id: pending.id, doneAt: state.time + PICKUP_PAUSE };
+        else if (pending?.kind === 'pickup') {
+          const kind = layout.pickups?.find(x => x.id === pending.id)?.kind;
+          p.task = { kind: 'pickup', id: pending.id, doneAt: state.time + (kind ? pauseFor(kind) : 0) };
+        }
         else if (pending?.kind === 'make') p.task = { kind: 'make', id: pending.id, doneAt: state.time + MAKES[pending.id].time };
         else {
           p.task = { kind: 'idle' };
@@ -164,8 +167,8 @@ export function updatePlayer(state: GameState, layout: Layout, dt: number, event
     } else {
       p.pos = { x: p.pos.x + d.x / dist * step, z: p.pos.z + d.z / dist * step };
     }
-  } else if (p.task.kind === 'gather' || p.task.kind === 'pickup' || p.task.kind === 'make' || p.task.kind === 'stoke') {
-    // face what he works, picks up, builds or stokes
+  } else if (p.task.kind === 'gather' || p.task.kind === 'pickup' || p.task.kind === 'make' || p.task.kind === 'stoke' || p.task.kind === 'cook') {
+    // face what he works, picks up, builds, stokes or cooks at
     const task = p.task;
     const at = task.kind === 'gather' ? layout.nodes.find(n => n.id === task.nodeId)?.pos
       : task.kind === 'pickup' ? layout.pickups?.find(x => x.id === task.id)?.pos

@@ -46,6 +46,7 @@ export class NodesView {
     });
     for (const spot of layout.nodes) {
       const res = RESOURCES[spot.resource]!;
+      if (res.model === 'Ripples') continue;          // fishing spots are render/fishing.ts's (chapter 2)
       const turn = (spot.pos.x * 1.7 + spot.pos.z) % (Math.PI * 2);
       if (res.model === 'Rock') {
         const root = rock.clone(true); root.position.set(spot.pos.x, 0, spot.pos.z); root.rotation.y = turn;

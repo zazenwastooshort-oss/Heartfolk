@@ -8,10 +8,11 @@ import { RESOURCES } from '../data/skills';
 import { SWINGS } from '../data/animation';
 import { makeDef, type MakeId } from '../data/making';
 import { levelOf } from './skills';
-import { gatherOf, onGround, roomFor } from './pickups';
+import { gatherOf, roomFor, tappable } from './pickups';
 import { drop, isStore, stopStoking, stores } from './backpack';
 import { canMake, missingFor } from './making';
 import { eat } from './food';
+import { canCook, fishToCook, goCook } from './cooking';
 
 export type Command =
   | { type: 'walk'; to: Vec2 }
@@ -28,7 +29,11 @@ export type Command =
    *  the one that makes it still to finish, or without everything it needs, he says so and stays put. */
   | { type: 'make'; id: MakeId }
   /** eat one of an item from the backpack (chapter 2, 0.0.22): food heals him; nothing else stops */
-  | { type: 'eat'; item: string };
+  | { type: 'eat'; item: string }
+  /** cook at the campfire (chapter 2, a tap on it once it stands): he cooks his raw fish one after another, fetching
+   *  them from the chest when he carries none; with none anywhere he says so and stays put, or before he owns a rod,
+   *  walks beside the fire */
+  | { type: 'cook' };
 
 export const isClaimed = (state: GameState, parcelId: string | undefined) => !parcelId || !!state.parcels[parcelId]?.claimed;
 
@@ -42,7 +47,8 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     if (c.type === 'walk') ok = walkTo(state, layout, c.to);
     else if (c.type === 'visit') ok = goVisit(state, layout, c.id, c.at);
     else if (c.type === 'pickup') {
-      if (!onGround(state, layout, c.id)) continue;
+      // lying there (or a berry bush picked bare: he goes to wait beside it)
+      if (!tappable(state, layout, c.id)) continue;
       // no room for it: where there is a bank (or the camp's chest), gathering starts with a trip to empty the
       // backpack (systems/hauling), as working a tree does; otherwise he says so and stays put
       const toBankFirst = !!gatherOf(layout, c.id) && stores(state, layout).length > 0;
@@ -58,6 +64,15 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
       const missing = missingFor(state, def);
       if (Object.keys(missing).length) { events.emit({ type: 'missing', make: def.id, items: missing }); continue; }
       ok = goMake(state, layout, def.id);
+    } else if (c.type === 'cook') {
+      // no campfire here, or already cooking: nothing to do
+      if (!canCook(state, layout) || state.player.cook) continue;
+      // no raw fish anywhere: with a rod to catch some he says so and stays put; before he has one, a tap on the fire
+      // only walks him beside it, as it did before there was cooking
+      if (!fishToCook(state, layout)) {
+        if (state.tools.rod) { events.emit({ type: 'cantCook' }); continue; }
+        ok = goVisit(state, layout, 'campfire');
+      } else ok = goCook(state, layout);
     } else {
       const spot = layout.nodes.find(n => n.id === c.nodeId);
       const res = spot && RESOURCES[spot.resource];
@@ -77,6 +92,7 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     // there for the logs sends him where he was going: at the chest he empties the backpack too, and stokes on.
     const toStore = c.type === 'visit' && isStore(state, layout, c.id), stoke = state.player.stoke;
     if (!toStore) state.player.trip = null;
+    if (c.type !== 'cook') state.player.cook = null;      // any other command stops cooking (chapter 2)
     if (stoke && stoke.logs === 0 && c.type === 'visit' && c.id === stoke.from) { if (c.id === 'chest') stoke.empty = true; }
     else if (stoke) { stopStoking(state); if (isNight(state.time)) state.stokeAgain = true; }
   }

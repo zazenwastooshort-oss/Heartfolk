@@ -25,7 +25,8 @@ const worked = (a: Away) => `worked ${a.counted < a.real ? `for ${duration(a.cou
 
 /** The note's words: a lead saying how long you were away and how much of it he worked (`spans`: one stretch, or more
  *  when a later catch-up came while the note was still up), then a line each for what he gathered, each skill's XP (and
- *  the level it reached), the fire, what he finished making, and a backpack that filled with nowhere to store it. */
+ *  the level it reached), the fire, the fish he cooked, what he finished making, and a backpack that filled with nowhere
+ *  to store it. */
 export function awayText(spans: Away[], s: AwaySummary): { lead: string; lines: string[] } {
   const lead = spans.map((a, i) => i > 0 ? `Then ${duration(a.real)} more${a.open ? ' with the game open' : ''}, and he ${worked(a)}.`
     : `Away ${duration(a.real)}. ${a.open ? `The game was still open, so he ${worked(a)}.` : `He ${worked(a)}.`}`).join(' ');
@@ -38,9 +39,18 @@ export function awayText(spans: Away[], s: AwaySummary): { lead: string; lines: 
   }
   if (s.stoked) lines.push(s.stoked === 1 ? 'He stoked the fire at nightfall.' : `He stoked the fire on ${s.stoked} nights.`);
   if (s.fireLow) lines.push(s.fireLow === 1 ? 'One night there were no logs, so the fire burned low.' : `On ${s.fireLow} nights there were no logs, so the fire burned low.`);
+  if (s.cooked) lines.push(cookedText(s.cooked, s.burnt ?? 0));
   for (const id of s.made) lines.push(`He finished the ${MAKES[id].name.toLowerCase()}.`);
   if (s.full) lines.push('Then his backpack was full, with nowhere to store it.');
   return { lead, lines };
+}
+
+/** The fish he cooked, `burnt` of them burnt: "He cooked 6 fish, 2 of them burnt." */
+function cookedText(fish: number, burnt: number): string {
+  const n = fish === 1 ? 'a fish' : `${fish.toLocaleString()} fish`;
+  if (!burnt) return `He cooked ${n}.`;
+  if (burnt === fish) return `He cooked ${n}, but ${fish === 1 ? 'it' : 'they all'} burnt.`;
+  return `He cooked ${n}, ${burnt.toLocaleString()} of them burnt.`;
 }
 
 export class AwayNote {

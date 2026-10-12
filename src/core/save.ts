@@ -1,5 +1,5 @@
 // Saving: versioned JSON with a migration for every format change, so an update never wipes a village.
-import { SAVE_VERSION, createState, made, maxHealth, type Back, type GameState, type Stoke } from './state';
+import { SAVE_VERSION, createState, made, maxHealth, type Back, type Cook, type GameState, type Stoke } from './state';
 import { siteOf, type Layout } from '../world/layout';
 import { navFor } from '../world/nav';
 import { ITEMS, SKILLS, TOOL_IDS, type SkillId, type ToolId } from '../data/skills';
@@ -134,6 +134,7 @@ function savedBack(v: unknown, state: GameState, layout: Layout): Back | null {
   if (typeof v.nodeId === 'string') return v.nodeId in state.nodes ? { nodeId: v.nodeId } : null;
   if (typeof v.pickupId === 'string') return (layout.pickups ?? []).some(x => x.id === v.pickupId) ? { pickupId: v.pickupId } : null;
   if (typeof v.make === 'string') return makeable(state, layout, v.make) ? { make: v.make as MakeId } : null;
+  if (v.cook === true) return savedCook({ fetch: false }, state, layout) ? { cook: true } : null;
   const to = v.to as { x?: unknown; z?: unknown } | undefined;
   if (isRecord(to) && Number.isFinite(to.x) && Number.isFinite(to.z)) return { to: { x: to.x as number, z: to.z as number } };
   return null;
@@ -151,6 +152,15 @@ function savedStoke(v: unknown, state: GameState, layout: Layout): Stoke | null 
   const logs = Number.isSafeInteger(v.logs) && (v.logs as number) > 0 ? Math.min(v.logs as number, STOKE.logs) : 0;
   if (!from && !logs) return null;
   return { back: savedBack(v.back, state, layout), logs, empty: v.empty === true && from === 'chest', from };
+}
+
+/** Cooking at the campfire (chapter 2), as saved: only where the campfire stands, and fetching raw fish only from a
+ *  chest that stands. Anything else is null. */
+function savedCook(v: unknown, state: GameState, layout: Layout): Cook | null {
+  const has = (id: 'campfire' | 'chest', site: 'hearth' | 'chest') => state.built.includes(id) && !!siteOf(layout, site);
+  if (!isRecord(v) || !has('campfire', 'hearth')) return null;
+  const fetch = v.fetch === true;
+  return fetch && !has('chest', 'chest') ? null : { fetch };
 }
 
 /** Whether `id` can be made here at all (data/making.ts): it exists, its site is in this layout, and it isn't made
@@ -240,6 +250,12 @@ export function readSave(raw: string, layout: Layout): Loaded {
   }
   if (p.task.kind === 'stoke' && !p.stoke) p.task = { kind: 'idle' };
   if (p.stoke) p.trip = null;
+  // cooking at the campfire (chapter 2) carries on only on the way to the chest for raw fish, on the way to the fire,
+  // or cooking (with a time the fish is done), and never alongside stoking; otherwise it stops. A cook task needs it.
+  const cook = p.stoke ? null : savedCook(p.cook, state, layout);
+  p.cook = cook && (p.task.kind === 'cook' ? !cook.fetch && Number.isFinite(p.task.doneAt) : goingTo === (cook.fetch ? 'chest' : 'campfire')) ? cook : null;
+  if (p.task.kind === 'cook' && !p.cook) p.task = { kind: 'idle' };
+  if (p.cook) p.trip = null;
   return { state, savedAt, closedAt };
 }
 

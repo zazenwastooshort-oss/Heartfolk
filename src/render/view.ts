@@ -5,7 +5,9 @@
 // tool is in his hands while he works and on his back otherwise, every walk included (toolInHand picks the armed or
 // the free clip), hidden for the moment it moves between the two. A tool he doesn't own is never drawn: with none he
 // plays the free clips with nothing on his back. Clips crossfade, and ArmIK puts the hands back on the handle after
-// every blend into an armed clip.
+// every blend into an armed clip. Since chapter 2: the berry bushes, the fishing spots, the rod he fishes with (held
+// only while he fishes, with the armed Idle clip, too long to carry on his back), its line and float, and a fish on a
+// stick over the campfire while he cooks.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import minerUrl from '../../assets/models/miner.glb?url';
@@ -26,10 +28,17 @@ import { FallsView } from './waterfall';
 import { NodesView } from './nodes';
 import { PickupsView } from './pickups';
 import { StructuresView } from './structures';
+import { BushesView } from './bushes';
+import { FishingView, rodModel } from './fishing';
+import { CookingView } from './cooking';
 import { ArmIK, armedWeight, toolInHand, toolInTransit } from './arms';
 
 /** While he builds something: a placeholder motion, bowing down to it and back up, `rate` bows a second. */
 const BUILD_BOW = { lean: 0.42, dip: 0.08, rate: 1.3 };
+/** Placeholders for chapter 2: picking a berry bush he bows into it like building, quicker and less deep; cooking he
+ *  leans in a little towards the fish over the fire. */
+const PICK_BOW = { rate: 1.8, lean: 0.3 };
+const COOK_LEAN = 0.18;
 
 /** The camp's tools are the stone axe and stone pickaxe he makes (data/making.ts): miner.glb's axe with its blade
  *  turned into a chunky grey stone (`thick` times as thick) and the iron block behind it into the lashing that ties it
@@ -96,6 +105,9 @@ export class View {
   private nodes?: NodesView;
   private pickups?: PickupsView;
   private structures?: StructuresView;
+  private bushes?: BushesView;
+  private fishing?: FishingView;
+  private cooking?: CookingView;
   private spots: Map<string, NodeSpot>;
   private miner?: THREE.Object3D;
   private tools?: Record<Tool, { parts: THREE.Object3D[]; tip: THREE.Object3D }>;
@@ -150,9 +162,13 @@ export class View {
       return o;
     };
     this.miner = find('Miner');
+    // the fishing rod (chapter 2), built in code, held at the same grips as the tools' handle
+    const rod = rodModel();
+    find('tool').add(rod.rod);
     this.tools = {
       pick: { parts: [find('pick_head'), find('pick_collar')], tip: find('PickTip') },
       axe: { parts: [find('axe_head'), find('axe_blade')], tip: find('AxeTip') },
+      rod: { parts: [rod.rod], tip: rod.tip },
     };
     this.handle = find('pick_handle');
     if (this.layout.camp) {
@@ -173,21 +189,26 @@ export class View {
     this.pickables.push(...this.pickups.pickables);
     this.structures = new StructuresView(this.scene, this.layout, village.scene);
     this.pickables.push(...this.structures.pickables);
+    this.bushes = new BushesView(this.scene, this.layout);
+    this.pickables.push(...this.bushes.pickables);
+    this.fishing = new FishingView(this.scene, this.layout);
+    this.pickables.push(...this.fishing.pickables);
+    this.cooking = new CookingView(this.scene, this.layout);
     this.scene.add(this.miner);
     this.arms = new ArmIK(this.miner);   // reads the rest pose, so before the mixer first runs
     this.mixer = new THREE.AnimationMixer(this.miner);
     for (const clip of gltf.animations) this.actions[clip.name] = this.mixer.clipAction(clip);
-    for (const s of Object.values(SWINGS)) this.actions[s.clip]!.timeScale = 0;   // the simulation drives each swing, so strikes line up
+    for (const s of Object.values(SWINGS)) if (!s.steady) this.actions[s.clip]!.timeScale = 0;   // the simulation drives each swing, so strikes line up
     for (const c of [GAIT.clip, GAIT.freeClip]) this.actions[c]!.timeScale = GAIT.speed / GAIT.clipSpeed;   // stride matched to the ground speed
     this.play(IDLE.freeClip, 0);
   }
 
-  /** Show the pick or the axe (in his hands or on his back, as the clip has it), or neither while it moves between
-   *  the two (toolInTransit), or none at all (null: he owns no tool). */
+  /** Show the pick or the axe (in his hands or on his back, as the clip has it), or the rod, or neither while it moves
+   *  between the two (toolInTransit), or none at all (null: he owns no tool). The rod has no part of the tools' handle. */
   private showTool(tool: Tool | null, hidden = this.toolHidden): void {
     if (!this.tools || !this.handle || (this.toolsSet && tool === this.tool && hidden === this.toolHidden)) return;
     for (const [name, t] of Object.entries(this.tools)) for (const part of t.parts) part.visible = !hidden && name === tool;
-    this.handle.visible = !hidden && tool !== null;
+    this.handle.visible = !hidden && tool !== null && tool !== 'rod';
     this.tool = tool; this.toolHidden = hidden; this.toolsSet = true;
   }
 
@@ -207,8 +228,9 @@ export class View {
     this.markerT = 0.45; this.marker.visible = true;
   }
 
-  /** The tool struck a node. Shown on the next frame, once, however many strikes arrive at once (catching up). */
-  strike(nodeId: string): void { this.strikeAt = nodeId; }
+  /** The tool struck a node (or a fish bit). Shown on the next frame, once, however many strikes arrive at once
+   *  (catching up). */
+  strike(nodeId: string): void { this.strikeAt = nodeId; this.fishing?.strike(nodeId); }
 
   /** World position of the character as currently drawn. */
   minerPos(): THREE.Vector3 { return this.shown.pos.clone(); }
@@ -227,20 +249,26 @@ export class View {
       const workId = task.kind === 'gather' ? task.nodeId : p.pending?.kind === 'node' ? p.pending.id : null;
       const spot = workId ? this.spots.get(workId) : undefined;
       const swing = spot ? SWINGS[RESOURCES[spot.resource]!.skill] : null;
-      // the tool for the job if he owns it, else the one he last had out, else any he owns, else none
+      // the tool for the job if he owns it, else the one he last had out, else any he owns, else none. The rod (chapter
+      // 2) only while he fishes: it is too long to carry on his back, so then he carries another tool, or none
       const owns = (t: Tool | null): t is Tool => t !== null && state.tools[t];
-      const tool = swing && owns(swing.tool) ? swing.tool : owns(this.tool) ? this.tool : TOOL_IDS.find(owns) ?? null;
+      const carries = (t: Tool | null): t is Tool => owns(t) && t !== 'rod';
+      const tool = swing?.tool === 'rod' && task.kind === 'gather' && owns('rod') ? 'rod'
+        : swing && carries(swing.tool) ? swing.tool : carries(this.tool) ? this.tool : TOOL_IDS.find(carries) ?? null;
       if (tool !== this.tool) this.showTool(tool);
       const waiting = task.kind === 'gather' && !!state.nodes[task.nodeId]?.depletedUntil;
       // in his hands only at work with the right tool; otherwise on his back (or he has none)
       const armed = tool !== null && toolInHand(p) && (!swing || swing.tool === tool);
       if (task.kind === 'walk') this.play(armed ? GAIT.clip : GAIT.freeClip);
-      else if (task.kind === 'gather' && !waiting && swing && armed) { this.play(swing.clip); this.actions[swing.clip]!.time = task.progress * swing.cycle; }
+      else if (task.kind === 'gather' && !waiting && swing && armed) { this.play(swing.clip); if (!swing.steady) this.actions[swing.clip]!.time = task.progress * swing.cycle; }
       else this.play(armed ? IDLE.clip : IDLE.freeClip);
       // building, or stoking the fire: he bows down to it and back up, over and over (a placeholder until there is a
       // clip for it)
       const bow = task.kind === 'make' || task.kind === 'stoke' ? Math.max(0, Math.sin(this.clock * Math.PI * 2 * BUILD_BOW.rate)) : 0;
-      this.miner.rotation.z = -bow * BUILD_BOW.lean;
+      // picking a ripe berry bush, he bows into it; cooking, he leans towards the fire (chapter 2 placeholders)
+      const bush = task.kind === 'pickup' && !(task.id in state.taken) && this.layout.pickups?.find(x => x.id === task.id)?.kind === 'bush';
+      const pick = bush ? Math.max(0, Math.sin(this.clock * Math.PI * 2 * PICK_BOW.rate)) * PICK_BOW.lean : 0;
+      this.miner.rotation.z = -bow * BUILD_BOW.lean - pick - (task.kind === 'cook' ? COOK_LEAN : 0);
       this.miner.position.y = -bow * BUILD_BOW.dip;
       this.mixer.update(dt);
       // a crossfade blends the arms apart from the tool: hands back on the handle (in armed clips only)
@@ -252,6 +280,10 @@ export class View {
     this.nodes?.update(state, dt, this.shown.pos);
     this.pickups?.update(state, this.clock, dt, this.cam.camera, this.lighting.night);
     this.structures?.update(state, this.clock, dt, this.lighting.night);
+    this.bushes?.update(state, this.clock, dt);
+    const rodTip = this.tool === 'rod' && !this.toolHidden && this.tools ? this.tools.rod.tip.getWorldPosition(new THREE.Vector3()) : null;
+    this.fishing?.update(state, this.clock, dt, rodTip, this.lighting.night);
+    this.cooking?.update(state);
     if (this.marker.visible) { this.markerT -= dt; this.marker.scale.setScalar(0.4 + this.markerT * 1.6); if (this.markerT <= 0) this.marker.visible = false; }
     this.cam.follow(this.shown.pos, Math.min(1, dt * 6));
     this.lighting.update(dayFraction(state.time), this.shown.pos, true, this.cam.dist);

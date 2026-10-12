@@ -8,15 +8,17 @@
 // into it (stack his logs on it). Since 0.0.19
 // the fire flares up while he stokes it and settles back after, and burns low (smaller flames, dimmer light) on a
 // night there were no logs, until it is stoked again (FIRE_LOOK in data/fire.ts). The firewood pile (0.0.21, built in
-// code) shows as many logs as it holds, and a tap on it stacks the logs he carries. Models from
+// code) shows as many logs as it holds, and a tap on it stacks the logs he carries. Since chapter 2 a tap on the built
+// campfire (userData.cookId) cooks the raw fish he has, once he owns a rod or has some. Models from
 // assets/models/village.glb: CampfireCold's stones and ash, the wreck's Plank, the village Hearth's flames, the Tent.
 // Reads state; never changes it.
 import * as THREE from 'three';
-import type { GameState } from '../core/state';
+import { owned, type GameState } from '../core/state';
 import type { Layout, Vec2 } from '../world/layout';
 import { siteOf } from '../world/layout';
 import { MAKES, type MakeDef, type MakeId } from '../data/making';
 import { FIRE_LOOK, WOODPILE } from '../data/fire';
+import { COOK } from '../data/cooking';
 
 const RING = { width: 0.08, gap: 0.12, segments: 48, color: 0xf1e8d4 };   // the ring round a site not built yet
 const PLAN_OPACITY = 0.3;          // how faint the outline inside it is
@@ -26,6 +28,8 @@ const SMOKE = { puffs: 7, life: 3.6, rise: 2.4, drift: 0.5 };            // the 
 interface Puff { sprite: THREE.Sprite; age: number }
 interface SiteView {
   def: MakeDef; pos: Vec2; plan: THREE.Group; fill: THREE.Mesh; hit: THREE.Mesh; storeHit: THREE.Mesh | null;
+  /** the campfire (chapter 2): its tap area, storeHit, cooks */
+  cook: boolean;
   model: THREE.Group; flames: THREE.Object3D[]; light: THREE.PointLight | null; smoke: Puff[];
   /** the firewood pile's logs, bottom row first: as many show as it holds */
   logs: THREE.Object3D[] | null;
@@ -61,7 +65,7 @@ export class StructuresView {
       if (def.gives.kind !== 'structure' || def.at === 'here' || !build) continue;
       const site = siteOf(layout, def.at);
       if (!site) continue;
-      const { model, flames, plan: outline, store, logs } = build(proto);
+      const { model, flames, plan: outline, store, cook, logs } = build(proto);
       // before it is built: a faint outline of it inside a ring on the ground, which fills up while he builds
       const plan = new THREE.Group(); plan.position.set(site.pos.x, 0, site.pos.z);
       outline.rotation.y = site.rot ?? 0;
@@ -74,11 +78,12 @@ export class StructuresView {
       const hit = new THREE.Mesh(new THREE.CylinderGeometry(inner + 0.25, inner + 0.25, 0.8, 12), new THREE.MeshBasicMaterial({ visible: false }));
       hit.position.set(site.pos.x, 0.4, site.pos.z); hit.userData.makeId = def.id;
       scene.add(hit); this.pickables.push(hit);
-      // once built, something to store things in (the chest) can be tapped to empty the backpack into it
+      // once built, something to store things in (the chest) can be tapped to empty the backpack into it, and the
+      // campfire (chapter 2) to cook at it
       let storeHit: THREE.Mesh | null = null;
-      if (store) {
+      if (store || cook) {
         storeHit = new THREE.Mesh(new THREE.CylinderGeometry(site.radius + 0.2, site.radius + 0.2, 0.9, 12), new THREE.MeshBasicMaterial({ visible: false }));
-        storeHit.position.set(site.pos.x, 0.45, site.pos.z); storeHit.userData.storeId = def.id; storeHit.visible = false;
+        storeHit.position.set(site.pos.x, 0.45, site.pos.z); storeHit.userData[store ? 'storeId' : 'cookId'] = def.id; storeHit.visible = false;
         scene.add(storeHit); this.pickables.push(storeHit);
       }
       // once built
@@ -96,7 +101,7 @@ export class StructuresView {
           smoke.push({ sprite, age: i / SMOKE.puffs * SMOKE.life });
         }
       }
-      this.views.push({ def, pos: site.pos, plan, fill, hit, storeHit, model, flames, light, smoke, logs: logs ?? null, shown: null, pop: 1, flare: 0, low: 0 });
+      this.views.push({ def, pos: site.pos, plan, fill, hit, storeHit, cook: !store && !!cook, model, flames, light, smoke, logs: logs ?? null, shown: null, pop: 1, flare: 0, low: 0 });
     }
   }
 
@@ -112,6 +117,9 @@ export class StructuresView {
         for (const pt of v.smoke) pt.sprite.visible = built;
         v.shown = built;
       }
+      // the campfire's tap area cooks only once there is cooking to do (he owns a rod, or has raw fish); until then a
+      // tap on the fire walks him beside it and the hover says nothing, as before there was cooking
+      if (v.cook && v.storeHit) v.storeHit.visible = built && (state.tools.rod || owned(state, COOK.raw) > 0);
       if (!built) {
         // while he builds it, the ring fills up
         const working = task.kind === 'make' && task.id === v.def.id;
@@ -152,7 +160,7 @@ export class StructuresView {
  *  flames (which flicker), if any; the outline drawn faintly at its site until then; and whether things are stored in
  *  it (the chest: a tap empties the backpack into it). Tools (the stone axe and pickaxe) have none: the view draws
  *  them on him. */
-type Built = { model: THREE.Group; flames: THREE.Object3D[]; plan: THREE.Object3D; store?: boolean; logs?: THREE.Object3D[] };
+type Built = { model: THREE.Group; flames: THREE.Object3D[]; plan: THREE.Object3D; store?: boolean; cook?: boolean; logs?: THREE.Object3D[] };
 
 /** The firewood pile's look (0.0.21): logs lying across two bearers (along its depth, +z faces the fire), in rows that
  *  step in as they go up, WOODPILE.max of them in all; a placeholder, quick to change. */
@@ -228,7 +236,7 @@ const BUILD: Partial<Record<MakeId, (proto: (name: string) => THREE.Object3D) =>
       flame.position.set(0, 0, 0);
       fire.add(flame); flames.push(flame);
     }
-    return { model, flames, plan };
+    return { model, flames, plan, cook: true };
   },
   // the shelter: the canvas tent from the tarp, on its poles, pegged down; until it is built, the whole tent faint
   shelter: proto => {

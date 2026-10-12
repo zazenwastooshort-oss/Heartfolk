@@ -20,9 +20,11 @@ export const SAVE_VERSION = 10;
  *  Gathering (0.0.14) needs nothing more saved: what he picks up says which group he goes on with (PICKUPS' gather).
  *  make (0.0.15): working at something he makes (data/making.ts, by id), beside its site or where he stands; at
  *  `doneAt` (in-game seconds) its needs are taken and it is made (systems/making).
- *  stoke (0.0.19): stoking the campfire with the logs he carried from the chest (PlayerState.stoke) until `doneAt`. */
+ *  stoke (0.0.19): stoking the campfire with the logs he carried from the chest (PlayerState.stoke) until `doneAt`.
+ *  cook (chapter 2): cooking a raw fish over the campfire until `doneAt` (PlayerState.cook; systems/cooking.ts). */
 export type Task = { kind: 'idle' } | { kind: 'walk' } | { kind: 'gather'; nodeId: string; progress: number; mayMoveOn?: boolean }
-  | { kind: 'pickup'; id: string; doneAt: number } | { kind: 'make'; id: MakeId; doneAt: number } | { kind: 'stoke'; doneAt: number };
+  | { kind: 'pickup'; id: string; doneAt: number } | { kind: 'make'; id: MakeId; doneAt: number } | { kind: 'stoke'; doneAt: number }
+  | { kind: 'cook'; doneAt: number };
 
 /** What the player is walking towards: a resource node to work, a place to visit (a building or land), something
  *  on the ground to pick up, or where he makes something (data/making.ts). */
@@ -36,8 +38,9 @@ export type Pending = { kind: 'node'; id: string } | { kind: 'visit'; id: string
 export type Trip = ({ nodeId: string } | { pickupId: string }) & { leaveAt?: number };
 
 /** What he goes back to after stoking the fire (0.0.19): working a node (or the nearest free one like it), gathering
- *  things off the ground like `pickupId` (or picking up that one), making something, or walking on to a spot. */
-export type Back = { nodeId: string } | { pickupId: string } | { make: MakeId } | { to: Vec2 };
+ *  things off the ground like `pickupId` (or picking up that one), making something, walking on to a spot, or (chapter
+ *  2) cooking at the campfire. */
+export type Back = { nodeId: string } | { pickupId: string } | { make: MakeId } | { to: Vec2 } | { cook: true };
 
 /** Stoking the fire (0.0.19; systems/fire.ts): at nightfall he left what he was doing (`back`, null for nothing),
  *  walks to where he takes the logs (`from`: the firewood pile since 0.0.21, or the storage chest; null when he took
@@ -46,6 +49,11 @@ export type Back = { nodeId: string } | { pickupId: string } | { make: MakeId } 
  *  backpack, or the player tapped it), so he empties his backpack there first. Saved, so stoking carries on after a
  *  reload. */
 export interface Stoke { back: Back | null; logs: number; empty: boolean; from: 'woodpile' | 'chest' | null }
+
+/** Cooking at the campfire (chapter 2; systems/cooking.ts): he cooks the raw fish in his backpack one after another
+ *  (Task 'cook'); with none left there but some in the chest, he walks to the chest for them (`fetch`), then back to
+ *  the fire. Saved, so cooking carries on after a reload. */
+export interface Cook { fetch: boolean }
 
 export interface PlayerState {
   pos: Vec2;
@@ -57,6 +65,8 @@ export interface PlayerState {
   trip: Trip | null;
   /** off to stoke the fire (0.0.19), or null */
   stoke: Stoke | null;
+  /** cooking at the campfire (chapter 2), or null */
+  cook: Cook | null;
 }
 
 export interface NodeState { id: string; depletedUntil: number }   // 0 when available
@@ -134,10 +144,12 @@ export const allGoalsDone = (state: GameState) => GOALS.every(g => goalFinished(
 /** The goal that has enough of `item` (0.0.21): at the camp, the current goal (until the camp is set up) asks for
  *  `item` and he has at least that many, carried or stored. Gathering it stops then, so the backpack doesn't fill up
  *  with more than the goal needs (the owner, 12 Oct 2026). Null when gathering goes on: the village, the camp set up,
- *  or a current goal that doesn't ask for it. */
+ *  or a current goal that doesn't ask for it. The current goal here is the first not yet written down as finished
+ *  (goalsDone, each step): a gathering goal is finished the moment it has enough, and the goal after it may not ask
+ *  for the same thing (chapter 2: berries, fish), so the one just finished by what he gathered still counts. */
 export function goalHasEnough(state: GameState, layout: Layout, item: string): Goal | null {
   if (!layout.camp || allGoalsDone(state)) return null;
-  const goal = currentGoal(state), need = goal.needs[item];
+  const goal = GOALS.find(g => !state.goalsDone.includes(g.id)) ?? currentGoal(state), need = goal.needs[item];
   return need !== undefined && owned(state, item) >= need ? goal : null;
 }
 
@@ -149,18 +161,17 @@ export function goalFirst(state: GameState, id: string): Goal | null {
   return i < 0 ? null : GOALS.slice(0, i).find(g => !goalFinished(state, g)) ?? null;
 }
 
-/** Whether he may drop an item from his backpack: only something he can find again, from a tree or a rock
- *  (RESOURCES) or lying on the ground again after a while (PICKUPS that come back). The wreck came down only once,
- *  so its planks and its tarp can't be dropped: a goal that needs them can never become impossible. */
-export const canDrop = (item: string) => Object.values(RESOURCES).some(r => r.item === item)
-  || Object.values(PICKUPS).some(p => p.respawn !== null && p.gives !== 'book' && p.gives.item === item);
+/** Whether he may drop an item from his backpack: anything but the wreck's things (since chapter 2, food too: berries,
+ *  cooked and burnt fish). The wreck came down only once (PICKUPS that never come back), so its planks and its tarp
+ *  can't be dropped: a goal that needs them can never become impossible. */
+export const canDrop = (item: string) => !Object.values(PICKUPS).some(p => p.respawn === null && p.gives !== 'book' && p.gives.item === item);
 
 export function createState(layout: Layout, seed = 1): GameState {
   return {
     version: SAVE_VERSION,
     time: DAY_SECONDS * 0.32,   // start mid-morning (about 7:40)
     seed,
-    player: { pos: { ...layout.start }, heading: Math.PI / 2, path: [], task: { kind: 'idle' }, pending: null, backpack: {}, trip: null, stoke: null },
+    player: { pos: { ...layout.start }, heading: Math.PI / 2, path: [], task: { kind: 'idle' }, pending: null, backpack: {}, trip: null, stoke: null, cook: null },
     skills: Object.fromEntries(Object.keys(SKILLS).map(id => [id, 0])) as Record<SkillId, number>,
     bank: {},
     nodes: Object.fromEntries(layout.nodes.map(n => [n.id, { id: n.id, depletedUntil: 0 }])),

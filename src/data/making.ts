@@ -1,8 +1,8 @@
 // Things he makes (game 0.0.15), as tables only: what each needs, where it is made, how long he works at it and what
 // it gives. The campfire came first, then the stone axe (0.0.16), then the shelter at the tent's spot and the stone
 // pickaxe (0.0.18), then the storage chest beside the shelter (0.0.19), the camp's storage like the village's bank,
-// and the firewood pile beside the fire (0.0.21), stacked with logs he stokes the fire from at night.
-// systems/making.ts does the work.
+// and the firewood pile beside the fire (0.0.21), stacked with logs he stokes the fire from at night; since chapter 2
+// the fishing rod, made where he stands. systems/making.ts does the work.
 import type { ToolId } from './skills';
 
 /** Places in a layout where something is built (siteOf in world/layout.ts): 'hearth' is the camp's fire spot, 'tent'
@@ -10,7 +10,7 @@ import type { ToolId } from './skills';
  *  firewood pile. A new site is a name here and a line in siteOf. */
 export type SiteId = 'hearth' | 'tent' | 'chest' | 'woodpile';
 
-export type MakeId = 'campfire' | 'stone_axe' | 'woodpile' | 'shelter' | 'stone_pickaxe' | 'chest';
+export type MakeId = 'campfire' | 'stone_axe' | 'woodpile' | 'shelter' | 'stone_pickaxe' | 'chest' | 'rod';
 
 /** name: what it is called ("Campfire"). verb: what making it is called, for the hover text over its site
  *  ("Build|Campfire") and the goal card's button ("Build the campfire", "Make the stone axe").
@@ -64,6 +64,12 @@ export const MAKES: Record<MakeId, MakeDef> = {
   chest: {
     id: 'chest', name: 'Storage chest', verb: 'Build', needs: { birch_logs: 10, copper_ore: 3 }, at: 'chest', time: 5,
     gives: { kind: 'structure' }, done: 'Your storage chest is built. A full backpack is emptied into it now.',
+  },
+  // chapter 2: long branches bound end to end, the line threads pulled from the tarp's frayed edge, so branches are all
+  // it uses up; made where he stands, like the stone tools
+  rod: {
+    id: 'rod', name: 'Fishing rod', verb: 'Make', needs: { branch: 3 }, at: 'here', time: 3,
+    gives: { kind: 'tool', tool: 'rod' }, done: "You made a fishing rod, its line pulled from the tarp's frayed edge.",
   },
 };
 
