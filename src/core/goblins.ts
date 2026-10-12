@@ -80,6 +80,15 @@ export function goblinCanBe(layout: Layout, built: readonly string[], camp: Gobl
   return Math.hypot(p.x - camp.pos.x, p.z - camp.pos.z) <= camp.roam + MILL.hop[1] && navFor(layout, built).walkable(p);
 }
 
+/** Whether `p` lies on the chief's step out of his tent, from its door towards the way in (chiefOut). He crosses the
+ *  tent's own ground there, which the walking grid blocks, so a save made then keeps him where he is (the playthrough
+ *  bot's saves found him read back at the door). */
+function onStepOut(spot: GoblinSpot, p: Vec2): boolean {
+  const a = spot.home, b = chiefOut(spot, 0).to!, dx = b.x - a.x, dz = b.z - a.z, len2 = dx * dx + dz * dz || 1;
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.z - a.z) * dz) / len2));
+  return Math.hypot(p.x - (a.x + t * dx), p.z - (a.z + t * dz)) < 0.01;
+}
+
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const point = (v: unknown): Vec2 | null => isRecord(v) && finite(v.x) && finite(v.z) ? { x: v.x, z: v.z } : null;
@@ -101,13 +110,14 @@ export function savedGoblins(v: unknown, state: GameState, layout: Layout): Reco
     if (spot.chief && !state.goblinCamp.chiefOut) { out[spot.id] = { ...fresh, restUntil }; continue; }
     const downUntil = !spot.chief && finite(s.downUntil) ? Math.min(s.downUntil, state.time + GOBLIN.back) : null;
     const health = downUntil !== null ? 0 : finite(s.health) && s.health > 0 ? Math.min(s.health, n.health) : n.health;
-    const at = point(s.pos), pos = at && goblinCanBe(layout, state.built, spot.camp, at) ? at : null;
+    const can = (p: Vec2) => goblinCanBe(layout, state.built, spot.camp, p) || (spot.chief && onStepOut(spot, p));
+    const at = point(s.pos), pos = at && can(at) ? at : null;
     const to = downUntil === null && pos ? point(s.to) : null;
     out[spot.id] = {
       health, downUntil,
       pos: pos ?? fresh.pos,
       heading: pos && finite(s.heading) ? s.heading : fresh.heading,
-      to: to && goblinCanBe(layout, state.built, spot.camp, to) ? to : null,
+      to: to && can(to) ? to : null,
       restUntil,
       swing: downUntil === null && finite(s.swing) && s.swing >= 0 && s.swing <= n.every ? s.swing : null,
     };

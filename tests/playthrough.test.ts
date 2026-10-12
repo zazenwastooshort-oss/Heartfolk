@@ -52,7 +52,7 @@ import { Bot, type Visits } from './bot';
  *  steps out of his tent reads him back at its door, standing (his 1.6 m step out crosses ground the walking grid
  *  blocks, and savedGoblins in core/goblins.ts sends a goblin there home), so the save test fails on it now and then
  *  (seed 4 in the simulation) until that is fixed in the game. */
-const GOBLINS_CLEARABLE = false;
+const GOBLINS_CLEARABLE = true;
 
 const SEEDS = Array.from({ length: Number(process.env.HEARTHFOLK_SEEDS) || 4 }, (_, i) => i + 1);
 /** When the player is there (HEARTHFOLK_VISIT=every,stay, in seconds of play: a visit every `every` seconds, staying

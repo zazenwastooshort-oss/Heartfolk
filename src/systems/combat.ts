@@ -78,14 +78,17 @@ function cantFight(state: GameState, target: Target): 'weapon' | 'taught' | null
 }
 
 /** The style to train next: one the camp's current goal still asks a level of, first in STYLES order, that `target`
- *  can teach; else, when `target` has taught him all it can of the style he trains, the lowest it can still teach;
- *  else null (he keeps the style he has). */
+ *  can teach; none while the goal still asks for more than `target` teaches (he stops there and is sent to something
+ *  that can, the rats); else, when `target` has taught him all it can of the style he trains, the lowest it can still
+ *  teach; else null (he keeps the style he has). */
 export function nextStyle(state: GameState, layout: Layout, target: Target | null): CombatStyle | null {
   const teaches = (s: CombatStyle) => !target || levelOf(state, s) < target.maxLevel;
-  if (layout.camp && !allGoalsDone(state)) {
-    const levels = currentGoal(state).levels;
-    const asked = STYLES.find(s => s !== state.combatStyle && levels?.[s] !== undefined && levelOf(state, s) < levels[s]! && teaches(s));
+  const levels = layout.camp && !allGoalsDone(state) ? currentGoal(state).levels : undefined;
+  const wants = (s: CombatStyle) => levels?.[s] !== undefined && levelOf(state, s) < levels[s]!;
+  if (levels) {
+    const asked = STYLES.find(s => s !== state.combatStyle && wants(s) && teaches(s));
     if (asked) return asked;
+    if (STYLES.some(wants)) return null;
   }
   if (!target || teaches(state.combatStyle)) return null;
   return STYLES.filter(teaches).sort((a, b) => levelOf(state, a) - levelOf(state, b))[0] ?? null;

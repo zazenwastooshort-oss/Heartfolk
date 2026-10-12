@@ -386,6 +386,10 @@ describe('practising on the dummy', () => {
   it('the notices say plainly what happens: make a weapon; he trains the next skill; the dummy has taught him all it can', () => {
     const s = ready(), need = goal('practice').levels!.strength!;
     expect(cantFightText(s.state, CAMP, 'dummy', 'weapon', 'attack')).toBe('You need a weapon to practise with. A stone club will do.');
+    // stopped with a goal asking for more of a skill than it teaches (the rats teach more), or with all three taught
+    s.state.skills.defence = XP_TABLE[DUMMY.maxLevel]!;
+    expect(cantFightText(s.state, CAMP, 'dummy', 'taught', 'defence')).toBe("The training dummy can't teach you any more Defence.");
+    s.state.skills.attack = XP_TABLE[DUMMY.maxLevel]!; s.state.skills.strength = XP_TABLE[DUMMY.maxLevel]!;
     expect(cantFightText(s.state, CAMP, 'dummy', 'taught', 'defence')).toBe('The training dummy has taught you all it can.');
     expect(switchedText(s.state, CAMP, 'dummy', 'attack', 'strength')).toBe("The training dummy can't teach you any more Attack. Now he trains Strength.");
     expect(goalLevelText(s.state, 'strength', need, 'practice', 'defence')).toBe(`Strength level ${need}: that's enough for "Practice". Now he trains Defence.`);

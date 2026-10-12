@@ -35,9 +35,10 @@ export function cantFightText(state: GameState, layout: Layout, target: string, 
   const t = targetOf(state, layout, target), name = t?.name.toLowerCase() ?? 'dummy';
   // (chapter 2) a rat to fight, not the dummy to practise on
   if (reason === 'weapon') return t?.foe ? `You need a weapon to fight a ${name}. A stone club will do.` : 'You need a weapon to practise with. A stone club will do.';
-  // (0.0.25) with another style left to learn he moves on to it by himself (switchedText), so this is the last word
-  void skill;
-  return `The ${name} has taught you all it can.`;
+  // (0.0.25) with another style left to learn he moves on to it by himself (switchedText); he stops when it has taught
+  // him all three, or when the goal asks for more of this one than it teaches (the rats teach more)
+  const left = t ? STYLES.filter(s => levelFor(state.skills[s]) < t.maxLevel) : [];
+  return left.length ? `The ${name} can't teach you any more ${SKILLS[skill].name}.` : `The ${name} has taught you all it can.`;
 }
 
 /** (0.0.25) The target has taught him all it can of `from`, so he trains `to` now. */
