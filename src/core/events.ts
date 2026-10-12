@@ -70,6 +70,20 @@ export type GameEvent =
   | { type: 'cantCook' }
   /** cooking, he has cooked every raw fish he had, carried or in the chest, so he stops */
   | { type: 'cookedAll' }
+  /** (chapter 2's rats, systems/rats.ts) a creature he fights bit him for `damage`, 0 for a miss */
+  | { type: 'bitten'; by: string; damage: number }
+  /** he beat `target` (a rat): it topples over; `item` is what it left, which went into his backpack (a rat hide), or null */
+  | { type: 'beaten'; target: string; item: string | null }
+  /** a beaten rat came back at its nest */
+  | { type: 'ratBack'; id: string }
+  /** `by` (a rat) took his health to 0: he slumps, then wakes up back at camp (wokeUp) */
+  | { type: 'knockedOut'; by: string }
+  /** he woke up back at camp after `by` knocked him out, with half his health and everything he had */
+  | { type: 'wokeUp'; by: string }
+  /** setting off to fight with no food in his backpack, he goes by the chest for some first */
+  | { type: 'fetchFood' }
+  /** at the chest on his way to fight, he took `items` of food */
+  | { type: 'tookFood'; items: Record<string, number> }
   | { type: 'arrived' };
 
 type Handler = (e: GameEvent) => void;

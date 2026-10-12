@@ -8,6 +8,7 @@ import { BOOK, GOALS, type Goal } from '../data/goals';
 import { PICKUPS } from '../data/pickups';
 import { makeDef, type MakeId } from '../data/making';
 import { DAY_SECONDS } from './clock';
+import { freshRats } from './rats';
 
 /** The save format. 10 since 0.0.22: his health, and the combat and food skills. */
 export const SAVE_VERSION = 10;
@@ -23,10 +24,14 @@ export const SAVE_VERSION = 10;
  *  stoke (0.0.19): stoking the campfire with the logs he carried from the chest (PlayerState.stoke) until `doneAt`.
  *  cook (chapter 2): cooking a raw fish over the campfire until `doneAt` (PlayerState.cook; systems/cooking.ts).
  *  fight (0.0.22): striking `target` (core/targets.ts: the training dummy, by id) with his weapon, over and over until
- *  sent elsewhere; progress runs 0..1 from one strike to the next (systems/combat.ts). */
+ *  sent elsewhere; progress runs 0..1 from one strike to the next (systems/combat.ts). Since chapter 2's rats a target
+ *  can be a rat: while it is down (beaten, until it comes back) he waits by its nest, then goes on to the next.
+ *  knockedOut (chapter 2's rats): `by` (a rat, by id) took his health to 0; he lies slumped until `wakeAt` (in-game
+ *  seconds), then wakes at the camp (systems/rats.ts). */
 export type Task = { kind: 'idle' } | { kind: 'walk' } | { kind: 'gather'; nodeId: string; progress: number; mayMoveOn?: boolean }
   | { kind: 'pickup'; id: string; doneAt: number } | { kind: 'make'; id: MakeId; doneAt: number } | { kind: 'stoke'; doneAt: number }
-  | { kind: 'cook'; doneAt: number } | { kind: 'fight'; target: string; progress: number };
+  | { kind: 'cook'; doneAt: number } | { kind: 'fight'; target: string; progress: number }
+  | { kind: 'knockedOut'; wakeAt: number; by: string };
 
 /** What the player is walking towards: a resource node to work, a place to visit (a building or land), something
  *  on the ground to pick up, where he makes something (data/making.ts), or (0.0.22) something to fight. */
@@ -35,9 +40,11 @@ export type Pending = { kind: 'node'; id: string } | { kind: 'visit'; id: string
 
 /** On the way to the bank (or at the camp, since 0.0.19, the storage chest) to empty a full backpack; afterwards he
  *  goes back to work at `nodeId` (or the nearest free node like it), or (0.0.14) back to gathering things on the
- *  ground like `pickupId`. `leaveAt` is set at the bank once the backpack is empty: he heads back when the clock
- *  reaches it. Saved, so a trip carries on after a reload. */
-export type Trip = ({ nodeId: string } | { pickupId: string }) & { leaveAt?: number };
+ *  ground like `pickupId`, or (chapter 2's rats) back to fighting the rat `fight` (or the next one up at its nest): on
+ *  his way there to fight, he also stops at the chest for food when he carries none (systems/rats.ts), and `store` says
+ *  the player tapped the chest meanwhile, so he stores what he carries there too. `leaveAt` is set at the bank once the
+ *  backpack is empty: he heads back when the clock reaches it. Saved, so a trip carries on after a reload. */
+export type Trip = ({ nodeId: string } | { pickupId: string } | { fight: string; store?: boolean }) & { leaveAt?: number };
 
 /** What he goes back to after stoking the fire (0.0.19): working a node (or the nearest free one like it), gathering
  *  things off the ground like `pickupId` (or picking up that one), making something, walking on to a spot, or (chapter
@@ -73,6 +80,14 @@ export interface PlayerState {
 
 export interface NodeState { id: string; depletedUntil: number }   // 0 when available
 export interface ParcelState { claimed: boolean }
+
+/** A rat living round its nest (chapter 2; core/rats.ts, systems/rats.ts). health: up to RAT.health, 0 while it is
+ *  down. downUntil: once beaten, the in-game time it comes back at its nest; null while it is up. pos, heading: where
+ *  it is and which way it faces (as the character's heading). to: where it is scurrying to, or null while it stays put
+ *  until `restUntil` (in-game seconds). bite: while it fights him, the seconds since its bite under way began, or null.
+ *  Its health and when it comes back matter; where it pottered to is kept only while it is still somewhere it could be
+ *  (core/rats.ts, savedRats). */
+export interface RatState { health: number; downUntil: number | null; pos: Vec2; heading: number; to: Vec2 | null; restUntil: number; bite: number | null }
 
 export interface GameState {
   version: number;
@@ -112,6 +127,8 @@ export interface GameState {
   equipment: Record<Slot, GearId | null>;
   /** what fighting trains (0.0.22): Attack, Strength or Defence, chosen in the panel */
   combatStyle: CombatStyle;
+  /** (chapter 2) the rats round the layout's nests, by id (core/rats.ts): none in the village */
+  rats: Record<string, RatState>;
 }
 
 /** His health at most (0.0.22): HEALTH in data/combat.ts, by his Vitality level. */
@@ -196,5 +213,6 @@ export function createState(layout: Layout, seed = 1): GameState {
     health: HEALTH.base,
     equipment: Object.fromEntries(SLOTS.map(s => [s, null])) as Record<Slot, GearId | null>,
     combatStyle: 'attack',
+    rats: freshRats(layout, DAY_SECONDS * 0.32),
   };
 }

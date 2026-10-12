@@ -8,7 +8,8 @@
 // plays the free clips with nothing on his back. Clips crossfade, and ArmIK puts the hands back on the handle after
 // every blend into an armed clip. Since chapter 2: the berry bushes, the fishing spots, the rod he fishes with (held
 // only while he fishes, with the armed Idle clip, too long to carry on his back), its line and float, and a fish on a
-// stick over the campfire while he cooks.
+// stick over the campfire while he cooks. Since chapter 2's rats: the rats and their nest (render/rats.ts), his lean into
+// a strike at a rat, standing ready while he waits for them, and toppling over when one knocks him out.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import minerUrl from '../../assets/models/miner.glb?url';
@@ -35,6 +36,8 @@ import { FishingView, rodModel } from './fishing';
 import { CookingView } from './cooking';
 import { ArmIK, armedWeight, toolInHand, toolInTransit } from './arms';
 import { WEAPON_MODELS } from './gear';
+import { RatsView } from './rats';
+import { targetOf } from '../core/targets';
 
 /** While he builds something: a placeholder motion, bowing down to it and back up, `rate` bows a second. */
 const BUILD_BOW = { lean: 0.42, dip: 0.08, rate: 1.3 };
@@ -42,6 +45,19 @@ const BUILD_BOW = { lean: 0.42, dip: 0.08, rate: 1.3 };
  *  leans in a little towards the fish over the fire. */
 const PICK_BOW = { rate: 1.8, lean: 0.3 };
 const COOK_LEAN = 0.18;
+/** Placeholders for chapter 2's rats: striking one he leans in, most at the moment the club lands (its `lean`, from
+ *  `from` seconds into the swing), so the swing comes down on a rat on the ground; knocked out he topples onto his back
+ *  over `time` seconds, the tool hidden (it would go into the ground), and gets up again the same way once he wakes. */
+const LOW_STRIKE = { lean: 0.45, from: 0.25 };
+const SLUMP = { time: 0.7, angle: Math.PI / 2 - 0.08, lift: 0.13 };
+const smooth = (x: number) => { const c = Math.min(1, Math.max(0, x)); return c * c * (3 - 2 * c); };
+
+/** How far he leans into a strike at a rat `t` seconds into the swing. */
+function lowLean(t: number): number {
+  if (t <= LOW_STRIKE.from) return 0;
+  if (t < STRIKE.impact) return LOW_STRIKE.lean * smooth((t - LOW_STRIKE.from) / (STRIKE.impact - LOW_STRIKE.from));
+  return LOW_STRIKE.lean * (1 - smooth((t - STRIKE.impact) / (STRIKE.cycle - STRIKE.impact)));
+}
 
 /** The camp's tools are the stone axe and stone pickaxe he makes (data/making.ts): miner.glb's axe with its blade
  *  turned into a chunky grey stone (`thick` times as thick) and the iron block behind it into the lashing that ties it
@@ -113,6 +129,8 @@ export class View {
   private bushes?: BushesView;
   private fishing?: FishingView;
   private cooking?: CookingView;
+  private rats?: RatsView;
+  private slump = 0;                     // how far he has toppled over, knocked out (0..1)
   private spots: Map<string, NodeSpot>;
   private miner?: THREE.Object3D;
   private tools?: Partial<Record<Tool, { parts: THREE.Object3D[]; tip: THREE.Object3D }>>;
@@ -202,6 +220,8 @@ export class View {
     this.fishing = new FishingView(this.scene, this.layout);
     this.pickables.push(...this.fishing.pickables);
     this.cooking = new CookingView(this.scene, this.layout);
+    this.rats = new RatsView(this.scene, this.layout);
+    this.pickables.push(...this.rats.pickables);
     this.scene.add(this.miner);
     this.arms = new ArmIK(this.miner);   // reads the rest pose, so before the mixer first runs
     this.mixer = new THREE.AnimationMixer(this.miner);
@@ -246,16 +266,21 @@ export class View {
   /** World position of the character as currently drawn. */
   minerPos(): THREE.Vector3 { return this.shown.pos.clone(); }
 
+  /** Where rat `id` is drawn (chapter 2), or null while it isn't: for the numbers and the health bar over it. */
+  ratPos(id: string): THREE.Vector3 | null { return this.rats?.posOf(id) ?? null; }
+
   draw(state: GameState, dt: number): void {
     const p = state.player;
     if (this.miner && this.mixer) {
       const target = new THREE.Vector3(p.pos.x, 0, p.pos.z);
       if (!this.shown.ready) { this.shown.pos.copy(target); this.shown.heading = p.heading; this.shown.ready = true; this.cam.follow(target, 1); }
+      if (this.shown.pos.distanceTo(target) > 4) this.shown.pos.copy(target);    // (he woke up back at camp) no gliding there
       this.shown.pos.lerp(target, Math.min(1, dt * 20));
       const dh = ((p.heading - this.shown.heading + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
       this.shown.heading += dh * Math.min(1, dt * 20);
       this.miner.position.copy(this.shown.pos); this.miner.rotation.y = this.shown.heading;
       const task = p.task;
+      let lean = 0;
       // the node being worked, or the one he is walking to: its tool rides on his back on the way, out once he is there
       const workId = task.kind === 'gather' ? task.nodeId : p.pending?.kind === 'node' ? p.pending.id : null;
       const spot = workId ? this.spots.get(workId) : undefined;
@@ -278,9 +303,12 @@ export class View {
       else if (task.kind === 'gather' && !waiting && swing && armed) { this.play(swing.clip); if (!swing.steady) this.actions[swing.clip]!.time = task.progress * swing.cycle; }
       else if (task.kind === 'fight' && armed) {
         // a strike: the Chop swing at the start of each round of his weapon, then he rests, the club still in his hands,
-        // until the next (systems/combat.ts strikes on the same timer)
-        const t = task.progress * strikeEvery(state.equipment.weapon);
-        if (t < STRIKE.cycle) { this.play(STRIKE.clip); this.actions[STRIKE.clip]!.time = t; } else this.play(IDLE.clip);
+        // until the next (systems/combat.ts strikes on the same timer). (Chapter 2) waiting by the nest while the rat he
+        // beat is down he stands ready; striking a rat he leans in
+        const t = task.progress * strikeEvery(state.equipment.weapon), target = targetOf(state, this.layout, task.target);
+        if (target?.foe?.down) this.play(IDLE.clip);
+        else if (t < STRIKE.cycle) { this.play(STRIKE.clip); this.actions[STRIKE.clip]!.time = t; if (target?.foe) lean = lowLean(t); }
+        else this.play(IDLE.clip);
       }
       else this.play(armed ? IDLE.clip : IDLE.freeClip);
       // building, or stoking the fire: he bows down to it and back up, over and over (a placeholder until there is a
@@ -289,12 +317,15 @@ export class View {
       // picking a ripe berry bush, he bows into it; cooking, he leans towards the fire (chapter 2 placeholders)
       const bush = task.kind === 'pickup' && !(task.id in state.taken) && this.layout.pickups?.find(x => x.id === task.id)?.kind === 'bush';
       const pick = bush ? Math.max(0, Math.sin(this.clock * Math.PI * 2 * PICK_BOW.rate)) * PICK_BOW.lean : 0;
-      this.miner.rotation.z = -bow * BUILD_BOW.lean - pick - (task.kind === 'cook' ? COOK_LEAN : 0);
-      this.miner.position.y = -bow * BUILD_BOW.dip;
+      // knocked out (chapter 2's rats): he topples onto his back, and gets up again once he wakes
+      this.slump = Math.min(1, Math.max(0, this.slump + (task.kind === 'knockedOut' ? 1 : -1) * dt / SLUMP.time));
+      const slump = smooth(this.slump);
+      this.miner.rotation.z = -bow * BUILD_BOW.lean - pick - (task.kind === 'cook' ? COOK_LEAN : 0) - lean + slump * SLUMP.angle;
+      this.miner.position.y = -bow * BUILD_BOW.dip + slump * SLUMP.lift;
       this.mixer.update(dt);
       // a crossfade blends the arms apart from the tool: hands back on the handle (in armed clips only)
       this.arms?.solve(armedWeight(Object.values(this.actions), this.current));
-      this.showTool(this.tool, toolInTransit(Object.values(this.actions)));   // hidden between hands and back
+      this.showTool(this.tool, toolInTransit(Object.values(this.actions)) || this.slump > 0.3);   // hidden between hands and back
       if (this.strikeAt && this.tools && this.tool) this.nodes?.hit(this.strikeAt, this.tools[this.tool]!.tip.getWorldPosition(new THREE.Vector3()));
     }
     if (this.hitAt) this.structures?.hit(this.hitAt.target, this.hitAt.damage, p.pos);
@@ -306,6 +337,7 @@ export class View {
     const rodTip = this.tool === 'rod' && !this.toolHidden ? this.tools?.rod?.tip.getWorldPosition(new THREE.Vector3()) ?? null : null;
     this.fishing?.update(state, this.clock, dt, rodTip, this.lighting.night);
     this.cooking?.update(state);
+    this.rats?.update(state, this.clock, dt);
     if (this.marker.visible) { this.markerT -= dt; this.marker.scale.setScalar(0.4 + this.markerT * 1.6); if (this.markerT <= 0) this.marker.visible = false; }
     this.cam.follow(this.shown.pos, Math.min(1, dt * 6));
     this.lighting.update(dayFraction(state.time), this.shown.pos, true, this.cam.dist);

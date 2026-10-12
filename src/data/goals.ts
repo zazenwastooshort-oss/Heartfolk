@@ -9,7 +9,7 @@
 // all of them finished the camp is set up: the card and the last page of his book say so (CAMP_DONE). Since 0.0.17
 // each goal is a page in his book (core/book.ts, ui/book.ts), with a few words of its own (`page`). Chapter 2, holding
 // the camp (0.0.22), goes on after the chest: a training dummy, a stone club (his first weapon), then practice on the
-// dummy, a goal that asks for levels (`levels`) rather than things.
+// dummy, a goal that asks for levels (`levels`) rather than things; after food, the rats in the woods (their hides).
 import { MAKES } from './making';
 import type { SkillId } from './skills';
 
@@ -90,6 +90,11 @@ export const GOALS: Goal[] = [
     page: 'Cook your fish slowly over the fire. A few may burn at first, but you will soon get the knack of it.',
     hint: 'Tap the campfire to cook your fish. If some burn, catch a few more.',
     ready: 'You have a cooked meal.', needs: { cooked_fish: 5 } },
+  // then the rats in the woods downriver (part 2): their hides are what hide armour is made from
+  { id: 'rats', title: 'Rats in the woods',
+    page: "Rats have nested in the woods down the river. They're no real danger, and their hides are tough and warm.",
+    hint: 'Tap a rat by the nest down the river to fight it. Keep some food with you: you eat when you get hurt.',
+    ready: 'You have enough rat hides.', needs: { rat_hide: 5 } },
 ];
 
 /** What the goal card says once every goal is finished (allGoalsDone in core/state), and the last page of his book

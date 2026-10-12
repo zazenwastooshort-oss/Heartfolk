@@ -6,7 +6,9 @@
 // (systems/commands). At the camp the storage chest (0.0.19) is the bank: once it is built, trips go to it and tapping
 // it empties the backpack (stores in systems/backpack). With nowhere to store things (the camp before its chest), he
 // stops and says so. While he is off stoking the fire (systems/fire.ts) hauling waits; stoking empties a full
-// backpack at the chest itself.
+// backpack at the chest itself. Fighting the rats (chapter 2) goes the same way: a hide that fills the backpack sends
+// him to the chest and back to the rats, and setting off to fight with no food he stops at the chest for some
+// (systems/rats.ts: at the chest on such a trip only a full backpack is emptied, and food is taken along).
 import { goalHasEnough, type Back, type GameState, type Trip } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Layout, Vec2 } from '../world/layout';
@@ -19,7 +21,8 @@ import { gatherOf, keepGathering, onGround, roomFor } from './pickups';
 import { PICKUPS } from '../data/pickups';
 import { RESOURCES } from '../data/skills';
 import { canMake } from './making';
-import { goFight } from './combat';
+import { setOffToFight, stockUp } from './rats';
+import { targetOf } from '../core/targets';
 import { canCook, fishToCook, goCook } from './cooking';
 
 /** The place to empty the backpack (a bank's door, or the camp's chest) nearest `at`, or null where there is none. */
@@ -37,7 +40,9 @@ export function updateHauling(state: GameState, layout: Layout, visited: string 
   const p = state.player;
   if (p.stoke) return;                                      // off to stoke the fire: systems/fire.ts has him
   if (visited && isStore(state, layout, visited)) {
-    deposit(state, events);
+    // on his way to fight the rats (chapter 2), he takes food along, a full backpack emptied first, or any when the
+    // player tapped the chest meanwhile (systems/rats.ts)
+    if (p.trip && 'fight' in p.trip) stockUp(state, events, p.trip.store === true); else deposit(state, events);
     if (p.trip) p.trip.leaveAt = state.time + BANK_PAUSE;    // a moment at the door, so the deposit is seen
     return;
   }
@@ -52,7 +57,10 @@ export function updateHauling(state: GameState, layout: Layout, visited: string 
   if (nodeId && backpackFull(state)) { startTrip(state, layout, { nodeId }, events); return; }
   // gathering off the ground, with no room for the next one (or the one he waits beside): the same
   const pickupId = p.task.kind === 'pickup' ? p.task.id : p.pending?.kind === 'pickup' ? p.pending.id : null;
-  if (pickupId && gatherOf(layout, pickupId) && !roomFor(state, layout, pickupId)) startTrip(state, layout, { pickupId }, events);
+  if (pickupId && gatherOf(layout, pickupId) && !roomFor(state, layout, pickupId)) { startTrip(state, layout, { pickupId }, events); return; }
+  // fighting the rats (chapter 2), whose hides go into the backpack, or on the way to them: the same, back to the rats
+  const fight = p.task.kind === 'fight' ? p.task.target : p.pending?.kind === 'fight' ? p.pending.id : null;
+  if (fight && backpackFull(state) && targetOf(state, layout, fight)?.foe) startTrip(state, layout, { fight }, events);
 }
 
 function startTrip(state: GameState, layout: Layout, trip: Trip, events: EventBus): void {
@@ -69,10 +77,11 @@ function startTrip(state: GameState, layout: Layout, trip: Trip, events: EventBu
 
 /** Back to what he was doing before a trip to the bank or the chest, or (0.0.19) before stoking the fire: working a
  *  node, gathering things off the ground (or picking up the one he was after), making something, walking on, or
- *  (0.0.22) practising on the training dummy, or (chapter 2) cooking at the campfire while there is raw fish to cook. */
+ *  (0.0.22) practising on the training dummy, or (chapter 2) cooking at the campfire while there is raw fish to cook,
+ *  or fighting the rats (by way of the chest for food, when he carries none: systems/rats.ts). */
 export function backToWork(state: GameState, layout: Layout, back: Trip | Back, events: EventBus): void {
   if ('to' in back) { walkTo(state, layout, back.to); return; }
-  if ('fight' in back) { goFight(state, layout, back.fight); return; }
+  if ('fight' in back) { setOffToFight(state, layout, back.fight, events); return; }
   if ('cook' in back) {
     if (canCook(state, layout) && fishToCook(state, layout) && !goCook(state, layout)) events.emit({ type: 'noPath' });
     return;

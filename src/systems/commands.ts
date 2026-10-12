@@ -12,7 +12,8 @@ import { gatherOf, roomFor, tappable } from './pickups';
 import { drop, isStore, stopStoking, stores } from './backpack';
 import { canMake, missingFor } from './making';
 import { eat } from './food';
-import { goFight, mayFight, setStyle } from './combat';
+import { mayFight, setStyle } from './combat';
+import { setOffToFight } from './rats';
 import type { CombatStyle } from '../data/combat';
 import { canCook, fishToCook, goCook } from './cooking';
 
@@ -32,8 +33,9 @@ export type Command =
   | { type: 'make'; id: MakeId }
   /** eat one of an item from the backpack (chapter 2, 0.0.22): food heals him; nothing else stops */
   | { type: 'eat'; item: string }
-  /** fight something (core/targets.ts, by id; 0.0.22): a tap on the built training dummy sends him to practise on it.
-   *  Without a weapon, or with nothing left for it to teach in the style he trains, he says so and stays put. */
+  /** fight something (core/targets.ts, by id; 0.0.22): a tap on the built training dummy sends him to practise on it,
+   *  (chapter 2) a tap on a rat to fight the rats. Without a weapon, or with nothing left for it to teach in the style
+   *  he trains, he says so and stays put. */
   | { type: 'fight'; target: string }
   /** choose what fighting trains (the panel's Train choice, 0.0.22); nothing else stops */
   | { type: 'style'; style: CombatStyle }
@@ -49,6 +51,8 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     // dropping something doesn't send him anywhere: whatever he is doing carries on, a trip to the bank (the chest)
     // or stoking the fire included
     if (c.type === 'drop') { drop(state, c.item, c.count, events); continue; }
+    // knocked out (chapter 2's rats): nothing but choosing what he trains until he wakes, a moment later
+    if (state.player.task.kind === 'knockedOut' && c.type !== 'style') continue;
     if (c.type === 'eat') { eat(state, c.item, events); continue; }
     if (c.type === 'style') { setStyle(state, c.style); continue; }
     let ok = true;
@@ -75,7 +79,8 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     } else if (c.type === 'fight') {
       // nothing there to fight (the dummy not built), at it already, no weapon, or nothing left to learn: no setting off
       if (!mayFight(state, layout, c.target, events)) continue;
-      ok = goFight(state, layout, c.target);
+      // (chapter 2) to fight the rats with no food on him, he goes by the chest for some first: a trip it sets
+      ok = setOffToFight(state, layout, c.target, events);
     } else if (c.type === 'cook') {
       // no campfire here, or already cooking: nothing to do
       if (!canCook(state, layout) || state.player.cook) continue;
@@ -103,7 +108,9 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     // sets off again once he has nothing to do, the same night. A tap on the pile or the chest while he is on his way
     // there for the logs sends him where he was going: at the chest he empties the backpack too, and stokes on.
     const toStore = c.type === 'visit' && isStore(state, layout, c.id), stoke = state.player.stoke;
-    if (!toStore) state.player.trip = null;
+    if (!toStore && c.type !== 'fight') state.player.trip = null;
+    // (chapter 2) a tap on the chest while he is on his way there for food to fight with: he stores what he carries too
+    if (toStore && state.player.trip && 'fight' in state.player.trip) state.player.trip.store = true;
     if (c.type !== 'cook') state.player.cook = null;      // any other command stops cooking (chapter 2)
     if (stoke && stoke.logs === 0 && c.type === 'visit' && c.id === stoke.from) { if (c.id === 'chest') stoke.empty = true; }
     else if (stoke) { stopStoking(state); if (isNight(state.time)) state.stokeAgain = true; }

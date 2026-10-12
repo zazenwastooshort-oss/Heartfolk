@@ -117,6 +117,8 @@ export class Hud {
       else if (e.type === 'cooked') { const out = e.burnt ? 'burnt_fish' : 'cooked_fish'; this.pendingItems[out] = (this.pendingItems[out] ?? 0) + 1; }
       // picking up his book opens it instead of a notice (ui/book.ts)
       else if (e.type === 'pickedUp' && e.item) this.pendingItems[e.item] = (this.pendingItems[e.item] ?? 0) + e.count;
+      // (chapter 2) a rat he beat left a hide in his backpack
+      else if (e.type === 'beaten' && e.item) this.pendingItems[e.item] = (this.pendingItems[e.item] ?? 0) + 1;
       else if (e.type === 'levelTooLow') {
         const s = SKILLS[e.skill];
         this.notice(`You need ${s.name} level ${e.need} to ${s.verb.toLowerCase()} ${e.what.toLowerCase()}s.`);

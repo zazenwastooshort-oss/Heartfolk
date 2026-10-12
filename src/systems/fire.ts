@@ -41,7 +41,7 @@ function logsFrom(state: GameState, layout: Layout): 'woodpile' | 'chest' | null
 function backOf(state: GameState): Back | null {
   const p = state.player, task = p.task, pending = p.pending;
   if (p.cook) return { cook: true };
-  if (p.trip) return 'nodeId' in p.trip ? { nodeId: p.trip.nodeId } : { pickupId: p.trip.pickupId };
+  if (p.trip) return 'nodeId' in p.trip ? { nodeId: p.trip.nodeId } : 'pickupId' in p.trip ? { pickupId: p.trip.pickupId } : { fight: p.trip.fight };
   if (task.kind === 'gather') return { nodeId: task.nodeId };
   if (task.kind === 'pickup') return { pickupId: task.id };
   if (task.kind === 'fight') return { fight: task.target };
@@ -108,8 +108,10 @@ function setOff(state: GameState, layout: Layout, events: EventBus): void {
   if (from === false) { burnLow(state, events); return; }
   const back = backOf(state);
   // a full backpack on its way to the chest is emptied there on the way (not one just emptied, as he stands at it; nor
-  // one on its way there for raw fish to cook, which isn't a trip to store things)
-  const empty = from === 'chest' && ((!!p.trip && p.trip.leaveAt === undefined) || (p.pending?.kind === 'visit' && isStore(state, layout, p.pending.id) && !p.cook));
+  // one on its way there for raw fish to cook, which isn't a trip to store things; nor, chapter 2, for food to fight
+  // with, unless the player tapped the chest meanwhile: a full one is emptied all the same, atSource)
+  const food = !!p.trip && 'fight' in p.trip && !p.trip.store;
+  const empty = from === 'chest' && !food && ((!!p.trip && p.trip.leaveAt === undefined) || (p.pending?.kind === 'visit' && isStore(state, layout, p.pending.id) && !p.cook));
   const was = { task: p.task, path: p.path, pending: p.pending };
   if (from === null) {
     // nothing in the pile or the chest: the logs come out of his backpack, and he goes straight to the fire
@@ -162,6 +164,7 @@ export function updateFire(state: GameState, layout: Layout, visited: string | n
   // a night that began before the fire and somewhere to take logs from both stood isn't his to see to: from the next on
   if (!canStoke(state, layout)) { state.stokedNight = night; return false; }
   if (p.task.kind === 'make') return false;                 // he finishes what he is making first
+  if (p.task.kind === 'knockedOut') return false;           // (chapter 2's rats) he wakes up first
   state.stokedNight = night;
   state.stokeAgain = false;
   setOff(state, layout, events);

@@ -4,8 +4,8 @@
 // planks, a torn tarp, a smashed crate and his book, strewn along the bank. Stones and branches lie round the clearing.
 // The camp starts bare: the campfire, the firewood pile, the shelter (a tent), the storage chest and (0.0.22) the
 // training dummy have their spots here and are built later. Since chapter 2 berry bushes grow in a patch east of the
-// fire, and fish rise in the pool and along the river. The village lies far up the river and comes much later
-// (world/layout.ts, VILLAGE).
+// fire, fish rise in the pool and along the river, and rats live round a nest in the edge of the woods downriver. The
+// village lies far up the river and comes much later (world/layout.ts, VILLAGE).
 // Data only, like the village: x east, z south, in metres; the camera starts looking north at the falls.
 import type { Area, Falls, Layout, NodeSpot, PickupSpot, TreeKind, TreeSpot, Vec2 } from './layout';
 import type { PickupKind } from '../data/pickups';
@@ -43,6 +43,11 @@ const WOODPILE = W(4.6, 2.2), WOODPILE_SIZE = { w: 1.2, d: 0.6, radius: 0.75 };
 // strikes it from whichever side is nearest); it is in the way out to its radius, which reaches past the crossbar's
 // ends.
 const DUMMY = W(-2.8, 1.2), DUMMY_SIZE = { radius: 0.5 };
+// the rats' nest (chapter 2, part 2): in the edge of the woods downriver, south-west of the camp along the river bank, a
+// short walk from the shelter, out of the way of the fishing spots' banks and the camp's other spots. A mound of straw
+// and twigs about 1.1 m across, in the way out to its radius; its hole faces east, towards the camp, and is seen side on
+// from the camera as it starts. Three rats live round it and potter within `roam` of it, on open grass and the sandy bank.
+const NEST = W(-12.3, 12.7);
 
 // the river from the pool south-west past the sandy bank, and the falls pouring into the pool
 const RIVER = { points: [W(-14, -11.2), W(-15.6, -2), W(-16.6, 8), W(-18.2, 20), W(-19.4, 36)], width: 3.4 };
@@ -94,7 +99,9 @@ export const CAMP: Layout = {
     fish('camp_fish1', -12.1, -10.0), fish('camp_fish2', -13.7, -7.4),
     fish('camp_fish3', -15.1, -3.4), fish('camp_fish4', -16.4, 5.0), fish('camp_fish5', -17.0, 10.6),
   ],
-  trees: woods(),
+  // the woods, and (chapter 2) a pine by the rats' nest, where the woods come down to the river (off to the side, so it
+  // never stands between the camera, as it starts, and him at the nest)
+  trees: [...woods(), { pos: W(-13.8, 15.6), kind: 'pine', size: 1.1 }],
   bushes: [W(-10.6, 3.2), W(14.6, 12.4), W(1.8, 13.6), W(-9.4, 12.6), W(15.2, 1.2)],
   lanterns: [],
   river: RIVER,
@@ -128,6 +135,8 @@ export const CAMP: Layout = {
     { model: 'HullRib', pos: W(-9.8, -10.2), rot: 2.2, y: 0.05, radius: 0.5 },
     { model: 'HullRib', pos: W(-14.5, 2.6), rot: -0.5, y: 0.1, radius: 0.6 },
   ],
+  // (chapter 2) the rats' nest downriver, with three rats round it (core/rats.ts)
+  nests: [{ id: 'nest', pos: NEST, rot: 1.2, radius: 0.55, rats: 3, roam: 2.4 }],
   startTools: [],                       // he washes up with nothing
   ground: { minX: -44, maxX: 44, minZ: -48, maxZ: 40 },
 };

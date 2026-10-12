@@ -9,6 +9,8 @@ import { makeDef, type MakeId } from '../data/making';
 import { STOKE, WOODPILE } from '../data/fire';
 import { SLOTS, STYLES, gearDef, type CombatStyle, type GearId, type Slot } from '../data/combat';
 import { targetOf } from './targets';
+import { savedRats } from './rats';
+import { KNOCKED_OUT } from '../data/rats';
 
 export interface Storage { get(key: string): string | null; set(key: string, value: string): void }
 
@@ -221,6 +223,8 @@ export function readSave(raw: string, layout: Layout): Loaded {
     equipment: savedEquipment(data.equipment, fresh.equipment),
     combatStyle: STYLES.includes(data.combatStyle) ? data.combatStyle as CombatStyle : fresh.combatStyle,
   };
+  // the rats round their nests (chapter 2): each keeps what it was doing that matters, or is a fresh one (core/rats.ts)
+  state.rats = savedRats(data.rats, state, layout);
   // his health: a number above 0 up to his most; anything else (none saved, from before 0.0.22, or damaged) is full
   const max = maxHealth(state);
   state.health = typeof data.health === 'number' && Number.isFinite(data.health) && data.health > 0 ? Math.min(data.health, max) : max;
@@ -239,7 +243,15 @@ export function readSave(raw: string, layout: Layout): Loaded {
   if (p.task.kind === 'pickup' && (!pickupThere(p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
   // making something: only something that can still be made here, with a time it is done
   if (p.task.kind === 'make' && (!makeable(state, layout, p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
-  // fighting (0.0.22): only something there to fight (the dummy, built), with a weapon, part way from one strike to the next
+  // knocked out (chapter 2's rats): he wakes when it says, but no later than a knock-out now would give (at once if that
+  // is broken), and lies there with the 0 health he was knocked out with
+  if (p.task.kind === 'knockedOut') {
+    const { wakeAt, by } = p.task, ok = Number.isFinite(wakeAt) && typeof by === 'string';
+    p.task = { kind: 'knockedOut', wakeAt: ok ? Math.min(wakeAt, state.time + KNOCKED_OUT.slump) : state.time, by: String(by) };
+    if (data.health === 0) state.health = 0;
+  }
+  // fighting (0.0.22): only something there to fight (the dummy, built; a rat the layout has), with a weapon, part way
+  // from one strike to the next
   if (p.task.kind === 'fight' && (!targetOf(state, layout, p.task.target) || !state.equipment.weapon
     || !Number.isFinite(p.task.progress) || p.task.progress < 0 || p.task.progress >= 1)) p.task = { kind: 'idle' };
   if ((p.pending?.kind === 'node' && !(p.pending.id in state.nodes)) || (p.pending?.kind === 'pickup' && !pickupThere(p.pending.id))
@@ -249,10 +261,13 @@ export function readSave(raw: string, layout: Layout): Loaded {
   }
   // a trip only makes sense on the way to the bank or waiting at its door, back to a node that still exists or to
   // gathering pickups the layout still has
-  const trip = p.trip as Partial<{ nodeId: unknown; pickupId: unknown; leaveAt: unknown }> | null;
+  const trip = p.trip as Partial<{ nodeId: unknown; pickupId: unknown; fight: unknown; store: unknown; leaveAt: unknown }> | null;
   if (trip && trip.leaveAt !== undefined && !Number.isFinite(trip.leaveAt)) delete trip.leaveAt;
+  // (chapter 2) the chest tapped on the way for food to fight with: true, on a trip { fight }, or not at all
+  if (trip && trip.store !== undefined && (trip.store !== true || typeof trip.fight !== 'string')) delete trip.store;
   const gathered = (id: string) => { const spot = layout.pickups?.find(x => x.id === id); return !!spot && PICKUPS[spot.kind].gather !== null; };
-  const backTo = !!trip && (typeof trip.pickupId === 'string' ? gathered(trip.pickupId) : typeof trip.nodeId === 'string' && trip.nodeId in state.nodes);
+  const backTo = !!trip && (typeof trip.fight === 'string' ? !!targetOf(state, layout, trip.fight)?.foe && !!state.equipment.weapon
+    : typeof trip.pickupId === 'string' ? gathered(trip.pickupId) : typeof trip.nodeId === 'string' && trip.nodeId in state.nodes);
   if (trip && (!backTo || (p.pending?.kind !== 'visit' && trip.leaveAt === undefined))) p.trip = null;
   // stoking the fire (0.0.19) carries on only on the way to the pile or the chest (no logs yet), with the logs on the
   // way to the fire, or stoking it; otherwise it stops, and logs he carried go back where they came from. A stoke task

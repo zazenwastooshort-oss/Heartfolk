@@ -1,6 +1,7 @@
-// Creatures for the later chunks of chapter 2, placeholder art made quickly (the owner, 12 Oct 2026): the rat (chunk C,
-// rats in the woods) and the goblin (chunk E, the goblin camp up the river). Render-side models with a small API, not
-// wired into play: whoever places them drives them each frame from what the simulation says they are doing.
+// Creatures for chapter 2, placeholder art made quickly (the owner, 12 Oct 2026): the rat (rats in the woods, in play
+// since part 2: render/rats.ts places them) and the goblin (chunk E, the goblin camp up the river, not in play yet).
+// Render-side models with a small API: whoever places them drives them each frame from what the simulation says they
+// are doing.
 //  - ratModel(seed) -> { group, update(pose, t, dt, speed?, attackT?) }: built in code, low-poly and flat-shaded; poses
 //    'idle' (sniffing, looking about), 'scurry' (running), 'bite' (rears back, snaps forward), 'down' (knocked over).
 //  - goblinModel(miner) -> { group, mixer, update(pose, t, dt, speed?, attackT?), play(clip, fade?) }: the character
@@ -9,8 +10,8 @@
 //    'attack' (Chop) and 'down' (falls on his back).
 // Given an attack clock (attackT: the seconds since this bite or swing began, the way the view holds the character's
 // swings to the simulation's task.progress), an attack plays one bite or swing and then holds still, ready, until
-// attackT starts again from 0; without one it loops on its own. The moments they strike (RAT.biteStrike,
-// GOBLIN.attackImpact) are the render's own numbers for now; once combat times its hits by them they belong in data/.
+// attackT starts again from 0; without one it loops on its own. The rat's bite is timed by data/rats.ts (RAT_BITE),
+// where the simulation lands it (systems/rats.ts); the goblin's GOBLIN.attackImpact is the render's own number for now.
 // Both face +x at rotation 0, like the character, so `group.rotation.y = heading` (actors/player.ts headingOf) turns
 // one to face where it goes. The group's own transform is the caller's; the animation only moves what is inside it.
 // They read nothing from the game state.
@@ -19,6 +20,7 @@ import { clone as cloneRig } from 'three/addons/utils/SkeletonUtils.js';
 import { toolInTransit } from './arms';
 import { mergeByMaterial } from './parts';
 import { ARMED_CLIPS, FADE, GAIT, SWINGS } from '../data/animation';
+import { RAT_BITE } from '../data/rats';
 
 const flat = (color: string, roughness = 0.9) => new THREE.MeshStandardMaterial({ color, roughness, flatShading: true });
 function part(geo: THREE.BufferGeometry, mat: THREE.Material, parent: THREE.Object3D, x = 0, y = 0, z = 0): THREE.Mesh {
@@ -34,8 +36,8 @@ const smooth = (x: number) => { const c = Math.min(1, Math.max(0, x)); return c 
 export type RatPose = 'idle' | 'scurry' | 'bite' | 'down';
 
 /** One bite, in seconds whatever the bites' pace: the rat rears back for `rear`, snaps forward in `snap` (its head
- *  furthest forward at the end of it) and settles back in `settle`. */
-const BITE = { rear: 0.4, snap: 0.1, settle: 0.35 };
+ *  furthest forward at the end of it, where the bite lands) and settles back in `settle` (data/rats.ts). */
+const BITE = RAT_BITE;
 
 /** The rat's look and motion (metres, seconds): built 0.42 m long, drawn `size` times that (a chunky body about 0.5 m
  *  long and 0.32 high, a 0.55 m tail), big enough to read from the game's camera. */

@@ -1,7 +1,7 @@
 // Taps and drags on the scene: a tap sends a command (walk here, work this rock or tree, visit this building or land,
 // gather these or pick this up, build here, empty the backpack into the storage chest; since chapter 2 fish here, pick
-// these berries, cook at the campfire, practise on the training dummy); a drag turns the camera. Wheel and pinch zoom.
-// Arrow keys turn the camera too.
+// these berries, cook at the campfire, practise on the training dummy, fight a rat); a drag turns the camera. Wheel and
+// pinch zoom. Arrow keys turn the camera too.
 import * as THREE from 'three';
 import type { View } from '../render/view';
 import type { Command } from '../systems/commands';
@@ -9,6 +9,7 @@ import type { Layout } from '../world/layout';
 import { RESOURCES, SKILLS } from '../data/skills';
 import { GATHERS, PICKUPS } from '../data/pickups';
 import { MAKES, type MakeId } from '../data/making';
+import { fightLabel } from '../core/targets';
 
 type Target =
   | { kind: 'node'; id: string; point: THREE.Vector3 }
@@ -17,8 +18,8 @@ type Target =
   | { kind: 'make'; id: MakeId; point: THREE.Vector3 }
   /** the storage chest once it is built: tapping it empties the backpack into it */
   | { kind: 'store'; id: MakeId; point: THREE.Vector3 }
-  /** the training dummy once it is built (0.0.22): tapping it sends him to practise on it */
-  | { kind: 'fight'; id: MakeId; point: THREE.Vector3 }
+  /** the training dummy once it is built (0.0.22): tapping it sends him to practise on it; (chapter 2) a rat, to fight */
+  | { kind: 'fight'; id: string; point: THREE.Vector3 }
   /** the campfire once it is built (chapter 2): tapping it cooks his raw fish */
   | { kind: 'cook'; id: MakeId; point: THREE.Vector3 }
   | { kind: 'building'; id: string; point: THREE.Vector3 }
@@ -81,7 +82,7 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
     }
     if (t.kind === 'make') return `${MAKES[t.id].verb}|${MAKES[t.id].name}`;
     if (t.kind === 'store') return t.id === 'woodpile' ? 'Stack logs on|Firewood pile' : 'Store in|Chest';
-    if (t.kind === 'fight') return `Practise on|${MAKES[t.id].name}`;
+    if (t.kind === 'fight') return fightLabel(layout, t.id);
     if (t.kind === 'cook') return 'Cook at|Campfire';
     if (t.kind === 'building') return `Visit|${layout.buildings.find(b => b.id === t.id)!.name}`;
     return `Explore|${layout.parcels.find(p => p.id === t.id)!.name}`;

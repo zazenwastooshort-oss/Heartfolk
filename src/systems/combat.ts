@@ -7,8 +7,8 @@
 // Vitality. Without a weapon he doesn't set off; once the target has taught him all it can of the style he trains (the
 // dummy's level limit) he stops and says so. When the style he trains reaches the level the camp's goal asks of it, he
 // says so and carries on. His health comes back slowly while he is hurt, and a Vitality level adds to it.
-// Built for the rats (chunk C): a fight task against a target by id, a strike timer from the weapon, the formulas as
-// small functions; a target with health that hits back adds its own side without changing these.
+// The rats (chapter 2, part 2) are fought the same way: a strike takes a rat's health, and systems/rats.ts does the
+// rest (it bites back, topples over at 0, comes back; he waits while the rat he beat is down, then goes on).
 import { allGoalsDone, currentGoal, goalMet, maxHealth, type GameState } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Rng } from '../core/rng';
@@ -102,9 +102,13 @@ function regenerate(state: GameState, dt: number): void {
   if (Math.floor(state.time / HEALTH.regen) > Math.floor((state.time - dt) / HEALTH.regen)) state.health = Math.min(max, state.health + 1);
 }
 
-/** He strikes: the hit (or miss) is announced, and damage gives XP, the style he trains last so its row lights up. */
+/** He strikes: the hit (or miss) is announced, and damage gives XP, the style he trains last so its row lights up. A
+ *  creature (chapter 2: a rat) loses that much health, never more than it has (systems/rats.ts sees to it once it is
+ *  beaten). */
 function strike(state: GameState, layout: Layout, target: Target, rng: Rng, events: EventBus): void {
-  const damage = rollStrike(state, target, rng), style = state.combatStyle;
+  const rolled = rollStrike(state, target, rng), style = state.combatStyle;
+  const damage = target.foe ? Math.min(rolled, target.foe.health) : rolled;
+  if (target.foe && damage > 0) state.rats[target.id]!.health -= damage;
   events.emit({ type: 'hit', target: target.id, damage });
   if (damage <= 0) return;
   const xp = damage * target.xp, most = maxHealth(state), level = levelOf(state, style);
@@ -129,6 +133,7 @@ export function updateCombat(state: GameState, layout: Layout, dt: number, rng: 
   if (task.kind !== 'fight') return;
   const target = targetOf(state, layout, task.target);
   if (!target) { p.task = { kind: 'idle' }; return; }        // nothing there to fight any more
+  if (target.foe?.down) { task.progress = 0; return; }        // a rat he beat: he waits (systems/rats.ts moves him on)
   const why = cantFight(state, target);
   if (why) { p.task = { kind: 'idle' }; events.emit({ type: 'cantFight', target: target.id, reason: why, skill: state.combatStyle }); return; }
   const every = strikeEvery(state.equipment.weapon), before = task.progress;

@@ -83,6 +83,10 @@ export interface AwaySummary {
   taught?: { target: string; skill: SkillId };
   /** fish he cooked at the campfire (chapter 2), and how many of them burnt; left out until he cooks one */
   cooked?: number; burnt?: number;
+  /** (chapter 2's rats) rats he beat, and the hides they left; left out until he beats one */
+  beaten?: number; hides?: number;
+  /** times a rat knocked him out (he woke up back at camp); left out until one does */
+  knockedOut?: number;
 }
 
 export const emptySummary = (): AwaySummary => ({ items: {}, xp: {}, levels: {}, stoked: 0, fireLow: 0, made: [], full: false });
@@ -100,6 +104,8 @@ export function tally(s: AwaySummary, e: GameEvent): void {
     case 'noStorage': s.full = true; break;
     case 'cantFight': if (e.reason === 'taught') s.taught = { target: e.target, skill: e.skill }; break;
     case 'cooked': s.cooked = (s.cooked ?? 0) + 1; if (e.burnt) s.burnt = (s.burnt ?? 0) + 1; break;
+    case 'beaten': s.beaten = (s.beaten ?? 0) + 1; if (e.item) s.hides = (s.hides ?? 0) + 1; break;
+    case 'knockedOut': s.knockedOut = (s.knockedOut ?? 0) + 1; break;
     default: break;
   }
 }
@@ -117,12 +123,16 @@ export function addSummary(into: AwaySummary, more: AwaySummary): void {
   if (more.taught) into.taught = { ...more.taught };
   if (more.cooked) into.cooked = (into.cooked ?? 0) + more.cooked;
   if (more.burnt) into.burnt = (into.burnt ?? 0) + more.burnt;
+  if (more.beaten) into.beaten = (into.beaten ?? 0) + more.beaten;
+  if (more.hides) into.hides = (into.hides ?? 0) + more.hides;
+  if (more.knockedOut) into.knockedOut = (into.knockedOut ?? 0) + more.knockedOut;
 }
 
-/** Whether he did anything worth telling: gathered something, gained XP, saw to the fire, finished making something or
- *  cooked something. */
+/** Whether he did anything worth telling: gathered something, gained XP, saw to the fire, finished making something,
+ *  cooked something, or (chapter 2) beat a rat or was knocked out by one. */
 export const didSomething = (s: AwaySummary) =>
-  Object.keys(s.items).length > 0 || Object.keys(s.xp).length > 0 || s.stoked > 0 || s.fireLow > 0 || s.made.length > 0 || !!s.cooked;
+  Object.keys(s.items).length > 0 || Object.keys(s.xp).length > 0 || s.stoked > 0 || s.fireLow > 0 || s.made.length > 0 || !!s.cooked
+  || !!s.beaten || !!s.knockedOut;
 
 /** Whether the "While you were away" note shows: at least a minute of play (AWAY.note) was caught up, and he did
  *  something in it. */

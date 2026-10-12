@@ -25,8 +25,9 @@ const worked = (a: Away) => `worked ${a.counted < a.real ? `for ${duration(a.cou
 
 /** The note's words: a lead saying how long you were away and how much of it he worked (`spans`: one stretch, or more
  *  when a later catch-up came while the note was still up), then a line each for what he gathered, each skill's XP (and
- *  the level it reached), the fire, the fish he cooked, what he finished making, and a backpack that filled with nowhere
- *  to store it or (0.0.22) practice that stopped at the training dummy's level limit. */
+ *  the level it reached), the fire, the fish he cooked, the rats he beat and the hides they left, what he finished
+ *  making, and a backpack that filled with nowhere to store it or (0.0.22) practice that stopped at the training dummy's
+ *  level limit, or (chapter 2) a rat that knocked him out. */
 export function awayText(spans: Away[], s: AwaySummary): { lead: string; lines: string[] } {
   const lead = spans.map((a, i) => i > 0 ? `Then ${duration(a.real)} more${a.open ? ' with the game open' : ''}, and he ${worked(a)}.`
     : `Away ${duration(a.real)}. ${a.open ? `The game was still open, so he ${worked(a)}.` : `He ${worked(a)}.`}`).join(' ');
@@ -40,11 +41,20 @@ export function awayText(spans: Away[], s: AwaySummary): { lead: string; lines: 
   if (s.stoked) lines.push(s.stoked === 1 ? 'He stoked the fire at nightfall.' : `He stoked the fire on ${s.stoked} nights.`);
   if (s.fireLow) lines.push(s.fireLow === 1 ? 'One night there were no logs, so the fire burned low.' : `On ${s.fireLow} nights there were no logs, so the fire burned low.`);
   if (s.cooked) lines.push(cookedText(s.cooked, s.burnt ?? 0));
+  if (s.beaten) lines.push(beatenText(s.beaten, s.hides ?? 0));
   for (const id of s.made) lines.push(`He finished the ${MAKES[id].name.toLowerCase()}.`);
   if (s.full) lines.push('Then his backpack was full, with nowhere to store it.');
   // (0.0.22) he stopped at the training dummy's level limit
   if (s.taught) lines.push(`Then the ${makeDef(s.taught.target)?.name.toLowerCase() ?? 'training dummy'} couldn't teach him any more ${SKILLS[s.taught.skill].name}, so he stopped.`);
+  // (chapter 2) a rat knocked him out: he woke up back at camp, and stopped fighting
+  if (s.knockedOut) lines.push(s.knockedOut === 1 ? 'Then a rat knocked him out, and he woke up back at camp.' : `Rats knocked him out ${s.knockedOut} times, and each time he woke up back at camp.`);
   return { lead, lines };
+}
+
+/** The rats he beat and the hides they left: "He beat 7 rats and found 3 rat hides." */
+function beatenText(rats: number, hides: number): string {
+  const beat = `He beat ${rats === 1 ? 'a rat' : `${rats.toLocaleString()} rats`}`;
+  return hides ? `${beat} and found ${hides === 1 ? 'a rat hide' : `${hides.toLocaleString()} rat hides`}.` : `${beat}.`;
 }
 
 /** The fish he cooked, `burnt` of them burnt: "He cooked 6 fish, 2 of them burnt." */

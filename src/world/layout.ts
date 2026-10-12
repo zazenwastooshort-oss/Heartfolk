@@ -50,6 +50,10 @@ export interface PickupSpot { id: string; kind: PickupKind; pos: Vec2; rot: numb
 /** Scenery that stays where it lies (the wreck's broken hull ribs at the water's edge): a model in village.glb,
  *  sunk `y` metres into the ground or water, blocking `radius` metres of walkable ground (0 for none). */
 export interface DebrisSpot { model: string; pos: Vec2; rot: number; y?: number; radius: number }
+/** A rats' nest (chapter 2; world/camp.ts): its middle, which way its hole faces (rot as for buildings: 0 faces +z), how
+ *  far round its middle the mound reaches (it is in the way out to there: world/nav.ts), how many rats live round it
+ *  (core/rats.ts gives them their ids) and how far from its middle they potter (`roam`). */
+export interface NestSpot { id: string; pos: Vec2; rot: number; radius: number; rats: number; roam: number }
 
 export interface Layout {
   /** land the player can walk on at the start */
@@ -82,6 +86,8 @@ export interface Layout {
   /** things lying on the ground to pick up by hand (the camp's wreck, stones and branches) */
   pickups?: PickupSpot[];
   debris?: DebrisSpot[];
+  /** (chapter 2) rats' nests, each with rats living round it (core/rats.ts, systems/rats.ts); none in the village */
+  nests?: NestSpot[];
   /** the tools a new game here starts with; all of them when not given (the village). At the camp he has none. */
   startTools?: ToolId[];
   /** the ground drawn in detail round the playable land (the village's is the default) */

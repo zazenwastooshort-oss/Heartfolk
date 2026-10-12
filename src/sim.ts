@@ -14,6 +14,7 @@ import { updateMaking } from './systems/making';
 import { updateGoals } from './systems/goals';
 import { updateFire } from './systems/fire';
 import { updateCombat } from './systems/combat';
+import { updateRats } from './systems/rats';
 import { updateCooking } from './systems/cooking';
 import { closedFor, emptySummary, openFor, tally, type Away, type AwaySummary } from './systems/away';
 
@@ -24,6 +25,7 @@ export function step(state: GameState, dt: number, ctx: SimContext): void {
   const visited = updatePlayer(state, ctx.layout, dt, ctx.events);
   updateGathering(state, ctx.layout, dt, ctx.rng, ctx.events);
   updateCombat(state, ctx.layout, dt, ctx.rng, ctx.events);     // fighting (the training dummy), and health coming back
+  updateRats(state, ctx.layout, dt, ctx.rng, ctx.events);       // the rats round their nest (chapter 2): they bite back
   updatePickups(state, ctx.layout, ctx.events);
   // the camp's goals are written down as they finish, before making uses anything up
   if (ctx.layout.camp) updateGoals(state, ctx.events);

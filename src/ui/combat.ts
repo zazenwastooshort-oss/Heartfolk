@@ -31,8 +31,9 @@ const either = (names: string[]) => names.length > 1 ? `${names.slice(0, -1).joi
 /** Why he can't fight: no weapon, or the dummy has taught him all it can of the style he trains (and which styles
  *  still have something to learn from it: picking one doesn't send him back, so a tap on the dummy does). */
 export function cantFightText(state: GameState, layout: Layout, target: string, reason: 'weapon' | 'taught', skill: SkillId): string {
-  if (reason === 'weapon') return 'You need a weapon to practise with. A stone club will do.';
   const t = targetOf(state, layout, target), name = t?.name.toLowerCase() ?? 'dummy';
+  // (chapter 2) a rat to fight, not the dummy to practise on
+  if (reason === 'weapon') return t?.foe ? `You need a weapon to fight a ${name}. A stone club will do.` : 'You need a weapon to practise with. A stone club will do.';
   const next = either(t ? STYLES.filter(s => levelFor(state.skills[s]) < t.maxLevel).map(s => SKILLS[s].name) : []);
   return next ? `The ${name} can't teach you any more ${SKILLS[skill].name}. Pick ${next} under Train, then tap the dummy.`
     : `The ${name} has taught you all it can.`;
@@ -97,9 +98,9 @@ export class CombatHud {
       this.overheadFill.style.width = `${Math.max(0, state.health / max) * 100}%`;
       this.overhead.classList.toggle('low', state.health / max < OVERHEAD.low);
     }
-    // a hit (or a miss: 0) floats up over what he struck
+    // a hit (or a miss: 0) floats up over what he struck (over a rat, chapter 2, ui/rats.ts sees to it)
     const hit = this.pendingHit, target = hit && targetOf(state, this.layout, hit.target);
-    if (hit && target) {
+    if (hit && target && !target.foe) {
       if (this.hits.length >= HITS.most) this.hits.shift()!.el.remove();
       const el = document.createElement('div'); el.className = hit.damage > 0 ? 'hit' : 'hit zero'; el.textContent = String(hit.damage);
       $('floats').append(el);
