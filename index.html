@@ -52,6 +52,8 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
 .news button { margin-top: 14px; width: 100%; border: 0; border-radius: 999px; padding: 10px; background: var(--button); color: var(--button-ink);
   font: 700 14px/1 var(--body); cursor: pointer; }
 .news button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* "While you were away" (src/ui/away.ts) looks the same: its lead line says how long, the list what he did */
+.away .lead { margin-bottom: 10px; color: var(--ink); font-size: 14px; }
 
 /* the goal card (src/data/goals.ts): what to do next, under the title */
 .goal { position: absolute; left: var(--edge); top: calc(56px + env(safe-area-inset-top, 0px)); box-sizing: border-box;
@@ -239,6 +241,12 @@ body { background: var(--scene); color: var(--label); font: 14px/1.4 var(--body)
     <h2 id="newsTitle">What's new</h2>
     <div id="newsBody"></div>
     <button type="button" id="newsOk">Got it</button>
+  </div>
+  <div class="news away" id="away" role="dialog" aria-labelledby="awayTitle" hidden>
+    <h2 id="awayTitle">While you were away</h2>
+    <p class="lead" id="awayLead"></p>
+    <ul id="awayList"></ul>
+    <button type="button" id="awayOk">Got it</button>
   </div>
   <div class="skill" aria-live="polite">
     <div class="skills" id="skills"></div>

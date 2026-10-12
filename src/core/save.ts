@@ -42,9 +42,21 @@ const migrations: Record<number, (s: any) => any> = {
   // 0.0.19: the storage chest, and stoking the fire at night. No chest stood before, so no night has been seen to
   // and the fire burns as it always did; he isn't off stoking it.
   6: (s) => ({ ...s, stokedNight: -1, fireLow: false, player: { ...s.player, stoke: null } }),
+  // 0.0.20: away time. A save says when it was written (savedAt); an older one doesn't, so its first load has no away
+  // time. The next save says.
+  7: (s) => ({ ...s, savedAt: null }),
 };
 
-export function serialize(state: GameState): string { return JSON.stringify(state); }
+/** The game as saved text. `savedAt` (since 0.0.20): the real time the game had been played up to when it was saved,
+ *  in ms since 1970 (Date.now()), from which away time is counted when it is opened again (sim.ts, catchUpAway).
+ *  Left out, as in the artifact viewer's hand-over of a running game, it is none. */
+export function serialize(state: GameState, savedAt?: number): string {
+  return JSON.stringify(savedAt === undefined ? state : { ...state, savedAt });
+}
+
+/** A save read back: the game, and the real time it had been played up to when it was saved (ms since 1970), or null
+ *  when the save doesn't say (from before 0.0.20, or a hand-over of a running game) or says something broken. */
+export interface Loaded { state: GameState; savedAt: number | null }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -124,7 +136,10 @@ function makeable(state: GameState, layout: Layout, id: unknown): boolean {
   return !made(state, def.id);
 }
 
-export function deserialize(raw: string, layout: Layout): GameState {
+/** The game in a save, without when it was saved (readSave has both). */
+export function deserialize(raw: string, layout: Layout): GameState { return readSave(raw, layout).state; }
+
+export function readSave(raw: string, layout: Layout): Loaded {
   let data = JSON.parse(raw);
   if (typeof data !== 'object' || data === null || typeof data.version !== 'number') throw new Error('not a Hearthfolk save');
   if (data.version > SAVE_VERSION) throw new Error(`save is from a newer version (${data.version})`);
@@ -133,6 +148,10 @@ export function deserialize(raw: string, layout: Layout): GameState {
     if (!m) throw new Error(`no migration from save version ${data.version}`);
     data = m(data); data.version++;
   }
+  // when it was saved goes beside the game, not into it; a time from a damaged or hand-edited save (not a number, not
+  // after 1970, infinite) is none, so no away time is counted from it
+  const savedAt: number | null = typeof data.savedAt === 'number' && Number.isFinite(data.savedAt) && data.savedAt > 0 ? data.savedAt : null;
+  delete data.savedAt;
   // fill anything missing (for example a rock added to the layout since the save was made)
   const fresh = createState(layout, data.seed ?? 1);
   const state: GameState = {
@@ -182,18 +201,20 @@ export function deserialize(raw: string, layout: Layout): GameState {
   if (stoke && !onTrack && stoke.logs > 0) state.bank[STOKE.item] = (state.bank[STOKE.item] ?? 0) + stoke.logs;
   if (p.task.kind === 'stoke' && !p.stoke) p.task = { kind: 'idle' };
   if (p.stoke) p.trip = null;
-  return state;
+  return { state, savedAt };
 }
 
-export function load(storage: Storage, layout: Layout): GameState | null {
+/** The saved game and when it was saved, or null when there is none (or it can't be read). */
+export function load(storage: Storage, layout: Layout): Loaded | null {
   try {
     const raw = storage.get(SAVE_KEY);
-    return raw ? deserialize(raw, layout) : null;
+    return raw ? readSave(raw, layout) : null;
   } catch { return null; }
 }
 
-export function save(storage: Storage, state: GameState): boolean {
-  try { storage.set(SAVE_KEY, serialize(state)); return true; } catch { return false; }
+/** Save the game, saying it had been played up to `savedAt` (real time, ms since 1970: see serialize). */
+export function save(storage: Storage, state: GameState, savedAt: number): boolean {
+  try { storage.set(SAVE_KEY, serialize(state, savedAt)); return true; } catch { return false; }
 }
 
 /** Browser storage, failing quietly where it's blocked (private windows, previews). */

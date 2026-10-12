@@ -585,7 +585,7 @@ describe('saving the camp', () => {
     run(s, 15);
     const { tools: _t, hasBook: _b, taken: _k, ...rest } = JSON.parse(serialize(s.state));
     const back = deserialize(JSON.stringify({ ...rest, version: 4 }), CAMP);
-    expect(SAVE_VERSION).toBe(7);
+    expect(SAVE_VERSION).toBe(8);
     expect(back.version).toBe(SAVE_VERSION);
     expect(back.tools).toEqual({ axe: true, pick: true });
     expect(back.hasBook).toBe(false);

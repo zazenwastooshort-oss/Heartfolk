@@ -23,7 +23,7 @@ const el = (tag: string, className: string, text = '') => { const e = document.c
 /** What `n` of an item are called: "birch logs", "1 birch log" (ITEMS' `one`); his book is "book". */
 export const itemName = (id: string, n: number) => id === BOOK ? 'book' : ((n === 1 && ITEMS[id]?.one) || ITEMS[id]?.name)?.toLowerCase() ?? id;
 /** "28 birch logs"; several are joined by commas, the last by `last` ("20 birch logs and 8 copper ore") */
-const itemList = (items: Record<string, number>, last = ', ') => {
+export const itemList = (items: Record<string, number>, last = ', ') => {
   const parts = Object.entries(items).filter(([, n]) => n > 0).map(([id, n]) => `${n.toLocaleString()} ${itemName(id, n)}`);
   return parts.length > 1 ? `${parts.slice(0, -1).join(', ')}${last}${parts.at(-1)}` : parts[0] ?? '';
 };

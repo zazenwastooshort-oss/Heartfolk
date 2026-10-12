@@ -7,7 +7,8 @@ import { PICKUPS } from '../data/pickups';
 import { makeDef, type MakeId } from '../data/making';
 import { DAY_SECONDS } from './clock';
 
-export const SAVE_VERSION = 7;
+/** The save format. 8 since 0.0.20: a save also says when it was written, for away time (core/save.ts, savedAt). */
+export const SAVE_VERSION = 8;
 
 /** gather: working a rock or a tree; progress runs 0..1 through one swing of that skill's tool. `mayMoveOn` is set
  *  when the node runs out while he works it, so he can move on to another; a node that was already down when he got

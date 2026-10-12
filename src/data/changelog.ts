@@ -6,6 +6,14 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.20', date: '12 Oct 2026', notes: [
+      'He keeps working while the game is closed, at a fifth of his speed, for up to 2 hours. After that he waits for you to come back.',
+      'When you come back, a short note says how long you were away and what he did: what he gathered, the XP and levels he earned, and whether he stoked the fire.',
+      'With the game left open, in another tab or with your screen off, he works at full speed, and the note shows when you come back to it.',
+      'Away time counts from the next time you close the game.',
+    ],
+  },
+  {
     version: '0.0.19', date: '12 Oct 2026', notes: [
       'Build your storage chest beside the shelter. Once you have 10 logs and 3 copper ore, tap Build the storage chest on the goal card, or tap the chest spot.',
       "The chest is your camp's storage. When your backpack fills up, he carries it to the chest, empties it and goes back to work. Tap the chest to empty your backpack into it yourself. The panel shows what is in the chest, and it counts for your goals.",

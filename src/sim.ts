@@ -1,8 +1,11 @@
 // One simulation step: the order systems run in. Headless: no drawing, no DOM, so tests can run days of play.
+// Catching up (time the tab spent in the background, or away time when a save is opened) is many steps in a row.
 import type { GameState } from './core/state';
+import type { Loaded } from './core/save';
 import type { EventBus } from './core/events';
 import type { Rng } from './core/rng';
 import type { Layout } from './world/layout';
+import { STEP } from './core/loop';
 import { updatePlayer } from './actors/player';
 import { updateGathering } from './systems/gathering';
 import { updateHauling } from './systems/hauling';
@@ -10,6 +13,7 @@ import { updatePickups } from './systems/pickups';
 import { updateMaking } from './systems/making';
 import { updateGoals } from './systems/goals';
 import { updateFire } from './systems/fire';
+import { closedFor, emptySummary, tally, type Away, type AwaySummary } from './systems/away';
 
 export interface SimContext { layout: Layout; rng: Rng; events: EventBus }
 
@@ -26,4 +30,30 @@ export function step(state: GameState, dt: number, ctx: SimContext): void {
   const stoking = ctx.layout.camp ? updateFire(state, ctx.layout, visited, ctx.events) : false;
   // after gathering, so the item that fills the backpack sends him to the bank (the chest) in the same step
   updateHauling(state, ctx.layout, stoking ? null : visited, ctx.events);
+}
+
+/** Catch up `seconds` of play in whole steps, one after another with nothing drawn in between: time the tab spent in
+ *  the background, or away time. Every system runs as in play, so he hauls, moves on and stokes the fire once a night
+ *  as he would have. Returns what he did meanwhile, counted from the events (systems/away.ts). */
+export function catchUp(state: GameState, seconds: number, ctx: SimContext): AwaySummary {
+  const summary = emptySummary(), off = ctx.events.on(e => tally(summary, e));
+  try { for (let n = Math.round(seconds / STEP); n > 0; n--) step(state, STEP, ctx); }
+  finally { off(); }
+  return summary;
+}
+
+/** Opening a saved game: the game was closed from `savedAt` (the real time its save had been played up to, ms since
+ *  1970) until `now`, and he kept working at a fifth of his speed for at most 2 hours of that (closedFor in
+ *  systems/away.ts). Caught up at once, before the first frame: at most 24 minutes of play, which takes well under a
+ *  second. */
+export function catchUpAway(state: GameState, savedAt: number | null, now: number, ctx: SimContext): { away: Away; summary: AwaySummary } {
+  const away = closedFor(savedAt, now);
+  return { away, summary: catchUp(state, away.game, ctx) };
+}
+
+/** Opening the page (main.ts): away time is caught up only for a save read back from this browser (`loaded`), the
+ *  page having been opened or reloaded. None for a new game (no save), and none when the artifact viewer's hot swap
+ *  handed over the running game (`handedOver`): it never stopped. */
+export function awayOnOpening(loaded: Loaded | null, handedOver: boolean, now: number, ctx: SimContext): { away: Away; summary: AwaySummary } | null {
+  return loaded && !handedOver ? catchUpAway(loaded.state, loaded.savedAt, now, ctx) : null;
 }

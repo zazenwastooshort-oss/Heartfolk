@@ -6,7 +6,8 @@
 // was taking to the chest anyway) is emptied at the chest on the way. A command from the player stops it
 // (systems/commands): logs he carries go back into the chest, and he doesn't set off again that night; a tap on the
 // chest while he is on his way there for the logs only has him empty the backpack there too. It runs every step, so
-// catching up on time spent in the background stokes once a night, as playing does.
+// catching up (time spent in a background tab, or away time while the game was closed) stokes once a night, as
+// playing does.
 import { owned, type Back, type GameState, type Stoke } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Layout } from '../world/layout';
