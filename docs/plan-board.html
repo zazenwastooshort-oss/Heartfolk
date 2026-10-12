@@ -5,13 +5,15 @@
 <style>
 /* Layout: the game's own look (CLAUDE.md, index.html): forest-green panels on a deep forest ground, the
    village-green header on top. One deliberate dark look for every viewer (the owner asked for it not to be bright).
-   One column of sections; questions and notes sit side by side on wide screens. Content comes from the db. */
+   What needs the owner comes first (questions to answer, reviewed fixes to OK), then the plan, then the record.
+   Content comes from the db; answers and OKs are written back to it for Claude to pick up. */
 :root {
   --bg: #111b10; --panel: #1e341b; --ink: #f1e8d4; --muted: #b6c0a2; --line: rgba(241, 232, 212, .13);
   --accent: #e8a65e; --green: #8fd36e; --ground: #2c4a26; --ground-ink: #f1e8d4;
   --c-done: #335a26; --c-done-ink: #c9efb6; --c-built: #2b4a24; --c-built-ink: #b4e39f;
   --c-now: #4f3a1a; --c-now-ink: #f3c48c; --c-next: #23384d; --c-next-ink: #a9c6ee;
   --c-plan: #2a3f26; --c-plan-ink: #c6cfb3; --c-new: #4f3a1a; --c-new-ink: #f3c48c;
+  --c-ok: #4a2f3f; --c-ok-ink: #f0b9d6;
   --display: "Fraunces", Georgia, "Times New Roman", serif;
   --body: "Karla", system-ui, -apple-system, "Segoe UI", sans-serif;
   --radius: 12px;
@@ -34,6 +36,7 @@ a.play:hover, a.play:focus-visible { background: #fffaf0; outline: none; box-sha
 section { display: grid; gap: 10px; min-width: 0; }
 h2 { font: 700 1.15rem/1.2 var(--display); margin: 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 h2 small { font: 500 13px/1.3 var(--body); color: var(--muted); }
+h3.group { font: 700 13px/1.3 var(--body); letter-spacing: .04em; color: var(--muted); margin: 4px 0 -2px; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
 
 .chip { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
@@ -43,7 +46,15 @@ h2 small { font: 500 13px/1.3 var(--body); color: var(--muted); }
 .chip.next { background: var(--c-next); color: var(--c-next-ink); }
 .chip.plan { background: var(--c-plan); color: var(--c-plan-ink); }
 .chip.new { background: var(--c-new); color: var(--c-new-ink); }
+.chip.ok { background: var(--c-ok); color: var(--c-ok-ink); }
 .tag { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* what needs the owner, at a glance */
+.tally { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.count { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; display: grid; gap: 2px; text-decoration: none; color: inherit; }
+.count b { font: 700 1.5rem/1.1 var(--display); font-variant-numeric: tabular-nums; color: var(--accent); }
+.count span { color: var(--muted); font-size: 13px; }
+a.count:hover, a.count:focus-visible { border-color: var(--accent); outline: none; }
 
 /* building now: a row of cards that wraps */
 .now { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
@@ -72,17 +83,30 @@ li.now .num { color: var(--accent); }
 @media (max-width: 760px) { .two { grid-template-columns: 1fr; } }
 
 ul.rows { list-style: none; margin: 0; padding: 0; }
-ul.rows li { padding: 11px 16px; border-top: 1px solid var(--line); display: grid; gap: 3px; min-width: 0; }
-ul.rows li:first-child { border-top: 0; }
-.row-head { display: flex; gap: 10px; justify-content: space-between; align-items: baseline; }
+ul.rows > li { padding: 11px 16px; border-top: 1px solid var(--line); display: grid; gap: 5px; min-width: 0; }
+ul.rows > li:first-child { border-top: 0; }
+.row-head { display: flex; gap: 10px; justify-content: space-between; align-items: baseline; flex-wrap: wrap; }
 .row-title { font-weight: 700; min-width: 0; }
+.row-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .row-detail { color: var(--muted); margin: 0; }
-.ver { font: 700 13px/1.4 var(--body); color: var(--accent); font-variant-numeric: tabular-nums; }
+.ver { font: 700 13px/1.4 var(--body); color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+dl.kv { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; }
+dl.kv dt { color: var(--muted); font-size: 13px; padding-top: 1px; }
+dl.kv dd { margin: 0; min-width: 0; }
+@media (max-width: 460px) { dl.kv { grid-template-columns: 1fr; gap: 0; } dl.kv dd { margin-bottom: 4px; } }
+ul.points { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+.point-head { font-size: 13px; color: var(--muted); margin: 2px 0 0; }
+
+/* answering: a question's answer box, an OK button on reviewed fixes */
+.answer { display: grid; gap: 8px; margin-top: 2px; }
+.answer-foot { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.said { margin: 2px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--bg); font-size: 14px; }
+.said b { color: var(--accent); }
 
 /* notes */
 form.note { display: grid; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
 form.note label { font-weight: 700; font-size: 14px; }
-textarea { width: 100%; min-height: 72px; resize: vertical; border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; font: inherit; color: var(--ink); background: var(--bg); }
+textarea { width: 100%; min-height: 64px; resize: vertical; border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; font: inherit; color: var(--ink); background: var(--bg); }
 textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .form-foot { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .hint { font-size: 13px; color: var(--muted); }
@@ -96,8 +120,9 @@ details.more summary { cursor: pointer; color: var(--muted); font-size: 14px; pa
 details.more summary::-webkit-details-marker { display: none; }
 details.more summary::before { content: "+ "; }
 details.more[open] summary::before { content: "− "; }
+summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
-.empty { padding: 16px; color: var(--muted); }
+.empty { padding: 14px 16px; color: var(--muted); }
 .cols { columns: 2 240px; column-gap: 0; }
 .cols li { break-inside: avoid; }
 @media (prefers-reduced-motion: no-preference) { .card, ol.steps li, ul.rows li { transition: background-color .2s; } }
@@ -113,15 +138,37 @@ details.more[open] summary::before { content: "− "; }
       <span class="fact" id="slice">Slice 1: the loop</span>
       <span class="fact">Live <b id="live">–</b></span>
       <span class="fact">Updated <b id="updated">–</b></span>
-      <a class="play" id="play" href="https://claude.ai/artifact/7YuS2GDUio87zA4RkMKQa7" target="_blank" rel="noopener">Play the game</a>
+      <a class="play" id="play" href="https://claude.ai/artifact/QbZc7HqgKjvqUfxnQ49Nrj" target="_blank" rel="noopener">Play the game</a>
     </div>
   </div>
 </header>
 
 <main class="wrap">
+  <div class="tally" aria-label="What needs you">
+    <a class="count" href="#h-q"><b id="n-q">–</b><span>questions for you</span></a>
+    <a class="count" href="#h-review"><b id="n-ok">–</b><span>fixes waiting for your OK</span></a>
+    <a class="count" href="#h-review"><b id="n-wait">–</b><span>changes waiting for review</span></a>
+  </div>
+
   <section aria-labelledby="h-now">
     <h2 id="h-now">Building now</h2>
     <div class="now" id="now"><div class="panel empty">Loading the plan…</div></div>
+  </section>
+
+  <section aria-labelledby="h-q">
+    <h2 id="h-q">Questions for you <small>answer here; Claude picks your answers up next time it looks</small></h2>
+    <div class="panel"><ul class="rows" id="questions"><li class="empty">Loading…</li></ul></div>
+  </section>
+
+  <section aria-labelledby="h-review">
+    <h2 id="h-review">Review queue <small>quick changes wait for a reviewer; at night the reviewers play them, and fixes wait for your OK</small></h2>
+    <h3 class="group">Reviewed, waiting for your OK</h3>
+    <div class="panel"><ul class="rows" id="r-ok"><li class="empty">Loading…</li></ul></div>
+    <h3 class="group" id="g-review" hidden>In review now</h3>
+    <div class="panel" id="p-review" hidden><ul class="rows" id="r-review"></ul></div>
+    <h3 class="group">Waiting for review</h3>
+    <div class="panel"><ul class="rows" id="r-wait"><li class="empty">Loading…</li></ul></div>
+    <div class="panel"><details class="more" id="r-done-box"><summary id="r-done-sum">Reviewed and live</summary><ul class="rows" id="r-done"></ul></details></div>
   </section>
 
   <section aria-labelledby="h-steps">
@@ -131,10 +178,6 @@ details.more[open] summary::before { content: "− "; }
   </section>
 
   <div class="two">
-    <section aria-labelledby="h-q">
-      <h2 id="h-q">Open questions <small>for you, when they come up</small></h2>
-      <div class="panel"><ul class="rows" id="questions"><li class="empty">Loading…</li></ul></div>
-    </section>
     <section aria-labelledby="h-notes">
       <h2 id="h-notes">Your notes <small>Claude reads these</small></h2>
       <div class="panel">
@@ -148,6 +191,10 @@ details.more[open] summary::before { content: "− "; }
         </form>
         <ul class="rows" id="notes"><li class="empty">No notes yet.</li></ul>
       </div>
+    </section>
+    <section aria-labelledby="h-nights">
+      <h2 id="h-nights">Night shifts <small>newest first</small></h2>
+      <div class="panel"><ul class="rows" id="nights"><li class="empty">Loading…</li></ul></div>
     </section>
   </div>
 
@@ -170,19 +217,34 @@ details.more[open] summary::before { content: "− "; }
 <script>
 const STATUS = {
   done: ['Done', 'done'], built: ['Ready to play', 'built'], building: ['Building now', 'now'],
-  next: ['Next', 'next'], planned: ['Planned', 'plan'], open: ['Open', 'plan'],
+  next: ['Next', 'next'], planned: ['Planned', 'plan'], open: ['Open', 'plan'], paused: ['Paused', 'plan'], dropped: ['Dropped', 'plan'],
 };
 const NOTE_STATE = { new: ['New', 'new'], seen: ['Seen by Claude', 'next'], done: ['Done', 'done'] };
+const Q_STATE = { open: ['Open', 'new'], answered: ['Answered, Claude picks it up next time', 'next'], done: ['Done', 'done'] };
+const REVIEW = {
+  waiting: ['Waiting for review', 'now'], reviewing: ['In review', 'next'], fixed: ['Fixes ready, needs your OK', 'ok'],
+  passed: ['Reviewed, all good', 'done'], published: ['Fixes live', 'done'], skipped: ['Not reviewed', 'plan'],
+};
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const chip = (map, key) => { const [label, cls] = map[key] || [key || '', 'plan']; return el('span', 'chip ' + cls, label); };
 const $ = id => document.getElementById(id);
+const day = iso => { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleDateString([], { day: 'numeric', month: 'short' }) : ''; };
 
-let board = null, meta = null, notes = [], db = null, canWrite = null;
+let board = null, meta = null, notes = [], reviews = null, nights = [], db = null, canWrite = null;
+const drafts = {};        // answers being typed, kept across live updates
+const editing = new Set(); // answered questions reopened to change the answer
 
 function fill(listId, items, make, emptyText) {
   const list = $(listId); list.replaceChildren();
   if (!items.length) { list.append(el('li', 'empty', emptyText)); return; }
   for (const it of items) list.append(make(it));
+}
+
+/* keep the owner's typing and focus when the lists redraw */
+function keepFocus(draw) {
+  const a = document.activeElement, id = a && a.id, start = a && a.selectionStart, end = a && a.selectionEnd;
+  draw();
+  if (id) { const b = $(id); if (b && b !== a) { b.focus({ preventScroll: true }); if (start != null) try { b.setSelectionRange(start, end); } catch {} } }
 }
 
 function render() {
@@ -214,7 +276,7 @@ function render() {
     ? `${counts('done')} done · ${counts('built')} ready to play · ${steps.length} in all` : '';
   const bar = $('progress'); bar.replaceChildren();
   for (const s of steps) bar.append(el('i', (STATUS[s.status] || [, 'plan'])[1]));
-  fill('steps', steps, (s, i) => {
+  fill('steps', steps, s => {
     const li = el('li', (STATUS[s.status] || [, 'plan'])[1]);
     li.append(el('span', 'num', String(steps.indexOf(s) + 1)), el('span', 'step-title', s.title));
     const m = el('span', 'step-meta');
@@ -233,7 +295,7 @@ function render() {
     if (it.detail) li.append(el('p', 'row-detail', it.detail));
     return li;
   };
-  fill('questions', of('question'), q => row(q, q.tag ? el('span', 'tag', q.tag) : null), 'No open questions.');
+  keepFocus(renderQuestions);
   fill('versions', of('version'), v => {
     const li = el('li'), head = el('div', 'row-head');
     head.append(el('span', 'row-title', v.title), el('span', 'ver', v.tag || ''));
@@ -255,8 +317,132 @@ function render() {
   renderNotes();
 }
 
+/* ---------- questions: answer on the board ---------- */
+function qState(q) { return q.status === 'answered' || q.status === 'done' ? q.status : 'open'; }
+
+function answerForm(q) {
+  const form = el('form', 'answer'), id = 'ans-' + q.id;
+  const box = el('textarea'); box.id = id; box.maxLength = 2000; box.placeholder = 'Your answer';
+  box.setAttribute('aria-label', 'Your answer to: ' + (q.title || ''));
+  box.value = drafts[q.id] ?? (editing.has(q.id) ? (q.answer || '') : '');
+  box.addEventListener('input', () => { drafts[q.id] = box.value; });
+  const foot = el('div', 'answer-foot'), hint = el('span', 'hint', ''), btn = el('button', null, 'Save answer'); btn.type = 'submit';
+  foot.append(hint, btn); form.append(box, foot);
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const text = box.value.trim(); if (!text || !db) return;
+    btn.disabled = true;
+    try {
+      await db.doc('board/' + q.id).update({ answer: text, answeredAt: new Date().toISOString(), status: 'answered' });
+      delete drafts[q.id]; editing.delete(q.id);
+    } catch (err) {
+      hint.textContent = err && (err.code === 'invalid_argument' || err.code === 'permission_denied') ? 'Only the board’s owner can answer.' : 'Couldn’t save just now. Try again in a moment.';
+      btn.disabled = false;
+    }
+  });
+  return form;
+}
+
+function questionItem(q) {
+  const li = el('li'), head = el('div', 'row-head'), right = el('div', 'row-right'), state = qState(q);
+  head.append(el('span', 'row-title', q.title || ''));
+  if (q.tag) right.append(el('span', 'tag', q.tag));
+  if (state !== 'open') right.append(chip(Q_STATE, state));
+  head.append(right); li.append(head);
+  if (q.detail) li.append(el('p', 'row-detail', q.detail));
+  if (q.answer && !editing.has(q.id)) {
+    const said = el('p', 'said'); said.append(el('b', null, 'You: '), document.createTextNode(q.answer)); li.append(said);
+  }
+  if (q.reply) { const r = el('p', 'reply'); r.append(el('b', null, 'Claude: '), document.createTextNode(q.reply)); li.append(r); }
+  if (canWrite !== false && db) {
+    if (state === 'open' || editing.has(q.id)) li.append(answerForm(q));
+    else if (state === 'answered') {
+      const change = el('button', 'link', 'Change answer'); change.type = 'button';
+      change.addEventListener('click', () => { editing.add(q.id); keepFocus(renderQuestions); const b = $('ans-' + q.id); if (b) b.focus(); });
+      li.append(change);
+    }
+  }
+  return li;
+}
+
+function renderQuestions() {
+  if (!board) return;
+  const qs = board.filter(b => b.kind === 'question');
+  const open = qs.filter(q => qState(q) === 'open' || editing.has(q.id));
+  const answered = qs.filter(q => qState(q) === 'answered' && !editing.has(q.id));
+  const done = qs.filter(q => qState(q) === 'done' && !editing.has(q.id));
+  $('n-q').textContent = open.length;
+  const list = $('questions'); list.replaceChildren();
+  if (!open.length && !answered.length) list.append(el('li', 'empty', 'No open questions.'));
+  open.forEach(q => list.append(questionItem(q)));
+  answered.forEach(q => list.append(questionItem(q)));
+  if (done.length) {
+    const more = el('details', 'more'), inner = el('ul', 'rows');
+    more.append(el('summary', null, `${done.length} settled`));
+    done.forEach(q => inner.append(questionItem(q)));
+    more.append(inner); const li = el('li'); li.style.padding = '0'; li.append(more); list.append(li);
+  }
+}
+
+/* ---------- the review queue ---------- */
+function points(head, items) {
+  const frag = document.createDocumentFragment();
+  if (!Array.isArray(items) || !items.length) return frag;
+  frag.append(el('p', 'point-head', head));
+  const ul = el('ul', 'points'); for (const p of items) ul.append(el('li', null, p)); frag.append(ul);
+  return frag;
+}
+
+function reviewItem(r) {
+  const li = el('li'), head = el('div', 'row-head'), right = el('div', 'row-right');
+  head.append(el('span', 'row-title', r.title || ''));
+  if (r.version) right.append(el('span', 'ver', r.version));
+  right.append(r.status === 'fixed' && r.ok ? el('span', 'chip next', 'You said OK, Claude publishes it next') : chip(REVIEW, r.status));
+  head.append(right); li.append(head);
+  const kv = el('dl', 'kv');
+  const add = (k, v) => { if (v) kv.append(el('dt', null, k), el('dd', null, v)); };
+  add('What changed', r.changed); add('What to check', r.check);
+  if (kv.childElementCount) li.append(kv);
+  li.append(points('What the reviewer found', r.findings), points('What was fixed', r.fixed));
+  const when = [r.added ? 'Added ' + day(r.added) : '', r.reviewed ? 'reviewed ' + day(r.reviewed) : ''].filter(Boolean).join(' · ');
+  if (when) li.append(el('span', 'tag', when));
+  if (r.status === 'fixed' && !r.ok && canWrite !== false && db) {
+    const foot = el('div', 'answer-foot'), hint = el('span', 'hint', 'Fixes go live once you say OK.'), btn = el('button', null, 'OK, publish it'); btn.type = 'button';
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try { await db.doc('reviews/' + r.id).update({ ok: true, okAt: new Date().toISOString() }); }
+      catch { hint.textContent = 'Couldn’t save just now. Try again in a moment.'; btn.disabled = false; }
+    });
+    foot.append(hint, btn); li.append(foot);
+  }
+  return li;
+}
+
+function renderReviews() {
+  if (!reviews) return;
+  const by = (...s) => reviews.filter(r => s.includes(r.status));
+  const wait = by('waiting'), rev = by('reviewing'), ok = by('fixed'), done = by('passed', 'published', 'skipped');
+  $('n-wait').textContent = wait.length; $('n-ok').textContent = ok.filter(r => !r.ok).length;
+  fill('r-ok', ok, reviewItem, 'Nothing waiting for your OK.');
+  $('g-review').hidden = $('p-review').hidden = !rev.length; fill('r-review', rev, reviewItem, '');
+  fill('r-wait', wait, reviewItem, 'Nothing waiting. Quick changes land here during the day.');
+  $('r-done-sum').textContent = `Reviewed and live (${done.length})`;
+  fill('r-done', done.slice().reverse(), reviewItem, 'Nothing reviewed yet.');
+}
+
+function renderNights() {
+  fill('nights', nights, n => {
+    const li = el('li'), head = el('div', 'row-head');
+    head.append(el('span', 'row-title', n.title || ''), el('span', 'tag', day(n.at)));
+    li.append(head);
+    if (n.summary) li.append(el('p', 'row-detail', n.summary));
+    return li;
+  }, 'No night shifts yet.');
+}
+
+/* ---------- notes ---------- */
 function renderNotes() {
-  fill('notes', notes, n => {
+  fill('notes', notes.filter(n => n.text), n => {
     const li = el('li'), head = el('div', 'row-head');
     head.append(el('span', 'row-title', n.text), chip(NOTE_STATE, n.state || 'new'));
     li.append(head);
@@ -289,7 +475,7 @@ $('note-form').addEventListener('submit', async e => {
 });
 
 function offline(text) {
-  for (const id of ['steps', 'questions', 'versions', 'decisions', 'later']) $(id).replaceChildren(el('li', 'empty', text));
+  for (const id of ['steps', 'questions', 'versions', 'decisions', 'later', 'r-ok', 'r-wait', 'nights']) $(id).replaceChildren(el('li', 'empty', text));
   $('now').replaceChildren(el('div', 'panel empty', text));
   $('note-add').disabled = true; $('note-hint').textContent = 'Notes need the board open in Claude.';
 }
@@ -302,8 +488,11 @@ function offline(text) {
   db.collection('board').orderBy('order').onSnapshot(s => { board = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
   db.doc('meta/board').onSnapshot(s => { meta = s.exists ? s.data() : null; render(); }, () => {});
   db.collection('notes').orderBy('at', 'desc').limit(200).onSnapshot(s => { notes = s.docs.map(d => ({ id: d.id, ...d.data() })); renderNotes(); }, () => {});
+  db.collection('reviews').orderBy('order').onSnapshot(s => { reviews = s.docs.map(d => ({ id: d.id, ...d.data() })); keepFocus(renderReviews); }, () => {});
+  db.collection('nights').orderBy('at', 'desc').limit(30).onSnapshot(s => { nights = s.docs.map(d => ({ id: d.id, ...d.data() })); renderNights(); }, () => {});
   const user = c.use ? await c.use('user') : null;
   if (user) { try { canWrite = await user.can('data.write'); } catch { canWrite = null; } }
-  if (canWrite === false) { $('note-add').disabled = true; $('note-hint').textContent = 'Only the board’s owner can add notes.'; renderNotes(); }
+  if (canWrite === false) { $('note-add').disabled = true; $('note-hint').textContent = 'Only the board’s owner can add notes.'; }
+  render(); keepFocus(renderReviews);
 })();
 </script>
