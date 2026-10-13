@@ -16,8 +16,10 @@ import type { MakeId } from './making';
  *  the new one's stakes and frame), and the old one is used (slept in, stoked, stacked) until the new one is built.
  *  `speed`: each Carpentry level above 1 makes the work this much quicker (+1%, D5), like the other skills: the same
  *  knocks and XP in less time (a knock is `knock` seconds of the work at level 1). `reach`: how far from the face he
- *  builds he stands, so his mallet lands on it (his stands in SHAPES). */
-export const CARPENTRY = { knock: 3, xp: 4, stages: 3, shown: 2, speed: 0.01, reach: 0.65 };
+ *  builds he stands, so his mallet lands on it (his stands in SHAPES). `low`: something no taller than this (metres:
+ *  the campfire, the firewood pile, the chest, the stone hearth), and anything at its footings, he leans down to, so his
+ *  mallet comes down on it rather than over it (render/arms.ts malletLean). */
+export const CARPENTRY = { knock: 3, xp: 4, stages: 3, shown: 2, speed: 0.01, reach: 0.65, low: 1.0 };
 
 /** What each stage looks like, for the Build list and the notices: the stage he has reached (0 to `stages`). */
 export const STAGE_NAMES = ['Footings', 'Frame', 'Half built', 'Built'] as const;
@@ -88,9 +90,10 @@ export type Block = { box: readonly [x0: number, x1: number, z0: number, z1: num
  *  chest: (a shelter) where the middle of the storage chest sits in it, by the door (it faces out of the door, as the
  *  shelter does): just inside the tent's open front, on the wall tent's and the log cabin's porches, its front at the
  *  front of the floor, so he reaches it from the door (the tent's, where it is built, by CARPENTRY.reach; the cabin's
- *  porch roof reaches out 0.17 m past its floor). spit: (a fire) the spit's two posts and its height, where the
- *  cooking stick goes. furniture: (the chest) it stands inside the shelter and blocks nothing of its own; its blocks
- *  are its own box where it sits, at its shelter's `chest`. */
+ *  porch roof reaches out 0.17 m past its floor). floor: (a shelter) how high the floor the chest stands on is (the
+ *  tent's planks, the wall tent's and the log cabin's porches), so it is drawn standing on it. spit: (a fire) the
+ *  spit's two posts and its height, where his fish cooks (render/cooking.ts). furniture: (the chest) it stands inside
+ *  the shelter and blocks nothing of its own; its blocks are its own box where it sits, at its shelter's `chest`. */
 export interface Shape {
   at?: number;
   turn?: number;
@@ -99,6 +102,7 @@ export interface Shape {
   tall: number;
   stands?: readonly StepPoint[];
   chest?: StepPoint;
+  floor?: number;
   spit?: { posts: readonly [StepPoint, StepPoint]; height: number };
   furniture?: boolean;
 }
@@ -125,16 +129,16 @@ export const SHAPES: Partial<Record<MakeId, Shape>> = {
   },
   // the tent's spot: the tent (the tarp over a log frame, its door to the fire); the wall tent round it, its guy-rope
   // stakes out to the sides and its porch to the front; the log cabin round that, with its chimney up the left side
-  shelter: { blocks: [{ box: [-0.95, 0.95, -1.2, 1.2] }], reach: 1.55, tall: 1.6, stands: [[0, 1.85]], chest: [0, 0.92] },
+  shelter: { blocks: [{ box: [-0.95, 0.95, -1.2, 1.2] }], reach: 1.55, tall: 1.6, stands: [[0, 1.85]], chest: [0, 0.92], floor: 0.05 },
   wall_tent: {
     at: -0.7,
     blocks: [{ box: [-1.75, 1.75, -1.6, 1.5] }, { box: [-1.3, 1.3, 1.5, 2.4] }],
-    reach: 2.75, tall: 2.9, stands: [[0, 3.05]], chest: [-0.55, 2.09],
+    reach: 2.75, tall: 2.9, stands: [[0, 3.05]], chest: [-0.55, 2.09], floor: 0.16,
   },
   log_cabin: {
     at: -1.0,
     blocks: [{ box: [-2.02, 2.02, -1.8, 1.65] }, { box: [-2.8, -1.84, -1.05, -0.05] }, { box: [-1.85, 1.85, 1.65, 2.7] }],
-    reach: 3.3, tall: 4.2, stands: [[0.5, 3.35]], chest: [0.95, 2.25],
+    reach: 3.3, tall: 4.2, stands: [[0.5, 3.35]], chest: [0.95, 2.25], floor: 0.18,
   },
   // beside the fire: logs on two bearers; then a woodshed over them, its chopping block at its right
   woodpile: { blocks: [{ box: [-0.6, 0.6, -0.3, 0.3] }], reach: 0.75, tall: 0.9, stands: [[0, 0.95]] },
@@ -159,10 +163,16 @@ export const DOOR = { near: 0.5, slack: 0.25 };
  *  looks again `retry` seconds later. Work that doesn't end by itself (chopping, a fight) keeps him until it does. */
 export const RESUME = { wait: 5, retry: 10 };
 
-/** The marker a spot shows while its goal asks for what is built there (the camp build, D1; drawn in stage 4): stakes
- *  `stake` metres high at the corners of the first step's footprint with a string between them, a cloth flag `flag`
- *  metres up, a soft glint `glint` across like a pickup's, and a tap area at least `tap` metres round. */
-export const MARKER = { stake: 0.32, flag: 0.62, glint: 0.12, tap: 0.6 };
+/** The marker a spot shows while its goal asks for what is built there (the camp build, D1; render/structures.ts):
+ *  stakes `stake` metres high at the corners of the first step's footprint with a string between them, a cloth flag
+ *  `flag` metres up, a soft glint `glint` metres across now and then over the flag, like a pickup's, every `every`
+ *  seconds, and a tap area at least `tap` metres round. For the storage chest, a square chalked on the shelter's floor
+ *  where it will stand, with the same glint. */
+export const MARKER = { stake: 0.32, flag: 0.62, glint: 0.4, every: 2.4, tap: 0.6 };
+
+/** The tap area at each of the camp's spots (core/camp.ts tapBoxOf): a cylinder round the step there furthest out,
+ *  built or begun (or the first step, while its marker shows), `pad` metres beyond its reach and as tall as it is. */
+export const TAP = { pad: 0.15 };
 
 /** A save opened with him standing where something now stands (a bigger step than when it was saved: one from before
  *  the camp build, saved with him behind the shelter, may have a wall tent there now) moves him out to the nearest open

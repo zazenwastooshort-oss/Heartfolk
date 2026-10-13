@@ -3,15 +3,16 @@
 // just furniture in the tent or house"); where he stands to use or build each thing at the camp's spots, which grows
 // as each spot's steps get bigger (the stone hearth's and the woodshed's own stands, the wall tent's and the log
 // cabin's doors in front of their porches); whether there is a fire to cook at and fish to cook, where the backpack
-// can be emptied (the village's banks, the camp's chest at the shelter's door), and whether the fire is his to stoke.
+// can be emptied (the village's banks, the camp's chest at the shelter's door), and whether the fire is his to stoke;
+// and the tap area at each spot, which grows with each step there.
 // The checks lived in systems/ (cooking.ts, backpack.ts, fire.ts, which still offer them) and moved down here so that
 // what the camp offers can be worked out without the simulation. Headless; changes nothing.
 import { begun, canSleep, type GameState } from './state';
 import type { Layout, Vec2 } from '../world/layout';
 import { doorOf, siteOf } from '../world/layout';
 import { reachOf, standsOf, stepPlace, toGround, type StepPlace } from '../world/steps';
-import { lineOf, stepShown } from './building';
-import { LINES, SHAPES, type LineId } from '../data/building';
+import { lineOf, markerShown, stepShown } from './building';
+import { LINES, MARKER, SHAPES, TAP, type LineId } from '../data/building';
 import { BUILD_REACH, type MakeId } from '../data/making';
 import { COOK } from '../data/cooking';
 
@@ -35,11 +36,28 @@ export const chestHere = (state: GameState, layout: Layout) => state.built.inclu
 
 /** Where the storage chest sits (or will, while it is built or its marker shows): in the shelter drawn at the tent's
  *  spot (stepShown: the tent until a wall tent is half built), at its `chest` (data/building.ts SHAPES), facing out
- *  of the door as the shelter does. Null with no shelter there, begun or built. */
-export function chestPlace(state: GameState, layout: Layout): StepPlace | null {
+ *  of the door as the shelter does, standing on its floor (`floor` metres up). Null with no shelter there, begun or
+ *  built. */
+export function chestPlace(state: GameState, layout: Layout): (StepPlace & { floor: number }) | null {
   const step = stepShown(state, 'tent') ?? outermost(state, 'tent') ?? 'shelter';
-  const place = stepPlace(layout, step), at = SHAPES[step]?.chest;
-  return place && at ? { pos: toGround(place, at), rot: place.rot } : null;
+  const place = stepPlace(layout, step), shape = SHAPES[step], at = shape?.chest;
+  return place && at ? { pos: toGround(place, at), rot: place.rot, floor: shape.floor ?? 0 } : null;
+}
+
+/** The tap area at a spot of the camp (In 11): a cylinder round its middle, `radius` round and `tall` high, and the
+ *  step it is round. */
+export interface TapBox { step: MakeId; pos: Vec2; radius: number; tall: number }
+
+/** The tap area at `line`'s spot (T11.3): round the step there furthest out, built or begun (its footings are in the way
+ *  already, so a tap there is on it), or the first step while its marker shows, TAP.pad beyond its reach (and at
+ *  least MARKER.tap round) and as tall as it is; so it grows with each step. The storage chest has none of its own:
+ *  it is in the shelter, and the shelter's covers it. Null while nothing shows there (the start of a new game, the
+ *  village). */
+export function tapBoxOf(state: GameState, layout: Layout, line: LineId): TapBox | null {
+  const first = LINES[line][0]!, step = outermost(state, line) ?? (markerShown(state, layout, first) ? first : null);
+  const place = step ? stepPlace(layout, step) : null, shape = step ? SHAPES[step] : null;
+  if (!step || !place || !shape) return null;
+  return { step, pos: place.pos, radius: Math.max(reachOf(step) + TAP.pad, MARKER.tap), tall: shape.tall };
 }
 
 /** Where he stands at something at the camp's spots, and what he faces there: one of `stands` (the nearest he can walk

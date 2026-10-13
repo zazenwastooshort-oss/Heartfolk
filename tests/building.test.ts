@@ -7,7 +7,6 @@
 // shelter; the materials (fibre from reeds, clay, stones, logs, bark peeled while chopping birch); the bench, the
 // workbench and placing gone; and saves. Test names start with the plan's test ids (T1.1 and on).
 import { describe, expect, it } from 'vitest';
-import * as THREE from 'three';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,7 +48,6 @@ import { GOALS } from '../src/data/goals';
 import { ITEM_PICTURES, SKILL_ICONS } from '../src/ui/pictures';
 import { workTime } from '../src/ui/build';
 import { shownSkills } from '../src/ui/skills';
-import { BuildingView } from '../src/render/building';
 import { Bot } from './bot';
 
 const at = (day: number, hour: number) => (day + hour / 24) * DAY_SECONDS;
@@ -657,32 +655,7 @@ describe('saves', () => {
   });
 });
 
-describe('the drawing', () => {
-  it("a half-built thing's tap area goes into the view's own list of things to tap, and comes out once it is built", () => {
-    const c = camp(), pickables: THREE.Object3D[] = [], view = new BuildingView(new THREE.Scene(), CAMP, pickables);
-    const taps = () => pickables.filter(o => o.userData.raiseId === 'woodshed');
-    view.update(c.state, 0.1);
-    expect(taps()).toHaveLength(0);                                // nothing shows until it is begun
-    send(c, { type: 'build', id: 'woodshed' });
-    view.update(c.state, 0.1);
-    expect(view.pickables).toBe(pickables);
-    expect(taps()).toHaveLength(1);
-    expect(taps()[0]!.visible).toBe(true);
-    runUntil(c, () => c.state.built.includes('woodshed'), MAKES.woodshed.time + 30);
-    view.update(c.state, 0.1);
-    expect(taps()[0]?.visible ?? false).toBe(false);              // built: a tap no longer sends him back to work
-  });
-
-  it('at night the shelter\'s upgrade leaves its tap to the shelter (bed); the fire\'s and the pile\'s keep theirs', () => {
-    const c = camp(22), pickables: THREE.Object3D[] = [], view = new BuildingView(new THREE.Scene(), CAMP, pickables);
-    c.state.underway = { wall_tent: 5 };
-    view.update(c.state, 0.1);
-    expect(pickables.find(o => o.userData.raiseId === 'wall_tent')!.visible).toBe(false);
-    c.state.underway = { woodshed: 5 };
-    view.update(c.state, 0.1);
-    expect(pickables.find(o => o.userData.raiseId === 'woodshed')!.visible).toBe(true);
-  });
-});
+// (the drawing: tests/campmodels.test.ts, since the camp build's stage 4)
 
 // ---- everything built in stages (the camp build's stage 2) ----
 

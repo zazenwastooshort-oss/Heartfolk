@@ -1,7 +1,8 @@
 // Draws the game: the ground and river, the village, fog over unclaimed land, the rocks and trees, things lying on the
-// ground to pick up, what he builds (the campfire, the shelter), and the character with the tool for the job (pick or
-// axe; at the camp they are the stone pickaxe and stone axe he made; since 0.0.22 his stone club while he practises on
-// the training dummy, swung with the axe's Chop clip, resting between strikes) and the matching animation, placed
+// ground to pick up, the camp's buildings as they go up (render/structures.ts), and the character with the tool for
+// the job (pick or axe; at the camp they are the stone pickaxe and stone axe he made; since 0.0.22 his stone club while
+// he practises on the training dummy, swung with the axe's Chop clip, resting between strikes) and the matching
+// animation, placed
 // from the game state every frame, plus effects (chips, the click cross). It reads state; it never changes it. The
 // tool is in his hands while he works and on his back otherwise, every walk included (toolInHand picks the armed or
 // the free clip), hidden for the moment it moves between the two. A tool he doesn't own is never drawn: with none he
@@ -11,7 +12,8 @@
 // stick over the campfire while he cooks. Since chapter 2's rats: the rats and their nest (render/rats.ts), his lean into
 // a strike at a rat, standing ready while he waits for them, and toppling over when one knocks him out. Since the goblin
 // camp: its palisade, tent, totem and fire ring and the goblins in it (render/goblins.ts, from a load of miner.glb of
-// their own).
+// their own). Since the camp build (13 Oct 2026) he builds with a mallet (render/campmodels.ts), drawn on the pick's
+// bone in place of the pick, swung with the Mine clip once for each knock of the work, landing on the knock.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import minerUrl from '../../assets/models/miner.glb?url';
@@ -20,8 +22,8 @@ import type { GameState } from '../core/state';
 import type { Layout, NodeSpot } from '../world/layout';
 import { footOf } from '../world/falls';
 import { waterOf } from '../world/water';
-import { RESOURCES, TOOL_IDS, type ToolId } from '../data/skills';
-import { ARMED_CLIPS, FADE, GAIT, IDLE, SWINGS, type Swing } from '../data/animation';
+import { RESOURCES } from '../data/skills';
+import { ARMED_CLIPS, FADE, GAIT, IDLE, SWINGS } from '../data/animation';
 import { STRIKE, strikeEvery, type GearId } from '../data/combat';
 import { dayFraction } from '../core/clock';
 import { Lighting } from './lighting';
@@ -32,19 +34,22 @@ import { FogView } from './fog';
 import { FallsView } from './waterfall';
 import { NodesView } from './nodes';
 import { PickupsView } from './pickups';
-import { StructuresView } from './structures';
-import { BuildingView } from './building';
+import { CampView } from './structures';
+import { malletModel } from './campmodels';
 import { BushesView } from './bushes';
 import { FishingView, rodModel } from './fishing';
 import { CookingView } from './cooking';
-import { carries as carriesTool } from '../core/tools';
-import { ArmIK, armedWeight, toolInHand, toolInTransit } from './arms';
+import { ArmIK, armedWeight, heldTool, malletLean, malletSwing, toolInHand, toolInTransit, type Held } from './arms';
+import { stageOf } from '../core/building';
+import { shapeOf } from '../world/steps';
+import { CARPENTRY } from '../data/building';
 import { WEAPON_MODELS, armourWorn, wearGear } from './gear';
 import { RatsView } from './rats';
 import { GoblinsView } from './goblins';
 import { targetOf } from '../core/targets';
 
-/** While he builds something: a placeholder motion, bowing down to it and back up, `rate` bows a second. */
+/** While he makes something where he stands or stokes the fire: a placeholder motion, bowing down to it and back up,
+ *  `rate` bows a second. (Building at the camp's spots he swings his mallet.) */
 const BUILD_BOW = { lean: 0.42, dip: 0.08, rate: 1.3 };
 /** Placeholders for chapter 2: picking a berry bush he bows into it like building, quicker and less deep; cooking he
  *  leans in a little towards the fish over the fire. */
@@ -104,9 +109,11 @@ function thicken(mesh: THREE.Mesh, by: number): void {
   for (const axis of ['x', 'y', 'z'] as const) if (axis !== long) mesh.scale[axis] *= by;
 }
 
-/** What he can have in his hands: the tools, or (0.0.22) his weapon, by its id in GEAR (the stone club; its model is in
- *  render/gear.ts). */
-type Tool = Swing['tool'] | GearId;
+/** What he can have in his hands: the tools, (0.0.22) his weapon, by its id in GEAR (the stone club; its model is in
+ *  render/gear.ts), or (the camp build) his mallet (render/campmodels.ts). */
+type Tool = Held;
+/** The weapons there are models for. */
+const WEAPONS: ReadonlySet<string> = new Set(Object.keys(WEAPON_MODELS));
 
 /** In builds the model is embedded in the page as a data: URL; decode it here rather than fetching it, because
  *  some hosts (artifact links) block fetch() of anything but their own files. The dev server serves a real file. */
@@ -130,9 +137,7 @@ export class View {
   private clock = 0;
   private nodes?: NodesView;
   private pickups?: PickupsView;
-  private structures?: StructuresView;
-  /** things built in stages, and the Build window's see-through copy (render/building.ts) */
-  readonly building: BuildingView;
+  private structures?: CampView;
   private bushes?: BushesView;
   private fishing?: FishingView;
   private cooking?: CookingView;
@@ -181,7 +186,6 @@ export class View {
       bar.rotation.y = a; this.marker.add(bar);
     }
     this.marker.visible = false; this.scene.add(this.marker);
-    this.building = new BuildingView(this.scene, layout, this.pickables);  // drawn in code; its tap areas come and go in ours
     this.ready = this.load();
   }
 
@@ -207,6 +211,10 @@ export class View {
     };
     // each weapon (0.0.22) on the axe's bone, so it swings like the axe, landing where the blade would
     for (const [id, model] of Object.entries(WEAPON_MODELS)) this.tools[id as GearId] = { parts: [model(find('axe_blade').parent!)], tip: find('AxeTip') };
+    // his mallet (the camp build), on the tools' bone like the pick, with a handle of its own
+    const mallet = malletModel();
+    find('pick_head').parent!.add(mallet.model);
+    this.tools.mallet = { parts: [mallet.model], tip: mallet.face };
     this.handle = find('pick_handle');
     if (this.layout.camp) {
       // at the camp his tools are stone ones he made: knapped stone heads on a branch, bound with lashing
@@ -224,7 +232,7 @@ export class View {
     this.pickables.push(...this.nodes.pickables);
     this.pickups = new PickupsView(this.scene, this.layout, village.scene);
     this.pickables.push(...this.pickups.pickables);
-    this.structures = new StructuresView(this.scene, this.layout, village.scene);
+    this.structures = new CampView(this.scene, this.layout, village.scene);
     this.pickables.push(...this.structures.pickables);
     this.bushes = new BushesView(this.scene, this.layout);
     this.pickables.push(...this.bushes.pickables);
@@ -245,11 +253,12 @@ export class View {
   }
 
   /** Show the pick or the axe (in his hands or on his back, as the clip has it), or the rod, or neither while it moves
-   *  between the two (toolInTransit), or none at all (null: he owns no tool). The rod has no part of the tools' handle. */
+   *  between the two (toolInTransit), or none at all (null: he owns no tool). The rod and the mallet have no part of the
+   *  tools' handle. */
   private showTool(tool: Tool | null, hidden = this.toolHidden): void {
     if (!this.tools || !this.handle || (this.toolsSet && tool === this.tool && hidden === this.toolHidden)) return;
     for (const [name, t] of Object.entries(this.tools)) for (const part of t.parts) part.visible = !hidden && name === tool;
-    this.handle.visible = !hidden && tool !== null && tool !== 'rod';
+    this.handle.visible = !hidden && tool !== null && tool !== 'rod' && tool !== 'mallet';
     this.tool = tool; this.toolHidden = hidden; this.toolsSet = true;
   }
 
@@ -302,17 +311,9 @@ export class View {
       const workId = task.kind === 'gather' ? task.nodeId : p.pending?.kind === 'node' ? p.pending.id : null;
       const spot = workId ? this.spots.get(workId) : undefined;
       const swing = spot ? SWINGS[RESOURCES[spot.resource]!.skill] : null;
-      // fighting (0.0.22: practising on the training dummy), or on his way to: the weapon he wears (the stone club)
-      const fighting = task.kind === 'fight' || p.pending?.kind === 'fight', weapon = state.equipment.weapon;
-      // the tool for the job if he owns it, else the one he last had out, else any he owns, else none; a weapon while he
-      // wears it, drawn by its own model (render/gear.ts). The rod (chapter 2) only while he fishes: it is too long to
-      // carry on his back, so then he carries another tool, or none
-      // (13 Oct 2026) a tool kept in the storage chest isn't on him: only what he carries is drawn (core/tools.ts)
-      const owns = (t: Tool | null): t is Tool => t !== null && (Object.hasOwn(WEAPON_MODELS, t) ? t === weapon : carriesTool(state, t as ToolId));
-      const carries = (t: Tool | null): t is Tool => owns(t) && t !== 'rod';
-      const tool = fighting && owns(weapon) ? weapon
-        : swing?.tool === 'rod' && task.kind === 'gather' && owns('rod') ? 'rod'
-        : swing && carries(swing.tool) ? swing.tool : carries(this.tool) ? this.tool : TOOL_IDS.find(carries) ?? null;
+      // the tool for the job (the weapon he wears to fight, the rod to fish, his mallet to build), else the one he last
+      // had out, else any he carries, else none (render/arms.ts heldTool)
+      const tool = heldTool(state, this.layout, this.tool, WEAPONS);
       if (tool !== this.tool) this.showTool(tool);
       // the armour he wears (chunk D: the hide cap, vest and shield), on him all the time once made (render/gear.ts)
       const armour = armourWorn(state.equipment);
@@ -331,10 +332,18 @@ export class View {
         else if (t < STRIKE.cycle) { this.play(STRIKE.clip); this.actions[STRIKE.clip]!.time = t; if (target?.foe?.kind === 'rat') lean = lowLean(t); }
         else this.play(IDLE.clip);
       }
+      else if (task.kind === 'raise' && armed) {
+        // building: a swing of his mallet (the Mine clip) landing on each knock of the work, standing ready between;
+        // leaning down to something low, or to its footings, as it lands
+        const at = malletSwing(state.underway[task.id] ?? 0);
+        if (at === null) this.play(IDLE.clip);
+        else { this.play(SWINGS.mining.clip); this.actions[SWINGS.mining.clip]!.time = at; }
+        if (stageOf(state, task.id) === 0 || (shapeOf(task.id)?.tall ?? 0) <= CARPENTRY.low) lean = malletLean(at);
+      }
       else this.play(armed ? IDLE.clip : IDLE.freeClip);
-      // building, or stoking the fire: he bows down to it and back up, over and over (a placeholder until there is a
-      // clip for it)
-      const bow = task.kind === 'make' || task.kind === 'stoke' || task.kind === 'raise' ? Math.max(0, Math.sin(this.clock * Math.PI * 2 * BUILD_BOW.rate)) : 0;
+      // making something where he stands, or stoking the fire: he bows down to it and back up, over and over (a
+      // placeholder until there is a clip for it)
+      const bow = task.kind === 'make' || task.kind === 'stoke' ? Math.max(0, Math.sin(this.clock * Math.PI * 2 * BUILD_BOW.rate)) : 0;
       // picking a ripe berry bush, he bows into it; cooking, he leans towards the fire (chapter 2 placeholders)
       const bush = task.kind === 'pickup' && !(task.id in state.taken) && this.layout.pickups?.find(x => x.id === task.id)?.kind === 'bush';
       const pick = bush ? Math.max(0, Math.sin(this.clock * Math.PI * 2 * PICK_BOW.rate)) * PICK_BOW.lean : 0;
@@ -354,7 +363,6 @@ export class View {
     this.nodes?.update(state, dt, this.shown.pos);
     this.pickups?.update(state, this.clock, dt, this.cam.camera, this.lighting.night);
     this.structures?.update(state, this.clock, dt, this.lighting.night);
-    this.building.update(state, dt);
     this.bushes?.update(state, this.clock, dt);
     const rodTip = this.tool === 'rod' && !this.toolHidden ? this.tools?.rod?.tip.getWorldPosition(new THREE.Vector3()) ?? null : null;
     this.fishing?.update(state, this.clock, dt, rodTip, this.lighting.night);

@@ -25,7 +25,7 @@ type Target =
   | { kind: 'cook'; id: MakeId; point: THREE.Vector3 }
   /** the shelter once it is built: tapping it sends him to bed at night */
   | { kind: 'sleep'; id: MakeId; point: THREE.Vector3 }
-  /** something half built (render/building.ts): tapping it sends him back to building it */
+  /** something half built (an upgrade under way, render/structures.ts): tapping it sends him back to building it */
   | { kind: 'raise'; id: MakeId; point: THREE.Vector3 }
   | { kind: 'building'; id: string; point: THREE.Vector3 }
   | { kind: 'parcel'; id: string; point: THREE.Vector3 }
@@ -51,8 +51,8 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
     const b = el.getBoundingClientRect();
     ndc.set((e.clientX - b.left) / b.width * 2 - 1, -(e.clientY - b.top) / b.height * 2 + 1);
     ray.setFromCamera(ndc, view.cam.camera);
-    // something already picked up, or a site already built on, is hidden, but still in the scene: it can't be tapped
-    const hit = ray.intersectObjects(view.pickables, false).find(h => !(h.object.userData.pickupId || h.object.userData.makeId || h.object.userData.storeId || h.object.userData.fightId || h.object.userData.cookId || h.object.userData.sleepId || h.object.userData.raiseId) || shown(h.object));
+    // something already picked up, or a spot with nothing to do at it, is hidden, but still in the scene: it can't be tapped
+    const hit = ray.intersectObjects(view.pickables, false).find(h => !(h.object.userData.pickupId || h.object.userData.makeId || h.object.userData.storeId || h.object.userData.fightId || h.object.userData.cookId || h.object.userData.sleepId || h.object.userData.raiseId || h.object.userData.campSpot) || shown(h.object));
     const ground = ray.intersectObjects(view.ground, false)[0];
     if (hit && (!ground || hit.distance <= ground.distance + 0.01)) {
       const u = hit.object.userData;
