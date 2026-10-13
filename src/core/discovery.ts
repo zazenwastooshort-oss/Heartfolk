@@ -26,18 +26,21 @@
 //     A shown node's card (null for one not shown): its name, kind, band and state; `words`, the book's lines for it
 //     (D8: its Making note, its Food and Materials-and-places pages, and the page of the goal that makes it or asks for
 //     it), each { title, text } (title null for the Making note); `needs`, its recipe: what it uses up, each with how
-//     many (`need`), how many he has carried or stored (`have`, core/state.ts owned) and whether it is found (`name`
-//     null and `found` false: show "?"); `with`, what it is made, gathered, won or cooked with but never used up (the
-//     tool, the weapon, the fires, the step it is built in place of, the shelter it stands in; `need` null, `have` 1 for
-//     one made); `paid`: made or begun, so what it needed was taken (every line ticked, as the book did); `where`: where
-//     it is made or cooked ('' for nothing to say); `from`: where it, or the found materials of its recipe, come from,
-//     one plain line each; `usedIn`: what it leads to that shows in the tree (tap to go there), each with its name and
-//     state; `heals`: for food, how much it heals (null otherwise); `owned`: for an item, how many he has (null for a
-//     thing made). An 'unknown' node's card has only its `usedIn`.
+//     many (`need`), how many he has carried or stored (`have`, core/state.ts owned, not capped at `need`), whether it
+//     is found (`found`) and its name (`name`: null for one the tree shows as "?"; a glowing one is named, not found);
+//     `with`, what it is made, gathered, won or cooked with but never used up (the tool, the weapon, the fires (either
+//     will do), the step it is built in place of, the shelter it stands in; `need` null, `have` 1 for one made);
+//     `paid`: made or begun, so what it needed was taken (every line ticked, as the book did); `where`: where it is made
+//     or cooked ('' for nothing to say); `from`: where it, or the found materials of its recipe, come from, one plain
+//     line each; `usedIn`: what it leads to that shows in the tree (tap to go there), each with its name and state;
+//     `heals`: for food, how much it heals (null otherwise); `owned`: for an item, how many he has (null for a thing
+//     made). An 'unknown' node's card has only its `usedIn` (its name is '?', the rest empty).
+//     Both are cheap enough to call every frame: the layout is kept for each set of nodes shown (read only: the same
+//     tree object comes back while nothing new shows).
 //
 //   discoveredOrder(state): string[]   what he has found, in the order he found it (GameState.discovered: a new one is
 //     always added at the end, so a window can remember how many it has shown, for a dot on its button).
-//   isFound(state, id), shownNodes(state, layout): the states alone, without the layout.
+//   isFound(state, id), shownNodes(state, layout): the states alone, without placing anything.
 //   crossings(tree): how many times two lines cross (the tests keep it low).
 //
 // Saves (core/save.ts): heldThings, impliedDiscovered and savedDiscovered, below.
@@ -95,7 +98,7 @@ export const discoveredOrder = (state: GameState): string[] => [...state.discove
 /** Whether he has found `id`: discovered, or made (a thing made is always found). */
 export const isFound = (state: GameState, id: string) => discoveredSet(state).has(id) || made(state, id);
 
-/** Every node he has in hand now, each once at most per call (`each` may see one twice): what he carries or stores,
+/** Every node he has in hand now (`each` may be called twice for one, carried and stored): what he carries or stores,
  *  the logs on the firewood pile and in his arms to stoke the fire, the tools he owns, the gear he wears, what is built
  *  and what is begun. */
 export function heldThings(state: GameState, each: (id: string) => void): void {
@@ -137,12 +140,13 @@ export function obtainable(layout: Layout, id: string): boolean {
 
 // ---- what shows ----
 
-/** Joins where any one of several leads there (the fires that cook, the tools that gather, the weapons that win): its
- *  "?" shows only while none of them shows. The rest are all needed. */
+/** Joins where any one of several leads there (the fires that cook, the tools that gather, the weapons that win): one
+ *  "?" for them, only while none of them shows. The rest are all needed. */
 const EITHER: JoinHow[] = ['cooks', 'gathers', 'drops'];
 
 /** Every node the tree shows now, with its state (D3): found (made or found), each recipe one of whose inputs is found
- *  (glowing; only one this layout can have), and the inputs of what shows that aren't found ("?"). */
+ *  (glowing; only what this layout can have), and the inputs of what shows that aren't found ("?"; of several that
+ *  each would do, the first, and only while none of them shows). */
 export function shownNodes(state: GameState, layout: Layout): Map<string, NodeState> {
   const out = new Map<string, NodeState>();
   for (const id of NODE_IDS) if (isFound(state, id)) out.set(id, made(state, id) ? 'made' : 'found');
@@ -155,7 +159,7 @@ export function shownNodes(state: GameState, layout: Layout): Map<string, NodeSt
     const into = JOINS.filter(j => j.to === id);
     for (const j of into) {
       if (out.has(j.from)) continue;
-      if (EITHER.includes(j.how) && into.some(k => k.how === j.how && out.has(k.from) && out.get(k.from) !== 'unknown')) continue;
+      if (EITHER.includes(j.how) && into.some(k => k.how === j.how && out.has(k.from))) continue;
       out.set(j.from, 'unknown');
     }
   }
