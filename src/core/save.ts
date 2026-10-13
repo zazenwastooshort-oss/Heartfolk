@@ -6,8 +6,6 @@ import { PICKUPS } from '../data/pickups';
 import { BOOK, GOALS } from '../data/goals';
 import { makeDef, type MakeId } from '../data/making';
 import { STOKE, WOODPILE } from '../data/fire';
-import { SLEEP } from '../data/sleep';
-import { sleepsOn } from './clock';
 import { SLOTS, STYLES, gearDef, type CombatStyle, type GearId, type Slot } from '../data/combat';
 import { targetOf } from './targets';
 import { savedRats } from './rats';
@@ -16,6 +14,8 @@ import { KNOCKED_OUT } from '../data/rats';
 import { CHIEF } from '../data/goblins';
 import { savedThoughts } from './thoughts';
 import { savedBuilding, walkGrid } from './building';
+import { restedTill, savedNeeds } from './needs';
+import { savedToolsInChest } from './tools';
 
 export interface Storage { get(key: string): string | null; set(key: string, value: string): void }
 
@@ -251,9 +251,10 @@ export function readSave(raw: string, layout: Layout): Loaded {
   state.goblinCamp = { chiefOut: !!layout.goblinCamp && !cleared && camp.chiefOut === true, cleared };
   state.goblins = savedGoblins(data.goblins, state, layout);
   // his health: a number above 0 up to his most; anything else (none saved, from before 0.0.22, or damaged) is full
-  // well rested: a finite time, never more than a full day's rest from now
-  state.restedUntil = typeof data.restedUntil === 'number' && Number.isFinite(data.restedUntil) && data.restedUntil > state.time
-    ? Math.min(data.restedUntil, state.time + SLEEP.rested) : 0;
+  // well rested: a finite time, never past the next nightfall (one gone by is kept as it was: it reads back exactly, and
+  // means not rested all the same)
+  state.restedUntil = typeof data.restedUntil === 'number' && Number.isFinite(data.restedUntil) && data.restedUntil > 0
+    ? (data.restedUntil <= restedTill(state.time) + 1e-6 ? data.restedUntil : restedTill(state.time)) : 0;
   const max = maxHealth(state);
   state.health = typeof data.health === 'number' && Number.isFinite(data.health) && data.health > 0 ? Math.min(data.health, max) : max;
   // the firewood pile's logs: a whole number up to what it holds, and none unless it stands
@@ -275,8 +276,8 @@ export function readSave(raw: string, layout: Layout): Loaded {
   if (p.task.kind === 'make' && (!makeable(state, layout, p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
   // building in stages: only something begun and not finished
   if (p.task.kind === 'raise' && !Object.hasOwn(state.underway, p.task.id)) p.task = { kind: 'idle' };
-  // asleep: only in a shelter that stands, and only while he would sleep on (a save from later in the morning finds him up)
-  if (p.task.kind === 'sleep' && (!canSleep(state, layout) || !sleepsOn(state.time))) p.task = { kind: 'idle' };
+  // asleep: only in a shelter that stands (until when: his needs, below)
+  if (p.task.kind === 'sleep' && !canSleep(state, layout)) p.task = { kind: 'idle' };
   // knocked out (chapter 2's rats): he wakes when it says, but no later than a knock-out now would give (at once if that
   // is broken), and lies there with the 0 health he was knocked out with
   if (p.task.kind === 'knockedOut') {
@@ -300,6 +301,9 @@ export function readSave(raw: string, layout: Layout): Loaded {
   if (trip && trip.leaveAt !== undefined && !Number.isFinite(trip.leaveAt)) delete trip.leaveAt;
   // (chapter 2) the chest tapped on the way for food to fight with: true, on a trip { fight }, or not at all
   if (trip && trip.store !== undefined && (trip.store !== true || typeof trip.fight !== 'string')) delete trip.store;
+  // (13 Oct 2026) on his way to the chest for a tool: true, on a trip { nodeId }, or not at all
+  const t = trip as { tool?: unknown } | null;
+  if (t && t.tool !== undefined && (t.tool !== true || typeof trip!.nodeId !== 'string')) delete t.tool;
   const gathered = (id: string) => { const spot = layout.pickups?.find(x => x.id === id); return !!spot && PICKUPS[spot.kind].gather !== null; };
   const backTo = !!trip && (typeof trip.fight === 'string' ? !!targetOf(state, layout, trip.fight)?.foe && !!state.equipment.weapon
     : typeof trip.pickupId === 'string' ? gathered(trip.pickupId) : typeof trip.nodeId === 'string' && trip.nodeId in state.nodes);
@@ -324,6 +328,11 @@ export function readSave(raw: string, layout: Layout): Loaded {
   p.cook = cook && (p.task.kind === 'cook' ? !cook.fetch && Number.isFinite(p.task.doneAt) : goingTo === (cook.fetch ? 'chest' : 'campfire')) ? cook : null;
   if (p.task.kind === 'cook' && !p.cook) p.task = { kind: 'idle' };
   if (p.cook) p.trip = null;
+  // (13 Oct 2026) his needs and the tools kept in the chest, checked (core/needs.ts, core/tools.ts): a save from before
+  // them (0.0.22 to 0.0.27) has him full, to bed at the usual hour (asleep, until then), and carrying his tools
+  state.needs = savedNeeds(data.needs, state, layout, b => savedBack(b, state, layout));
+  if (p.task.kind === 'sleep' && !state.needs.bed) p.task = { kind: 'idle' };
+  state.toolsInChest = savedToolsInChest(data.toolsInChest, state, layout);
   return { state, savedAt, closedAt };
 }
 

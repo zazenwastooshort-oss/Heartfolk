@@ -221,6 +221,7 @@ describe('stoking the fire at night', () => {
 
   it('with no logs at all he stays at work, the fire burns low with nothing lost, and burns normally once stoked', () => {
     const s = campSet();
+    s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
     s.state.player.backpack = { copper_ore: 2 };
     s.state.time = at(0, NIGHTFALL) - 0.5;
     send(s, { type: 'work', nodeId: 'camp_copper1' });
@@ -288,6 +289,7 @@ describe('stoking the fire at night', () => {
 
   it('a full backpack he was taking to the chest is emptied there on the way, then he stokes and goes back to work', () => {
     const s = campSet();
+    s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
     s.state.bank = { birch_logs: 2 };
     send(s, { type: 'work', nodeId: 'camp_birch1' });
     runUntil(s, () => count(s, 'backpackFull') > 0, 900);

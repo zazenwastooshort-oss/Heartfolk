@@ -13,6 +13,7 @@ import { freshGoblins } from './goblins';
 import { CHIEF } from '../data/goblins';
 import type { Thoughts } from './thoughts';
 import { COOK } from '../data/cooking';
+import { freshNeeds, type Needs } from './needs';
 
 /** The save format. 10 since 0.0.22: his health, and the combat and food skills. 11 since 0.0.25: "Ready for the
  *  goblins" came in before the goblin camp. */
@@ -56,8 +57,9 @@ export type Pending = { kind: 'node'; id: string } | { kind: 'visit'; id: string
  *  ground like `pickupId`, or (chapter 2's rats) back to fighting the rat `fight` (or the next one up at its nest): on
  *  his way there to fight, he also stops at the chest for food when he carries none (systems/rats.ts), and `store` says
  *  the player tapped the chest meanwhile, so he stores what he carries there too. `leaveAt` is set at the bank once the
- *  backpack is empty: he heads back when the clock reaches it. Saved, so a trip carries on after a reload. */
-export type Trip = ({ nodeId: string } | { pickupId: string } | { fight: string; store?: boolean }) & { leaveAt?: number };
+ *  backpack is empty: he heads back when the clock reaches it. Saved, so a trip carries on after a reload. `tool`
+ *  (13 Oct 2026): he goes to the chest for the tool `nodeId` needs, kept there (systems/tools.ts). */
+export type Trip = ({ nodeId: string; tool?: true } | { pickupId: string } | { fight: string; store?: boolean }) & { leaveAt?: number };
 
 /** What he goes back to after stoking the fire (0.0.19): working a node (or the nearest free one like it), gathering
  *  things off the ground like `pickupId` (or picking up that one), making something, walking on to a spot, or (chapter
@@ -173,6 +175,12 @@ export interface GameState {
   /** things built in stages that he has begun but not finished (by id): the seconds he has worked at each so far. What
    *  each needs was taken when he began. Once finished it is in `built` instead */
   underway: Partial<Record<MakeId, number>>;
+  /** (13 Oct 2026) his needs at the camp: how full he is, a meal trip or bed under way, his bedtime, a tap waiting for
+   *  him to wake (core/needs.ts, systems/needs.ts) */
+  needs: Needs;
+  /** (13 Oct 2026) the tools he owns that are kept in the storage chest, not carried (core/tools.ts, systems/tools.ts):
+   *  none before the chest stands, and none in an old save (its tools are carried) */
+  toolsInChest: ToolId[];
 }
 
 /** Whether there is a shelter to sleep in (systems/sleep.ts): built at this layout's tent spot (never in the village). */
@@ -273,5 +281,7 @@ export function createState(layout: Layout, seed = 1): GameState {
     thoughts: { journal: [], known: [], last: null, saidAt: null, passingAt: null },
     placed: {},
     underway: {},
+    needs: freshNeeds(),
+    toolsInChest: [],
   };
 }

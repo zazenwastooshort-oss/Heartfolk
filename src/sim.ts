@@ -20,12 +20,16 @@ import { updateCooking } from './systems/cooking';
 import { updateSleep } from './systems/sleep';
 import { updateThoughts } from './systems/thoughts';
 import { updateBuilding } from './systems/building';
+import { updateNeeds } from './systems/needs';
+import { updateTools } from './systems/tools';
 import { closedFor, emptySummary, openFor, tally, type Away, type AwaySummary } from './systems/away';
 
-export interface SimContext { layout: Layout; rng: Rng; events: EventBus }
+/** `away` (13 Oct 2026): catching up time the game was closed, when he doesn't go to bed (systems/needs.ts). */
+export interface SimContext { layout: Layout; rng: Rng; events: EventBus; away?: boolean }
 
 export function step(state: GameState, dt: number, ctx: SimContext): void {
   state.time += dt;
+  const down = state.player.task.kind === 'sleep' || state.player.task.kind === 'knockedOut';   // for needs: waking up
   const visited = updatePlayer(state, ctx.layout, dt, ctx.events);
   updateGathering(state, ctx.layout, dt, ctx.rng, ctx.events);
   updateCombat(state, ctx.layout, dt, ctx.rng, ctx.events);     // fighting (the training dummy), and health coming back
@@ -44,8 +48,13 @@ export function step(state: GameState, dt: number, ctx: SimContext): void {
   const cooking = ctx.layout.camp ? updateCooking(state, ctx.layout, stoking ? null : visited, ctx.rng, ctx.events) : false;
   // to bed in the shelter at night, and up at dawn, well rested
   if (ctx.layout.camp) updateSleep(state, ctx.layout, visited, ctx.events);
+  // his needs at the camp (hunger; his bedtime, and up again, back to what he was doing): reaching the chest for a meal
+  // is theirs to see to, as for stoking
+  const seen = stoking || cooking ? null : visited, fed = updateNeeds(state, ctx.layout, dt, seen, ctx.events, down, ctx.away);
   // after gathering, so the item that fills the backpack sends him to the bank (the chest) in the same step
-  updateHauling(state, ctx.layout, stoking || cooking ? null : visited, ctx.events);
+  updateHauling(state, ctx.layout, fed ? null : seen, ctx.events);
+  // at the chest, whoever saw to it: he leaves there the tools he won't need next (systems/tools.ts)
+  updateTools(state, ctx.layout, visited, ctx.events);
   // his thoughts and the pages of his book coming unstuck, once everything else has moved on
   if (ctx.layout.camp) updateThoughts(state, ctx.layout, dt);
 }
@@ -68,7 +77,8 @@ export function catchUp(state: GameState, seconds: number, ctx: SimContext): Awa
 export function catchUpAway(state: GameState, savedAt: number | null, now: number, ctx: SimContext, closedAt: number | null = null): { away: Away; summary: AwaySummary } {
   if (savedAt !== null && closedAt !== null && closedAt > savedAt) catchUp(state, openFor((closedAt - savedAt) / 1000).game, ctx);
   const away = closedFor(closedAt ?? savedAt, now);
-  return { away, summary: catchUp(state, away.game, ctx) };
+  // closed, he doesn't go to bed (13 Oct 2026, the owner): away work isn't cut by nights
+  return { away, summary: catchUp(state, away.game, { ...ctx, away: true }) };
 }
 
 /** Opening the page (main.ts): away time is caught up only for a save read back from this browser (`loaded`), the

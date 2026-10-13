@@ -378,6 +378,7 @@ describe('away time while cooking', () => {
 describe('long run (headless)', () => {
   it('three days of berries, fishing and cooking round the camp, stoking every night, with nothing broken or stuck', () => {
     const s = campAt('meal', { seed: 21 }), pick = createRng(99), p = s.state.player;
+    s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
     s.state.tools.rod = true; s.state.woodpile = 20; s.state.bank = { birch_logs: 30 };
     const nav = navFor(CAMP, s.state.built), spots = CAMP.nodes.filter(n => n.resource === 'fishing_spot');
     const bushes = CAMP.pickups!.filter(x => x.kind === 'bush');

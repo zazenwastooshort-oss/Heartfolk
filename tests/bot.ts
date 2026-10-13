@@ -27,7 +27,9 @@
 // While the player is there it looks every second of play (an attentive player, who also looks at once when a notice
 // comes or the goal card moves on); with `visits` the player is there only now and then (Visits). It taps only when he
 // has nothing useful to do (idle, or busy with something the goal no longer needs), so he is left to work otherwise.
-// Stoking the fire at nightfall and being knocked out are never interrupted: he goes back to work by himself.
+// Stoking the fire at nightfall and being knocked out are never interrupted: he goes back to work by himself. Nor
+// (his needs) are his meals and his nights in the shelter: a sensible player lets him eat and sleep (the night goes
+// by quickly while he sleeps), and he goes back by himself.
 import { allGoalsDone, canDrop, currentGoal, maxHealth, owned, type GameState } from '../src/core/state';
 import type { EventBus, GameEvent } from '../src/core/events';
 import { ratUp, ratsOf } from '../src/core/rats';
@@ -173,7 +175,8 @@ export class Bot {
   /** The taps to send now: none while he does something the goal still needs. */
   decide(state: GameState): Command[] {
     const p = state.player;
-    if (p.task.kind === 'knockedOut' || p.stoke) return [];         // he wakes, or stokes the fire, and goes back by himself
+    // he wakes, stokes the fire, eats or sleeps, and goes back by himself
+    if (p.task.kind === 'knockedOut' || p.stoke || p.task.kind === 'sleep' || state.needs.meal || state.needs.bed) return [];
     const plan = this.plan(state), out: Command[] = [];
     const style = this.styleFor(state, plan);
     if (style !== state.combatStyle) out.push({ type: 'style', style });

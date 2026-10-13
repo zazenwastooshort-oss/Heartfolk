@@ -93,6 +93,8 @@ export interface AwaySummary {
   goblins?: number;
   /** he beat the goblin chief: the camp is cleared for good, and the chief left a torn map; only there when he did */
   cleared?: true;
+  /** (his needs) meals he ate when hungry, and nights he slept in the shelter; left out until there is one */
+  meals?: number; nights?: number;
 }
 
 export const emptySummary = (): AwaySummary => ({ items: {}, xp: {}, levels: {}, stoked: 0, fireLow: 0, made: [], full: false });
@@ -115,6 +117,8 @@ export function tally(s: AwaySummary, e: GameEvent): void {
       else if (!e.foe) { s.beaten = (s.beaten ?? 0) + 1; if (e.item) s.hides = (s.hides ?? 0) + 1; }
       break;
     case 'campCleared': s.cleared = true; break;
+    case 'meal': s.meals = (s.meals ?? 0) + 1; break;
+    case 'awake': s.nights = (s.nights ?? 0) + 1; break;
     case 'knockedOut': s.knockedOut = (s.knockedOut ?? 0) + 1; s.knockedOutBy = byWhom(s.knockedOutBy, e.foe ?? 'rat'); break;
     default: break;
   }
@@ -142,6 +146,8 @@ export function addSummary(into: AwaySummary, more: AwaySummary): void {
   if (more.knockedOutBy) into.knockedOutBy = byWhom(into.knockedOutBy, more.knockedOutBy);
   if (more.goblins) into.goblins = (into.goblins ?? 0) + more.goblins;
   if (more.cleared) into.cleared = true;
+  if (more.meals) into.meals = (into.meals ?? 0) + more.meals;
+  if (more.nights) into.nights = (into.nights ?? 0) + more.nights;
 }
 
 /** Whether he did anything worth telling: gathered something, gained XP, saw to the fire, finished making something,

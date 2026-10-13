@@ -11,7 +11,8 @@ import { canDrop, type GameState } from '../core/state';
 import type { Command } from '../systems/commands';
 import type { Layout } from '../world/layout';
 import type { Windows } from './windows';
-import { ITEMS } from '../data/skills';
+import { ITEMS, TOOLS, type ToolId } from '../data/skills';
+import { MAKES } from '../data/making';
 import { FOOD, isFood } from '../data/food';
 import { BACKPACK_SLOTS } from '../data/hauling';
 import { WOODPILE } from '../data/fire';
@@ -172,12 +173,13 @@ export class BackpackWindow {
   private drawStored(state: GameState): void {
     const camp = !!this.layout.camp, chest = this.hasBank || (camp && state.built.includes('chest'));
     const pile = camp && state.built.includes('woodpile');
-    const key = `${chest ? JSON.stringify(state.bank) : '-'}|${pile ? state.woodpile : '-'}`;
+    const key = `${chest ? JSON.stringify(state.bank) : '-'}|${pile ? state.woodpile : '-'}|${state.toolsInChest.join()}`;
     if (key === this.storedDrawn) return;
     this.storedDrawn = key;
     $('bankRow').hidden = !chest;
     if (chest) {
-      const list = storedList(state.bank);
+      // (13 Oct 2026) the tools kept in the chest, then what is stored
+      const list = [...state.toolsInChest.map(t => ({ id: t as string, text: toolName(t) })), ...storedList(state.bank)];
       $('bank').replaceChildren(...(list.length ? list.map(({ id, text }) => chip(id, text)) : [Object.assign(document.createElement('small'), { textContent: 'Empty.' })]));
     }
     $('pileRow').hidden = !pile;
@@ -199,6 +201,9 @@ export class BackpackWindow {
     this.drawStored(state);
   }
 }
+
+/** A tool's name as he made it (the stone axe at the camp), else as TOOLS has it. */
+export const toolName = (t: ToolId) => Object.values(MAKES).find(m => m.gives.kind === 'tool' && m.gives.tool === t)?.name ?? TOOLS[t].name;
 
 /** A stored thing: its picture and its words ("22 birch logs"). */
 function chip(id: string, text: string): HTMLElement {

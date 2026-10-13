@@ -3,7 +3,7 @@ import { goalFirst, type GameState } from '../core/state';
 import { isNight } from '../core/clock';
 import type { EventBus } from '../core/events';
 import type { Layout, Vec2 } from '../world/layout';
-import { walkTo, goWork, goVisit, goPickup, goMake } from '../actors/player';
+import { walkTo, goVisit, goPickup, goMake } from '../actors/player';
 import { RESOURCES } from '../data/skills';
 import { SWINGS } from '../data/animation';
 import { makeDef, type MakeId } from '../data/making';
@@ -19,6 +19,9 @@ import { canCook, fishToCook, goCook } from './cooking';
 import { canSleep, goToBed } from './sleep';
 import { nextCommands } from './nextstep';
 import { startBuild } from './building';
+import { goWorkWith } from './tools';
+import { sleepsThrough, type Later } from '../core/needs';
+import { SLEEP } from '../data/sleep';
 
 export type Command =
   | { type: 'walk'; to: Vec2 }
@@ -56,7 +59,13 @@ export type Command =
   /** build something in stages (the Build list, data/building.ts): begin it, placed `at` turned `turn` quarter turns
    *  for something the player places (what it needs is taken then), or carry on with it once begun (a tap on it). Not
    *  to be built yet, without the Carpentry level or everything it needs, or not fitting there, he says so and stays */
-  | { type: 'build'; id: MakeId; at?: Vec2; turn?: number };
+  | { type: 'build'; id: MakeId; at?: Vec2; turn?: number }
+  /** (13 Oct 2026) his bedtime, an hour of SLEEP.bedtimes (Settings); nothing else stops */
+  | { type: 'bedtime'; hour: number };
+
+/** The commands that send him somewhere: tapped while he sleeps, the last of them waits until he wakes (core/needs.ts). */
+const LATER: readonly string[] = ['walk', 'work', 'visit', 'pickup', 'make', 'fight', 'cook', 'next', 'build'];
+const isLater = (c: Command): c is Command & Later => LATER.includes(c.type);
 
 export const isClaimed = (state: GameState, parcelId: string | undefined) => !parcelId || !!state.parcels[parcelId]?.claimed;
 
@@ -65,17 +74,23 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     // dropping something doesn't send him anywhere: whatever he is doing carries on, a trip to the bank (the chest)
     // or stoking the fire included
     if (c.type === 'drop') { drop(state, c.item, c.count, events); continue; }
+    // his bedtime (Settings): from the next time it comes
+    if (c.type === 'bedtime') { if (SLEEP.bedtimes.includes(c.hour)) state.needs.bedtime = c.hour; continue; }
+    // asleep, or on his way to bed at bedtime (13 Oct 2026, the owner): he sleeps on, and the last thing tapped is done
+    // when he wakes (systems/needs.ts)
+    const wakes = sleepsThrough(state);
+    if (wakes !== null && isLater(c)) { state.needs.later = { ...c }; events.emit({ type: 'whenAwake', at: wakes }); continue; }
+    if (wakes !== null && c.type === 'sleep') continue;
     // knocked out (chapter 2's rats): nothing but choosing what he trains until he wakes, a moment later
     if (state.player.task.kind === 'knockedOut' && c.type !== 'style') continue;
     if (c.type === 'eat') { eat(state, c.item, events); continue; }
     if (c.type === 'style') { setStyle(state, c.style); continue; }
     // go do it: the goal's next step, applied as the commands a tap in the world would send
     if (c.type === 'next') {
-      // asleep, he sleeps on (13 Oct 2026: before, the tap woke him and he lost his rest); a tap in the world still wakes him
-      if (state.player.task.kind === 'sleep') { events.emit({ type: 'stillAsleep' }); continue; }
       const next = nextCommands(state, layout, events); if (next.length) applyCommands(state, layout, next, events); continue;
     }
     let ok = true;
+    const trip = state.player.trip;
     if (c.type === 'walk') ok = walkTo(state, layout, c.to);
     else if (c.type === 'visit') ok = goVisit(state, layout, c.id, c.at);
     else if (c.type === 'pickup') {
@@ -130,7 +145,8 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
       // without the tool for it he can't work it at all, so he doesn't set off
       else if (!state.tools[tool]) { events.emit({ type: 'needTool', tool, skill: res.skill }); continue; }
       else if (levelOf(state, res.skill) < res.level) { events.emit({ type: 'levelTooLow', skill: res.skill, need: res.level, what: res.name }); continue; }
-      else ok = goWork(state, layout, c.nodeId);
+      // (13 Oct 2026) with its tool in the storage chest, by way of the chest for it (systems/tools.ts)
+      else ok = goWorkWith(state, layout, c.nodeId, events);
     }
     if (!ok) { events.emit({ type: 'noPath' }); continue; }
     // the player's command wins over a trip to the bank or the chest (the backpack keeps its items), unless it sends
@@ -139,11 +155,16 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     // sets off again once he has nothing to do, the same night. A tap on the pile or the chest while he is on his way
     // there for the logs sends him where he was going: at the chest he empties the backpack too, and stokes on.
     const toStore = c.type === 'visit' && isStore(state, layout, c.id), stoke = state.player.stoke;
-    if (!toStore && c.type !== 'fight') state.player.trip = null;
+    const fetching = c.type === 'work' && state.player.trip !== trip;     // off to the chest for its tool: a new trip
+    if (!toStore && c.type !== 'fight' && !fetching) state.player.trip = null;
     // (chapter 2) a tap on the chest while he is on his way there for food to fight with: he stores what he carries too
     if (toStore && state.player.trip && 'fight' in state.player.trip) state.player.trip.store = true;
     if (c.type !== 'cook') state.player.cook = null;      // any other command stops cooking (chapter 2)
     if (stoke && stoke.logs === 0 && c.type === 'visit' && c.id === stoke.from) { if (c.id === 'chest') stoke.empty = true; }
     else if (stoke) { stopStoking(state); if (isNight(state.time)) state.stokeAgain = true; }
+    // (13 Oct 2026) sent somewhere: a meal trip under way is off (he is hungry still, and goes once he gets there), and
+    // so is bed sent early by a tap on the shelter (at bedtime he sleeps through taps: above)
+    state.needs.meal = null;
+    if (c.type !== 'sleep') state.needs.bed = null;
   }
 }

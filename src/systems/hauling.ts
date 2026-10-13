@@ -27,6 +27,7 @@ import { canCook, cookForGoal, fishToCook, goCook } from './cooking';
 import { canSleep, goToBed } from './sleep';
 import { isNight } from '../core/clock';
 import { backToBuilding } from './building';
+import { fetchFirst, goWorkWith } from './tools';
 
 /** The place to empty the backpack (a bank's door, or the camp's chest) nearest `at`, or null where there is none. */
 function nearestStore(state: GameState, layout: Layout, at: Vec2): string | null {
@@ -45,7 +46,10 @@ export function updateHauling(state: GameState, layout: Layout, visited: string 
   if (visited && isStore(state, layout, visited)) {
     // on his way to fight the rats (chapter 2), he takes food along, a full backpack emptied first, or any when the
     // player tapped the chest meanwhile (systems/rats.ts)
-    if (p.trip && 'fight' in p.trip) stockUp(state, events, p.trip.store === true); else deposit(state, events);
+    if (p.trip && 'fight' in p.trip) stockUp(state, events, p.trip.store === true);
+    // (13 Oct 2026) at the chest for a tool (systems/tools.ts): the backpack emptied too, saying nothing when there is
+    // nothing to store (the few meals he keeps on him stay)
+    else deposit(state, events, !!p.trip && 'tool' in p.trip);
     if (p.trip) p.trip.leaveAt = state.time + BANK_PAUSE;    // a moment at the door, so the deposit is seen
     return;
   }
@@ -106,9 +110,12 @@ export function backToWork(state: GameState, layout: Layout, back: Trip | Back, 
   }
   const nodeId = back.nodeId, node = state.nodes[nodeId], spot = layout.nodes.find(n => n.id === nodeId);
   if (!node || !spot) return;
-  // the camp's goal already has enough of what it gives (counting what he just stored): he doesn't go back
-  const item = RESOURCES[spot.resource]!.item, enough = goalHasEnough(state, layout, item);
+  // the camp's goal already has enough of what it gives (counting what he just stored): he doesn't go back. Not after
+  // fetching its tool from the chest (13 Oct 2026): that trip ends at the node he was sent to, as if he had carried it
+  const item = RESOURCES[spot.resource]!.item, enough = !('tool' in back) && goalHasEnough(state, layout, item);
   if (enough) { events.emit({ type: 'goalEnough', item, goal: enough.id }); cookForGoal(state, layout, enough); return; }
+  // (13 Oct 2026) its tool is in the storage chest: by way of the chest for it, and back here after
+  if (fetchFirst(state, layout, nodeId)) { if (!goWorkWith(state, layout, nodeId, events)) events.emit({ type: 'noPath' }); return; }
   if (!node.depletedUntil && goWork(state, layout, nodeId)) return;
   if (workNearestFree(state, layout, spot.resource)) return;
   // every one like it is down (or out of reach): wait at his own for it to grow back

@@ -61,8 +61,9 @@ export function useUp(state: GameState, items: Record<string, number>, storedFir
   }
 }
 
-/** Empty the backpack into the bank (the chest) and say what was stored, or that there was nothing to store. */
-export function deposit(state: GameState, events: EventBus): void {
+/** Empty the backpack into the bank (the chest) and say what was stored, or that there was nothing to store (unless
+ *  `quiet`: a stop at the chest for a tool, 13 Oct 2026, says nothing when there is nothing to store). */
+export function deposit(state: GameState, events: EventBus, quiet = false): void {
   const items: Record<string, number> = {}, pack = state.player.backpack, kept: Record<string, number> = {};
   // a few meals stay on him (KEEP_FOOD), the food that heals most first
   let keep = KEEP_FOOD;
@@ -75,7 +76,8 @@ export function deposit(state: GameState, events: EventBus): void {
     if (store > 0) { items[item] = store; state.bank[item] = (state.bank[item] ?? 0) + store; }
   }
   state.player.backpack = kept;
-  events.emit(Object.keys(items).length ? { type: 'banked', items } : { type: 'nothingToBank' });
+  if (Object.keys(items).length) events.emit({ type: 'banked', items });
+  else if (!quiet) events.emit({ type: 'nothingToBank' });
 }
 
 /** Stop stoking the fire (systems/fire.ts), when the player sends him elsewhere: the logs he carries go back where

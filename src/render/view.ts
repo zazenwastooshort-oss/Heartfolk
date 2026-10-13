@@ -37,6 +37,7 @@ import { BuildingView } from './building';
 import { BushesView } from './bushes';
 import { FishingView, rodModel } from './fishing';
 import { CookingView } from './cooking';
+import { carries as carriesTool } from '../core/tools';
 import { ArmIK, armedWeight, toolInHand, toolInTransit } from './arms';
 import { WEAPON_MODELS, armourWorn, wearGear } from './gear';
 import { RatsView } from './rats';
@@ -306,7 +307,8 @@ export class View {
       // the tool for the job if he owns it, else the one he last had out, else any he owns, else none; a weapon while he
       // wears it, drawn by its own model (render/gear.ts). The rod (chapter 2) only while he fishes: it is too long to
       // carry on his back, so then he carries another tool, or none
-      const owns = (t: Tool | null): t is Tool => t !== null && (Object.hasOwn(WEAPON_MODELS, t) ? t === weapon : !!state.tools[t as ToolId]);
+      // (13 Oct 2026) a tool kept in the storage chest isn't on him: only what he carries is drawn (core/tools.ts)
+      const owns = (t: Tool | null): t is Tool => t !== null && (Object.hasOwn(WEAPON_MODELS, t) ? t === weapon : carriesTool(state, t as ToolId));
       const carries = (t: Tool | null): t is Tool => owns(t) && t !== 'rod';
       const tool = fighting && owns(weapon) ? weapon
         : swing?.tool === 'rod' && task.kind === 'gather' && owns('rod') ? 'rod'

@@ -237,6 +237,11 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .pack-chip { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 0.8125rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
 .pack-chip .item-pic { flex: none; width: 26px; height: 26px; }
 
+/* his hunger in the strip (src/ui/needs.ts): a warm amber bar of how full he is; a short pill, so Health, Hungry and
+   the skill fit on one row on a narrow phone (360 px) */
+.pill.hunger { min-width: 0; }
+.hunger .bar i { background: var(--accent); }
+
 /* the Skills window (src/ui/skills.ts): what he trains when he fights (its buttons from src/ui/combat.ts, after the
    heading and the line on what the one picked does, which shows under them), then each skill with its icon in the
    skill's colour, its level, a thin bar and the XP to the next level; his total level at the foot */
@@ -266,6 +271,7 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
   color: var(--muted); font: 600 0.8125rem/1 var(--body); cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--raised); border-color: rgba(241, 232, 212, .55); color: var(--ink); }
 .set-ver { margin: 0; color: var(--muted); font-size: 0.8125rem; }
+.set-note { margin: 8px 0 0; color: var(--muted); font-size: 0.8125rem; line-height: 1.35; }
 .set-btn { display: block; width: 100%; min-height: 44px; margin-top: 8px; padding: 10px; border: 1px solid var(--raised-line); border-radius: 999px;
   background: var(--raised); color: var(--ink); font: 700 0.875rem/1 var(--body); cursor: pointer; }
 .set-btn.reset { background: transparent; color: var(--muted); border-color: currentColor; font-weight: 600; }
@@ -427,6 +433,7 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
   </div>
   <div class="strip" id="strip">
     <div class="pill hp" id="healthRow" hidden><span class="name">Health</span><small id="healthText">10 / 10</small><span class="bar"><i id="healthBar"></i></span></div>
+    <div class="pill hunger" id="hungerRow" title="Hungry: gathering goes slower until he eats" hidden><span class="name">Hungry</span><span class="bar"><i id="hungerBar"></i></span></div>
     <div class="pill xp" id="xpRow" hidden><span class="name" id="xpName">Woodcutting</span><b id="xpLvl">1</b><span class="bar"><i id="xpBar"></i></span></div>
   </div>
   <nav class="rail" id="rail" aria-label="Windows">
@@ -507,6 +514,11 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
         <section class="set">
           <h3 id="textSizeName">Text size</h3>
           <div class="seg" id="textSize" role="group" aria-labelledby="textSizeName"><button type="button" data-size="small">Small</button><button type="button" data-size="normal">Normal</button><button type="button" data-size="large">Large</button></div>
+        </section>
+        <section class="set">
+          <h3 id="bedtimeName">Bedtime</h3>
+          <div class="seg" id="bedtime" role="group" aria-labelledby="bedtimeName"></div>
+          <p class="set-note" id="bedtimeSays" aria-live="polite"></p>
         </section>
         <section class="set">
           <h3>The game</h3>

@@ -6,7 +6,7 @@
 // or skill needs a picture here; tests/backpack.test.ts checks every one has its own. Anything without one shows a
 // plain bundle meanwhile. Only builds strings of SVG: no page, no game state.
 import type { GearId, Slot } from '../data/combat';
-import type { SkillId } from '../data/skills';
+import type { SkillId, ToolId } from '../data/skills';
 
 /** The outline every picture's shapes share. */
 const INK = '#21170e';
@@ -106,6 +106,22 @@ export const GEAR_PICTURES: Record<GearId, string> = {
     `<circle cx="16" cy="16" r="2.6" fill="#77532f" ${lined}/>`,
 };
 
+/** His tools (TOOLS in data/skills.ts; 13 Oct 2026, for the chest's list once it keeps them): the camp's stone axe and
+ *  stone pickaxe, knapped stone heads lashed on a branch, and the fishing rod with its line. */
+export const TOOL_PICTURES: Record<ToolId, string> = {
+  axe: stick('M8 27.5 21 8.5', '#7a5634', 2.8) +
+    `<path d="M18.5 6.5c2.6-2.4 6.6-2.2 8.5.4l-2.2 6.6-6.4-2.8z" fill="#9b988f" ${lined}/>` +
+    `<path d="M21.2 6.6c1.6-.8 3.4-.6 4.6.4" fill="none" stroke="#cbc8bf" stroke-width="1.3" stroke-linecap="round"/>` +
+    `<path d="M17.6 11.6l3.4 2.2 1.2-1.8-3.4-2.2z" fill="#b39867" ${lined}/>`,
+  pick: stick('M9 28 19 9', '#7a5634', 2.8) +
+    `<path d="M5.5 11.5c4-5 13-7.6 21-4.4-6.6-.4-12.2 1.4-16.6 5.8z" fill="#9b988f" ${lined}/>` +
+    `<path d="M16.4 10.6l3.6 2 1-1.9-3.6-2z" fill="#b39867" ${lined}/>`,
+  rod: stick('M5 28 25 4.5', '#8a6a42', 2) +
+    `<path d="M25 4.5c1.6 5 1.8 11 .8 17.5" fill="none" stroke="#efe2c2" stroke-width="1" stroke-linecap="round"/>` +
+    `<path d="M24.4 22.2c.8-.8 2-.8 2.8 0 .8.8.8 2 0 2.8" fill="none" stroke="${INK}" stroke-width="1.2" stroke-linecap="round"/>` +
+    `<circle cx="9.4" cy="23" r="2" fill="#6f5034" ${lined}/>`,
+};
+
 /** What an empty slot of what he wears shows, faintly: the shape of a piece that goes there. */
 export const SLOT_SHAPES: Record<Slot, GearId> = { weapon: 'stone_club', head: 'hide_cap', body: 'hide_vest', shield: 'hide_shield' };
 
@@ -118,7 +134,8 @@ export const hasPicture = (id: string) => Object.hasOwn(ITEM_PICTURES, id) || Ob
 
 /** A thing's picture (an item or a piece of gear) as a whole SVG element, or the bundle when it has none. */
 export function picture(id: string, className = 'item-pic'): string {
-  const inner = Object.hasOwn(ITEM_PICTURES, id) ? ITEM_PICTURES[id] : Object.hasOwn(GEAR_PICTURES, id) ? GEAR_PICTURES[id as GearId] : BUNDLE;
+  const inner = Object.hasOwn(ITEM_PICTURES, id) ? ITEM_PICTURES[id] : Object.hasOwn(GEAR_PICTURES, id) ? GEAR_PICTURES[id as GearId]
+    : Object.hasOwn(TOOL_PICTURES, id) ? TOOL_PICTURES[id as ToolId] : BUNDLE;
   return `<svg class="${className}" viewBox="0 0 32 32" aria-hidden="true">${inner}</svg>`;
 }
 
