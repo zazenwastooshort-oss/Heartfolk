@@ -9,11 +9,11 @@
 // the loaded game, with fresh randomness as the page has after opening a save) read back exactly and change nothing
 // about finishing. Then the bot's own habits: a full backpack with nowhere to store it, a levels goal the training
 // dummy can't teach all of, and a Cooking levels goal. With HEARTHFOLK_PACING=1 it prints the pacing: how long each
-// goal and each chapter takes (median and range over the seeds), the taps, knock-outs, food eaten and levels at the end
-// of each chapter. For pacing studies: HEARTHFOLK_SEEDS=20 plays seeds 1 to 20 instead of 1 to 4; HEARTHFOLK_VISIT=300,60
-// makes the bot a player who checks in every 5 minutes of play and stays a minute (attentive while there), and
-// HEARTHFOLK_VISIT=300 one who looks once each time (one look per visit: an upper bound); HEARTHFOLK_TRACE=2 prints
-// seed 2's taps and notices as it plays.
+// goal and each chapter takes (median and range over the seeds), in play and in real time watching (the nights in the
+// shelter going quicker), the taps, knock-outs, food eaten and levels at the end of each chapter. For pacing studies:
+// HEARTHFOLK_SEEDS=20 plays seeds 1 to 20 instead of 1 to 4; HEARTHFOLK_VISIT=300,60 makes the bot a player who checks
+// in every 5 minutes of play and stays a minute (attentive while there), and HEARTHFOLK_VISIT=300 one who looks once
+// each time (one look per visit: an upper bound); HEARTHFOLK_TRACE=2 prints seed 2's taps and notices as it plays.
 // (In PowerShell: $env:HEARTHFOLK_PACING=1; npx vitest run tests/playthrough.test.ts)
 // The chapters are found by what ends them, never by position: chapter 1 ends with the goal that makes the storage
 // chest, chapter 2 with the last goal; the goblin camp is the goal that asks for the chief's torn map.
@@ -26,6 +26,7 @@ import { createRng } from '../src/core/rng';
 import { STEP } from '../src/core/loop';
 import { DAY_SECONDS } from '../src/core/clock';
 import { deserialize, serialize } from '../src/core/save';
+import { nextHour } from '../src/core/needs';
 import { step, type SimContext } from '../src/sim';
 import { CAMP } from '../src/world/camp';
 import { walkGrid } from '../src/core/building';
@@ -39,6 +40,7 @@ import { SWINGS } from '../src/data/animation';
 import { BACKPACK_SLOTS } from '../src/data/hauling';
 import { AWAY } from '../src/data/away';
 import { SLEEP } from '../src/data/sleep';
+import { STOKE } from '../src/data/fire';
 import { levelFor, XP_TABLE } from '../src/data/xp';
 import { Bot, type Visits } from './bot';
 
@@ -104,6 +106,9 @@ interface Run {
   /** (needs, 13 Oct 2026) seconds of play he slept in the shelter, nights he went to bed, and meals he ate when hungry,
    *  per chapter */
   asleep: number[]; nights: number[]; meals: number[];
+  /** (the camp build) seconds of play he had slept in the shelter when each goal was finished, by id: for the real time
+   *  each goal takes (the nights go SLEEP.speed times quicker while the game is open) */
+  sleptAt: Record<string, number>;
   /** taps the game refused (he stayed idle) */
   refused: number;
   /** fight taps on something with no tap area when it was sent (a beaten rat or goblin, the chief in his tent): a
@@ -188,17 +193,17 @@ function play(seed: number): Run {
   const run: Run = {
     seed, done: {}, chapterEnd: CHAPTER_ENDS.map(() => null), levels: CHAPTER_ENDS.map(() => null),
     taps: CHAPTER_ENDS.map(() => 0), knockouts: CHAPTER_ENDS.map(() => 0), eaten: CHAPTER_ENDS.map(() => 0), refused: 0, untappable: [], ate: {},
-    asleep: CHAPTER_ENDS.map(() => 0), nights: CHAPTER_ENDS.map(() => 0), meals: CHAPTER_ENDS.map(() => 0),
+    asleep: CHAPTER_ENDS.map(() => 0), nights: CHAPTER_ENDS.map(() => 0), meals: CHAPTER_ENDS.map(() => 0), sleptAt: {},
     end: 'time', stuck: null, still: { for: 0, goal: '' }, problems: [], saves: [], played: 0, ms: 0,
   };
   const start = g.state.time, played = () => g.state.time - start, min = (s: number) => (s / 60).toFixed(1);
-  let chapter = 0, goalDone = false;
+  let chapter = 0, goalDone = false, slept = 0;
   // the goal card: the furthest it has got, when it last moved on, and the goal it shows
   let best = cardAt(g.state), moved = 0, onGoal = currentGoal(g.state).id;
   const recent: string[] = [], trace = process.env.HEARTHFOLK_TRACE === String(seed) ? [`Seed ${seed}, minutes of play:`] : null;
   const line = (text: string) => `${(played() / 60).toFixed(2).padStart(6)}  ${text}`;
   events.on(e => {
-    if (e.type === 'goalDone') { run.done[e.goal] = played(); goalDone = true; }
+    if (e.type === 'goalDone') { run.done[e.goal] = played(); run.sleptAt[e.goal] = slept; goalDone = true; }
     if (e.type === 'knockedOut') run.knockouts[chapter]!++;
     if (e.type === 'ate') { run.eaten[chapter]!++; run.ate[e.item] = (run.ate[e.item] ?? 0) + 1; }
     if (e.type === 'fellAsleep') run.nights[chapter]!++;
@@ -228,7 +233,7 @@ function play(seed: number): Run {
     }
     step(g.state, STEP, ctx);
     const t = played(), state = g.state;
-    if (state.player.task.kind === 'sleep' && chapter < CHAPTER_ENDS.length) run.asleep[chapter]! += STEP;
+    if (state.player.task.kind === 'sleep') { slept += STEP; if (chapter < CHAPTER_ENDS.length) run.asleep[chapter]! += STEP; }
     // the goal card moving on: a goal finished, or more of what the goal on it counts
     const card = cardAt(state);
     if (card.goals > best.goals || card.things > best.things || card.xp > best.xp) {
@@ -446,18 +451,29 @@ afterAll(() => {
   const through = (r: Run, c: number) => r.chapterEnd[c] !== null || (c === 1 && !GOBLINS_CLEARABLE && r.end === 'goblins');
   /** When a run got through chapter `c`, in seconds of play from the chapter's start. */
   const took = (r: Run, c: number) => (r.chapterEnd[c] ?? Math.max(...GOALS.slice(0, GOBLIN_CAMP).map(x => r.done[x.id]!))) - (c ? r.chapterEnd[c - 1]! : 0);
-  lines.push('', `Hearthfolk pacing: the playthrough bot on seeds ${all.map(r => r.seed).join(', ')} (minutes:seconds of play; median, then range)`, '');
-  lines.push(`${'Goal'.padEnd(36)}${'median'.padStart(8)}   range`);
+  /** (the camp build) Real time, watching: the seconds of real time with the game open by the moment the last of the
+   *  goals up to `upTo` (an index in GOALS) was finished, from the start, the nights in the shelter going SLEEP.speed
+   *  times quicker (main.ts, playSpeed); 0 before any (upTo -1). */
+  const realBy = (r: Run, upTo: number) => {
+    const ids = GOALS.slice(0, upTo + 1).map(g => g.id).filter(id => r.done[id] !== undefined);
+    if (!ids.length) return 0;
+    const last = ids.reduce((a, id) => r.done[id]! > r.done[a]! ? id : a);
+    return r.done[last]! - r.sleptAt[last]! * (1 - 1 / SLEEP.speed);
+  };
+  /** The play column, then the real time column. */
+  const columns = (play: number[], real: number[]) => `${spread(play).padEnd(30)}${spread(real)}`;
+  lines.push('', `Hearthfolk pacing: the playthrough bot on seeds ${all.map(r => r.seed).join(', ')} (minutes:seconds of play; median, then range;`);
+  lines.push(`then the real time, watching: the same with the nights in the shelter going ${SLEEP.speed} times quicker, as they do while the game is open)`, '');
+  lines.push(`${'Goal'.padEnd(36)}${'median'.padStart(8)}   ${'range'.padEnd(19)}${'real'.padStart(8)}   range`);
   let chapter = 0;
   for (const [i, goal] of GOALS.entries()) {
-    const times = all.flatMap(r => {
-      const at = r.done[goal.id];
-      return at === undefined ? [] : [at - Math.max(0, ...GOALS.slice(0, i).map(b => r.done[b.id] ?? 0))];
-    });
-    lines.push(`  ${goal.title.padEnd(34)}${spread(times)}${i === GOBLIN_CAMP && !GOBLINS_CLEARABLE ? '   (not played: see GOBLINS_CLEARABLE)' : ''}`);
+    const got = all.filter(r => r.done[goal.id] !== undefined);
+    const times = got.map(r => r.done[goal.id]! - Math.max(0, ...GOALS.slice(0, i).map(b => r.done[b.id] ?? 0)));
+    const real = got.map(r => realBy(r, i) - realBy(r, i - 1));
+    lines.push(`  ${goal.title.padEnd(34)}${columns(times, real)}${i === GOBLIN_CAMP && !GOBLINS_CLEARABLE ? '   (not played: see GOBLINS_CLEARABLE)' : ''}`);
     if (i === CHAPTER_ENDS[chapter]) {
-      const ends = all.filter(r => r.chapterEnd[chapter] !== null).map(r => took(r, chapter));
-      lines.push(`${CHAPTER_NAMES[chapter]!.padEnd(36)}${spread(ends)}`);
+      const ended = all.filter(r => r.chapterEnd[chapter] !== null), from = chapter ? CHAPTER_ENDS[chapter - 1]! : -1;
+      lines.push(`${CHAPTER_NAMES[chapter]!.padEnd(36)}${columns(ended.map(r => took(r, chapter)), ended.map(r => realBy(r, i) - realBy(r, from)))}`);
       if (chapter === 1 && !GOBLINS_CLEARABLE) lines.push(`${'Chapter 2 up to the goblin camp'.padEnd(36)}${spread(all.filter(r => through(r, 1)).map(r => took(r, 1)))}`);
       lines.push('');
       chapter++;
@@ -489,6 +505,9 @@ afterAll(() => {
   lines.push('Game time and real time: the game runs at full speed whenever it is open (a background tab or a sleeping screen too),');
   lines.push(`so a minute of play is a minute of real time with the game open, and an in-game day is ${DAY_SECONDS / 60} real minutes. While the`);
   lines.push(`game is closed he works at ${AWAY.rate * 100}% speed for at most ${AWAY.max / 3600} hours (${AWAY.max * AWAY.rate / 60} minutes of play): a minute of play then takes ${1 / AWAY.rate} real minutes.`);
+  // (the camp build) when the first night comes in a new game, which falls inside chapter 1 now that building takes time
+  const t0 = createState(CAMP, 1).time, hour = (h: number) => `${String(h % 24).padStart(2, '0')}:00`;
+  lines.push(`In a new game the first nightfall (${hour(STOKE.at * 24)}) comes at ${clock(nextHour(t0, STOKE.at * 24) - t0)} of play, and a new game's bedtime (${hour(SLEEP.bedtime)}) at ${clock(nextHour(t0, SLEEP.bedtime) - t0)}.`);
   lines.push(!VISITS ? 'The bot looks every second and taps at once: these are an attentive player\'s times; one who checks in now and then takes longer (HEARTHFOLK_VISIT).'
     : VISITS.stay > 0 ? `The bot checked in every ${VISITS.every} s of play and stayed ${VISITS.stay} s, looking every second while there: a player who checks in now and then, the game left open between.`
     : `The bot looked once every ${VISITS.every} s of play, tapping everything due at once: an upper bound for a player who checks in that often (one who stays a while taps several times per visit).`, '');
