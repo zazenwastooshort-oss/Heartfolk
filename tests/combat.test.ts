@@ -6,6 +6,7 @@
 // Chapter 2's goals follow the storage chest, and other goals may sit between or after them: a goal is made current by
 // marking every goal before it done, never by its position.
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { allGoalsDone, createState, currentGoal, goalFinished, goalMet, made, maxHealth, owned, SAVE_VERSION } from '../src/core/state';
 import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
@@ -18,6 +19,7 @@ import { catchUpAway, step } from '../src/sim';
 import { CAMP } from '../src/world/camp';
 import { VILLAGE, siteOf, type Layout, type Vec2 } from '../src/world/layout';
 import { navFor } from '../src/world/nav';
+import { standsOf } from '../src/world/steps';
 import { waterOf } from '../src/world/water';
 import { applyCommands, type Command } from '../src/systems/commands';
 import {
@@ -26,6 +28,7 @@ import {
 import { COMBAT, DUMMY, GEAR, HEALTH, SLOTS, STRIKE, STYLES, strikeEvery, type CombatStyle } from '../src/data/combat';
 import { CAMP_DONE, GOALS } from '../src/data/goals';
 import { BUILD_REACH, MAKES } from '../src/data/making';
+import { STAGED } from '../src/data/building';
 import { STOKE } from '../src/data/fire';
 import { XP_TABLE, levelFor } from '../src/data/xp';
 import { addSummary, emptySummary, tally } from '../src/systems/away';
@@ -149,11 +152,10 @@ describe('the dummy, the club and the goals (data)', () => {
     expect(CAMP_DONE.text).toMatch(/way along the river is open/);
   });
 
-  it('the dummy is a structure at its own camp spot, of logs and branches, a few seconds; the club is gear made where he stands', () => {
-    expect(MAKES.dummy).toMatchObject({ name: 'Training dummy', verb: 'Build', at: 'dummy', gives: { kind: 'structure' } });
+  it('the dummy is a structure at its own camp spot, of logs and branches, built in stages (40 seconds); the club is gear made where he stands', () => {
+    expect(MAKES.dummy).toMatchObject({ name: 'Training dummy', verb: 'Build', at: 'dummy', time: 40, gives: { kind: 'structure' } });
     expect(Object.keys(MAKES.dummy.needs).sort()).toEqual(['birch_logs', 'branch']);
-    expect(MAKES.dummy.time).toBeGreaterThan(1);
-    expect(MAKES.dummy.time).toBeLessThan(10);
+    expect(STAGED.dummy).toBeDefined();
     expect(MAKES.stone_club).toMatchObject({ name: 'Stone club', verb: 'Make', at: 'here', gives: { kind: 'gear', gear: 'stone_club' } });
     expect(MAKES.stone_club.time).toBeLessThan(10);
     // gear: every row has a slot, weapons a speed no quicker than the swing; armour has its slots ready
@@ -177,7 +179,7 @@ describe("the dummy's spot at the camp", () => {
     expect(dist(SPOT.pos, CAMP.hearth.pos)).toBeLessThan(8);
     // its ring and tap area stay clear of the others' (render/structures.ts: a ring reaches 0.2 m past its spot's
     // radius, a tap area 0.37 m), with room to walk between
-    const others = [CAMP.hearth, CAMP.camp!.tent, CAMP.camp!.chest, CAMP.camp!.woodpile];
+    const others = [CAMP.hearth, CAMP.camp!.tent, CAMP.camp!.woodpile];
     for (const o of others) expect(dist(o.pos, SPOT.pos)).toBeGreaterThan(o.radius + SPOT.radius + 2 * 0.37 + 1);
     for (const n of CAMP.nodes) expect(dist(n.pos, SPOT.pos), n.id).toBeGreaterThan(2);
     for (const p of CAMP.pickups!) expect(dist(p.pos, SPOT.pos), p.id).toBeGreaterThan(1.4);
@@ -197,7 +199,8 @@ describe("the dummy's spot at the camp", () => {
       if (nav.walkable(stand) && nav.findPath(CAMP.start, stand)) open++;
     }
     expect(open).toBe(24);
-    const places = [CAMP.start, CAMP.hearth.pos, CAMP.camp!.chest.pos, CAMP.camp!.tent.pos, ...CAMP.nodes.map(n => n.pos)];
+    // (the chest is in the shelter, used at its door)
+    const places = [CAMP.start, CAMP.hearth.pos, standsOf(CAMP, 'shelter')[0]!, CAMP.camp!.tent.pos, ...CAMP.nodes.map(n => n.pos)];
     for (const from of places) for (const to of places) {
       expect(nav.findPath(nav.nearestWalkable(from), nav.nearestWalkable(to)), `${from.x},${from.z} > ${to.x},${to.z}`).not.toBeNull();
     }
@@ -210,8 +213,9 @@ describe('building the training dummy and making the stone club', () => {
     expect(currentGoal(s.state).id).toBe('dummy');
     s.state.player.backpack = { ...MAKES.dummy.needs };
     s.state.player.pos = { x: SPOT.pos.x + 4, z: SPOT.pos.z };
-    send(s, { type: 'make', id: 'dummy' });
-    runUntil(s, () => s.state.player.task.kind === 'make', 30);
+    send(s, { type: 'build', id: 'dummy' });
+    expect(s.state.player.backpack).toEqual({});                   // begun: what it needs taken at once
+    runUntil(s, () => s.state.player.task.kind === 'raise', 30);
     expect(dist(s.state.player.pos, SPOT.pos)).toBeCloseTo(SPOT.radius + BUILD_REACH, 1);
     runUntil(s, () => made(s.state, 'dummy'), MAKES.dummy.time + 1);
     expect(s.state.built).toContain('dummy');
@@ -245,8 +249,9 @@ describe('building the training dummy and making the stone club', () => {
     const s = campSet();
     s.state.goalsDone = before('chest'); s.state.built = ['campfire', 'woodpile', 'shelter'];
     s.state.player.backpack = { ...MAKES.dummy.needs };
-    send(s, { type: 'make', id: 'dummy' });
+    send(s, { type: 'build', id: 'dummy' });
     expect(s.log.at(-1)).toEqual({ type: 'goalFirst', make: 'dummy', goal: 'chest' });
+    expect(s.state.underway).toEqual({});
     const t = campSet();
     t.state.player.backpack = { ...MAKES.stone_club.needs };
     send(t, { type: 'make', id: 'stone_club' });
@@ -572,7 +577,7 @@ describe('saving practice', () => {
     delete raw.health; delete raw.equipment; delete raw.combatStyle;
     raw.skills = { mining: 900, woodcutting: 2400 };
     const back = readSave(JSON.stringify(raw), CAMP).state;
-    expect(SAVE_VERSION).toBe(11);
+    expect(SAVE_VERSION).toBe(12);
     expect(back.version).toBe(SAVE_VERSION);
     expect(allGoalsDone(back)).toBe(false);
     expect(currentGoal(back)).toBe(GOALS[at('chest') + 1]);
@@ -585,7 +590,7 @@ describe('saving practice', () => {
     const loaded = { ...setup(), state: back };
     loaded.state.goalsDone = before('dummy');
     loaded.state.player.backpack = { ...MAKES.dummy.needs };
-    send(loaded, { type: 'make', id: 'dummy' });
+    send(loaded, { type: 'build', id: 'dummy' });
     runUntil(loaded, () => made(loaded.state, 'dummy'), 60);
     expect(loaded.state.built).toContain('dummy');
   });
@@ -606,6 +611,7 @@ describe('the village has no dummy', () => {
     s.state.player.backpack = { ...MAKES.dummy.needs };
     send(s, { type: 'fight', target: 'dummy' });
     send(s, { type: 'make', id: 'dummy' });
+    send(s, { type: 'build', id: 'dummy' });
     run(s, 3);
     expect(s.log).toEqual([]);
     expect(s.state.built).toEqual([]);
@@ -631,17 +637,26 @@ describe('away time while practising', () => {
     practise(s);
     run(s, 5);
     const saved = serialize(s.state, 1_000_000), now = 1_000_000 + 2 * 60 * 60 * 1000;
-    const reopen = () => {
-      const t = setup(CAMP, 21), state = readSave(saved, CAMP).state, log: GameEvent[] = [];
+    const reopen = (raw = saved) => {
+      const t = setup(CAMP, 21), state = readSave(raw, CAMP).state, log: GameEvent[] = [];
       t.events.on(e => log.push(e));
-      const started = performance.now();
+      // how quick: the processor time this test's own process spent on it, so other work on the machine (the rest of
+      // the suite running beside it) doesn't count
+      const started = process.cpuUsage();
       const r = catchUpAway(state, 1_000_000, now, { ...t.ctx, rng: createRng(99) });
-      return { state, r, ms: performance.now() - started, log };
+      const used = process.cpuUsage(started);
+      return { state, r, ms: (used.user + used.system) / 1000, log };
     };
     const a = reopen(), b = reopen();
     expect(a.state).toEqual(b.state);
     expect(a.r.summary).toEqual(b.r.summary);
-    expect(a.ms).toBeLessThan(1000);
+    // quick against the same catch-up of the whole camp left be, timed here alongside it, so a
+    // busy machine slows both alike: practising may cost a little more a step than the camp's own round, never 3 times
+    // as much (about 0.3 s alone, either of them). The better of two tries of each, so one slow moment doesn't count
+    const whole = readFileSync(new URL('./fixtures/camp/whole-camp.json', import.meta.url), 'utf8');
+    const camp = JSON.stringify({ ...JSON.parse(whole), savedAt: 1_000_000 });
+    const ref = Math.min(reopen(camp).ms, reopen(camp).ms), ours = Math.min(a.ms, b.ms);
+    expect(ours).toBeLessThan(3 * ref);
     expect(a.r.away.game).toBeCloseTo(24 * 60, 0);
     expect(a.r.summary.xp.attack).toBeGreaterThan(0);
     expect(a.r.summary.xp.vitality).toBeGreaterThan(0);

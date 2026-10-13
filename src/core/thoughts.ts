@@ -6,6 +6,7 @@
 import { allGoalsDone, currentGoal, made, owned, type GameState } from './state';
 import { isNight, nightOf } from './clock';
 import { isHungry, nothingToEat } from './needs';
+import { STAGED_IDS, stagedDef, unlocked } from './building';
 import { GOALS, type Goal } from '../data/goals';
 import { MAKES, makeDef, type MakeDef } from '../data/making';
 import { THOUGHT, THOUGHTS, thoughtDef, type Cue, type Place, type ThoughtDef } from '../data/thoughts';
@@ -69,6 +70,7 @@ export function foundNow(state: GameState, layout: Layout, f: Found): boolean {
   if ('item' in f) return owned(state, f.item) > 0;
   if ('near' in f) return sees(state, layout, f.near);
   if ('built' in f) return state.built.includes(f.built);
+  if ('upgrade' in f) return STAGED_IDS.some(id => !!stagedDef(id)?.upgrades && unlocked(state, layout, id));
   return reached(state, f.goal);
 }
 

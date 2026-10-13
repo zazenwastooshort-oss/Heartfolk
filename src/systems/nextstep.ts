@@ -1,12 +1,15 @@
 // "Go do it" (the survival book): a tap on the goal card, or on his thought over his head, sends him off on the current
 // goal's next step, the same as tapping the right thing in the world would: make the goal's thing once everything it
-// needs is there; cook raw fish when the goal wants cooked ones (catching some first when there are none); otherwise
-// gather what is still missing from the nearest source (something on the ground, a tree, a rock or a fishing spot he
-// has the tool for, a rat for its hide, a goblin or their chief for the map); for a goal that asks for levels, practise
-// on the training dummy while it can still teach a skill the goal asks for, else fight the rats. When he is already
-// doing what the goal needs, or there is nothing to do yet (stones and branches not back), he says so and carries on.
-// Headless: commands.ts applies what this picks, as the queued 'next' command.
-import { allGoalsDone, currentGoal, made, owned, type GameState } from '../core/state';
+// needs is there (something built at the camp's spots: build it, or carry on with it once begun, since what it needed
+// was taken then; with something else under way, carry on with that first: one at a time); cook raw fish when the goal
+// wants cooked ones (catching some first when there are none); otherwise gather what is still missing from the nearest
+// source (something on the ground, a tree, a rock or a fishing spot he has the tool for, a rat for its hide, a goblin
+// or their chief for the map); for a goal that asks for levels, practise on the training dummy while it can still teach
+// a skill the goal asks for, else fight the rats. When he is already doing what the goal needs, or there is nothing to
+// do yet (stones and branches not back), he says so and carries on. Headless: commands.ts applies what this picks, as
+// the queued 'next' command.
+import { allGoalsDone, currentGoal, goalPaid, made, owned, type GameState } from '../core/state';
+import { begunIds, stagedDef } from '../core/building';
 import type { EventBus } from '../core/events';
 import type { Layout, Vec2 } from '../world/layout';
 import type { Command } from './commands';
@@ -41,14 +44,17 @@ const pickupGives = (layout: Layout, id: string) => {
   return !gives ? null : gives === 'book' ? BOOK : gives.item;
 };
 
-/** What the goal still asks for: items short (how many more), the thing to make once all is there, whether to cook,
- *  and the skills still short of the levels it asks. */
+/** What the goal still asks for: items short (how many more; none once it is paid for: its thing begun), the thing to
+ *  make or build once all is there (or, the goal's thing built in stages, another under way to finish first), whether
+ *  to cook, and the skills still short of the levels it asks. */
 interface Wants { items: Record<string, number>; make: MakeId | null; cook: boolean; styles: CombatStyle[]; skills: SkillId[] }
 
 function wantsOf(state: GameState, layout: Layout): Wants {
   const goal = currentGoal(state), def = goal.makes ? makeDef(goal.makes) : null, items: Record<string, number> = {};
-  for (const [id, n] of Object.entries(def?.needs ?? goal.needs)) { const short = n - owned(state, id); if (short > 0) items[id] = short; }
-  const make = def && !made(state, def.id) && !Object.keys(items).length ? def.id : null;
+  if (!goalPaid(state, goal)) for (const [id, n] of Object.entries(def?.needs ?? goal.needs)) { const short = n - owned(state, id); if (short > 0) items[id] = short; }
+  // (the camp build) one thing built at a time: with another under way, that one first
+  const other = def && stagedDef(def.id) && state.underway[def.id] === undefined ? begunIds(state)[0] ?? null : null;
+  const make = def && !made(state, def.id) && !Object.keys(items).length ? other ?? def.id : null;
   const short = Object.entries(goal.levels ?? {}).filter(([id, n]) => levelOf(state, id as SkillId) < n!).map(([id]) => id as SkillId);
   let cook = false;
   const cooked = items[COOK.cooked] ?? 0;
@@ -76,7 +82,7 @@ function busy(state: GameState, layout: Layout, w: Wants): boolean {
     return item(CHIEF.drop);
   };
   if (p.cook) return w.cook;
-  if (w.make) return (task.kind === 'make' && task.id === w.make) || (pending?.kind === 'make' && pending.id === w.make);
+  if (w.make) return ((task.kind === 'make' || task.kind === 'raise') && task.id === w.make) || ((pending?.kind === 'make' || pending?.kind === 'raise') && pending.id === w.make);
   if (trip) return 'nodeId' in trip ? item(nodeGives(layout, trip.nodeId)) : 'pickupId' in trip ? item(pickupGives(layout, trip.pickupId)) : fights(trip.fight);
   if (task.kind === 'gather') { const r = RESOURCES[layout.nodes.find(n => n.id === task.nodeId)?.resource ?? '']; return !!r && (item(r.item) || w.skills.includes(r.skill)); }
   if (task.kind === 'pickup') return item(pickupGives(layout, task.id));
@@ -150,7 +156,7 @@ export function nextStep(state: GameState, layout: Layout): Step {
   if (!layout.camp || allGoalsDone(state)) return { done: true };
   const w = wantsOf(state, layout);
   if (busy(state, layout, w)) return { busy: true };
-  if (w.make) return { commands: [{ type: 'make', id: w.make }] };
+  if (w.make) return { commands: [stagedDef(w.make) ? { type: 'build', id: w.make } : { type: 'make', id: w.make }] };
   if (w.cook) return { commands: [{ type: 'cook' }] };
   let best: { command: Command; d: number } | null = null;
   for (const item of Object.keys(w.items)) {

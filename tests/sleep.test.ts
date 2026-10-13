@@ -48,10 +48,11 @@ describe('sleeping in the shelter', () => {
     const s = camp(14);
     const pos = { ...s.state.player.pos };
     send(s, { type: 'sleep' });
-    expect(of(s, 'cantSleep')).toHaveLength(1);
+    expect(of(s, 'cantSleep')).toEqual([{ type: 'cantSleep', shelter: 'shelter' }]);
     expect(s.state.player.pending).toBeNull();
     expect(s.state.player.pos).toEqual(pos);
-    expect(SLEEP_TEXT.cantSleep).toContain('once night falls');
+    // (the camp build) the notice names the shelter he would sleep in
+    expect(SLEEP_TEXT.cantSleep('tent')).toBe("He isn't tired yet. He can sleep in the tent once night falls.");
   });
 
   it('at night a tap sends him to bed early: out of sight for 6 hours, then up well rested until nightfall', () => {
@@ -136,6 +137,22 @@ describe('sleeping in the shelter', () => {
     expect(of(s, 'whenAwake')).toHaveLength(0);
     run(s, 5);
     expect(s.state.needs.bed).toBeNull();
+  });
+
+  it('saved and opened on his way to bed sent early, his needs read back as they were: a tap elsewhere still changes his mind, and he goes to bed at his bedtime', () => {
+    const s = camp(21);
+    s.state.stokedNight = Math.floor(s.state.time / DAY_SECONDS - STOKE.at);
+    send(s, { type: 'sleep' });
+    run(s, 0.5);
+    expect(s.state.player.pending).toEqual({ kind: 'visit', id: 'shelter' });
+    const before = structuredClone(s.state.needs);
+    s.state = deserialize(serialize(s.state), CAMP);
+    expect(s.state.needs).toEqual(before);
+    send(s, { type: 'work', nodeId: 'camp_copper1' });
+    runUntil(s, () => of(s, 'bedtime').length > 0, DAY_SECONDS / 2);
+    expect(of(s, 'bedtime')).toHaveLength(1);
+    runUntil(s, () => s.state.player.task.kind === 'sleep', 120);
+    expect(s.state.player.task.kind).toBe('sleep');
   });
 
   it('off to stoke the fire at nightfall, a tap on the shelter waits: he stokes first, then goes to bed', () => {

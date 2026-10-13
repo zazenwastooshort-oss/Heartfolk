@@ -85,16 +85,26 @@ describe('the next step for each kind of goal', () => {
     expect((commands(s) as Command[])[0]).toMatchObject({ type: 'pickup' });
   });
 
-  it('making: with everything there, he makes it; tapped again on his way, he says he is at it already', () => {
+  it('making: with everything there, he builds it (in stages) or makes it; tapped again on his way or at it, he says he is at it already; begun and sent elsewhere, the next step is to carry on', () => {
     const s = on('campfire');
     s.state.player.backpack = { plank: 3, stone: 4 };
-    expect(commands(s)).toEqual([{ type: 'make', id: 'campfire' }]);
+    expect(commands(s)).toEqual([{ type: 'build', id: 'campfire' }]);
     send(s, { type: 'next' });
-    expect(s.state.player.pending).toEqual({ kind: 'make', id: 'campfire' });
+    expect(s.state.underway).toEqual({ campfire: 0 });
+    expect(s.state.player.pending).toEqual({ kind: 'raise', id: 'campfire' });
     const from = s.log.length;
     send(s, { type: 'next' });
     expect(s.log.slice(from)).toEqual([{ type: 'onIt' }]);
-    expect(s.state.player.pending).toEqual({ kind: 'make', id: 'campfire' });
+    expect(s.state.player.pending).toEqual({ kind: 'raise', id: 'campfire' });
+    run(s, 8);
+    expect(s.state.player.task).toEqual({ kind: 'raise', id: 'campfire' });
+    expect(nextStep(s.state, CAMP)).toEqual({ busy: true });
+    // sent elsewhere: its things are gone, but the goal is paid for, so the next step is to carry on, not to gather
+    send(s, { type: 'walk', to: { x: -3, z: -3 } });
+    expect(commands(s)).toEqual([{ type: 'build', id: 'campfire' }]);
+    send(s, { type: 'next' });
+    expect(s.state.player.pending).toEqual({ kind: 'raise', id: 'campfire' });
+    expect(s.log.filter(e => e.type === 'begun')).toHaveLength(1);
     // a tool made where he stands
     const t = on('stone_axe');
     t.state.player.backpack = { branch: 2, stone: 2 };

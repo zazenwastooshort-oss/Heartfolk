@@ -80,7 +80,7 @@ describe('saves with health (format 10)', () => {
 
   it('a format 9 save loads with his health full and the new skills from 0', () => {
     const back = readSave(raw(s => { s.version = 9; delete s.health; s.skills = { mining: 40, woodcutting: 900 }; }), CAMP).state;
-    expect(SAVE_VERSION).toBe(11);
+    expect(SAVE_VERSION).toBe(12);
     expect(back.version).toBe(SAVE_VERSION);
     expect(back.health).toBe(maxHealth(back));
     expect(back.skills).toEqual({ ...createState(CAMP).skills, mining: 40, woodcutting: 900 });

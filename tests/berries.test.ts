@@ -21,6 +21,8 @@ import { GOALS } from '../src/data/goals';
 import { PICKUPS } from '../src/data/pickups';
 import { BACKPACK_SLOTS } from '../src/data/hauling';
 import { MAKES } from '../src/data/making';
+import { outsideOf, standsOf } from '../src/world/steps';
+import { LAYOUT_GAP } from '../src/data/building';
 
 const BUSH = PICKUPS.bush, BERRIES = (BUSH.gives as { item: string; count: number });
 const bushes = CAMP.pickups!.filter(p => p.kind === 'bush');
@@ -62,12 +64,16 @@ describe('the berry bushes by the camp', () => {
   it('grow in a patch near the camp, on dry ground off the bank, out of the way of the camp and of each other', () => {
     expect(bushes.length).toBeGreaterThanOrEqual(4);
     const fire = CAMP.hearth.pos, water = waterOf(CAMP);
-    const spots = [fire, CAMP.camp!.tent.pos, CAMP.camp!.chest.pos, CAMP.camp!.woodpile.pos];
+    // (the fire, the tent's spot, and its door, where the chest in it is used)
+    const spots = [fire, CAMP.camp!.tent.pos, standsOf(CAMP, 'shelter')[0]!];
     for (const b of bushes) {
       expect(inArea(CAMP.village, b.pos), b.id).toBe(true);
       expect(water.edge(b.pos), b.id).toBeGreaterThan(SHORE_CLEAR);
       expect(dist(b.pos, fire), b.id).toBeLessThan(10);                      // close to the camp
       for (const p of spots) expect(dist(b.pos, p), b.id).toBeGreaterThan(2.5);
+      // (the firewood pile's spot, moved out from the fire for the woodshed in the camp build: clear of the woodshed by
+      // the room every spot keeps, tests/layout.test.ts)
+      expect(outsideOf(CAMP, 'woodshed', b.pos), b.id).toBeGreaterThan(PICKUPS.bush.plant!.radius + LAYOUT_GAP.gap);
       for (const o of bushes) if (o !== b) expect(dist(b.pos, o.pos), `${b.id} ${o.id}`).toBeGreaterThan(1.5);
       for (const p of CAMP.pickups!) if (p.kind !== 'bush') expect(dist(b.pos, p.pos), `${b.id} ${p.id}`).toBeGreaterThan(1.4);
       for (const n of CAMP.nodes) expect(dist(b.pos, n.pos), `${b.id} ${n.id}`).toBeGreaterThan(2);
@@ -88,7 +94,7 @@ describe('the berry bushes by the camp', () => {
     }
     // from the fire to everything he works and back to where he washed up, round the bushes
     const fire = { x: CAMP.hearth.pos.x - 1.3, z: CAMP.hearth.pos.z };
-    const dests = [CAMP.start, CAMP.camp!.chest.pos, ...CAMP.nodes.filter(n => n.resource !== 'fishing_spot').map(n => n.pos)];
+    const dests = [CAMP.start, standsOf(CAMP, 'shelter')[0]!, ...CAMP.nodes.filter(n => n.resource !== 'fishing_spot').map(n => n.pos)];
     for (const d of dests) {
       const to = built.nearestWalkable(d), path = built.findPath(fire, to);
       expect(path, `${d.x}, ${d.z}`).not.toBeNull();

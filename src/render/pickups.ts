@@ -11,6 +11,7 @@ import type { GameState } from '../core/state';
 import type { Layout, PickupSpot } from '../world/layout';
 import { PICKUPS } from '../data/pickups';
 import { codeModel } from './materials';
+import { sparkleTexture } from './parts';
 
 function seeded(seed: number) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
@@ -39,17 +40,6 @@ function flatten(proto: THREE.Object3D): THREE.BufferGeometry {
     parts.push(g);
   });
   return mergeGeometries(parts, false)!;
-}
-
-/** A four-pointed sparkle with a soft glow, for additive blending. */
-function sparkle(): THREE.CanvasTexture {
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const g = c.getContext('2d')!, glow = g.createRadialGradient(32, 32, 0, 32, 32, 30);
-  glow.addColorStop(0, 'rgba(255,250,220,0.9)'); glow.addColorStop(0.25, 'rgba(255,240,190,0.35)'); glow.addColorStop(1, 'rgba(255,240,190,0)');
-  g.fillStyle = glow; g.fillRect(0, 0, 64, 64);
-  g.fillStyle = 'rgba(255,255,240,0.95)';
-  for (const [w, h] of [[3, 30], [30, 3]]) { g.beginPath(); g.ellipse(32, 32, w!, h!, 0, 0, Math.PI * 2); g.fill(); }
-  return new THREE.CanvasTexture(c);
 }
 
 export class PickupsView {
@@ -86,7 +76,7 @@ export class PickupsView {
       this.views.push({ spot, root, hit, top: box.setFromObject(root).max.y, shown: null, pop: 1, phase: r() * GLINT_EVERY });
     }
     this.glints = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({
-      map: sparkle(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }), Math.max(1, this.views.length));
+      map: sparkleTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }), Math.max(1, this.views.length));
     this.glints.frustumCulled = false; this.glints.renderOrder = 5; this.glints.count = 0;
     this.glints.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, this.views.length) * 3), 3);
     scene.add(this.glints);

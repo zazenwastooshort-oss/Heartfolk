@@ -72,7 +72,7 @@ html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: non
 [hidden] { display: none !important; }
 body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--body); -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 .stage { position: fixed; inset: 0; background: var(--scene); }
-.stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.stage canvas { display: block; width: 100%; height: 100%; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 /* the icons on the buttons, drawn in code: cream lines */
 .icon { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -143,14 +143,16 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 
 /* the how-to-play hint for a new player, and notices: just under the goal card, in the middle of the room the windows
    leave (src/ui/windows.ts sets --below-card on the stage to the card's foot, and --free-width to how much of the
-   screen's width is left of the open windows); on a phone held upright a notice shows over an open window */
+   screen's width is left of the open windows); on a phone held upright, with a window too tall to leave room above
+   it, a notice shows below it */
 .hint, .notice { position: absolute; left: calc(var(--free-width, 100%) / 2); top: var(--below-card, calc(110px + env(safe-area-inset-top, 0px)));
   transform: translateX(-50%); width: max-content; max-width: calc(var(--free-width, 100%) - 2 * var(--edge)); box-sizing: border-box; padding: 8px 12px; border-radius: 6px;
   background: var(--m-canvas); font-size: 0.8125rem; text-align: center; pointer-events: none; }
 .hint { z-index: 1; color: var(--chip-text); transition: opacity .5s ease-out; box-shadow: inset 0 0 0 1px rgba(241, 232, 212, .1), 0 0 0 2px var(--frame), 0 3px 10px rgba(0, 0, 0, .35); }
 .hint b { color: #ffffff; font-weight: 600; }
 .hint.gone, .hint.waiting { opacity: 0; }
-/* a notice: a slip of parchment taped up, dark ink; it floats over an open window on a phone, so it has a shadow */
+/* a notice: a slip of parchment taped up, dark ink; it floats over the scene (on a phone, over the strip below an open
+   window), so it has a shadow */
 .notice { z-index: 4; color: var(--paper-ink); opacity: 0; transition: opacity .3s ease-out; padding: 9px 14px; border-radius: 2px; background: var(--m-paper);
   box-shadow: inset 0 0 0 1px rgba(110, 74, 36, .3), inset 0 0 12px rgba(150, 104, 52, .22), 0 4px 14px rgba(0, 0, 0, .45); }
 .notice::before { content: ''; position: absolute; top: -6px; left: 50%; width: 38px; height: 12px; margin-left: -19px; transform: rotate(-3deg);
@@ -255,14 +257,14 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
    sinking when pressed; a choice not taken (text size, Train, the book's tabs, Start over) is a slot carved into the
    canvas, and the one taken a green plank in it. Any other button takes the look with .btn (green), .btn.main (amber)
    or .btn.plain (bare wood) */
-.btn, .goal-build, .set-btn, .brow-go, .book-turn button, .pick-do button, .place-do button, .win-ok, .seg button, .train button, .book-tabs button {
+.btn, .goal-build, .set-btn, .brow-go, .book-turn button, .pick-do button, .win-ok, .seg button, .train button, .book-tabs button {
   border: 0; border-radius: 6px; background: var(--m-plank); color: var(--ink); box-shadow: var(--lift); text-shadow: 0 1px 0 rgba(0, 0, 0, .4); cursor: pointer; }
 /* a new button's size, as the others' own rules give them theirs: a finger-sized target in the game's font */
 .btn { min-height: 44px; padding: 10px 14px; font: 700 0.875rem/1 var(--body); }
 .btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .btn:disabled { opacity: .45; cursor: default; }
-.btn.plain, .pick-do button:not(.eat), .place-do button:not(.ok) { background: var(--m-wood); }
-.btn.main, .win-ok, .place-do button.ok { background: var(--m-amber); color: var(--button-ink); text-shadow: 0 1px 0 rgba(255, 236, 200, .35); }
+.btn.plain, .pick-do button:not(.eat) { background: var(--m-wood); }
+.btn.main, .win-ok { background: var(--m-amber); color: var(--button-ink); text-shadow: 0 1px 0 rgba(255, 236, 200, .35); }
 .seg button:not([aria-pressed="true"]), .train button:not(.on), .book-tabs button:not([aria-selected="true"]), .set-btn.reset {
   background: rgba(6, 14, 5, .4); color: var(--muted); box-shadow: inset 0 2px 3px rgba(0, 0, 0, .5), 0 1px 0 rgba(241, 232, 212, .08); text-shadow: none; }
 /* a window's section headings (Settings, the Backpack's parts, the Train choice) */
@@ -340,6 +342,9 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .stored > small { color: var(--muted); }
 .pack-chip { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 0.8125rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
 .pack-chip .item-pic { flex: none; width: 26px; height: 26px; }
+/* Store everything (src/ui/backpack.ts): under what is in the chest, across the section */
+.store-all { display: block; width: 100%; margin-top: 10px; }
+.store-all[hidden] { display: none; }
 
 /* his hunger in the strip (src/ui/needs.ts): a warm amber bar of how full he is; a short pill, so Health, Hungry and
    the skill fit on one row on a narrow phone (360 px) */
@@ -431,10 +436,13 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 
 .msg { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; text-align: center; color: var(--chip-text); }
 
-/* the Build window (src/ui/build.ts): what he can build now, each a card with what it needs (what's short in amber), the
-   Carpentry level and how long it takes, or how far along something begun is, and its button */
+/* the Build window (src/ui/build.ts), the camp's overview: sections (under way, to build, upgrades), each thing a card
+   with what it needs (what's short in amber, how many the goal keeps), how long it takes, or how far along something
+   begun is, and its button, with why it can't be pressed now over it */
 .build-lead { margin: 0 0 10px; color: var(--muted); font-size: 0.8125rem; line-height: 1.4; }
 .build-none { margin: 6px 0 0; color: var(--muted); font-size: 0.875rem; }
+.bsec + .bsec { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--stitch); }
+.bsec > h3 { margin: 0 0 8px; font: 600 0.75rem/1.3 var(--body); color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
 .brow { display: grid; gap: 6px; padding: 10px 10px 10px; border-radius: 6px; background: rgba(241, 232, 212, .05); border: 1px dashed rgba(241, 232, 212, .18); }
 .brow + .brow { margin-top: 8px; }
 .brow.begun { border-color: rgba(232, 166, 94, .7); }
@@ -448,31 +456,41 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .brow-needs li { display: flex; align-items: center; gap: 4px; font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
 .brow-needs .item-pic { width: 22px; height: 22px; flex: none; }
 .brow-needs li.short span { color: var(--accent); font-weight: 600; }
+.brow-goal { color: var(--muted); font-size: 0.75rem; }
 .brow-prog { display: grid; gap: 4px; font-size: 0.8125rem; }
 .brow-prog .bar i { background: var(--accent); }
 .brow-go { min-height: 44px; padding: 8px 14px; font: 700 0.875rem/1 var(--body); }
 .brow-go:disabled { opacity: .45; cursor: default; }
 .brow-go:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
-/* placing something from the Build window (src/ui/build.ts): a bar over the bottom of the scene to turn it, place it or
-   cancel, saying whether it fits where its see-through copy stands */
-.placebar { position: absolute; z-index: 4; left: 50%; transform: translateX(-50%); bottom: calc(var(--edge) + env(safe-area-inset-bottom, 0px) + 44px);
-  box-sizing: border-box; width: min(420px, calc(100% - 2 * var(--edge) - var(--rail) - 8px)); display: grid; gap: 8px; padding: 10px 12px 10px; color: var(--ink);
-  border: 3px solid transparent; border-radius: 8px; background: var(--tex-canvas) padding-box, linear-gradient(#27451f, var(--canvas-low)) padding-box,
-  var(--tex-grain) border-box, linear-gradient(var(--frame-light), var(--frame)) border-box; box-shadow: 0 0 0 1px var(--wood-dark), 0 6px 24px rgba(0, 0, 0, .5); }
-.placebar[hidden] { display: none; }
-.place-words { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.place-words b { font: 700 1rem/1.2 var(--display); }
-.place-words small { font-size: 0.8125rem; color: #a9d78f; text-align: right; }
-.place-words small.bad { color: #f0a08f; }
-.place-do { display: flex; gap: 6px; }
-.place-do button { flex: 1 1 0; min-width: 0; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 10px;
-  font: 600 0.875rem/1 var(--body); }
-.place-do button .icon { width: 18px; height: 18px; }
-.place-do button.ok { font-weight: 700; }
-.place-do button:disabled { opacity: .45; cursor: default; }
-.place-do button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.place-how { color: var(--muted); font-size: 0.75rem; line-height: 1.35; }
+/* the camp's menu (src/ui/campmenu.ts): a right click or a long press on a building at the camp opens a small wooden
+   board beside it, its name on a parchment tag and what can be done there as planks to press, each at least 44 px tall:
+   the one a plain tap does in amber, one that can't be done now bare wood, faded, saying why. Over the windows */
+.camp-menu { position: absolute; z-index: 5; box-sizing: border-box; width: min(256px, calc(100% - 2 * var(--edge))); display: flex; flex-direction: column;
+  gap: 5px; padding: 6px; color: var(--ink); background: var(--tex-grain), linear-gradient(#3b2817, #2a1b0e); border: 1px solid var(--wood-dark); border-radius: 7px;
+  box-shadow: inset 0 0 0 1px rgba(255, 228, 190, .06), 0 6px 18px rgba(0, 0, 0, .5); }
+.camp-menu:focus { outline: none; }
+.cm-title { align-self: flex-start; max-width: 100%; box-sizing: border-box; padding: 3px 10px 4px; border-radius: 2px; background: var(--m-paper); color: var(--paper-ink);
+  font: 700 0.875rem/1.2 var(--display); box-shadow: inset 0 0 0 1px rgba(110, 74, 36, .3), 0 1px 2px rgba(0, 0, 0, .35); }
+.cm-list { display: flex; flex-direction: column; gap: 4px; }
+.cm-item { display: grid; align-content: center; gap: 2px; min-height: 48px; padding: 7px 14px 8px; border: 0; border-radius: 4px; text-align: left; cursor: pointer;
+  background: var(--nails), var(--m-plank); color: var(--ink); box-shadow: var(--lift); text-shadow: 0 1px 0 rgba(0, 0, 0, .4); font: 700 0.875rem/1.25 var(--body); }
+.cm-note { font: 500 0.75rem/1.3 var(--body); opacity: .85; }
+.cm-item.tap { background: var(--nails), var(--m-amber); color: var(--button-ink); text-shadow: 0 1px 0 rgba(255, 236, 200, .35); }
+.cm-item.off { background: var(--nails), var(--m-wood); color: var(--muted); box-shadow: none; text-shadow: none; cursor: default; }
+.cm-item.off .cm-note { color: var(--accent); opacity: 1; }
+.cm-item:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* a finger held on a building: a ring round it fills until the menu opens (src/ui/input.ts) */
+/* the ring round a held finger: wider than a fingertip and centred a little above the touch, so most of it shows round
+   the finger (src/ui/input.ts) */
+.hold-cue { position: absolute; z-index: 4; width: 104px; height: 104px; margin: -72px 0 0 -52px; pointer-events: none; }
+.hold-cue svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+.hold-cue circle { fill: none; stroke-width: 3; }
+.hold-cue .track { stroke: rgba(30, 52, 27, .45); }
+.hold-cue .fill { stroke: var(--paper); stroke-linecap: round; stroke-dasharray: 125.66; stroke-dashoffset: 125.66; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .5)); }
+/* Look in the chest: its section lights up a moment (src/ui/backpack.ts) */
+@keyframes lit { from { background: rgba(232, 166, 94, .16); box-shadow: 0 0 0 2px rgba(232, 166, 94, .85); } to { background: transparent; box-shadow: 0 0 0 2px rgba(232, 166, 94, 0); } }
+.pack-sec.lit { border-radius: 6px; animation: lit 1.6s ease-out; }
 
 /* a phone held upright: the buttons along the bottom, the strip just above them, and one window at a time between the
    goal card and the strip, so the card's Build button stays in sight (src/ui/windows.ts sets --below-card and
@@ -488,29 +506,34 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
   .wins { top: var(--below-card, calc(110px + env(safe-area-inset-top, 0px))); bottom: var(--above-bottom, calc(84px + env(safe-area-inset-bottom, 0px)));
     left: var(--edge); right: var(--edge); align-items: flex-end; }
   .wins > .win { flex: 1 1 auto; width: auto; }
-  .placebar { width: calc(100% - 2 * var(--edge)); bottom: calc(10px + env(safe-area-inset-bottom, 0px) + 62px + 8px); }
+  /* with a window open, a notice shows above it, under the goal card as ever, where the window leaves room there; a
+     window too tall for that, and the notice goes below it, over the strip just above the buttons, clear of the
+     window's title and its x (src/ui/windows.ts noticeGoesLow marks the stage) */
+  .notice-low .notice { top: auto; bottom: calc(10px + env(safe-area-inset-bottom, 0px) + 62px + 8px); }
 }
 /* hover looks only with a mouse: on a touch screen a tapped button would keep its hover look until the next tap
    somewhere else, and look chosen. A press shows on every screen (:active) */
 @media (hover: hover) {
   .goal-open:hover { background: rgba(241, 232, 212, .05); }
+  .cm-item:not(.off):hover { filter: brightness(1.12); }
   /* wood lightens a little under the mouse */
   .btn:hover:not(:disabled), .goal-build:hover, .set-btn:hover, .brow-go:hover:not(:disabled), .book-turn button:hover:not(:disabled), .pick-do button:hover,
-  .place-do button:hover:not(:disabled), .win-ok:hover, .seg button:hover, .train button:hover, .book-tabs button:hover, .rail-btn:hover, .win-x:hover::before,
+  .win-ok:hover, .seg button:hover, .train button:hover, .book-tabs button:hover, .rail-btn:hover, .win-x:hover::before,
   .ver:hover, .pack-slot:hover:not(:disabled) { filter: brightness(1.12); }
 }
 /* a press: the wood sinks (a gentle 1 px, and only its shadow where motion is turned down) */
 .goal-open:active { background: rgba(241, 232, 212, .08); }
 .btn:active:not(:disabled), .goal-build:active, .set-btn:active, .brow-go:active:not(:disabled), .book-turn button:active:not(:disabled), .pick-do button:active,
-.place-do button:active:not(:disabled), .win-ok:active, .seg button:active, .train button:active, .book-tabs button:active, .rail-btn:active { box-shadow: var(--sunk); }
+.win-ok:active, .seg button:active, .train button:active, .book-tabs button:active, .rail-btn:active { box-shadow: var(--sunk); }
 .win-x:active::before { box-shadow: var(--sunk), 0 0 0 1px var(--wood-dark); }
 .pack-slot:active:not(:disabled) { filter: brightness(1.2); }
+.cm-item:not(.off):active { box-shadow: var(--sunk); }
 @media (prefers-reduced-motion: no-preference) {
   .btn:active:not(:disabled), .goal-build:active, .set-btn:active, .brow-go:active:not(:disabled), .book-turn button:active:not(:disabled), .pick-do button:active,
-  .place-do button:active:not(:disabled), .win-ok:active, .seg button:active, .train button:active, .book-tabs button:active, .rail-btn:active,
+  .win-ok:active, .seg button:active, .train button:active, .book-tabs button:active, .rail-btn:active,
   .win-x:active .icon, .ver:active { transform: translateY(1px); }
 }
-@media (prefers-reduced-motion: reduce) { .bar i, .goal-bar i, .hint, .notice, .thought { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .bar i, .goal-bar i, .hint, .notice, .thought { transition: none; } .pack-sec.lit { animation: none; } }
 </style>
 </head>
 <body>
@@ -576,8 +599,8 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
           <div class="pick-do"><button type="button" class="eat" id="pickEat" hidden>Eat</button><button type="button" id="pickDrop1" hidden>Drop one</button><button type="button" id="pickDropAll" hidden>Drop all</button></div>
         </div>
         <div class="pack-sec" id="armourRow" hidden><h3>Wearing</h3><div class="worn" id="armour" role="group"></div><p class="worn-bonus" id="bonus"></p></div>
-        <div class="pack-sec" id="bankRow" hidden><h3 id="bankName">Chest</h3><div class="stored" id="bank"></div></div>
-        <div class="pack-sec" id="pileRow" hidden><h3>Firewood pile</h3><div class="stored" id="pile"></div></div>
+        <div class="pack-sec" id="bankRow" hidden><h3 id="bankName">Chest</h3><div class="stored" id="bank"></div><button type="button" class="btn store-all" id="storeAll" hidden>Store everything</button></div>
+        <div class="pack-sec" id="pileRow" hidden><h3 id="pileName">Firewood pile</h3><div class="stored" id="pile"></div></div>
       </div>
     </section>
     <section class="win" id="skillsWin" data-win="skills" data-width="340" role="dialog" aria-labelledby="skillsTitle" hidden>
@@ -635,16 +658,9 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
       </div>
     </section>
   </div>
-  <div class="placebar" id="placeBar" role="group" aria-labelledby="placeName" hidden>
-    <div class="place-words"><b id="placeName">Place it</b><small id="placeSays" aria-live="polite">It fits here.</small></div>
-    <div class="place-do">
-      <button type="button" id="placeTurn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.1 12.2c-.1 3.9-3.3 7-7.2 6.9-3.9-.1-7-3.3-6.9-7.2.1-3.9 3.3-6.9 7.1-6.9 1.9 0 3.6.8 4.9 2"/><path d="M17.6 3.4l-.1 4.2-4.1.2"/></svg>Turn</button>
-      <button type="button" id="placeCancel">Cancel</button>
-      <button type="button" class="ok" id="placeOk">Place</button>
-    </div>
-    <small class="place-how"><span class="touch">Tap the ground to move it there, or drag it.</span><span class="mouse">Click where it goes. R turns it, Enter places it, Esc cancels.</span></small>
-  </div>
   <div class="notice" id="notice" role="status"></div>
+  <div class="camp-menu" id="campMenu" role="menu" aria-labelledby="campMenuTitle" hidden><div class="cm-title" id="campMenuTitle"></div><div class="cm-list" id="campMenuList" role="presentation"></div></div>
+  <div class="hold-cue" id="holdCue" aria-hidden="true" hidden><svg viewBox="0 0 48 48"><circle class="track" cx="24" cy="24" r="20"/><circle class="fill" cx="24" cy="24" r="20"/></svg></div>
   <div class="win note" id="intro" role="dialog" aria-labelledby="introTitle" hidden>
     <div class="win-bar"><h2 class="win-title" id="introTitle">Welcome to Hearthfolk</h2><button class="win-x" type="button" data-close="introOk" aria-label="Close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
     <div class="win-body">

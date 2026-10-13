@@ -79,6 +79,14 @@ describe('module boundaries', () => {
     expect(broken).toEqual([]);
   });
 
+  it('walks him only by the walking grid with everything built and begun (walkGrid): no navFor outside world/, core/building.ts and the creatures', () => {
+    // (the camp build, R0.3: a begun step is in the way from its footings on, so a grid that leaves out what is begun
+    // would walk him through it; the rats and goblins in core/rats.ts and core/goblins.ts keep clear of the camp's spots)
+    const allowed = /[\\/](world[\\/][^\\/]+|core[\\/](building|rats|goblins))\.ts$/;
+    const loose = all.filter(f => !allowed.test(f) && /\bnavFor\b/.test(readFileSync(f, 'utf8'))).map(f => relative(SRC, f));
+    expect(loose).toEqual([]);
+  });
+
   it('lets only systems change the game state from outside the simulation', () => {
     // the renderer and the UI read state; any assignment to state.* or player.* there is a bug
     const broken: string[] = [];

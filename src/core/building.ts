@@ -1,19 +1,18 @@
-// Building it yourself (data/building.ts), the parts everyone reads: the simulation, the save, the Build list and the
-// see-through copy he places. What is built in stages and how far along each is; where each stands (placed by the
-// player on a half-metre grid, a quarter turn at a time, or at the tent's spot for the shelter's upgrades); whether a
-// spot fits (on the camp's land, out of the water, clear of everything else, not on him, cutting nothing off); what
-// the Build list has and what each still needs; which shelter stands and how well he rests in it; and the saved
-// placements and progress, read back. Headless; changes nothing (systems/building.ts does the work).
-import { allGoalsDone, currentGoal, made, owned, type GameState, type Placed } from './state';
-import { inArea, siteOf, type Layout, type Site, type Vec2 } from '../world/layout';
-import { blockedBy, landOf, navFor, type NavGrid, type PlacedRect } from '../world/nav';
-import { waterOf } from '../world/water';
-import { APRON, footOf, wallFootZ } from '../world/falls';
-import { goblinCampBlocks } from '../world/goblincamp';
-import { BUILD_REACH, MAKES, makeDef, type MakeDef, type MakeId, type SiteId } from '../data/making';
-import { CARPENTRY, PLACE, SHELTERS, STAGED, type StagedDef } from '../data/building';
-import { PICKUPS } from '../data/pickups';
+// Building it yourself (data/building.ts), the parts everyone reads: the simulation, the save and the Build list. What
+// is built in stages and how far along each is, and how quickly he works at it by his Carpentry level; the walking grid
+// with everything he has built and begun at the camp's spots, each step by its own shape (world/steps.ts); which step
+// of a spot is drawn there, which shelter stands and how well he rests in it; what can be built now (the camp's first
+// five from their goals on, with the marker showing where while nothing of it is begun; the upgrades once the chest
+// stands), what the Build list has and what each still needs, and why one can't be pressed now; and what is under
+// way, read back from a save. Headless; changes nothing (systems/building.ts does the work).
+import { allGoalsDone, currentGoal, goalFirst, goalPaid, owned, type GameState } from './state';
+import type { Layout } from '../world/layout';
+import { navFor, type NavGrid } from '../world/nav';
+import { stepPlace } from '../world/steps';
+import { MAKES, makeDef, type MakeDef, type MakeId } from '../data/making';
+import { CARPENTRY, LINES, SHELTERS, STAGED, UPGRADES_AFTER, type LineId, type StagedDef } from '../data/building';
 import { SLEEP } from '../data/sleep';
+import { GOALS } from '../data/goals';
 import { levelFor } from '../data/xp';
 
 /** Everything built in stages, in the Build list's order. */
@@ -22,40 +21,12 @@ export const STAGED_IDS = Object.keys(STAGED) as MakeId[];
 /** The stages row for `id`, or null for something not built in stages. */
 export const stagedDef = (id: string): StagedDef | null => Object.hasOwn(STAGED, id) ? STAGED[id as MakeId]! : null;
 
-/** Whether `id` is something the player places himself (the log bench, the workbench). */
-export const isPlaced = (id: string) => makeDef(id)?.at === 'placed' && !!stagedDef(id)?.size;
+/** What he has begun and not finished (GameState.underway), by id. */
+export const begunIds = (state: GameState): MakeId[] => (Object.keys(state.underway) as MakeId[]).filter(id => state.underway[id] !== undefined);
 
-/** A quarter-turn count as radians round the vertical axis (0 faces south, as a building's rot). */
-export const turnRot = (turn: number) => (((turn % 4) + 4) % 4) * Math.PI / 2;
-
-/** A point snapped to the placing grid. */
-export const snap = (p: Vec2): Vec2 => ({ x: Math.round(p.x / PLACE.grid) * PLACE.grid, z: Math.round(p.z / PLACE.grid) * PLACE.grid });
-
-/** How `id` is in the way, placed `at`: its middle, turn, width and depth. */
-export function rectOf(id: MakeId, at: Placed): PlacedRect | null {
-  const size = stagedDef(id)?.size;
-  return size ? { pos: { ...at.pos }, rot: turnRot(at.turn), w: size.w, d: size.d } : null;
-}
-
-/** What the player has placed, begun or built, as it is in the way (for navFor): in the Build list's order. */
-export function placedRects(state: GameState): PlacedRect[] {
-  return STAGED_IDS.flatMap(id => { const at = state.placed[id], r = at ? rectOf(id, at) : null; return r ? [r] : []; });
-}
-
-/** The walking grid with everything he has built and placed. */
-export const walkGrid = (state: GameState, layout: Layout): NavGrid => navFor(layout, state.built, placedRects(state));
-
-/** Where something built in stages stands, as a site: where he placed it (its ring reaching round its corners), or for
- *  the shelter's upgrades the tent's spot. Null when it has no place here (not placed, or no tent spot). */
-export function buildSite(state: GameState, layout: Layout, id: MakeId): Site | null {
-  const def = makeDef(id);
-  if (!def || !stagedDef(id)) return null;
-  if (def.at === 'placed') {
-    const at = state.placed[id], r = at ? rectOf(id, at) : null;
-    return r ? { pos: r.pos, rot: r.rot, w: r.w, d: r.d, radius: Math.hypot(r.w, r.d) / 2 } : null;
-  }
-  return def.at === 'here' ? null : siteOf(layout, def.at);
-}
+/** The walking grid with everything he has built and begun (each in the way from its footings on). Every walk of his
+ *  goes by it (a test flags any other use of navFor). */
+export const walkGrid = (state: GameState, layout: Layout): NavGrid => navFor(layout, state.built, begunIds(state));
 
 /** How far along something built in stages is, 0..1: 1 once built, 0 before it is begun. */
 export function progressOf(state: GameState, id: MakeId): number {
@@ -75,270 +46,165 @@ export function stageOf(state: GameState, id: MakeId): number {
 /** The stage reached after `worked` seconds at `id` (for systems/building.ts, to tell a stage going up). */
 export const stageAt = (id: MakeId, worked: number) => Math.min(CARPENTRY.stages - 1, Math.floor(worked / MAKES[id].time * CARPENTRY.stages));
 
-/** The best shelter that stands (the tent, the lean-to, the log hut), or null. */
+/** How much quicker than its time he builds (D5): CARPENTRY.speed more for each Carpentry level above 1 (1 at level 1).
+ *  The work, its knocks and its XP stay the same; only the time goes down. */
+export const buildSpeed = (state: GameState) => 1 + (levelFor(state.skills.carpentry ?? 0) - 1) * CARPENTRY.speed;
+
+/** The seconds of work `id` takes him from here at his Carpentry level now: all of it before it is begun, what is
+ *  left once begun, none once built (the Build list shows it). */
+export function buildTime(state: GameState, id: MakeId): number {
+  if (state.built.includes(id)) return 0;
+  return Math.max(0, MAKES[id].time - (state.underway[id] ?? 0)) / buildSpeed(state);
+}
+
+/** The spot (LINES) where `id` is built, or null for something built at none. */
+export const lineOf = (id: string): LineId | null => (Object.keys(LINES) as LineId[]).find(l => LINES[l].includes(id as MakeId)) ?? null;
+
+/** The step drawn at a spot (D6): the last of its line built, or begun and half built (CARPENTRY.shown); until a new
+ *  step is that far along, the one before it still stands inside its stakes and frame. Null while nothing there is. */
+export function stepShown(state: GameState, line: LineId): MakeId | null {
+  return [...LINES[line]].reverse().find(id => state.built.includes(id) || stageOf(state, id) >= CARPENTRY.shown) ?? null;
+}
+
+/** The last step of a spot's line that is built: what stands there to be used (the campfire until the stone hearth is
+ *  built, D6), and what it is called. Null while nothing there is built. */
+export function builtStep(state: GameState, line: LineId): MakeId | null {
+  return [...LINES[line]].reverse().find(id => state.built.includes(id)) ?? null;
+}
+
+/** The best shelter that stands (the tent, the wall tent, the log cabin), or null. It is the one he sleeps in: a new one
+ *  is slept in only once it is built. */
 export function bestShelter(state: GameState): MakeId | null {
   return [...SHELTERS].reverse().find(id => state.built.includes(id)) ?? null;
 }
 
-/** The shelter drawn at the tent's spot: an upgrade shows there in place of the one before it once its frame is up
- *  (during its footings the old one still stands inside the stakes). */
-export function shelterShown(state: GameState): MakeId | null {
-  return [...SHELTERS].reverse().find(id => stageOf(state, id) >= 1) ?? null;
-}
-
-/** How much more often gathering yields while he is well rested: more for a better shelter (data/building.ts). */
+/** How much more often gathering yields while he is well rested: more for a better shelter (data/building.ts): the tent
+ *  SLEEP.bonus, the wall tent and the log cabin their own `rest`. */
 export function restBonus(state: GameState): number {
   const best = bestShelter(state);
   return (best && stagedDef(best)?.rest) || SLEEP.bonus;
 }
 
-/** What he still lacks to begin `def`: item id to how many more (empty when he has it all, carried or stored). */
+/** How many of `item` he has for building `def`: what he has, carried or stored, less what the current goal counts
+ *  (spare), except for the thing the goal itself makes (T2.7), which the goal's own count is for. */
+export function haveFor(state: GameState, def: MakeDef, item: string): number {
+  const own = !allGoalsDone(state) && currentGoal(state).makes === def.id;
+  return own ? owned(state, item) : spare(state, item);
+}
+
+/** What he still lacks to begin `def`: item id to how many more (empty when he has it all, carried or stored). What the
+ *  current goal counts is left alone (spare), except for the thing the goal itself makes, which its own count is for. */
 export function lacking(state: GameState, def: MakeDef): Record<string, number> {
   const out: Record<string, number> = {};
-  for (const [id, n] of Object.entries(def.needs)) { const have = spare(state, id); if (have < n) out[id] = n - have; }
+  for (const [id, n] of Object.entries(def.needs)) { const have = haveFor(state, def, id); if (have < n) out[id] = n - have; }
   return out;
 }
 
 /** How many of `item` the camp's current goal counts (what it asks for, or what the thing it makes needs): building
- *  leaves those alone, so the goal's count never goes backwards (13 Oct 2026). None once the camp is set up. */
+ *  leaves those alone, so the goal's count never goes backwards (13 Oct 2026). None once the camp is set up, and none
+ *  once the goal is paid for (the thing it makes begun, what it needed taken then: goalPaid). */
 export function forGoal(state: GameState, item: string): number {
   if (allGoalsDone(state)) return 0;
   const goal = currentGoal(state), def = goal.makes ? makeDef(goal.makes) : null;
-  if (def && made(state, def.id)) return 0;
+  if (goalPaid(state, goal)) return 0;
   return (def ? def.needs : goal.needs)[item] ?? 0;
 }
 
 /** How many of `item` he has to spare for building: what he has, carried or stored, less what the current goal counts. */
 export const spare = (state: GameState, item: string) => Math.max(0, owned(state, item) - forGoal(state, item));
 
-/** Whether this layout has a place for `id`: a camp for the things he places, the tent's spot for its upgrades. */
-export function hasPlaceFor(layout: Layout, id: MakeId): boolean {
-  const def = makeDef(id);
-  if (!def || !stagedDef(id)) return false;
-  return def.at === 'placed' ? !!layout.camp : def.at !== 'here' && !!siteOf(layout, def.at);
-}
+/** Whether this layout has a place for `id`, something built in stages: its spot (a camp's). */
+export const hasPlaceFor = (layout: Layout, id: MakeId): boolean => !!stagedDef(id) && !!stepPlace(layout, id);
 
-/** Whether the Build list has `id`: there is a place for it here, it isn't built, and what must stand first does
- *  (begun, it is listed whatever happens). */
+/** Whether the goal that makes `id` has come up: it is the current goal, or done (every goal before it done too), at a
+ *  camp. Something no goal makes (an upgrade) has none. */
+const goalUp = (state: GameState, layout: Layout, id: MakeId): boolean =>
+  !!layout.camp && GOALS.some(g => g.makes === id) && !goalFirst(state, id);
+
+/** Whether what `staged` stands in (StagedDef.inside: the storage chest, the shelter) stands, when it stands in anything. */
+const insideStands = (state: GameState, staged: StagedDef) => !staged.inside || LINES[staged.inside].some(s => state.built.includes(s));
+
+/** Whether `id` can be built here now, so the Build list has it: there is a place for it here, it isn't built, and
+ *  (begun, it is listed whatever happens) one of the camp's first five once its goal comes up (the goal current, or done
+ *  with it not built: a hand-edited save never leaves it out of reach; D4), the chest once a shelter stands too; an
+ *  upgrade once the step before it stands, with the storage chest (UPGRADES_AFTER; D4). */
 export function unlocked(state: GameState, layout: Layout, id: MakeId): boolean {
   const staged = stagedDef(id);
   if (!staged || !hasPlaceFor(layout, id) || state.built.includes(id)) return false;
-  return state.underway[id] !== undefined || staged.after.every(a => state.built.includes(a));
+  if (state.underway[id] !== undefined) return true;
+  if (!insideStands(state, staged)) return false;
+  if (!staged.upgrades) return goalUp(state, layout, id);
+  return state.built.includes(staged.upgrades) && state.built.includes(UPGRADES_AFTER);
 }
 
-/** A row of the Build list: what it is, how far along, what it still needs to begin, and the Carpentry level. */
+/** Whether the marker shows at `id`'s spot (In 1, D1): one of the camp's first five that can be built now (its goal has
+ *  come up: unlocked), with nothing of it begun yet. Nothing shows at a spot before that (the owner, 13 Oct 2026:
+ *  "nothing shows until it's needed"); once begun, its footings take the marker's place. Upgrades have none: the step
+ *  before them stands there already. */
+export function markerShown(state: GameState, layout: Layout, id: MakeId): boolean {
+  const staged = stagedDef(id);
+  return !!staged && !staged.upgrades && state.underway[id] === undefined && unlocked(state, layout, id);
+}
+
+/** A row of the Build list: what it is, how far along, and what it still needs to begin. */
 export interface BuildRow {
   id: MakeId; def: MakeDef; staged: StagedDef;
   /** begun: what it needed was taken; he carries on where he left off */
   begun: boolean; progress: number; stage: number;
-  missing: Record<string, number>; levelOk: boolean;
+  missing: Record<string, number>;
 }
 
 /** What the Build list has: everything he can build here now, begun ones first. */
 export function buildRows(state: GameState, layout: Layout): BuildRow[] {
-  const level = levelFor(state.skills.carpentry ?? 0);
   return STAGED_IDS.filter(id => unlocked(state, layout, id)).map(id => {
     const def = MAKES[id], staged = STAGED[id]!, begun = state.underway[id] !== undefined;
-    return { id, def, staged, begun, progress: progressOf(state, id), stage: stageOf(state, id), missing: begun ? {} : lacking(state, def), levelOk: begun || level >= staged.level };
+    return { id, def, staged, begun, progress: progressOf(state, id), stage: stageOf(state, id), missing: begun ? {} : lacking(state, def) };
   }).sort((a, b) => Number(b.begun) - Number(a.begun));
+}
+
+/** Why something can't be begun or carried on with now, as the build command would say (systems/building.ts
+ *  startBuild), for the Build list's buttons and the camp's menu: he is knocked out ('down'), he is building it right
+ *  now ('at'), something else is under way ('busy', D8), or he lacks what it needs ('missing', as `lacking` counts). */
+export type BuildWhy =
+  | { kind: 'down' } | { kind: 'at' } | { kind: 'busy'; other: MakeId } | { kind: 'missing'; items: Record<string, number> };
+
+/** Why `id` (something the Build list has: it can be built here now, or is begun) can't be begun or carried on with
+ *  now, or null when it can: the build command's own refusals in its own order. Asleep it can (the command is kept
+ *  until he wakes). */
+export function buildWhy(state: GameState, id: MakeId): BuildWhy | null {
+  const task = state.player.task;
+  if (task.kind === 'knockedOut') return { kind: 'down' };
+  if (state.underway[id] !== undefined) return task.kind === 'raise' && task.id === id ? { kind: 'at' } : null;
+  const other = begunIds(state)[0];
+  if (other) return { kind: 'busy', other };
+  const missing = lacking(state, MAKES[id]);
+  return Object.keys(missing).length ? { kind: 'missing', items: missing } : null;
 }
 
 /** Whether the Build button shows: at a camp, once anything can be built (or has been begun or built). */
 export const buildOpen = (state: GameState, layout: Layout) =>
   !!layout.camp && STAGED_IDS.some(id => unlocked(state, layout, id) || state.built.includes(id));
 
-/** Why a spot doesn't fit (core/building.ts fitOf): off the camp's land, in or at the water, in the way of something
- *  (a structure or its spot, a tree, a rock, something on the ground, the rats' nest, the goblin camp), on him, or
- *  cutting off part of the camp (the way to the chest or the fire). */
-export type Misfit = 'land' | 'water' | 'blocked' | 'him' | 'cutOff';
-
-/** The corners and inside of a rect, every quarter metre or so, for testing the ground under it. */
-function samples(r: PlacedRect): Vec2[] {
-  const out: Vec2[] = [], c = Math.cos(r.rot), s = Math.sin(r.rot);
-  const nx = Math.max(1, Math.ceil(r.w / 0.25)), nz = Math.max(1, Math.ceil(r.d / 0.25));
-  for (let i = 0; i <= nx; i++) for (let j = 0; j <= nz; j++) {
-    const lx = (i / nx - 0.5) * r.w, lz = (j / nz - 0.5) * r.d;
-    // from its own frame to the ground (the inverse of nav's into-the-frame turn)
-    out.push({ x: r.pos.x + lx * c + lz * s, z: r.pos.z - lx * s + lz * c });
-  }
-  return out;
-}
-
-/** How far `p` is outside rect `r` (0 inside). */
-function outside(r: PlacedRect, p: Vec2): number {
-  const dx = p.x - r.pos.x, dz = p.z - r.pos.z, c = Math.cos(r.rot), s = Math.sin(r.rot);
-  const lx = Math.abs(dx * c - dz * s) - r.w / 2, lz = Math.abs(dx * s + dz * c) - r.d / 2;
-  return Math.hypot(Math.max(0, lx), Math.max(0, lz));
-}
-
-/** Whether two rects overlap, `gap` apart counting as touching (separating axes). */
-function rectsMeet(a: PlacedRect, b: PlacedRect, gap: number): boolean {
-  const axes = [a.rot, a.rot + Math.PI / 2, b.rot, b.rot + Math.PI / 2];
-  const corners = (r: PlacedRect) => [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([i, j]) => {
-    const lx = i! * r.w / 2, lz = j! * r.d / 2, c = Math.cos(r.rot), s = Math.sin(r.rot);
-    return { x: r.pos.x + lx * c + lz * s, z: r.pos.z - lx * s + lz * c };
-  });
-  const ca = corners(a), cb = corners(b);
-  for (const t of axes) {
-    const ux = Math.cos(t), uz = -Math.sin(t);
-    const pa = ca.map(p => p.x * ux + p.z * uz), pb = cb.map(p => p.x * ux + p.z * uz);
-    if (Math.max(...pa) + gap < Math.min(...pb) || Math.max(...pb) + gap < Math.min(...pa)) return false;
-  }
-  return true;
-}
-
-/** The spots of this layout's fixed sites (the campfire's, the tent's, the chest's, the firewood pile's, the dummy's),
- *  built or not: something placed keeps clear of them all, and of the way to each. */
-const SITES: SiteId[] = ['hearth', 'tent', 'chest', 'woodpile', 'dummy'];
-
-/** What a placed thing must keep clear of in this layout, whatever he has done: circles and rects. */
-function obstacles(state: GameState, layout: Layout, except: MakeId | null): { circles: [Vec2, number][]; rects: PlacedRect[] } {
-  const circles: [Vec2, number][] = [
-    ...layout.nodes.map(n => [n.pos, n.radius] as [Vec2, number]),
-    ...layout.trees.map(t => [t.pos, (t.kind === 'oak' ? 0.4 : 0.3) * t.size] as [Vec2, number]),
-    ...layout.bushes.map(b => [b, 0.45] as [Vec2, number]),
-    // things on the ground (not the wreck's pieces already taken for good): they come back where they lay
-    ...(layout.pickups ?? []).filter(x => state.taken[x.id] !== null).map(x => [x.pos, PICKUPS[x.kind].plant?.radius ?? 0.35] as [Vec2, number]),
-    // the rats' nests and where the rats potter round them
-    ...(layout.nests ?? []).map(n => [n.pos, n.radius + n.roam + PLACE.nest] as [Vec2, number]),
-    ...(layout.goblinCamp ? [[layout.goblinCamp.pos, layout.goblinCamp.radius + PLACE.goblins] as [Vec2, number]] : []),
-    ...goblinCampBlocks(layout).circles,
-    ...layout.lanterns.map(l => [l, 0.2] as [Vec2, number]),
-    ...layout.props.map(p => [p.pos, p.radius] as [Vec2, number]),
-    ...(layout.debris ?? []).map(d => [d.pos, Math.max(0.3, d.radius)] as [Vec2, number]),
-    ...footOf(layout).rocks.map(k => [k.pos, k.radius * 1.05] as [Vec2, number]),
-    ...(layout.hearthModel !== null ? [[layout.hearth.pos, layout.hearth.radius] as [Vec2, number]] : []),
-  ];
-  const rects: PlacedRect[] = [
-    ...layout.buildings.map(b => ({ pos: b.pos, rot: b.rot, w: b.w, d: b.d })),
-    ...layout.gardens.map(g => ({ pos: g.pos, rot: g.rot, w: g.w + 0.6, d: g.d + 0.6 })),
-    ...goblinCampBlocks(layout).rects.map(b => ({ pos: b.pos, rot: b.rot, w: b.hw * 2, d: b.hd * 2 })),
-    ...STAGED_IDS.filter(id => id !== except).flatMap(id => { const at = state.placed[id], r = at ? rectOf(id, at) : null; return r ? [r] : []; }),
-  ];
-  const spots = siteShapes(layout);
-  return { circles: [...circles, ...spots.circles], rects: [...rects, ...spots.rects] };
-}
-
-/** This layout's fixed spots (SITES), built or not, as circles and rects. */
-function siteShapes(layout: Layout): { circles: [Vec2, number][]; rects: PlacedRect[] } {
-  const circles: [Vec2, number][] = [], rects: PlacedRect[] = [];
-  for (const id of SITES) {
-    const site = siteOf(layout, id);
-    if (!site) continue;
-    if (site.w !== undefined && site.d !== undefined) rects.push({ pos: site.pos, rot: site.rot ?? 0, w: site.w, d: site.d });
-    else circles.push([site.pos, site.radius]);
-  }
-  return { circles, rects };
-}
-
-/** Whether `r` can stand there at all: on the camp's land, out of the water, and not on one of the camp's fixed spots.
- *  The only checks a saved placement is held to (savedBuilding): the room placing keeps round things (PLACE) may be
- *  retuned, and things added to the camp, without taking away what a player has built. */
-function hardMisfit(layout: Layout, r: PlacedRect): Misfit | null {
-  const land = landOf(layout), water = waterOf(layout), under = samples(r);
-  if (!layout.camp || under.some(p => !land.some(a => inArea(a, p)))) return 'land';
-  if (under.some(p => water.edge(p) <= 0)) return 'water';
-  const spots = siteShapes(layout);
-  if (spots.circles.some(([c, rad]) => outside(r, c) < rad) || spots.rects.some(o => rectsMeet(r, o, 0))) return 'blocked';
-  return null;
-}
-
-/** Whether `r` stands on open ground: on the layout's land, out of the water and off the scree, clear of everything in
- *  the layout and of what else he has placed, with room to spare (PLACE). */
-function groundMisfit(state: GameState, layout: Layout, r: PlacedRect, except: MakeId | null): Misfit | null {
-  const land = landOf(layout), water = waterOf(layout), falls = layout.falls, under = samples(r);
-  if (!layout.camp || under.some(p => !land.some(a => inArea(a, p)))) return 'land';
-  if (falls && under.some(p => p.z < wallFootZ(falls, p.x) + APRON)) return 'land';
-  if (under.some(p => water.edge(p) < PLACE.water)) return 'water';
-  const { circles, rects } = obstacles(state, layout, except);
-  if (circles.some(([c, rad]) => outside(r, c) < rad + PLACE.gap)) return 'blocked';
-  if (rects.some(o => rectsMeet(r, o, PLACE.gap))) return 'blocked';
-  return null;
-}
-
-/** Whether something built here can still be reached: a spot to stand beside it (where he stands to build or use it)
- *  that he can walk to. */
-function reachableSite(site: Site, nav: NavGrid, reach: (p: Vec2) => boolean): boolean {
-  const out = site.radius + BUILD_REACH;
-  for (let k = 0; k < 24; k++) {
-    const a = k / 24 * Math.PI * 2, p = { x: site.pos.x + Math.cos(a) * out, z: site.pos.z + Math.sin(a) * out };
-    if (nav.walkable(p) && reach(p)) return true;
-  }
-  return false;
-}
-
-/** Whether `id` fits placed at `pos` (snapped to the grid) turned `turn` quarter turns: null when it does, else why
- *  not. Besides open ground (groundMisfit), it mustn't be on him, and mustn't cut him off from any part of the camp: no
- *  more than a sliver of open ground he can reach now may be lost (PLACE.pocket), and he must still reach the camp's
- *  spots (the fire, the chest, the shelter, the firewood pile, the dummy) and everything else built in stages. */
-export function fitOf(state: GameState, layout: Layout, id: MakeId, pos: Vec2, turn: number): Misfit | null {
-  const r = rectOf(id, { pos: snap(pos), turn });
-  if (!r || !isPlaced(id)) return 'land';
-  const ground = groundMisfit(state, layout, r, id);
-  if (ground) return ground;
-  const him = state.player.pos;
-  if (outside(r, him) < PLACE.him) return 'him';
-  const nav = walkGrid(state, layout), also = (p: Vec2) => blockedBy(r, p);
-  const { lost, before, after } = nav.cutOff(him, also);
-  if (lost > PLACE.pocket) return 'cutOff';
-  const sites = [...SITES.map(s => siteOf(layout, s)), ...STAGED_IDS.filter(x => x !== id).map(x => state.placed[x] || state.underway[x] !== undefined ? buildSite(state, layout, x) : null)];
-  for (const site of sites) if (site && reachableSite(site, nav, before) && !reachableSite(site, nav, after)) return 'cutOff';
-  return null;
-}
-
-/** Whether a copy at `p` can be seen from `camera` (where the camera is): nothing standing (one of the camp's spots, or
- *  something placed, a little wider than its footprint: PLACE.eaves) on the ground just before it on the camera's side
- *  (PLACE.sight), where it would hide it. */
-export function inSight(state: GameState, layout: Layout, p: Vec2, camera: Vec2): boolean {
-  const dx = camera.x - p.x, dz = camera.z - p.z, d = Math.hypot(dx, dz) || 1, rects = placedRects(state);
-  const spots = SITES.flatMap(id => { const site = siteOf(layout, id); return site ? [site] : []; });
-  for (let t = 0.25; t <= Math.min(d, PLACE.sight); t += 0.25) {
-    const q = { x: p.x + dx / d * t, z: p.z + dz / d * t };
-    if (spots.some(s => Math.hypot(q.x - s.pos.x, q.z - s.pos.z) < s.radius + PLACE.eaves) || rects.some(r => outside(r, q) < PLACE.eaves)) return false;
-  }
-  return true;
-}
-
-/** Where a new see-through copy of `id` starts: beside him, to the right as seen from `camera` (where the camera is), so
- *  it is in sight and not hidden behind him; the nearest spot round there where it fits and nothing hides it (the hut,
- *  say), else the nearest where it fits, if there is one close by, else right there. On the grid. */
-export function placeStart(state: GameState, layout: Layout, id: MakeId, camera: Vec2): Vec2 {
-  const p = state.player.pos, dx = p.x - camera.x, dz = p.z - camera.z, d = Math.hypot(dx, dz) || 1;
-  const base = snap({ x: p.x - dz / d * PLACE.ahead, z: p.z + dx / d * PLACE.ahead });
-  let hidden: Vec2 | null = null;
-  for (let ring = 0; ring <= 6; ring++) {
-    for (let k = 0; k < Math.max(1, ring * 6); k++) {
-      const a = k / Math.max(1, ring * 6) * Math.PI * 2, at = snap({ x: base.x + Math.cos(a) * ring * PLACE.grid, z: base.z + Math.sin(a) * ring * PLACE.grid });
-      const seen = inSight(state, layout, at, camera);
-      if ((seen || !hidden) && !fitOf(state, layout, id, at, 0)) { if (seen) return at; hidden = at; }
-    }
-  }
-  return hidden ?? base;
-}
-
-/** A saved game's placements and building under way, read back (core/save.ts): a placement for something placeable that
- *  is begun or built, with a finite spot where it can stand at all (hardMisfit: the layout may have changed, but the room
- *  placing keeps round things isn't asked for again) and a whole quarter-turn count;
- *  progress for something begun and not built, a number from 0 up to its time, with its place here (a placement, or
- *  the shelter it upgrades standing). Something built whose placement is lost is no longer built. A save from before
- *  this has none of it. */
-export function savedBuilding(data: { placed?: unknown; underway?: unknown }, state: GameState, layout: Layout): Pick<GameState, 'placed' | 'underway' | 'built'> {
-  const rec = (v: unknown): Record<string, unknown> => (typeof v === 'object' && v !== null && !Array.isArray(v) ? v as Record<string, unknown> : {});
-  const savedPlaced = rec(data.placed), savedUnderway = rec(data.underway);
-  const placed: GameState['placed'] = {}, underway: GameState['underway'] = {};
+/** What a save has under way, read back (core/save.ts), and what that gives back: progress for something built in
+ *  stages, begun and not built, with a number of seconds from 0 up to its time, its place here and the step before it
+ *  (or, for the chest, the shelter it stands in) standing. At most one thing is under way (D8): the one he was at or on
+ *  his way to (`on`, his task's or his destination's id), else the furthest along; what any other took is given back
+ *  (`refund`, into the chest), as is what something begun that can't carry on here took (a damaged save). Something
+ *  both built and begun is just built. An id the game no longer has is dropped (old saves' are renamed or given back by
+ *  their migration first). A save from before building in stages has none of it. */
+export function savedBuilding(data: { underway?: unknown }, state: GameState, layout: Layout, on: unknown): { underway: GameState['underway']; refund: Record<string, number> } {
+  const saved = typeof data.underway === 'object' && data.underway !== null && !Array.isArray(data.underway) ? data.underway as Record<string, unknown> : {};
+  const refund: Record<string, number> = {}, keep: [MakeId, number][] = [];
+  const giveBack = (id: MakeId) => { for (const [item, n] of Object.entries(MAKES[id].needs)) refund[item] = (refund[item] ?? 0) + n; };
   for (const id of STAGED_IDS) {
-    const def = MAKES[id], staged = STAGED[id]!, built = state.built.includes(id);
-    const worked = savedUnderway[id];
-    const begun = !built && typeof worked === 'number' && Number.isFinite(worked) && worked >= 0 && worked < def.time;
-    if (isPlaced(id)) {
-      const at = rec(savedPlaced[id]), pos = rec(at.pos);
-      const ok = (built || begun) && Number.isFinite(pos.x) && Number.isFinite(pos.z) && Number.isSafeInteger(at.turn) && (at.turn as number) >= 0 && (at.turn as number) < 4;
-      const spot: Placed = { pos: { x: pos.x as number, z: pos.z as number }, turn: at.turn as number };
-      if (!ok || hardMisfit(layout, rectOf(id, spot)!)) continue;
-      placed[id] = spot;
-      if (begun) underway[id] = worked as number;
-    } else if (begun && hasPlaceFor(layout, id) && (!staged.upgrades || state.built.includes(staged.upgrades))) underway[id] = worked as number;
+    if (!Object.hasOwn(saved, id) || state.built.includes(id)) continue;
+    const worked = saved[id], staged = STAGED[id]!;
+    const ok = typeof worked === 'number' && Number.isFinite(worked) && worked >= 0 && worked < MAKES[id].time
+      && hasPlaceFor(layout, id) && (!staged.upgrades || state.built.includes(staged.upgrades)) && insideStands(state, staged);
+    if (ok) keep.push([id, worked]); else giveBack(id);
   }
-  const built = state.built.filter(id => !isPlaced(id) || !!placed[id]);
-  return { placed, underway, built };
+  // the one he was at, else the furthest along (the first in the Build list's order of those as far)
+  const first = keep.find(([id]) => id === on) ?? keep.reduce<[MakeId, number] | null>((best, k) => !best || k[1] / MAKES[k[0]].time > best[1] / MAKES[best[0]].time ? k : best, null);
+  for (const k of keep) if (k !== first) giveBack(k[0]);
+  return { underway: first ? { [first[0]]: first[1] } : {}, refund };
 }

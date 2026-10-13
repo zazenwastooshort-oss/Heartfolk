@@ -4,34 +4,36 @@
 // - sent to work a tree, rock or fishing spot whose tool is in the chest (a tap, the goal card, going back to work after
 //   a trip, stoking, a meal or a night's sleep), he walks to the chest for it first (a trip { nodeId, tool }: hauling
 //   empties his backpack there as on any trip), then on to the work; beside the chest already, he takes it at once;
-// - at every stop at the chest (a trip, stoking, a meal, cooking, a tap on it) he leaves there every tool but the one
-//   for what he does next (keepTools), so a tool newly made is carried until his next stop there.
-// Before the chest, and in the village, he carries every tool he owns, as before. Weapons and armour stay worn.
+// - at every stop at the chest (a trip, stoking, a meal, cooking, a tap on it) and at the shelter (to bed: the chest is
+//   in it, by its door) he leaves there every tool but the one for what he does next (keepTools), so a tool newly made
+//   is carried until his next stop there.
+// The chest is in the shelter since the camp build: he uses it at the shelter's door (core/camp.ts). Before the chest,
+// and in the village, he carries every tool he owns, as before. Weapons and armour stay worn.
 import type { GameState } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Layout } from '../world/layout';
-import { siteOf } from '../world/layout';
-import { carries, chestStands, toolFor } from '../core/tools';
+import { carries, toolFor } from '../core/tools';
+import { chestHere, shelterDoor } from '../core/camp';
 import { goVisit, goWork } from '../actors/player';
-import { BUILD_REACH } from '../data/making';
+import { DOOR } from '../data/building';
 import { TOOL_IDS, type ToolId } from '../data/skills';
 
-/** Whether he stands beside the chest (where he stands to use it: actors/player's goBeside). */
+/** Whether he stands at the chest: at the shelter's door (within DOOR.near of it), the chest built in the shelter. */
 export function besideChest(state: GameState, layout: Layout): boolean {
-  const chest = siteOf(layout, 'chest'), p = state.player.pos;
-  return !!chest && Math.hypot(p.x - chest.pos.x, p.z - chest.pos.z) <= chest.radius + BUILD_REACH + 0.4;
+  const door = chestHere(state, layout) ? shelterDoor(state, layout) : null, p = state.player.pos;
+  return !!door && Math.hypot(p.x - door.x, p.z - door.z) <= DOOR.near;
 }
 
 /** Whether working `nodeId` needs its tool fetched from the chest first: he owns it, and it is in the chest. */
 export function fetchFirst(state: GameState, layout: Layout, nodeId: string): boolean {
   const tool = toolFor(layout, nodeId);
-  return !!tool && !!state.tools[tool] && !carries(state, tool) && chestStands(state, layout);
+  return !!tool && !!state.tools[tool] && !carries(state, tool) && chestHere(state, layout);
 }
 
 /** At the chest: every tool he owns but `keep` goes into it, and `keep` (when he owns it) comes out. The first time
  *  any go in (none there before: a new chest, or an old save's), he says so (`events`). */
 export function keepTools(state: GameState, layout: Layout, keep: ToolId | null, events?: EventBus): void {
-  if (!chestStands(state, layout)) return;
+  if (!chestHere(state, layout)) return;
   const first = state.toolsInChest.length === 0;
   state.toolsInChest = TOOL_IDS.filter(t => state.tools[t] && t !== keep);
   if (first && state.toolsInChest.length) events?.emit({ type: 'toolsKept' });
@@ -65,7 +67,7 @@ function wanted(state: GameState, layout: Layout): ToolId | null {
 }
 
 /** `visited`: the building or built thing he reached this step (sim.ts, after everything else has seen to it). At the
- *  chest he leaves there every tool but the one for what he does next. */
+ *  chest, or at the shelter it is in (to bed), he leaves there every tool but the one for what he does next. */
 export function updateTools(state: GameState, layout: Layout, visited: string | null, events?: EventBus): void {
-  if (visited === 'chest' && layout.camp) keepTools(state, layout, wanted(state, layout), events);
+  if ((visited === 'chest' || visited === 'shelter') && layout.camp) keepTools(state, layout, wanted(state, layout), events);
 }

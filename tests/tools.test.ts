@@ -38,15 +38,15 @@ const nodeOf = (resource: string) => CAMP.nodes.find(n => n.resource === resourc
 /** Stops at the chest: each time he reached it. */
 const chestStops = (s: Setup) => s.log.filter(e => e.type === 'visited' && e.id === 'chest').length;
 
-/** A camp at the goal `goal` (every goal before it done, never counting which they are), by day, the shelter not built
- *  (no bed in these tests). */
+/** A camp at the goal `goal` (every goal before it done, never counting which they are), by day, the shelter built
+ *  (since the camp build the chest stands in it, used at its door). */
 function campAt(goal: string): Setup {
   const s = setup(CAMP), before = GOALS.slice(0, GOALS.findIndex(g => g.id === goal));
   s.state.goalsDone = before.map(g => g.id);
   for (const g of before) {
     const make = g.makes;
     if (!make) continue;
-    if (['campfire', 'woodpile', 'chest', 'dummy'].includes(make)) s.state.built.push(make as GameState['built'][number]);
+    if (['campfire', 'woodpile', 'shelter', 'chest', 'dummy'].includes(make)) s.state.built.push(make as GameState['built'][number]);
     else if (make === 'stone_axe') s.state.tools.axe = true;
     else if (make === 'stone_pickaxe') s.state.tools.pick = true;
     else if (make === 'rod') s.state.tools.rod = true;

@@ -62,6 +62,37 @@ export class FrameClock {
   get playedTo(): number { return this.wall; }
 }
 
+/** Play still to catch up while the game is open (main.ts simulate): a long gap between frames (a phone's screen off
+ *  all night) is caught up AWAY.chunk at a time, a frame each, so the page never freezes, and what is left waits here
+ *  with the real time it stands for. A save made meanwhile (the page hidden or closed again, or the phone closing it)
+ *  says the game was played up to only as far as it has been caught up (`owedMs` before the last frame), so the rest is
+ *  caught up when it is opened again (as time the game was open, up to when it closed) and none of it is lost. */
+export class Behind {
+  private owedPlay = 0;
+  private owedReal = 0;
+
+  /** The play still to catch up, in seconds. */
+  get play(): number { return this.owedPlay; }
+
+  /** The real time still owed (ms): what the play still to catch up stands for. */
+  get owedMs(): number { return this.owedReal * 1000; }
+
+  /** `real` seconds between frames, worth `play` seconds of play, to catch up. */
+  add(play: number, real: number): void {
+    if (Number.isFinite(play) && play > 0) this.owedPlay += play;
+    if (Number.isFinite(real) && real > 0) this.owedReal += real;
+  }
+
+  /** This frame's share: at most AWAY.chunk of the play still to catch up, the real time owed going down with it (all
+   *  of it once nothing is left). */
+  next(): number {
+    const now = Math.min(this.owedPlay, AWAY.chunk);
+    this.owedReal = this.owedPlay > now ? this.owedReal * (1 - now / this.owedPlay) : 0;
+    this.owedPlay -= now;
+    return now;
+  }
+}
+
 /** What he did while away, counted from the events sent while catching up. */
 export interface AwaySummary {
   /** items he gathered, from trees and rocks or off the ground, by item id */

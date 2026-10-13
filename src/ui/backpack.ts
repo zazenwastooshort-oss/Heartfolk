@@ -4,13 +4,18 @@
 // bar under the grid says what it is and how many he carries, with what he can do with it: Eat (food), Drop one and
 // Drop all, so a full backpack can always be made room in where there is no bank yet (the camp); things he can't find
 // again (canDrop: the wreck's planks and tarp) say so instead. Under it what he wears (ui/armour.ts fills it), then
-// what is stored (the bank, or at the camp the chest once it is built) and the firewood pile once it stands, which he
-// only looks at here: nothing is taken out of the chest by hand yet. The Backpack button shows how many things he
-// carries. Reads state and sends eat and drop commands; never changes the game itself.
+// what is stored (the bank, or at the camp the chest once it is built, in the shelter) and the firewood pile once it
+// stands (the woodshed once it is built), which he only looks at here: nothing is taken out of the chest by hand yet.
+// While he carries anything, the Chest section's "Store everything" sends him to the chest, at the shelter's door, to
+// put it all away (the camp build, D22). A day tap on the shelter, or Look in from its menu, opens the window at the
+// chest's section (showChest; In 8). The Backpack button shows how many things he carries. Reads state and sends eat,
+// drop and visit commands; never changes the game itself.
 import { canDrop, type GameState } from '../core/state';
 import type { Command } from '../systems/commands';
 import type { Layout } from '../world/layout';
 import type { Windows } from './windows';
+import { chestHere, hasToStore } from '../core/camp';
+import { builtStep } from '../core/building';
 import { ITEMS, TOOLS, type ToolId } from '../data/skills';
 import { MAKES } from '../data/making';
 import { FOOD, isFood } from '../data/food';
@@ -23,6 +28,16 @@ const $ = (id: string) => document.getElementById(id)!;
 
 /** How many things he carries (one slot each). */
 export const carried = (state: GameState) => Object.values(state.player.backpack).reduce((a, n) => a + n, 0);
+
+/** What "Store everything" sends (the camp build, D22): to the chest at the shelter's door, where everything he carries
+ *  goes into it (a few meals stay on him, KEEP_FOOD, as on any trip there), at a camp with the chest built in the
+ *  shelter while he carries anything more than those meals; null for none (the button is hidden then). */
+export function storeAll(state: GameState, layout: Layout): Command | null {
+  return layout.camp && chestHere(state, layout) && hasToStore(state) ? { type: 'visit', id: 'chest' } : null;
+}
+
+/** What the firewood pile's section is headed: what stands at its spot (the firewood pile, then the woodshed). */
+export const pileName = (state: GameState) => MAKES[builtStep(state, 'woodpile') ?? 'woodpile'].name;
 
 /** The slots as the window shows them: one thing in each (an item id), each kind together in the order he first put it
  *  in, then the empty ones (null). Always `slots` long; more than fit (never in play) are left out. */
@@ -79,6 +94,10 @@ export class BackpackWindow {
   private carriedNow = 0;
   /** a thing was just picked: its bar is brought into sight once drawn */
   private reveal = false;
+  /** what Store everything sends now, or null while it is hidden */
+  private storeCmd: Command | null = null;
+  /** Look in the chest was asked for: its section is brought into sight once drawn */
+  private toChest = false;
 
   constructor(private windows: Windows, private queue: Command[], private layout: Layout) {
     // what is stored where: the bank in the village, the storage chest at the camp
@@ -104,6 +123,15 @@ export class BackpackWindow {
     for (const [button, act] of [['pickEat', 'eat'], ['pickDrop1', 'one'], ['pickDropAll', 'all']] as const) {
       $(button).addEventListener('click', () => this.act(act));
     }
+    // Store everything: off to the chest with all he carries
+    $('storeAll').addEventListener('click', () => { if (this.storeCmd) this.queue.push({ ...this.storeCmd }); });
+  }
+
+  /** Look in the chest (a day tap on the shelter, or Look in from its menu; the camp build, In 8): the Backpack window
+   *  opens (or stays open), its chest's section brought into sight and lit up a moment. He goes nowhere. */
+  showChest(): void {
+    this.windows.open('backpack');
+    this.toChest = true;
   }
 
   /** The picked thing's buttons: eat one, drop one, or drop all of it (the same commands as ever). */
@@ -169,21 +197,27 @@ export class BackpackWindow {
     next.focus({ preventScroll: true });
   }
 
-  /** What is stored (the bank, or the chest once it stands) and the firewood pile, each with its pictures. */
+  /** What is stored (the bank, or the chest once it stands in the shelter) and the firewood pile, each with its
+   *  pictures; Store everything while he carries anything to put in the chest. */
   private drawStored(state: GameState): void {
-    const camp = !!this.layout.camp, chest = this.hasBank || (camp && state.built.includes('chest'));
+    const camp = !!this.layout.camp, chest = this.hasBank || (camp && chestHere(state, this.layout));
     const pile = camp && state.built.includes('woodpile');
-    const key = `${chest ? JSON.stringify(state.bank) : '-'}|${pile ? state.woodpile : '-'}|${state.toolsInChest.join()}`;
+    this.storeCmd = storeAll(state, this.layout);
+    const key = `${chest ? JSON.stringify(state.bank) : '-'}|${pile ? `${state.woodpile} ${pileName(state)}` : '-'}|${state.toolsInChest.join()}|${!!this.storeCmd}`;
     if (key === this.storedDrawn) return;
     this.storedDrawn = key;
     $('bankRow').hidden = !chest;
+    const store = $('storeAll'), focused = document.activeElement === store;
+    store.hidden = !this.storeCmd;
+    // Store everything had keyboard focus and is gone (all of it stored): focus rests on the grid, not lost to the page
+    if (focused && store.hidden) this.grid.focus({ preventScroll: true });
     if (chest) {
       // (13 Oct 2026) the tools kept in the chest, then what is stored
       const list = [...state.toolsInChest.map(t => ({ id: t as string, text: toolName(t) })), ...storedList(state.bank)];
       $('bank').replaceChildren(...(list.length ? list.map(({ id, text }) => chip(id, text)) : [Object.assign(document.createElement('small'), { textContent: 'Empty.' })]));
     }
     $('pileRow').hidden = !pile;
-    if (pile) $('pile').replaceChildren(chip('birch_logs', pileText(state.woodpile)));
+    if (pile) { $('pileName').textContent = pileName(state); $('pile').replaceChildren(chip('birch_logs', pileText(state.woodpile))); }
   }
 
   update(state: GameState): void {
@@ -199,6 +233,15 @@ export class BackpackWindow {
     this.draw(state);
     this.keepFocus(focused);
     this.drawStored(state);
+    // Look in the chest: its section into sight, lit up a moment (on a phone held sideways the grid alone fills the window)
+    if (this.toChest) {
+      this.toChest = false;
+      const row = $('bankRow'), body = row.closest<HTMLElement>('.win-body');
+      if (!row.hidden && body) {
+        body.scrollTop += row.getBoundingClientRect().top - body.getBoundingClientRect().top - 8;
+        row.classList.remove('lit'); void row.offsetWidth; row.classList.add('lit');
+      }
+    }
   }
 }
 

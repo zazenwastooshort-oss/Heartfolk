@@ -91,7 +91,7 @@ describe('the pages of his book', () => {
     expect(pages.at(-1)!.lines).toEqual([{ id: 'birch_logs', need: 10, got: 0, done: false }, { id: 'copper_ore', need: 3, got: 3, done: true }]);
     // with everything there the page says to build it, as the card does (0.0.19)
     s.state.player.backpack.birch_logs = 10;
-    expect(bookPages(s.state).at(-1)!.hint).toBe('You have it all. Tap Build, or tap the chest spot beside the shelter.');
+    expect(bookPages(s.state).at(-1)!.hint).toBe('You have it all. Tap Build, or tap the marker in the shelter.');
     // every page has words of its own
     expect(new Set(GOALS.map(g => g.page)).size).toBe(GOALS.length);
   });
@@ -115,7 +115,10 @@ describe('the pages of his book', () => {
     for (const p of ofKind('stone').slice(0, MAKES.campfire.needs.stone!)) pickUp(s, p.id);
     expect(bookPages(s.state).map(p => p.goal)).toEqual(['salvage', 'campfire']);
     const from = s.log.length;
-    send(s, { type: 'make', id: 'campfire' });
+    send(s, { type: 'build', id: 'campfire' });
+    // begun, its things taken: the page stays ticked while he builds (the camp build: the goal is paid for)
+    expect(owned(s.state, 'stone')).toBe(0);
+    expect(bookPages(s.state)[1]!.lines.every(l => l.done && l.got === l.need)).toBe(true);
     runUntil(s, () => since(s, from).some(e => e.type === 'made'), 60);
     expect(s.state.built).toContain('campfire');
     expect(owned(s.state, 'plank')).toBeLessThan(GOALS[0]!.needs.plank!);   // the fire used some of the wreck's planks

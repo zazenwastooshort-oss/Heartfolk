@@ -16,15 +16,18 @@ import type { Layout } from '../world/layout';
 import { siteOf } from '../world/layout';
 import { isNight, nightOf } from '../core/clock';
 import { goVisit } from '../actors/player';
+import { canStoke, chestHere } from '../core/camp';
+import { builtStep } from '../core/building';
 import { STOKE, WOODPILE } from '../data/fire';
 import { backpackCount, backpackFull, deposit, isStore, stopStoking, useUp } from './backpack';
 import { backToWork } from './hauling';
 
-/** Whether the fire is his to stoke: the campfire stands, with the firewood pile or the storage chest to take logs from. */
-export const canStoke = (state: GameState, layout: Layout) =>
-  !!siteOf(layout, 'hearth') && state.built.includes('campfire') && (isBuilt(state, layout, 'woodpile') || isBuilt(state, layout, 'chest'));
+// whether the fire is his to stoke (the campfire, with the pile or the chest to take logs from): core/camp.ts
+export { canStoke };
 
-const isBuilt = (state: GameState, layout: Layout, id: 'woodpile' | 'chest') => !!siteOf(layout, id) && state.built.includes(id);
+/** Whether the firewood pile stands here, or the storage chest (in the shelter: core/camp.ts). */
+const isBuilt = (state: GameState, layout: Layout, id: 'woodpile' | 'chest') =>
+  id === 'chest' ? chestHere(state, layout) : !!siteOf(layout, id) && state.built.includes(id);
 
 /** Where he takes the logs from: the pile while it holds any, else the chest while it holds any, else his backpack
  *  (null); or nowhere (false) when there is no log anywhere. */
@@ -94,13 +97,15 @@ function atSource(state: GameState, layout: Layout, stoke: Stoke, events: EventB
   toFire(state, layout, stoke, events);
 }
 
-/** A tap on the firewood pile: the logs he carries are stacked on it, up to what it holds. */
+/** A tap on the firewood pile: the logs he carries are stacked on it, up to what it holds (told with what stands there:
+ *  the firewood pile, or the woodshed). */
 function stackLogs(state: GameState, events: EventBus): void {
   const pack = state.player.backpack, have = pack[STOKE.item] ?? 0, n = Math.min(have, WOODPILE.max - state.woodpile);
-  if (n <= 0) { events.emit({ type: 'stacked', logs: 0, pile: state.woodpile, reason: have > 0 ? 'full' : 'none' }); return; }
+  const at = builtStep(state, 'woodpile') ?? 'woodpile';
+  if (n <= 0) { events.emit({ type: 'stacked', logs: 0, pile: state.woodpile, at, reason: have > 0 ? 'full' : 'none' }); return; }
   if (n === have) delete pack[STOKE.item]; else pack[STOKE.item] = have - n;
   state.woodpile += n;
-  events.emit({ type: 'stacked', logs: n, pile: state.woodpile });
+  events.emit({ type: 'stacked', logs: n, pile: state.woodpile, at });
 }
 
 /** Set off to stoke the fire: for the logs to the pile or the chest, or straight to the fire with logs from his

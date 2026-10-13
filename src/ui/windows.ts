@@ -73,6 +73,15 @@ export function windowSpot({ right, bottom, card, widths }: Room): Spot {
   return under >= beside ? 'under' : 'beside';
 }
 
+/** On a phone held upright, with a window open, whether a notice goes low, over the strip just above the buttons
+ *  (index.html .notice-low): only when the open window leaves too little room above it, between the goal card's foot
+ *  and its top, for the notice (`notice` px high) in its usual place just under the card. A short window stands at the
+ *  foot of its room, so the notice shows above it, clear of all of it; a tall one leaves no room, and the notice goes
+ *  below it, clear of its title and its x (px, from the screen's top). */
+export function noticeGoesLow({ cardFoot, windowTop, notice }: { cardFoot: number; windowTop: number; notice: number }): boolean {
+  return windowTop - GAP - (cardFoot + GAP) < notice;
+}
+
 const $ = (id: string) => document.getElementById(id)!;
 /** A phone: held upright (narrow) or sideways (short). One window at a time. */
 const PHONE = '(max-width: 600px), (max-height: 499px)';
@@ -117,7 +126,8 @@ export class Windows {
     }, true);
     // where the goal card ends and the strip and buttons begin change with the screen, the text size and what they show
     const place = new ResizeObserver(() => this.place());
-    for (const id of ['stage', 'goal', 'strip', 'rail']) place.observe($(id));
+    for (const id of ['stage', 'goal', 'strip', 'rail', 'notice']) place.observe($(id));
+    for (const w of this.wins.values()) place.observe(w.el);
     window.addEventListener('resize', () => { this.refit(); this.place(); });
     this.place();
   }
@@ -207,21 +217,26 @@ export class Windows {
 
   /** --below-card: just under the goal card (or the top bar where there is no card). On a phone held upright,
    *  --above-bottom: just over the strip (while it shows) or the buttons, measured from the foot of the screen, and
-   *  --free-width the whole width (a notice shows over the window). With the buttons down the right side, the windows
-   *  make way for the goal card (windowSpot: --wins-top under it, or --wins-left beside it), and --free-width is the
-   *  width left of the open windows, or of the buttons while none is open or the windows are under the card (a notice
-   *  shows over them then, as on a phone). */
+   *  --free-width the whole width (with a window open, a notice shows above it where it leaves room, else below it,
+   *  over the strip: noticeGoesLow, index.html .notice-low). With the
+   *  buttons down the right side, the windows make way for the goal card (windowSpot: --wins-top under it, or
+   *  --wins-left beside it), and --free-width is the width left of the open windows, or of the buttons while none is
+   *  open or the windows are under the card (a notice shows over them then). */
   private place(): void {
     const stage = this.stage.getBoundingClientRect(), card = $('goal'), cardBox = card.hidden ? null : card.getBoundingClientRect();
     const under = (cardBox ?? document.querySelector('.topbar')!.getBoundingClientRect()).bottom;
     this.setVar('--below-card', under - stage.top + GAP);
+    const shown = this.opened.map(o => this.wins.get(o.id)!.el.getBoundingClientRect()).filter(b => b.height > 0);
     if (this.upright.matches) {
       const strip = $('strip').getBoundingClientRect(), top = Math.min(this.rail.getBoundingClientRect().top, strip.height > 0 ? strip.top : Infinity);
       this.setVar('--above-bottom', stage.bottom - top + GAP);
       this.setVar('--free-width', stage.width);
       this.setVar('--wins-top', null); this.setVar('--wins-left', null);
+      const low = shown.length > 0 && noticeGoesLow({ cardFoot: under, windowTop: Math.min(...shown.map(b => b.top)), notice: $('notice').getBoundingClientRect().height });
+      this.stage.classList.toggle('notice-low', low);
       return;
     }
+    this.stage.classList.remove('notice-low');
     // the windows' room ends at the buttons and the screen's foot, whether or not they make way for the card
     const room = $('wins').getBoundingClientRect();
     const spot = windowSpot({ right: room.right, bottom: room.bottom, card: cardBox, widths: this.opened.map(o => this.wins.get(o.id)!.width) });

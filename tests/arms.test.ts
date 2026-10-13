@@ -7,8 +7,13 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
-import { ArmIK, armedWeight, toolInHand, toolInTransit } from '../src/render/arms';
-import { ARMED_CLIPS, FADE, GAIT, IDLE } from '../src/data/animation';
+import { ArmIK, armedWeight, heldTool, LOW_KNOCK, malletLean, malletSwing, toolInHand, toolInTransit, type Held } from '../src/render/arms';
+import { malletModel } from '../src/render/campmodels';
+import { WEAPON_MODELS } from '../src/render/gear';
+import { CARPENTRY } from '../src/data/building';
+import { wear } from '../src/systems/combat';
+import { CAMP } from '../src/world/camp';
+import { ARMED_CLIPS, FADE, GAIT, IDLE, SWINGS } from '../src/data/animation';
 import { createState } from '../src/core/state';
 import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
@@ -223,5 +228,83 @@ describe('tool in hand or on his back', () => {
     expect(toolInHand({ task: walk, pending: node, pos: { x: 0, z: 0 }, path: [{ x: 3, z: 0 }, { x: 3, z: 4 }] }), 'a 7 m hop').toBe(true);
     expect(toolInHand({ task: walk, pending: node, pos: { x: 0, z: 0 }, path: [{ x: 6, z: 0 }, { x: 6, z: 6 }] }), 'a 12 m walk').toBe(false);
     expect(toolInHand({ task: walk, pending: null, pos: { x: 0, z: 0 }, path: [{ x: 2, z: 0 }] }), 'a short walk to a spot').toBe(false);
+  });
+});
+
+describe('his mallet while he builds (the camp build: D11, T2.11)', () => {
+  const WEAPONS = new Set(Object.keys(WEAPON_MODELS));
+
+  it('has it in his hands only while he builds, never on the walk there; otherwise the tool for the job or one he carries', () => {
+    const state = createState(CAMP, 4), p = state.player;
+    state.tools = { axe: true, pick: true, rod: true };
+    const held = (last: Held | null = null) => heldTool(state, CAMP, last, WEAPONS);
+    expect(held(), 'standing about').toBe('axe');
+    expect(held('pick'), 'the one he last had out').toBe('pick');
+    p.task = { kind: 'raise', id: 'campfire' };
+    expect(held('pick'), 'building').toBe('mallet');
+    expect(toolInHand(p), 'building').toBe(true);
+    p.task = { kind: 'walk' }; p.pending = { kind: 'raise', id: 'campfire' }; p.path = [{ x: 0, z: 0 }];
+    expect(held('pick'), 'on his way to build').toBe('pick');
+    expect(toolInHand(p), 'on his way to build').toBe(false);
+    p.task = { kind: 'idle' }; p.pending = null; p.path = [];
+    expect(held('mallet'), 'done building: back to a tool he carries').toBe('axe');
+    const birch = CAMP.nodes.find(n => n.resource === 'birch_tree')!, fish = CAMP.nodes.find(n => n.resource === 'fishing_spot')!;
+    p.task = { kind: 'gather', nodeId: birch.id, progress: 0 };
+    expect(held('pick'), 'chopping').toBe('axe');
+    p.task = { kind: 'gather', nodeId: fish.id, progress: 0 };
+    expect(held('axe'), 'fishing').toBe('rod');
+    p.task = { kind: 'idle' };
+    expect(held('rod'), 'the rod is never carried on his back').toBe('axe');
+    wear(state, 'stone_club');
+    p.task = { kind: 'fight', target: 'dummy', progress: 0 };
+    expect(held('axe'), 'practising').toBe('stone_club');
+    // a tool kept in the storage chest isn't on him
+    p.task = { kind: 'idle' }; state.toolsInChest = ['axe', 'pick'];
+    expect(held('axe'), 'tools in the chest').toBeNull();
+    p.task = { kind: 'raise', id: 'campfire' };
+    expect(held(), 'building, whatever is in the chest').toBe('mallet');
+  });
+
+  it('swings it over and over while he builds, as chopping and mining do, never standing still between swings', () => {
+    const { impact, cycle } = SWINGS.mining;
+    for (let k = 0; k <= 5; k++) expect(malletSwing(k * cycle)).toBeCloseTo(impact, 9);   // each lands a whole swing on
+    expect(malletSwing(cycle - impact)).toBeCloseTo(0, 9);                                // the next one begins
+    // always somewhere in a swing, and on with the work: back to the top only where one swing ends and the next begins
+    let last = malletSwing(0), wraps = 0;
+    for (let t = 0.01; t < 30; t += 0.01) {
+      const at = malletSwing(t);
+      expect(at).toBeGreaterThanOrEqual(0); expect(at).toBeLessThan(cycle);
+      if (at < last) { wraps++; expect(last - at).toBeGreaterThan(cycle - 0.02); }
+      last = at;
+    }
+    expect(wraps).toBe(Math.floor((30 + impact) / cycle));
+    // the knock (its Carpentry XP) needn't fall on a swing: it is the work's, not the clip's
+    expect(CARPENTRY.knock % cycle).not.toBeCloseTo(0, 2);
+  });
+
+  it('lands its face on what he builds: CARPENTRY.reach in front of him at the strike, coming down a little beyond it', async () => {
+    const gltf = await load(), miner = gltf.scene.getObjectByName('Miner')!;
+    const mallet = malletModel(), tool = miner.getObjectByName('pick_head')!.parent!;
+    tool.add(mallet.model);
+    const mixer = new THREE.AnimationMixer(miner), swing = mixer.clipAction(gltf.animations.find(c => c.name === SWINGS.mining.clip)!);
+    swing.play(); swing.timeScale = 0;
+    const faceAt = (t: number) => { swing.time = t; mixer.update(0); miner.updateMatrixWorld(true); return mallet.face.getWorldPosition(new THREE.Vector3()); };
+    // he faces +x in his own frame (render/view.ts turns him by his heading)
+    const hit = faceAt(SWINGS.mining.impact);
+    expect(Math.abs(hit.x - CARPENTRY.reach), `lands ${hit.x.toFixed(2)} m in front of him`).toBeLessThan(0.1);
+    expect(Math.abs(hit.z)).toBeLessThan(0.05);
+    expect(hit.y).toBeGreaterThan(0.3); expect(hit.y).toBeLessThan(1.0);
+    let deepest = 0;
+    for (let t = 0; t <= SWINGS.mining.cycle; t += 0.01) { const f = faceAt(t); if (f.y < 1.5) deepest = Math.max(deepest, f.x); }
+    expect(deepest, 'the furthest the face reaches on the way down, coming down onto the face').toBeLessThan(CARPENTRY.reach + 0.2);
+    // leaning down to something low (SHAPES' lean: footings, a campfire's stones), it lands on top of it, a little
+    // further out and low down; most as it lands, none at the top of the swing, none for something as high as his swing
+    expect(malletLean(0, 0.45)).toBe(0); expect(malletLean(LOW_KNOCK.from, 0.45)).toBe(0);
+    expect(malletLean(SWINGS.mining.impact, 0)).toBe(0);
+    expect(malletLean(SWINGS.mining.impact, 0.45)).toBeCloseTo(0.45, 9);
+    miner.rotation.z = -malletLean(SWINGS.mining.impact, 0.45);
+    const low = faceAt(SWINGS.mining.impact);
+    expect(low.y, 'leaning down').toBeLessThan(0.35); expect(low.y).toBeGreaterThan(0.1);
+    expect(low.x).toBeGreaterThan(CARPENTRY.reach); expect(low.x).toBeLessThan(1.0);
   });
 });

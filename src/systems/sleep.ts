@@ -15,6 +15,7 @@ import { SLEEP } from '../data/sleep';
 import { restBonus } from '../core/building';
 import { restedTill, wakeAt } from '../core/needs';
 import type { Back } from '../core/state';
+import { stopStoking } from './backpack';
 
 export { canSleep };
 
@@ -22,7 +23,7 @@ export { canSleep };
 export const isRested = (state: GameState) => state.time < state.restedUntil;
 
 /** How much more often gathering yields while he is well rested: SLEEP.bonus more, or more in a better shelter (the
- *  lean-to, the log hut: restBonus in core/building.ts). */
+ *  wall tent, the log cabin: restBonus in core/building.ts). */
 export const restedFactor = (state: GameState) => isRested(state) ? 1 + restBonus(state) : 1;
 
 /** How many times faster than real time play goes: SLEEP.speed while he sleeps, else 1 (main.ts; never in a catch-up). */
@@ -45,7 +46,10 @@ export function goToBed(state: GameState, layout: Layout, back: Back | null = nu
 }
 
 /** He lies down when he reaches the shelter at night (`visited`, actors/player) or at his bedtime, until he gets up
- *  (Bed.until; sent early, wakeAt works it out now); then he gets up well rested until nightfall (restedTill). */
+ *  (Bed.until; sent early, wakeAt works it out now); then he gets up well rested until nightfall (restedTill). Lying
+ *  down he leaves nothing on the go: no walk, no trip, no cooking, and no stoking (a stoke the fire set off on in this
+ *  same step, as he reached the door, is stopped, its logs put back, and not set off again tonight), so when he gets up
+ *  nothing stale keeps him from going back to what he was doing. */
 export function updateSleep(state: GameState, layout: Layout, visited: string | null, events: EventBus): void {
   const p = state.player, n = state.needs;
   if (visited === 'shelter' && canSleep(state, layout) && (isNight(state.time) || n.bed?.until != null)) {
@@ -53,7 +57,8 @@ export function updateSleep(state: GameState, layout: Layout, visited: string | 
     if (until > state.time) {
       n.bed = { back: n.bed?.back ?? null, until };
       n.slept = Math.max(n.slept, nightOf(state.time));
-      p.task = { kind: 'sleep' }; p.trip = null; p.cook = null;
+      p.task = { kind: 'sleep' }; p.trip = null; p.cook = null; p.path = []; p.pending = null;
+      stopStoking(state); state.stokeAgain = false;
       events.emit({ type: 'fellAsleep', until });
       return;
     }

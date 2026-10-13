@@ -7,6 +7,7 @@ import { siteOf, type Layout, type Vec2 } from '../world/layout';
 import { BOOK, GOALS, type Goal } from '../data/goals';
 import { PICKUPS } from '../data/pickups';
 import { makeDef, type MakeId } from '../data/making';
+import { SHELTERS } from '../data/building';
 import { DAY_SECONDS } from './clock';
 import { freshRats } from './rats';
 import { freshGoblins } from './goblins';
@@ -16,8 +17,10 @@ import { COOK } from '../data/cooking';
 import { freshNeeds, type Needs } from './needs';
 
 /** The save format. 10 since 0.0.22: his health, and the combat and food skills. 11 since 0.0.25: "Ready for the
- *  goblins" came in before the goblin camp. */
-export const SAVE_VERSION = 11;
+ *  goblins" came in before the goblin camp. 12 since the camp build (13 Oct 2026): what was built in stages before it
+ *  became the camp's new upgrades or was given back to the chest, nothing is placed any more, and at most one thing is
+ *  under way (core/save.ts, migrations[11]). */
+export const SAVE_VERSION = 12;
 
 /** gather: working a rock or a tree; progress runs 0..1 through one swing of that skill's tool. `mayMoveOn` is set
  *  when the node runs out while he works it, so he can move on to another; a node that was already down when he got
@@ -66,10 +69,6 @@ export type Trip = ({ nodeId: string; tool?: true } | { pickupId: string } | { f
  *  2, 0.0.22) cooking at the campfire or fighting something (practising on the training dummy). */
 export type Back = { nodeId: string } | { pickupId: string } | { make: MakeId } | { to: Vec2 } | { cook: true } | { fight: string }
   | { sleep: true } | { raise: MakeId };
-
-/** Where the player put something down to build (the Build list; data/building.ts): its middle, on the half-metre
- *  grid, and how many quarter turns it is turned from facing south (0 to 3). */
-export interface Placed { pos: Vec2; turn: number }
 
 /** Stoking the fire (0.0.19; systems/fire.ts): at nightfall he left what he was doing (`back`, null for nothing),
  *  walks to where he takes the logs (`from`: the firewood pile since 0.0.21, or the storage chest; null when he took
@@ -170,11 +169,16 @@ export interface GameState {
   /** (chapter 2, the survival book) his thoughts so far, the journal in his book, and the book's pages come unstuck
    *  (core/thoughts.ts, systems/thoughts.ts); none in the village */
   thoughts: Thoughts;
-  /** where each thing he placed himself stands (data/building.ts, by id), begun or built; none in an old save */
-  placed: Partial<Record<MakeId, Placed>>;
   /** things built in stages that he has begun but not finished (by id): the seconds he has worked at each so far. What
-   *  each needs was taken when he began. Once finished it is in `built` instead */
+   *  each needs was taken when he began. Once finished it is in `built` instead. At most one at a time (D8) */
   underway: Partial<Record<MakeId, number>>;
+  /** (the camp build) the in-game time from which he may go back by himself to something half built (the camp build's
+   *  stage 2: RESUME in data/building.ts); 0 for at once. Read back as saved when it is within RESUME.wait or
+   *  RESUME.retry (the longer) of the save's time (core/save.ts readSave), else 0 */
+  resumeAt: number;
+  /** (the camp build) his way back to something half built was last found blocked, and he said so (noPath): he says it
+   *  once, not again until a way is found (systems/building.ts). Saved, so a game opened again doesn't say it again */
+  lostWay: boolean;
   /** (13 Oct 2026) his needs at the camp: how full he is, a meal trip or bed under way, his bedtime, a tap waiting for
    *  him to wake (core/needs.ts, systems/needs.ts) */
   needs: Needs;
@@ -183,8 +187,9 @@ export interface GameState {
   toolsInChest: ToolId[];
 }
 
-/** Whether there is a shelter to sleep in (systems/sleep.ts): built at this layout's tent spot (never in the village). */
-export const canSleep = (state: GameState, layout: Layout) => !!siteOf(layout, 'tent') && state.built.includes('shelter');
+/** Whether there is a shelter to sleep in (systems/sleep.ts): any of the shelters (the tent, the wall tent, the log
+ *  cabin) built at this layout's tent spot (never in the village). */
+export const canSleep = (state: GameState, layout: Layout) => !!siteOf(layout, 'tent') && SHELTERS.some(id => state.built.includes(id));
 
 /** His health at most (0.0.22): HEALTH in data/combat.ts, by his Vitality level. */
 export const maxHealth = (state: GameState) => HEALTH.base + (levelFor(state.skills.vitality) - 1) * HEALTH.perLevel;
@@ -214,6 +219,14 @@ export function made(state: GameState, id: string): boolean {
 export const goalFinished = (state: GameState, goal: Goal) =>
   state.goalsDone.includes(goal.id) || (goal.makes ? made(state, goal.makes) : goalMet(state, goal));
 
+/** Whether he has begun building `id` in stages and not finished it (data/building.ts): what it needed was taken. */
+export const begun = (state: GameState, id: string) => Object.hasOwn(state.underway, id) && state.underway[id as MakeId] !== undefined;
+
+/** Whether a goal is paid for (the camp build, 13 Oct 2026): finished, or the thing it makes begun (what it needed was
+ *  taken when he began it). Its lines stay ticked and nothing more is gathered for it, so the goal's count never goes
+ *  backwards while he builds (the goal card, his book, the next step, gathering stopping once a goal has enough). */
+export const goalPaid = (state: GameState, goal: Goal) => goalFinished(state, goal) || (!!goal.makes && begun(state, goal.makes));
+
 /** The goal the goal card shows: the first in GOALS not finished, or the last one once all are (the card then says
  *  the camp is set up: allGoalsDone). */
 export const currentGoal = (state: GameState): Goal => GOALS.find(g => !goalFinished(state, g)) ?? GOALS.at(-1)!;
@@ -222,7 +235,8 @@ export const currentGoal = (state: GameState): Goal => GOALS.find(g => !goalFini
 export const allGoalsDone = (state: GameState) => GOALS.every(g => goalFinished(state, g));
 
 /** The goal that has enough of `item` (0.0.21): at the camp, the current goal (until the camp is set up) asks for
- *  `item` and he has at least that many, carried or stored. Gathering it stops then, so the backpack doesn't fill up
+ *  `item` and he has at least that many, carried or stored, or (the camp build) is paid for: the thing it makes is
+ *  begun (goalPaid). Gathering it stops then, so the backpack doesn't fill up
  *  with more than the goal needs (the owner, 12 Oct 2026). Null when gathering goes on: the village, the camp set up,
  *  or a current goal that doesn't ask for it. The current goal here is the first not yet written down as finished
  *  (goalsDone, each step): a gathering goal is finished the moment it has enough, and the goal after it may not ask
@@ -230,7 +244,8 @@ export const allGoalsDone = (state: GameState) => GOALS.every(g => goalFinished(
 export function goalHasEnough(state: GameState, layout: Layout, item: string): Goal | null {
   if (!layout.camp || allGoalsDone(state)) return null;
   const goal = GOALS.find(g => !state.goalsDone.includes(g.id)) ?? currentGoal(state), need = goal.needs[item];
-  if (need !== undefined) return owned(state, item) >= need ? goal : null;
+  // (the camp build) a goal whose thing is begun has had what it needs: none more is gathered for it
+  if (need !== undefined) return owned(state, item) >= need || goalPaid(state, goal) ? goal : null;
   // a goal asking for cooked fish has enough raw fish once there are enough to cook what it still wants (13 Oct 2026:
   // before, fishing for the meal went on for ever); systems/gathering.ts then sends him to cook them
   const cooked = goal.needs[COOK.cooked];
@@ -279,8 +294,9 @@ export function createState(layout: Layout, seed = 1): GameState {
     goblinCamp: { chiefOut: false, cleared: false },
     restedUntil: 0,
     thoughts: { journal: [], known: [], last: null, saidAt: null, passingAt: null },
-    placed: {},
     underway: {},
+    resumeAt: 0,
+    lostWay: false,
     needs: freshNeeds(),
     toolsInChest: [],
   };

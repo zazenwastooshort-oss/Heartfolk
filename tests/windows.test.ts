@@ -6,7 +6,7 @@
 // button's count (ui/backpack.ts).
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { EDGE, GAP, GOAL_ROOM, MIN_BESIDE, MIN_UNDER, closing, fitting, opening, windowSpot, type Opened, type Room } from '../src/ui/windows';
+import { EDGE, GAP, GOAL_ROOM, MIN_BESIDE, MIN_UNDER, closing, fitting, noticeGoesLow, opening, windowSpot, type Opened, type Room } from '../src/ui/windows';
 import { goalLevelText, switchedText } from '../src/ui/combat';
 import { DUMMY } from '../src/data/combat';
 import { goalCard } from '../src/ui/hud';
@@ -127,6 +127,23 @@ describe('windows make way for the goal card, so its Build button stays one tap 
     expect(wins).toContain(`gap: ${GAP}px`);
     expect(wins).toContain(`right: calc(var(--edge) + var(--rail) + ${GAP}px)`);
   });
+
+  it('on a phone held upright, with a window open, a notice shows above it where it leaves room, under the goal card as ever; with a tall one, below it, over the strip, clear of its title and its x', () => {
+    const upright = html.slice(html.indexOf('@media (max-width: 600px)'));
+    const rule = upright.match(/\.notice-low \.notice \{[^}]*\}/)?.[0] ?? '';
+    const strip = upright.match(/\.strip \{ bottom: ([^;]*);/)?.[1];
+    expect(rule).toContain('top: auto');
+    expect(strip).toBeDefined();
+    expect(rule).toContain(`bottom: ${strip}`);
+    expect(readFileSync(new URL('../src/ui/windows.ts', import.meta.url), 'utf8')).toMatch(/classList\.toggle\('notice-low', low\)/);
+    // at 375 x 812, the card's foot at 150: the Build window with one line ([581, 732]) leaves room above it for a
+    // notice two lines high (52 px), so it shows under the card, clear of the window; the Backpack, nearly all the
+    // height, doesn't, and the notice goes low
+    expect(noticeGoesLow({ cardFoot: 150, windowTop: 581, notice: 52 })).toBe(false);
+    expect(noticeGoesLow({ cardFoot: 150, windowTop: 166, notice: 52 })).toBe(true);
+    expect(noticeGoesLow({ cardFoot: 150, windowTop: 150 + 2 * GAP + 52, notice: 52 })).toBe(false);
+    expect(noticeGoesLow({ cardFoot: 150, windowTop: 150 + 2 * GAP + 51, notice: 52 })).toBe(true);
+  });
 });
 
 describe('two windows side by side on a 1280 px wide screen (index.html)', () => {
@@ -199,14 +216,41 @@ describe('the goal card (ui/hud.ts)', () => {
     expect(card).toMatchObject({ title: 'Salvage the wreck', line: '0 / 7 planks, 0 / 1 tarp, 0 / 1 book', progress: 0, ready: false, build: null, hint: GOALS[0]!.hint });
   });
 
-  it('offers the Build button once everything is there, and hides it while he works on it', () => {
+  it('offers the Build button once everything is there, says how far along while he builds, and Carry on once begun and he is elsewhere', () => {
     const state = createState(CAMP, 1);
     state.goalsDone = ['salvage'];
     state.player.backpack = { ...MAKES.campfire.needs };
     const card = goalCard(state);
-    expect(card).toMatchObject({ title: GOALS[1]!.title, ready: true, progress: 1, build: { id: 'campfire', label: 'Build the campfire' }, hint: GOALS[1]!.ready });
-    state.player.task = { kind: 'make', id: 'campfire', doneAt: 99 };
-    expect(goalCard(state)).toMatchObject({ build: null, line: 'Working on the campfire...' });
+    expect(card).toMatchObject({ title: GOALS[1]!.title, ready: true, progress: 1, build: { id: 'campfire', label: 'Build the campfire', send: 'build' }, hint: GOALS[1]!.ready });
+    // begun (what it needs taken): on his way, then building it, how far along; the goal stays all there
+    state.player.backpack = {}; state.underway = { campfire: 0 };
+    state.player.pending = { kind: 'raise', id: 'campfire' }; state.player.task = { kind: 'walk' };
+    expect(goalCard(state)).toMatchObject({ build: null, line: 'On the way to build the campfire...', ready: true, progress: 1 });
+    state.player.pending = null; state.player.task = { kind: 'raise', id: 'campfire' }; state.underway = { campfire: 8 };
+    expect(goalCard(state)).toMatchObject({ build: null, line: 'Building the campfire... 40%', ready: true, progress: 1 });
+    // sent elsewhere: Carry on
+    state.player.task = { kind: 'idle' };
+    expect(goalCard(state).build).toEqual({ id: 'campfire', label: 'Carry on with the campfire', send: 'build' });
+    // the firewood pile is stacked; a tool is made, where he stands
+    const pile = createState(CAMP, 1);
+    pile.goalsDone = ['salvage', 'campfire', 'stone_axe']; pile.built = ['campfire']; pile.tools.axe = true;
+    pile.underway = { woodpile: 5 }; pile.player.task = { kind: 'raise', id: 'woodpile' };
+    expect(goalCard(pile).line).toBe('Stacking the firewood pile... 20%');
+    const axe = createState(CAMP, 1);
+    axe.goalsDone = ['salvage', 'campfire']; axe.built = ['campfire']; axe.player.backpack = { ...MAKES.stone_axe.needs };
+    expect(goalCard(axe).build).toEqual({ id: 'stone_axe', label: 'Make the stone axe', send: 'make' });
+    axe.player.task = { kind: 'make', id: 'stone_axe', doneAt: 99 };
+    expect(goalCard(axe)).toMatchObject({ build: null, line: 'Working on the stone axe...' });
+    // one thing built at a time (D8): the dummy's goal all there, with the wall tent under way, that comes first
+    const dummy = createState(CAMP, 1), at = GOALS.findIndex(g => g.makes === 'dummy');
+    dummy.goalsDone = GOALS.slice(0, at).map(g => g.id); dummy.built = ['campfire', 'woodpile', 'shelter', 'chest'];
+    dummy.bank = { ...MAKES.dummy.needs }; dummy.underway = { wall_tent: 30 };
+    expect(goalCard(dummy).build).toEqual({ id: 'wall_tent', label: 'Carry on with the wall tent', send: 'build' });
+    dummy.player.task = { kind: 'raise', id: 'wall_tent' };
+    expect(goalCard(dummy)).toMatchObject({ build: null, line: 'Building the wall tent... 25%' });
+    dummy.bank = {};                                                // not all there yet: gather first, no button
+    dummy.player.task = { kind: 'idle' };
+    expect(goalCard(dummy).build).toBeNull();
   });
 
   it('counts a skill level in a short line: "Attack 1 / 3"', () => {

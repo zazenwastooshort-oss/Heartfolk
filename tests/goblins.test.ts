@@ -10,6 +10,7 @@
 // Other goals may sit between or after chapter 2's: a goal is made current by marking every goal before it done, never
 // by its position.
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { allGoalsDone, goalFinished, canDrop, createState, currentGoal, maxHealth, owned, SAVE_VERSION, type GameState } from '../src/core/state';
 import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
@@ -295,7 +296,6 @@ describe('fighting the goblins', () => {
 
   it('its swing lands as often as its attack roll against his defence (with his armour) says', () => {
     const s = ready(11);
-    s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
     s.state.player.backpack = { cooked_fish: 28 };
     s.state.skills.vitality = XP_TABLE[60]!; s.state.health = maxHealth(s.state);
     engage(s, 'goblin1');
@@ -675,7 +675,7 @@ describe('saving the goblin camp', () => {
     const raw = JSON.parse(serialize(s.state, Date.now()));
     delete raw.goblins; delete raw.goblinCamp;
     raw.version = 10;                                          // as 0.0.22 to 0.0.24 wrote it
-    expect(SAVE_VERSION).toBe(11);
+    expect(SAVE_VERSION).toBe(12);
     const v23 = readSave(JSON.stringify(raw), CAMP).state;
     expect(v23.goblinCamp).toEqual({ chiefOut: false, cleared: false });
     expect(Object.keys(v23.goblins)).toEqual([...GOBLINS, CHIEF_ID]);
@@ -739,9 +739,12 @@ describe('away time at the goblin camp', () => {
   const reopen = (saved: string, seed = 21) => {
     const t = setup(CAMP, seed), state = readSave(saved, CAMP).state, log: GameEvent[] = [];
     t.events.on(e => log.push(e));
-    const started = performance.now();
+    // how quick: the processor time this test's own process spent on it, so other work on the machine (the rest of the
+    // suite running beside it) doesn't count
+    const started = process.cpuUsage();
     const r = catchUpAway(state, NOW, NOW + 2 * 60 * 60 * 1000, { ...t.ctx, rng: createRng(99) });
-    return { state, r, ms: performance.now() - started, log };
+    const used = process.cpuUsage(started);
+    return { state, r, ms: (used.user + used.system) / 1000, log };
   };
 
   it('two hours closed while fighting the goblins catch up the same every time, quickly; the note tells it all', () => {
@@ -752,7 +755,12 @@ describe('away time at the goblin camp', () => {
     const saved = serialize(s.state, NOW), a = reopen(saved), b = reopen(saved);
     expect(a.state).toEqual(b.state);
     expect(a.r.summary).toEqual(b.r.summary);
-    expect(a.ms).toBeLessThan(1500);
+    // quick against the same catch-up of the whole camp left be, timed here alongside it, so a busy machine slows both
+    // alike: never 3 times as much (the better of two tries of each, so one slow moment doesn't count)
+    const whole = readFileSync(new URL('./fixtures/camp/whole-camp.json', import.meta.url), 'utf8');
+    const camp = JSON.stringify({ ...JSON.parse(whole), savedAt: NOW });
+    const ref = Math.min(reopen(camp).ms, reopen(camp).ms);
+    expect(Math.min(a.ms, b.ms)).toBeLessThan(3 * ref);
     const lines = awayText([a.r.away], a.r.summary).lines;
     // 24 minutes of play is plenty to clear the camp at these levels, with 5 fish along
     expect(a.state.goblinCamp.cleared).toBe(true);

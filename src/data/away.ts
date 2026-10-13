@@ -13,9 +13,10 @@ export const AWAY = {
   /** a game left open whose frames stopped (a background tab, the screen off) catches up at full speed when it is
    *  looked at again, all of it (no limit since 0.0.21) */
   openMax: Infinity,
-  /** a long catch-up while the game is open is spread over frames, at most this many seconds of play a frame (about
-   *  0.1 s of work), so the page never freezes */
-  chunk: 30 * 60,
+  /** a long catch-up while the game is open is spread over frames, at most this many seconds of play a frame, so the
+   *  page never freezes: 5 minutes, about 0.06 to 0.1 s of work on a desktop computer (6 to 7 microseconds a step of
+   *  play, the whole camp built), a few times that on a phone; the catch-up comes out the same, over more frames */
+  chunk: 5 * 60,
   /** the "While you were away" note shows only after the game was closed (0.0.21), when at least this many seconds of
    *  play were caught up (a minute) and he did something in them */
   note: 60,

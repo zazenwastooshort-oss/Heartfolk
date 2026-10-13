@@ -19,8 +19,9 @@ export const SECTIONS: { id: Section; tab: string; name: string }[] = [
 ];
 
 /** What unsticks a page: the first time he has an item (carried or stored), comes near a place, has built something
- *  (data/making.ts, a structure that stands), or reaches a goal (data/goals.ts: it is the one he is on, or done). */
-export type Found = { item: string } | { near: Place } | { built: MakeId } | { goal: string };
+ *  (data/making.ts, a structure that stands), reaches a goal (data/goals.ts: it is the one he is on, or done), or can
+ *  first build one of the camp's upgrades (data/building.ts). */
+export type Found = { item: string } | { near: Place } | { built: MakeId } | { goal: string } | { upgrade: true };
 
 /** One page. by: a goal (by id) by which a player surely knows it: an old save from before the book that reached that
  *  goal has the page already (the thing may have been used up since). */
@@ -68,6 +69,9 @@ export const SURVIVAL: SurvivalDef[] = [
     text: 'He sleeps at his bedtime (Settings), or early if you tap the shelter. He wakes rested, and gathers quicker until dusk.' },
   { id: 'tip:chest', section: 'tips', title: 'A full backpack', found: { built: 'chest' },
     text: 'A full backpack goes into the chest by itself, and his tools are kept there. He fetches the one he needs.' },
+  // (the camp build, D18) a long press can't be seen, so the book tells of it once there is something to upgrade
+  { id: 'tip:hold', section: 'tips', title: 'Your camp', found: { upgrade: true },
+    text: 'Hold a finger on a building, or right-click it, to see what you can do there: upgrade it, store things, sleep.' },
   { id: 'tip:styles', section: 'tips', title: 'Fighting', found: { goal: 'practice' },
     text: 'Each way of fighting trains its own skill. He moves on to the next by himself.' },
   { id: 'tip:food', section: 'tips', title: 'Food in a fight', found: { goal: 'rats' },
@@ -86,29 +90,37 @@ export const MAKE_NOTES: Partial<Record<MakeId, string>> = {
   woodpile: 'Logs stacked beside the fire, ready for the night.',
   shelter: 'The torn tarp over a frame of logs, with planks to sleep on.',
   stone_pickaxe: 'A heavier, pointed stone lashed to a branch. It breaks rock.',
-  chest: 'Logs held together with copper. It keeps your things safe by the shelter.',
+  chest: 'Logs held together with copper. It keeps your things safe in the shelter.',
   dummy: 'Logs and sacking on a post. A safe thing to learn to fight on.',
   stone_club: 'A heavy branch with a round stone lashed to its end. It hits hard.',
   rod: "Long branches, and thread from the tarp's frayed edge for a line.",
   hide_cap: 'Two hides stitched into a snug cap.',
   hide_vest: 'Four hides to cover your chest.',
   hide_shield: 'Hides stretched over a frame of branches, strapped to your arm.',
-  log_bench: 'Two logs on short stumps. Somewhere to sit by the fire.',
-  workbench: 'Split logs for a top, log legs, all lashed with fibre. Better than working on your knees.',
-  lean_to: 'A sloping frame of logs, roofed with bark and tied with fibre. Drier than the tarp.',
-  log_hut: 'Log walls with clay pressed into the gaps, a roof and a chimney. A proper home.',
+  wall_tent: 'A squared frame of logs round the old canvas, lashed with fibre, a plank floor and a porch. Snug and dry.',
+  log_cabin: 'Round logs notched at the corners, clay in the gaps, a loft and a stone chimney. A proper home.',
+  stone_hearth: 'A raised ring of stones set in clay round the fire, a spit across it and logs to sit on.',
+  woodshed: 'A bark roof on four posts over the firewood, to keep it dry, and a block to split logs on.',
 };
 
-/** Where things are built, for the Making pages ("Built at the fire spot"); 'here' is wherever he stands, 'placed'
- *  wherever the player sets it down. A site with no words here says nothing of where. */
-export const SITE_WHERE: Partial<Record<SiteId | 'here' | 'placed', string>> = {
+/** Where things are built, for the Making pages ("Built at the fire spot"); 'here' is wherever he stands. A site with no
+ *  words here says nothing of where. */
+export const SITE_WHERE: Partial<Record<SiteId | 'here', string>> = {
   hearth: 'Built at the fire spot.',
   tent: 'Built at the shelter spot by the fire.',
-  chest: 'Built beside the shelter.',
   woodpile: 'Stacked beside the fire.',
   dummy: 'Built on the grass west of the fire.',
   here: 'Made wherever you stand.',
-  placed: 'Built wherever you set it down.',
+};
+
+/** Where one thing is built, for its Making page, when its site's words (SITE_WHERE) don't say it best: the storage
+ *  chest, furniture in the shelter, and the camp's upgrades, each in place of the thing before it. */
+export const MAKE_WHERE: Partial<Record<MakeId, string>> = {
+  chest: 'Kept inside the shelter, by the door.',
+  wall_tent: 'Built round the tent, at the shelter spot.',
+  log_cabin: 'Built in place of the wall tent, at the shelter spot.',
+  stone_hearth: 'Built round the campfire.',
+  woodshed: 'Built over the firewood pile, beside the fire.',
 };
 
 /** Journal lines on a page of the book. */

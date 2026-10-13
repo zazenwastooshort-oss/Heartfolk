@@ -31,6 +31,7 @@ import { cued } from '../src/core/thoughts';
 import { awayText } from '../src/ui/away';
 import { NEEDS_TEXT } from '../src/ui/needs';
 import { bedtimeText, hourLabel } from '../src/ui/bedtime';
+import { MAKES } from '../src/data/making';
 
 const at = (day: number, hour: number) => (day + hour / 24) * DAY_SECONDS;
 const hourOf = (time: number) => dayFraction(time) * 24;
@@ -58,14 +59,16 @@ const workingOn = (state: GameState, resource: string) => {
 /** Just short of hungry: he gets hungry `in` seconds of play from now. */
 const nearlyHungry = (s: Setup, inSeconds = 1) => { s.state.needs.fullness = HUNGER.hungry + HUNGER.perDay / DAY_SECONDS * inSeconds; };
 
-/** A camp at the goal `goal` (every goal before it done, never counting which they are), morning on day 1. */
+/** A camp at the goal `goal` (every goal before it done, never counting which they are), morning on day 1. Without
+ *  its `shelter` (so he works through the night, not to bed) there is no storage chest either: since the camp build the
+ *  chest stands in the shelter. */
 function campAt(goal: string, { shelter = true, hour = 8 } = {}): Setup {
   const s = setup(CAMP), before = GOALS.slice(0, GOALS.findIndex(g => g.id === goal));
   s.state.goalsDone = before.map(g => g.id);
   for (const g of before) {
     const make = g.makes;
     if (!make) continue;
-    if (['campfire', 'woodpile', 'shelter', 'chest', 'dummy'].includes(make)) { if (make !== 'shelter' || shelter) s.state.built.push(make as GameState['built'][number]); }
+    if (['campfire', 'woodpile', 'shelter', 'chest', 'dummy'].includes(make)) { if ((make !== 'shelter' && make !== 'chest') || shelter) s.state.built.push(make as GameState['built'][number]); }
     else if (make === 'stone_axe') s.state.tools.axe = true;
     else if (make === 'stone_pickaxe') s.state.tools.pick = true;
     else if (make === 'rod') s.state.tools.rod = true;
@@ -78,7 +81,8 @@ function campAt(goal: string, { shelter = true, hour = 8 } = {}): Setup {
 }
 
 describe('hunger (data)', () => {
-  it('about one cooked fish a day: a fish is a meal, berries a little; hungry about 13 minutes after the first goal about food', () => {
+  // (a long simulation, given the time it needs beside the whole suite on a busy machine)
+  it('about one cooked fish a day: a fish is a meal, berries a little; hungry about 13 minutes after the first goal about food', { timeout: 20_000 }, () => {
     expect(FOOD.cooked_fish!.fills).toBeGreaterThanOrEqual(HUNGER.full - HUNGER.hungry);
     expect(FOOD.cooked_fish!.fills / HUNGER.perDay).toBeCloseTo(1, 1);
     expect(FOOD.berries!.fills).toBeLessThan(FOOD.cooked_fish!.fills / 2);
@@ -208,7 +212,7 @@ describe('hungry', () => {
   });
 
   it('mid-fight with the rats and nothing on him: once the rat is down, to the chest for a bite, then back to the rats', () => {
-    const s = campAt('rats', { shelter: false });
+    const s = campAt('rats');
     s.state.skills.vitality = XP_TABLE[40]!; s.state.health = maxHealth(s.state);
     s.state.bank = { cooked_fish: 8 };
     s.state.player.backpack = { cooked_fish: 1 };
@@ -447,21 +451,22 @@ describe('bedtime', () => {
   });
 
   it('mid-build: he leaves what he builds for bed, and goes back to it once he is up', () => {
+    // (the camp build: the woodshed, the firewood pile's upgrade, in place of the log bench there was)
     const s = campAt(AFTER_FOOD, { hour: 0.5 });
-    s.state.bank = { birch_logs: 20, branch: 6 };
+    s.state.bank = { birch_logs: 30, bark: 6 };
     s.state.player.pos = { x: 3, z: -1 };
-    send(s, { type: 'build', id: 'log_bench', at: { x: -1, z: -2.5 }, turn: 0 });
-    runUntil(s, () => (s.state.underway.log_bench ?? 0) > 3, 60);
+    send(s, { type: 'build', id: 'woodshed' });
+    runUntil(s, () => (s.state.underway.woodshed ?? 0) > 3, 60);
     expect(s.state.player.task.kind).toBe('raise');
     s.state.time = at(1, 1) - 1;                                         // a moment before his bedtime
     runUntil(s, () => of(s, 'bedtime').length > 0, 120);
-    const worked = s.state.underway.log_bench!;
+    const worked = s.state.underway.woodshed!;
     expect(worked).toBeGreaterThan(0);
-    expect(s.state.needs.bed!.back).toEqual({ raise: 'log_bench' });
+    expect(s.state.needs.bed!.back).toEqual({ raise: 'woodshed' });
     runUntil(s, () => of(s, 'awake').length > 0, DAY_SECONDS);
-    expect(s.state.underway.log_bench).toBe(worked);
-    runUntil(s, () => s.state.built.includes('log_bench'), 120);
-    expect(s.state.built).toContain('log_bench');
+    expect(s.state.underway.woodshed).toBe(worked);
+    runUntil(s, () => s.state.built.includes('woodshed'), MAKES.woodshed.time + 30);
+    expect(s.state.built).toContain('woodshed');
   });
 
   it('mid-fight, a rat or a goblin: the fight is finished first, then bed, then back to them', () => {
@@ -526,28 +531,28 @@ describe('bedtime', () => {
   });
 
   it('a Build start tapped while he sleeps is kept (in a save too), and he sets about it when he wakes', () => {
+    // (the camp build: the woodshed in place of the log bench there was; nothing is placed, so a kept build is its id)
     const s = campAt(AFTER_FOOD, { hour: 0.99 });
-    s.state.bank = { birch_logs: 20, branch: 6 };
+    s.state.bank = { birch_logs: 30, bark: 6 };
     runUntil(s, () => s.state.player.task.kind === 'sleep', 120);
-    const spot = { x: -1, z: -2.5 };
-    send(s, { type: 'build', id: 'log_bench', at: spot, turn: 5 });
+    send(s, { type: 'build', id: 'woodshed' });
     expect(of(s, 'whenAwake')).toHaveLength(1);
-    expect(s.state.needs.later).toMatchObject({ type: 'build', id: 'log_bench', at: spot });
-    expect(s.state.underway.log_bench).toBeUndefined();
-    // a save keeps it, its turn one of the four
+    expect(s.state.needs.later).toEqual({ type: 'build', id: 'woodshed' });
+    expect(s.state.underway.woodshed).toBeUndefined();
+    // a save keeps it
     const loaded = deserialize(serialize(s.state), CAMP);
-    expect(loaded.needs.later).toEqual({ type: 'build', id: 'log_bench', at: spot, turn: 1 });
+    expect(loaded.needs.later).toEqual({ type: 'build', id: 'woodshed' });
     const edit = (later: unknown) => { const r = JSON.parse(serialize(s.state)); r.needs.later = later; return deserialize(JSON.stringify(r), CAMP).needs.later; };
-    expect(edit({ type: 'build', id: 'log_bench', at: { x: 'a', z: 1 }, turn: 2 })).toEqual({ type: 'build', id: 'log_bench' });
-    expect(edit({ type: 'build', id: 'log_bench', at: spot, turn: 'x' })).toEqual({ type: 'build', id: 'log_bench', at: spot, turn: 0 });
-    expect(edit({ type: 'build', id: 'log_bench', at: spot, turn: -3 })).toEqual({ type: 'build', id: 'log_bench', at: spot, turn: 1 });
-    expect(edit({ type: 'build', id: 'nope', at: spot })).toBeNull();
+    // one kept by an older game, with where it was placed: its id only
+    expect(edit({ type: 'build', id: 'woodshed', at: { x: -1, z: -2.5 }, turn: 2 })).toEqual({ type: 'build', id: 'woodshed' });
+    expect(edit({ type: 'build', id: 'nope' })).toBeNull();
+    expect(edit({ type: 'build', id: 7 })).toBeNull();
     // he wakes, and sets about it from the save
     const t = { ...s, state: loaded, log: [] as GameEvent[] };
     t.events.on(e => t.log.push(e));
     runUntil(t, () => of(t, 'awake').length > 0, DAY_SECONDS);
     expect(hourOf(loaded.time)).toBeCloseTo(wakeHour(SLEEP.bedtime), 2);
-    expect(loaded.underway.log_bench).toBeDefined();
+    expect(loaded.underway.woodshed).toBeDefined();
     runUntil(t, () => loaded.player.task.kind === 'raise', 60);
     expect(loaded.player.task.kind).toBe('raise');
   });
@@ -574,7 +579,8 @@ describe('bedtime', () => {
     const s = campAt('dummy', { shelter: false, hour: 19.5 });
     s.state.woodpile = 10;
     send(s, { type: 'work', nodeId: 'camp_copper1' });
-    runUntil(s, () => s.state.time > at(2, 3), DAY_SECONDS);
+    // (his backpack kept from filling: with no shelter there is no chest to empty it into)
+    runUntil(s, () => { s.state.player.backpack = {}; return s.state.time > at(2, 3); }, DAY_SECONDS);
     expect(of(s, 'bedtime')).toHaveLength(0);
     expect(workingOn(s.state, 'copper_rock')).toBe(true);
   });

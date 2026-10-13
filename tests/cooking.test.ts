@@ -18,12 +18,15 @@ import { applyCommands, type Command } from '../src/systems/commands';
 import { backpackCount } from '../src/systems/backpack';
 import { GOALS } from '../src/data/goals';
 import { COOK, burnChance } from '../src/data/cooking';
+import { DOOR } from '../src/data/building';
+import { standsOf } from '../src/world/steps';
 import { STOKE } from '../src/data/fire';
 import { BACKPACK_SLOTS } from '../src/data/hauling';
 import { XP_TABLE } from '../src/data/xp';
 import { awayText } from '../src/ui/away';
 
-const FIRE = CAMP.hearth.pos, CHEST = CAMP.camp!.chest.pos;
+/** The fire, and the shelter's door (the tent's), where the chest in it is used since the camp build. */
+const FIRE = CAMP.hearth.pos, CHEST = standsOf(CAMP, 'shelter')[0]!;
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.z - b.z);
 const at = (day: number, hour: number) => (day + hour / 24) * DAY_SECONDS;
 const NIGHTFALL = STOKE.at * 24;
@@ -151,7 +154,7 @@ describe('cooking at the campfire', () => {
     expect(s.state.player.pending).toEqual({ kind: 'visit', id: 'chest' });
     expect(s.state.player.cook).toEqual({ fetch: true });
     runUntil(s, () => s.state.player.cook?.fetch === false, 60);
-    expect(dist(s.state.player.pos, CHEST)).toBeLessThan(CAMP.camp!.chest.radius + 1);
+    expect(dist(s.state.player.pos, CHEST)).toBeLessThanOrEqual(DOOR.near);
     expect(s.state.bank).toEqual({ birch_logs: 6 });                           // the fish taken, the logs left
     expect(s.state.player.backpack).toEqual({ cooked_fish: 2, berries: 3, raw_fish: 5 });
     expect(count(s, 'banked')).toBe(0);
@@ -244,7 +247,7 @@ describe('cooking at the campfire', () => {
     send(s, { type: 'cook' });
     expect(s.state.player.pending).toEqual({ kind: 'visit', id: 'chest' });
     runUntil(s, () => count(s, 'stokeOff') > 0, 5);
-    expect(dist(s.state.player.pos, CHEST)).toBeGreaterThan(CAMP.camp!.chest.radius + 1);   // still on his way
+    expect(dist(s.state.player.pos, CHEST)).toBeGreaterThan(DOOR.near);   // still on his way
     // a fetch for cooking isn't a trip to store things: the backpack (not full) isn't emptied at the chest
     expect(s.state.player.stoke).toEqual({ back: { cook: true }, logs: 0, empty: false, from: 'chest' });
     runUntil(s, () => count(s, 'stoked') > 0, 120);
@@ -321,7 +324,7 @@ describe('saving while cooking', () => {
     raw = base(); raw.player.cook = { fetch: true };                           // fetching, but standing at the fire cooking
     expect(load(raw).player.cook).toBeNull();
     raw = base(); raw.player.task = { kind: 'idle' }; raw.player.cook = { fetch: true }; raw.player.pending = { kind: 'visit', id: 'chest' };
-    raw.player.path = [{ ...CHEST, x: CHEST.x - 1.2 }]; raw.built = ['campfire', 'shelter'];   // fetching from a chest not built
+    raw.player.path = [{ ...CHEST }]; raw.built = ['campfire', 'shelter'];   // fetching from a chest not built
     expect(load(raw).player.cook).toBeNull();
     // stoking that goes back to cooking keeps that; with no campfire it goes back to nothing
     raw = base(); raw.player.cook = null; raw.player.task = { kind: 'walk' }; raw.player.pending = { kind: 'visit', id: 'woodpile' };
@@ -378,7 +381,6 @@ describe('away time while cooking', () => {
 describe('long run (headless)', () => {
   it('three days of berries, fishing and cooking round the camp, stoking every night, with nothing broken or stuck', () => {
     const s = campAt('meal', { seed: 21 }), pick = createRng(99), p = s.state.player;
-    s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
     s.state.tools.rod = true; s.state.woodpile = 20; s.state.bank = { birch_logs: 30 };
     const nav = navFor(CAMP, s.state.built), spots = CAMP.nodes.filter(n => n.resource === 'fishing_spot');
     const bushes = CAMP.pickups!.filter(x => x.kind === 'bush');

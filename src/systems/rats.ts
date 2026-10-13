@@ -14,13 +14,13 @@
 // everything else's luck is as it was. The goblin camp (systems/goblins.ts) fights the same way and shares what is
 // here: hitting back on a timer (attackHim), pottering about (potter), setting off with food, being knocked out and
 // waking at camp.
-import { maxHealth, type GameState, type RatState } from '../core/state';
+import { canSleep, maxHealth, type GameState, type RatState } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Rng } from '../core/rng';
 import type { Layout, NestSpot, Vec2 } from '../world/layout';
 import { siteOf } from '../world/layout';
-import { navFor } from '../world/nav';
-import { placedRects } from '../core/building';
+import { walkGrid } from '../core/building';
+import { chestHere, shelterDoor } from '../core/camp';
 import { facing, freshRat, ratsOf, ratSpot, type RatSpot } from '../core/rats';
 import { targetOf } from '../core/targets';
 import { goVisit } from '../actors/player';
@@ -47,9 +47,9 @@ const BEST_FIRST = Object.keys(FOOD).sort((a, b) => FOOD[b]!.heals - FOOD[a]!.he
 /** Whether he carries any food. */
 export const carriesFood = (state: GameState) => BEST_FIRST.some(f => (state.player.backpack[f] ?? 0) > 0);
 
-/** Food in the storage chest, where it stands (none before it is built). */
+/** Food in the storage chest, where it is (none before it is built). */
 export const chestFood = (state: GameState, layout: Layout) =>
-  !!siteOf(layout, 'chest') && state.built.includes('chest') ? BEST_FIRST.reduce((a, f) => a + (state.bank[f] ?? 0), 0) : 0;
+  chestHere(state, layout) ? BEST_FIRST.reduce((a, f) => a + (state.bank[f] ?? 0), 0) : 0;
 
 /** Set off to fight `id` (core/targets.ts): straight there, or for a creature that hits back (a rat) with no food in his
  *  backpack but some in the chest, by way of the chest for some first (a trip { fight }, systems/hauling.ts); with no
@@ -99,17 +99,17 @@ export function stockUp(state: GameState, events: EventBus, store = false): void
   if (Object.keys(items).length) events.emit({ type: 'tookFood', items });
 }
 
-/** Where he wakes after being knocked out: in front of the shelter, facing the fire; with no shelter, beside the fire,
- *  facing it; with neither, where a new game starts. */
+/** Where he wakes after being knocked out: at the shelter's door (core/camp.ts; whichever shelter stands, or is begun
+ *  round it), facing the fire; with no shelter, beside the fire, facing it; with neither, where a new game starts. */
 export function wakeSpot(state: GameState, layout: Layout): { pos: Vec2; heading: number } {
-  const nav = navFor(layout, state.built, placedRects(state)), fire = siteOf(layout, 'hearth'), tent = siteOf(layout, 'tent');
+  const nav = walkGrid(state, layout), fire = siteOf(layout, 'hearth'), door = shelterDoor(state, layout);
   const lit = !!fire && state.built.includes('campfire');
   const beside = (site: { pos: Vec2; radius: number }, towards: Vec2, gap: number) => {
     const d = dist(site.pos, towards) || 1;
     return nav.nearestWalkable({ x: site.pos.x + (towards.x - site.pos.x) / d * (site.radius + gap), z: site.pos.z + (towards.z - site.pos.z) / d * (site.radius + gap) });
   };
-  if (tent && state.built.includes('shelter')) {
-    const towards = lit ? fire!.pos : layout.start, pos = beside(tent, towards, 0.5);
+  if (door && canSleep(state, layout)) {
+    const towards = lit ? fire!.pos : layout.start, pos = nav.nearestWalkable(door);
     return { pos, heading: facing(pos, towards) };
   }
   if (lit) { const pos = beside(fire!, layout.start, 1); return { pos, heading: facing(pos, fire!.pos) }; }
@@ -194,7 +194,7 @@ export interface Potterer { pos: Vec2; to: Vec2 | null; restUntil: number; headi
  *  a straight line from it, and apart from the others (`others()`: where they are and where they move to); or null
  *  when no such spot comes up just now. `index` sets its moves apart from the others'. */
 function nextSpot(state: GameState, layout: Layout, ground: Ground, index: number, r: Potterer, others: () => readonly Potterer[], pace: Pace): Vec2 | null {
-  const nav = navFor(layout, state.built, placedRects(state));
+  const nav = walkGrid(state, layout);
   for (let k = 0; k < 6; k++) {
     const a = noise(index + 1, state.time + k * 0.37) * Math.PI * 2;
     const len = pace.hop[0] + noise(state.time + 0.5, index + k + 1) * (pace.hop[1] - pace.hop[0]);

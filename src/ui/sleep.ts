@@ -1,18 +1,22 @@
-// Sleeping in the shelter (12 Oct 2026): the notices that go with it, a slow "z" drifting up over the tent while he
-// sleeps, and the day and night dial beside the clock (the owner: "a radial for day and night"): a small disc, the day
-// pale and the night dark, noon at the top and midnight at the bottom, with a hand at the time of day. Listens to events
-// and reads the game; changes nothing in it.
+// Sleeping in the shelter (12 Oct 2026): the notices that go with it, a slow "z" drifting up over the shelter while he
+// sleeps (over the one drawn at the tent's spot: the tent, the wall tent, the log cabin), and the day and night dial
+// beside the clock (the owner: "a radial for day and night"): a small disc, the day pale and the night dark, noon at the
+// top and midnight at the bottom, with a hand at the time of day. Listens to events and reads the game; changes nothing
+// in it.
 import type { EventBus } from '../core/events';
 import type { GameState } from '../core/state';
 import { dayFraction } from '../core/clock';
+import { stepShown } from '../core/building';
 import { wakeLabel } from './needs';
-import { siteOf, type Layout } from '../world/layout';
+import type { Layout } from '../world/layout';
+import { stepPlace } from '../world/steps';
 import { STOKE } from '../data/fire';
+import { MAKES } from '../data/making';
 import type { Hud } from './hud';
 
-/** The notices, in plain words. */
+/** The notices, in plain words (by day, he isn't tired yet: in the shelter he would sleep in, by its name). */
 export const SLEEP_TEXT = {
-  cantSleep: "He isn't tired yet. He can sleep in the shelter once night falls.",
+  cantSleep: (shelter: string) => `He isn't tired yet. He can sleep in the ${shelter} once night falls.`,
   bedLater: "He'll stoke the fire first, then go to bed.",
   fellAsleep: (until: number) => `Goodnight. He sleeps until ${wakeLabel(until)}.`,
   awake: 'He wakes up well rested: gathering goes faster until nightfall.',
@@ -39,12 +43,13 @@ export function dialSvg(): string {
 /** The notices that go with sleeping. */
 export function sleepNotices(events: EventBus, hud: Hud): void {
   events.on(e => {
-    if (e.type === 'cantSleep' || e.type === 'bedLater' || e.type === 'awake') hud.notice(SLEEP_TEXT[e.type]);
+    if (e.type === 'bedLater' || e.type === 'awake') hud.notice(SLEEP_TEXT[e.type]);
+    else if (e.type === 'cantSleep') hud.notice(SLEEP_TEXT.cantSleep(MAKES[e.shelter].name.toLowerCase()));
     else if (e.type === 'fellAsleep') hud.notice(SLEEP_TEXT.fellAsleep(e.until));
   });
 }
 
-/** The dial, the "Rested" chip beside it, and the "z" over the tent while he sleeps. */
+/** The dial, the "Rested" chip beside it, and the "z" over the shelter while he sleeps. */
 export class SleepHud {
   private zIn = 0;
   private hand: Element | null;
@@ -64,7 +69,8 @@ export class SleepHud {
     this.zIn -= dt;
     if (this.zIn > 0) return;
     this.zIn = 1.1;
-    const tent = siteOf(this.layout, 'tent');
-    if (tent) this.hud.drift('z', tent.pos);
+    // over the middle of the shelter drawn at the tent's spot (a wall tent, from half built on)
+    const shown = stepShown(state, 'tent'), place = shown ? stepPlace(this.layout, shown) : null;
+    if (place) this.hud.drift('z', place.pos);
   }
 }

@@ -31,7 +31,7 @@ export const THOUGHTS: ThoughtDef[] = [
   { id: 'goal:shelter', cue: { goal: 'shelter' }, text: 'The tarp over a frame of logs would keep me dry.' },
   { id: 'goal:stone_pickaxe', cue: { goal: 'stone_pickaxe' }, text: 'A pointed stone might break into those rocks.' },
   { id: 'goal:copper', cue: { goal: 'copper' }, text: "There's green in those grey rocks. Copper, I'd say." },
-  { id: 'goal:chest', cue: { goal: 'chest' }, text: "I can't carry everything. A chest by the shelter." },
+  { id: 'goal:chest', cue: { goal: 'chest' }, text: "I can't carry everything. A chest in the shelter." },
   { id: 'goal:dummy', cue: { goal: 'dummy' }, text: 'Something moves in those woods. I should learn to fight.' },
   { id: 'goal:stone_club', cue: { goal: 'stone_club' }, text: "A heavy branch with a stone on the end. That'll do." },
   { id: 'goal:practice', cue: { goal: 'practice' }, text: 'Time to swing at that dummy until it feels right.' },

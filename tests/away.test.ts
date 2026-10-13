@@ -5,6 +5,7 @@
 // The "While you were away" note lists what he did: systems/away.ts counts it from the events and keeps what the note
 // tells (tellAway), ui/away.ts words it.
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { createState, owned, SAVE_VERSION, type GameState } from '../src/core/state';
 import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
@@ -12,7 +13,7 @@ import { STEP } from '../src/core/loop';
 import { DAY_SECONDS, isNight, nightOf } from '../src/core/clock';
 import { clearSave, deserialize, load, readSave, save, SAVE_KEY, serialize, type Storage } from '../src/core/save';
 import { awayOnOpening, catchUp, catchUpAway, step } from '../src/sim';
-import { addSpan, closedFor, didSomething, emptySummary, FrameClock, openFor, tally, tellAway, worthNoting } from '../src/systems/away';
+import { addSpan, Behind, closedFor, didSomething, emptySummary, FrameClock, openFor, tally, tellAway, worthNoting } from '../src/systems/away';
 import { applyCommands, type Command } from '../src/systems/commands';
 import { awayText, duration } from '../src/ui/away';
 import { CAMP } from '../src/world/camp';
@@ -22,6 +23,7 @@ import { AWAY } from '../src/data/away';
 import { STOKE } from '../src/data/fire';
 import { RESOURCES } from '../src/data/skills';
 import { levelFor } from '../src/data/xp';
+import { MAKES } from '../src/data/making';
 
 /** Any real time will do: the game never reads the clock itself, main.ts hands it in. */
 const NOW = Date.UTC(2026, 9, 12, 9, 0, 0);
@@ -49,8 +51,7 @@ function campSet(seed = 5): Setup {
 /** That camp at `hour` o'clock with a few logs in the chest for the fire, him at work on `nodeId`. */
 function working(nodeId = 'camp_birch1', hour = 9): Setup {
   const s = campSet();
-  s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
-  s.state.bank = { birch_logs: 6 };
+  s.state.bank = { birch_logs: 6, bark: MAKES.woodshed.needs.bark! };   // (the woodshed's bark: none peeled while he chops)
   s.state.time = at(0, hour);
   send(s, { type: 'work', nodeId });
   run(s, 10);
@@ -68,12 +69,15 @@ function reopen(state: GameState, savedAt: number | undefined, layout: Layout = 
   events.on(e => log.push(e));
   return { ...loaded, ...catchUpAway(loaded.state, loaded.savedAt, NOW, { layout, rng: createRng(seed), events }), log };
 }
-/** The same game played on for `seconds` with the same luck, as if it had never closed. */
-function playedOn(state: GameState, seconds: number, layout: Layout = CAMP, seed = 7) {
+/** The same game played on with the same luck, as catchUpAway plays it: `open` seconds with the game open (a hidden
+ *  page, or a background tab: he goes to bed at his bedtime), then `closed` seconds of play while it was closed (he
+ *  doesn't go to bed then: the owner, 13 Oct 2026). */
+function playedOn(state: GameState, time: { open?: number; closed?: number }, layout: Layout = CAMP, seed = 7) {
   const s = readSave(serialize(state), layout).state, events = new EventBus(), summary = emptySummary();
   events.on(e => tally(summary, e));
   const ctx = { layout, rng: createRng(seed), events };
-  for (let n = Math.round(seconds / STEP); n > 0; n--) step(s, STEP, ctx);
+  for (let n = Math.round((time.open ?? 0) / STEP); n > 0; n--) step(s, STEP, ctx);
+  for (let n = Math.round((time.closed ?? 0) / STEP); n > 0; n--) step(s, STEP, { ...ctx, away: true });
   return { state: s, summary };
 }
 function memory(): Storage & { data: Map<string, string> } {
@@ -132,7 +136,7 @@ describe('saves say when they were written (format 8)', () => {
     const s = working();
     const v7 = JSON.stringify({ ...JSON.parse(serialize(s.state)), version: 7 });
     const loaded = readSave(v7, CAMP);
-    expect(SAVE_VERSION).toBe(11);
+    expect(SAVE_VERSION).toBe(12);
     expect(loaded.state.version).toBe(SAVE_VERSION);
     expect(loaded.savedAt).toBeNull();
     expect(loaded.state).toEqual(s.state);
@@ -162,8 +166,8 @@ describe('opening the game after it was closed', () => {
     expect(r.savedAt).toBe(NOW - HOUR);
     expect(r.away).toMatchObject({ real: 3600, counted: 3600, open: false });
     expect(r.state.time - s.state.time).toBeCloseTo(12 * 60, 3);
-    // exactly as if the game had stayed open 12 minutes
-    const ref = playedOn(s.state, 12 * 60);
+    // exactly as if he had played on 12 minutes (closed, he never goes to bed: the owner, 13 Oct 2026)
+    const ref = playedOn(s.state, { closed: 12 * 60 });
     expect(r.state).toEqual(ref.state);
     expect(r.summary).toEqual(ref.summary);
     // and that is 12 minutes' worth: logs at the birch's rate (trips to the chest included), 10 XP each
@@ -225,12 +229,13 @@ describe('opening the game after it was closed', () => {
     expect(awayText([r.away], r.summary).lines).toContain('One night there were no logs, so the fire burned low.');
   });
 
-  it('what he was making when the game closed gets finished, and the note says so', () => {
+  it('T2.13: what he was building when the game closed gets finished, and the note says so', () => {
     const s = campSet();
     s.state.built = ['campfire', 'shelter']; s.state.goalsDone = s.state.goalsDone.filter(g => g !== 'chest');
     s.state.player.backpack = { birch_logs: 10, copper_ore: 3 };
-    send(s, { type: 'make', id: 'chest' });
+    send(s, { type: 'build', id: 'chest' });
     run(s, 2);
+    expect(s.state.underway).toEqual({ chest: expect.any(Number) });
     expect(s.state.built).not.toContain('chest');
     const r = reopen(s.state, NOW - 10 * MIN);
     expect(r.state.built).toContain('chest');
@@ -257,7 +262,7 @@ describe('opening the game after it was closed', () => {
     send(s, { type: 'work', nodeId: 'copper1' });
     run(s, 20);
     const r = reopen(s.state, NOW - HOUR, VILLAGE);
-    expect(r.state).toEqual(playedOn(s.state, 12 * 60, VILLAGE).state);
+    expect(r.state).toEqual(playedOn(s.state, { closed: 12 * 60 }, VILLAGE).state);
     const ore = r.summary.items.copper_ore!, copper = RESOURCES.copper_rock!;
     expect(ore).toBeGreaterThan(12 * 60 / copper.time * 0.6);
     expect(r.summary.xp).toEqual({ mining: ore * copper.xp });
@@ -279,7 +284,7 @@ describe('opening the game after it was closed', () => {
 describe('a game left open in a background tab', () => {
   it('catches up at full speed, the same as playing on', () => {
     const s = working();
-    const ref = playedOn(s.state, 10 * 60, CAMP, 5);
+    const ref = playedOn(s.state, { open: 10 * 60 }, CAMP, 5);
     const away = openFor(10 * 60);
     const summary = catchUp(s.state, away.game, { ...s.ctx, rng: createRng(5) });
     expect(s.state).toEqual(ref.state);
@@ -287,6 +292,54 @@ describe('a game left open in a background tab', () => {
     expect(worthNoting(away, summary)).toBe(true);
     expect(awayText([away], summary).lead).toBe('Away 10 min. The game was still open, so he worked all that time at full speed.');
     expect(awayText([openFor(5 * 3600)], summary).lead).toBe('Away 5 h. The game was still open, so he worked all that time at full speed.');
+  });
+});
+
+describe('a long catch-up while the game is open, a frame at a time (main.ts simulate, AWAY.chunk)', () => {
+  it('a frame\'s share of it is a short moment of work, even with the whole camp built', () => {
+    const whole = readFileSync(new URL('./fixtures/camp/whole-camp.json', import.meta.url), 'utf8');
+    const once = () => {
+      const s = setup(CAMP), state = readSave(whole, CAMP).state, started = process.cpuUsage();
+      catchUp(state, AWAY.chunk, { ...s.ctx, rng: createRng(3) });
+      const used = process.cpuUsage(started);
+      return (used.user + used.system) / 1000;
+    };
+    // (the processor time of this test's own process, the better of two tries: about 0.06 to 0.1 s on a desktop)
+    expect(AWAY.chunk).toBeLessThanOrEqual(5 * 60);
+    expect(Math.min(once(), once())).toBeLessThan(250);
+  });
+});
+
+describe("what is still to catch up when the page is hidden or closed again (main.ts simulate: Behind)", () => {
+  it('is a frame at a time, AWAY.chunk each, the real time it stands for going down with it', () => {
+    const behind = new Behind();
+    behind.add(openFor(HOUR / 1000).game, HOUR / 1000);
+    expect(behind.next()).toBe(AWAY.chunk);
+    expect(behind.play).toBe(3600 - AWAY.chunk);
+    expect(behind.owedMs).toBeCloseTo(HOUR - AWAY.chunk * 1000, 3);
+    while (behind.play > 0) behind.next();
+    expect(behind.owedMs).toBe(0);
+    behind.add(NaN, -1);                                            // broken or negative times: nothing
+    expect(behind.play).toBe(0);
+    expect(behind.next()).toBe(0);
+  });
+
+  it('a save made before a long catch-up is done says the game was played up to only as far as it was caught up, so none of the rest is lost: the page closed, it is caught up when it opens again', { timeout: 20_000 }, () => {
+    const s = working(), from = s.state.time, store = memory(), behind = new Behind();
+    const clock = new FrameClock(0, NOW - HOUR - 16);
+    clock.frame(16, NOW - HOUR);
+    clock.hide();                                                   // the screen off for an hour, the game open
+    const real = clock.frame(2016, NOW);
+    behind.add(openFor(real).game, real);
+    catchUp(s.state, behind.next(), s.ctx);                         // the first frame's share
+    expect(s.state.time - from).toBeCloseTo(AWAY.chunk, 3);
+    // and a second later the page is closed (or the phone closes it), the rest not caught up yet
+    save(store, s.state, clock.playedTo - behind.owedMs, NOW + 1000);
+    const loaded = load(store, CAMP)!;
+    expect(loaded.savedAt).toBeCloseTo(NOW - HOUR + AWAY.chunk * 1000, 0);
+    // opened again straight away: the rest of the hour (and the second before it closed) is played, at full speed
+    awayOnOpening(loaded, false, NOW + 1000, { layout: CAMP, rng: createRng(7), events: new EventBus() });
+    expect(loaded.state.time - from).toBeCloseTo(3600 + 1, 0);
   });
 });
 
@@ -345,7 +398,7 @@ describe('opening the page (awayOnOpening, as main.ts calls it)', () => {
     const r = awayOnOpening(loaded, false, NOW, { layout: CAMP, rng: createRng(7), events: new EventBus() })!;
     expect(r.away).toMatchObject({ real: 3600, counted: 3600, open: false });
     expect(loaded.state.time - s.state.time).toBeCloseTo(12 * 60, 3);
-    expect(loaded.state).toEqual(playedOn(s.state, 12 * 60).state);
+    expect(loaded.state).toEqual(playedOn(s.state, { closed: 12 * 60 }).state);
     expect(tellAway(null, r.away, r.summary, false)).toEqual({ spans: [r.away], summary: r.summary });
   });
 
@@ -482,7 +535,8 @@ describe('the "While you were away" note', () => {
 });
 
 describe('hidden, then closed (0.0.21)', () => {
-  it('the time hidden before the game closed counts at full speed and isn’t told; only the time closed is away time', () => {
+  // (a long simulation: about 3 s alone, more beside the whole suite on a busy machine, so it is given the time)
+  it('the time hidden before the game closed counts at full speed and isn’t told; only the time closed is away time', { timeout: 20_000 }, () => {
     const s = working();
     // played up to 3 hours ago, then hidden; the page closed an hour ago
     const loaded = readSave(serialize(s.state, NOW - 3 * HOUR, NOW - HOUR), CAMP);
@@ -490,8 +544,8 @@ describe('hidden, then closed (0.0.21)', () => {
     const r = catchUpAway(loaded.state, loaded.savedAt, NOW, { ...s.ctx, rng: createRng(5) }, loaded.closedAt);
     expect(r.away).toEqual(closedFor(NOW - HOUR, NOW));
     expect(r.away.game).toBeCloseTo(12 * 60);
-    // the same as playing on for the 2 hours hidden and then 12 minutes
-    const ref = playedOn(s.state, 2 * 3600 + 12 * 60, CAMP, 5), open = playedOn(s.state, 2 * 3600, CAMP, 5);
+    // the same as playing on for the 2 hours hidden (to bed at his bedtime) and then 12 minutes closed (not)
+    const ref = playedOn(s.state, { open: 2 * 3600, closed: 12 * 60 }, CAMP, 5), open = playedOn(s.state, { open: 2 * 3600 }, CAMP, 5);
     expect(loaded.state).toEqual(ref.state);
     // the note tells only what he did in the 12 minutes after it closed
     const logs = (x: { summary: ReturnType<typeof emptySummary> }) => x.summary.items.birch_logs ?? 0;

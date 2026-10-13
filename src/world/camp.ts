@@ -3,11 +3,13 @@
 // and flows on to the south-west. He washes up on the pool's bank with nothing, and wreckage washed up with him:
 // planks, a torn tarp, a smashed crate and his book, strewn along the bank. Stones and branches lie round the clearing,
 // and (for building, data/building.ts) reeds and clay along the river bank.
-// The camp starts bare: the campfire, the firewood pile, the shelter (a tent), the storage chest and (0.0.22) the
-// training dummy have their spots here and are built later. Since chapter 2 berry bushes grow in a patch east of the
-// fire, fish rise in the pool and along the river, and rats live round a nest in the edge of the woods downriver; past
-// them, where the river leaves the valley, goblins have made a camp in a small clearing by the bank, blocking the way
-// on. The village lies far up the river and comes much later (world/layout.ts, VILLAGE).
+// The camp starts bare: the campfire, the firewood pile, the shelter (a tent) and (0.0.22) the training dummy have
+// their spots here and are built later (the storage chest, since the camp build, in the shelter by its door, with no
+// spot of its own); each spot keeps room for its largest upgrade (the stone hearth, the woodshed, the log cabin: SHAPES
+// in data/building.ts). Since chapter 2 berry bushes grow in a patch east of the fire, fish rise in the pool and along
+// the river, and rats live round a nest in the edge of the woods downriver; past them, where the river leaves the
+// valley, goblins have made a camp in a small clearing by the bank, blocking the way on. The village lies far up the
+// river and comes much later (world/layout.ts, VILLAGE).
 // Data only, like the village: x east, z south, in metres; the camera starts looking north at the falls.
 import type { Area, Falls, GoblinCampSpot, Layout, NodeSpot, PickupSpot, TreeKind, TreeSpot, Vec2 } from './layout';
 import type { PickupKind } from '../data/pickups';
@@ -27,23 +29,23 @@ const fish = (id: string, x: number, z: number): NodeSpot => ({ id, resource: 'f
 
 function seeded(seed: number) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
-// where the campfire and the shelter, a tent, are built (data/making.ts): nothing stands there at the start. Once it
-// stands, the tent (village.glb's Tent) is in the way by its canvas, 1.9 m wide and 2.4 deep; its ring, and where he
-// stands to build it, reach round its corners and pegs (1.53 m from its middle).
+// where the campfire and the shelter, a tent, are built (data/making.ts): nothing stands there at the start. TENT_SIZE
+// (village.glb's Tent's canvas, 1.9 m wide and 2.4 deep, and a ring 1.55 m round its corners and pegs) is the tent's
+// footprint as it was from 0.0.18 to 0.0.30, kept only as the reference tests/layout.test.ts (T11.8) checks the tent's
+// SHAPES entry against: since the camp build (0.0.31) what is in the way, where he stands and the ring all come from
+// SHAPES in data/building.ts (world/steps.ts), and nothing in the game reads these numbers.
 const FIRE = W(2.4, 3.0), TENT = W(-1.6, 5.8), TENT_SIZE = { w: 1.9, d: 2.4, radius: 1.55 };
-// where the storage chest is built (0.0.19): beside the tent on its south-east side, a little forward of its middle,
-// facing the fire, on open ground between the tent and the fire with room to walk round it. It is 0.9 m across and
-// 0.56 deep; its ring reaches just round its corners. It stands 2.9 m from the tent's middle, so its ring and tap area
-// stay clear of the tent's (1.75 m and 1.92 m out from the tent's middle; the chest's 0.8 m and 0.97 m).
-const CHEST = W(0.9, 7.3), CHEST_SIZE = { w: 0.9, d: 0.56, radius: 0.6 };
 // where the firewood pile is stacked (0.0.21): beside the fire on its east side, end on to it, with room to walk
-// between them. Logs on two bearers, 1.2 m along and 0.6 across; its ring reaches just round its ends.
-const WOODPILE = W(4.6, 2.2), WOODPILE_SIZE = { w: 1.2, d: 0.6, radius: 0.75 };
+// between them. Since the camp build (13 Oct 2026) 0.9 m further out along its line from the fire than before (4.6,
+// 2.2), so the woodshed it becomes and the stone hearth's seats have room between them (tests/layout.test.ts).
+// WOODPILE_SIZE (logs on two bearers, 1.2 m along and 0.6 across, a ring just round its ends) is its footprint from
+// 0.0.21 to 0.0.30, kept only as T11.8's reference, like TENT_SIZE: the game goes by SHAPES.
+const WOODPILE = W(5.45, 1.89), WOODPILE_SIZE = { w: 1.2, d: 0.6, radius: 0.75 };
 // where the training dummy stands (0.0.22): on the open grass west of the fire, between the shelter and the pool's bank,
 // clear of the camp's other spots and of the stones and branches, with room to walk all round it. A post with its
 // crossbar running east to west, side on to the camera as it starts (looking north), so it reads as a dummy (he
 // strikes it from whichever side is nearest); it is in the way out to its radius, which reaches past the crossbar's
-// ends.
+// ends (DUMMY_SIZE: since 0.0.31 T11.8's reference too; the game goes by SHAPES.dummy).
 const DUMMY = W(-2.8, 1.2), DUMMY_SIZE = { radius: 0.5 };
 // the rats' nest (chapter 2, part 2): in the edge of the woods downriver, south-west of the camp along the river bank, a
 // short walk from the shelter, out of the way of the fishing spots' banks and the camp's other spots. A mound of straw
@@ -124,9 +126,9 @@ export const CAMP: Layout = {
   river: RIVER,
   paths: [],                            // nobody has worn a track here yet
   parcels: [],
-  // the shelter's spot, the storage chest's, the firewood pile's and the training dummy's (siteOf)
+  // the shelter's spot (the storage chest stands in the shelter), the firewood pile's and the training dummy's (siteOf)
   camp: {
-    tent: { pos: TENT, rot: facing(TENT, FIRE), ...TENT_SIZE }, chest: { pos: CHEST, rot: facing(CHEST, FIRE), ...CHEST_SIZE },
+    tent: { pos: TENT, rot: facing(TENT, FIRE), ...TENT_SIZE },
     woodpile: { pos: WOODPILE, rot: facing(WOODPILE, FIRE), ...WOODPILE_SIZE },
     dummy: { pos: DUMMY, rot: 0, ...DUMMY_SIZE },
   },
@@ -139,8 +141,9 @@ export const CAMP: Layout = {
     ['tarp', -12.0, -2.6, 0.8],
     ['crate', -10.4, -5.6, 0.5],
     // stones round the clearing and along the bank
+    // (the fifth lay at (-3.8, 7.6) before the camp build, 13 Oct 2026: where the log cabin's back wall now goes)
     ['stone', -9.6, -2.0, 0], ['stone', -3.0, -9.6, 1.2], ['stone', 3.6, -6.2, 2.1], ['stone', 5.2, 4.4, 0.4],
-    ['stone', -3.8, 7.6, 2.8], ['stone', 11.8, -11.4, 1.7], ['stone', -13.6, 6.4, 0.9],
+    ['stone', -5.0, 8.2, 2.8], ['stone', 11.8, -11.4, 1.7], ['stone', -13.6, 6.4, 0.9],
     // branches fallen under the birches and the bushes
     ['branch', 7.0, -6.6, 0.4], ['branch', 10.4, -1.4, 2.2], ['branch', 11.2, 7.6, 1.3], ['branch', -4.6, 9.4, 2.9],
     ['branch', -9.6, 4.2, 0.7], ['branch', 2.4, 12.4, 1.8],

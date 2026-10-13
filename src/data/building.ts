@@ -1,64 +1,219 @@
 // Building it yourself (the owner, 12 Oct 2026: "any skill and action should take time, because that's the grind:
-// seeing your village grow"), as tables only. Some things in MAKES (data/making.ts) go up in stages over time, training
-// Carpentry as he works (systems/building.ts): the small things he places himself (the Build list's see-through copy,
-// turned and set down on a half-metre grid: core/building.ts says where it fits), and the shelter's upgrades, built in
-// place at the tent's spot: the tent becomes a lean-to, then a log hut. Each is built once. New materials for them:
-// fibre cut from the reeds along the river bank and clay dug there (data/pickups.ts), and bark peeled now and then while
+// seeing your village grow"; the camp build, 13 Oct 2026), as tables only. Everything built at the camp's spots (MAKES
+// in data/making.ts) goes up in stages over time, training Carpentry as he works (systems/building.ts): the campfire,
+// the firewood pile, the tent, the storage chest and the training dummy, each when its goal comes up, and the camp's
+// upgrades, each built at its fixed spot in place of the step before it, and bigger: the tent becomes a wall tent, then
+// a log cabin; the campfire a stone hearth; the firewood pile a woodshed (LINES). Each step has its own shape at its
+// spot (SHAPES): where it stands, what of it is in the way, where he works at it. Materials: birch logs, stones, fibre
+// cut from the reeds along the river bank and clay dug there (data/pickups.ts), and bark peeled now and then while
 // chopping birch (BARK).
 import type { MakeId } from './making';
 
-/** How building in stages goes: every `knock` seconds of work is a knock of his mallet, worth `xp` Carpentry XP (so a
- *  thing's XP is its time in knocks: the log bench's 30 seconds are 10 knocks, 40 XP), about what chopping birch gives
- *  for the time; it goes up in `stages` stages (footings, frame, half built, then done), each seen at its site. */
-export const CARPENTRY = { knock: 3, xp: 4, stages: 3 };
+/** How building in stages goes: every `knock` seconds of work is a knock, worth `xp` Carpentry XP (so a thing's XP is
+ *  its time in knocks: the wall tent's 2 minutes are 40 knocks, 160 XP; his mallet swings over and over meanwhile,
+ *  render/arms.ts malletSwing), about what chopping birch gives
+ *  for the time; it goes up in `stages` stages (footings, frame, half built, then built), each seen at its spot. A new
+ *  step is drawn in place of the one before it from stage `shown` on (half built; until then the old one stands inside
+ *  the new one's stakes and frame), and the old one is used (slept in, stoked, stacked) until the new one is built.
+ *  `speed`: each Carpentry level above 1 makes the work this much quicker (+1%, D5), like the other skills: the same
+ *  knocks and XP in less time (a knock is `knock` seconds of the work at level 1). `reach`: how far from the face he
+ *  builds he stands, so his mallet lands on it (his stands in SHAPES; how far he leans down to something low is SHAPES'
+ *  lean). */
+export const CARPENTRY = { knock: 3, xp: 4, stages: 3, shown: 2, speed: 0.01, reach: 0.65 };
 
 /** What each stage looks like, for the Build list and the notices: the stage he has reached (0 to `stages`). */
 export const STAGE_NAMES = ['Footings', 'Frame', 'Half built', 'Built'] as const;
 
 /** A thing built in stages (data/making.ts has its needs, time and words):
- *  level: the Carpentry level it needs.
- *  after: what must stand first (GameState.built) before the Build list has it.
- *  size: for a thing he places himself (MAKES' at 'placed'), its width across and depth along the way it faces, in
- *  metres; it is in the way like the chest (world/nav.ts). None for the shelter's upgrades, which take the tent's spot.
- *  upgrades: the shelter it replaces once he starts on it (the lean-to the tent, the log hut the lean-to).
+ *  upgrades: the step before it in its line (LINES), which must stand before it can be begun, and which it takes the
+ *  place of (the wall tent the tent, the log cabin the wall tent, the stone hearth the campfire, the woodshed the
+ *  firewood pile). One without (the camp's first five) can be begun once its goal comes up (data/goals.ts `makes`),
+ *  and until then nothing of it shows (the owner, 13 Oct 2026: "not visible until you put it down to build").
+ *  inside: (the storage chest) it stands in what is built at that spot (the shelter), so it can be begun only once
+ *  something stands there.
  *  rest: (a shelter) how much more often gathering yields after a night's sleep in it, instead of SLEEP.bonus.
  *  blurb: one plain line for the Build list. */
 export interface StagedDef {
-  level: number;
-  after: MakeId[];
-  size?: { w: number; d: number };
-  upgrades?: MakeId;
-  rest?: number;
   blurb: string;
+  upgrades?: MakeId;
+  inside?: LineId;
+  rest?: number;
 }
 
+/** Everything built in stages, in the Build list's order: the camp's first five in the order their goals come, then
+ *  the upgrades. */
 export const STAGED: Partial<Record<MakeId, StagedDef>> = {
-  log_bench: { level: 1, after: ['campfire', 'chest'], size: { w: 1.4, d: 0.5 }, blurb: 'A split log on two stumps. Somewhere to sit by the fire.' },
-  workbench: { level: 1, after: ['chest'], size: { w: 1.4, d: 0.8 }, blurb: 'A sturdy bench to work at. Carpentry will be done here one day.' },
-  lean_to: { level: 2, after: ['shelter', 'chest'], upgrades: 'shelter', rest: 0.35, blurb: 'A roof of bark on a log frame, in place of the tent. He sleeps better in it.' },
-  log_hut: { level: 3, after: ['lean_to'], upgrades: 'lean_to', rest: 0.5, blurb: 'Log walls sealed with clay, and a proper roof. He sleeps best of all here.' },
+  campfire: { blurb: 'A ring of stones round planks leaned together. It lights up the camp at night.' },
+  woodpile: { blurb: 'Logs stacked on two bearers beside the fire, to stoke it from at night.' },
+  shelter: { blurb: 'The torn tarp over a frame of logs, with planks for a floor. Somewhere dry to sleep.' },
+  chest: { inside: 'tent', blurb: 'A box of split logs with copper straps, to keep everything he owns safe.' },
+  dummy: { blurb: 'A post and crossbar of logs with a stuffed sack. Somewhere safe to learn to fight.' },
+  wall_tent: { upgrades: 'shelter', rest: 0.35, blurb: 'A squared timber frame round the old canvas, a plank floor and a porch. He sleeps better in it.' },
+  log_cabin: { upgrades: 'wall_tent', rest: 0.5, blurb: 'Round logs notched at the corners, a loft and a stone chimney. He sleeps best of all here.' },
+  stone_hearth: { upgrades: 'campfire', blurb: 'A raised ring of stones round the fire, a spit over it and logs to sit on.' },
+  woodshed: { upgrades: 'woodpile', blurb: 'A bark roof over the firewood, the logs stacked end on, and a chopping block.' },
 };
 
-/** The shelters he sleeps in, worst to best: each a structure in MAKES. */
-export const SHELTERS: MakeId[] = ['shelter', 'lean_to', 'log_hut'];
+/** The shelters he sleeps in, worst to best: each a structure in MAKES, the tent's line. */
+export const SHELTERS: MakeId[] = ['shelter', 'wall_tent', 'log_cabin'];
+
+/** The camp's spots, each with what is built there, first to last: the first step, then its upgrades. The storage
+ *  chest is in none: it is furniture in the shelter, by its door (SHAPES' chest), whichever shelter stands. */
+export type LineId = 'hearth' | 'tent' | 'woodpile' | 'dummy';
+export const LINES: Record<LineId, MakeId[]> = {
+  hearth: ['campfire', 'stone_hearth'],
+  tent: ['shelter', 'wall_tent', 'log_cabin'],
+  woodpile: ['woodpile', 'woodshed'],
+  dummy: ['dummy'],
+};
+
+/** Upgrades come once the camp is set up: the Build list has one only once this stands, as well as the step before it
+ *  (since 0.0.27; D4). */
+export const UPGRADES_AFTER: MakeId = 'chest';
+
+/** A point in a step's own frame, in metres: x across (to his right, looking at its front), z towards the fire (its
+ *  front, door and porch face the fire). */
+export type StepPoint = readonly [number, number];
+
+/** Something of a step in the way of walking, in its own frame: a box from x0 to x1 across and z0 to z1 along, or a
+ *  ring round a middle (x, z) of radius r. Walking keeps clear of each as of a building (world/nav.ts). */
+export type Block = { box: readonly [x0: number, x1: number, z0: number, z1: number] } | { ring: readonly [x: number, z: number, r: number] };
+
+/** A step's shape at its spot (world/steps.ts places it):
+ *  at: how far its middle is from the spot's, along the way the spot faces (towards the fire: + nearer it; a bigger
+ *  step grows back and to the sides, so the front stays about where it was). turn: radians it is turned beyond the
+ *  spot's facing.
+ *  blocks: what of it is in the way, every step's inside the next one's (nested).
+ *  reach: how far round its middle its ring (and its tap area) reaches. tall: how high its tap area goes.
+ *  stands: where he stands to build it and use it (CARPENTRY.reach in front of a face), on walkable ground; a
+ *  shelter's is its door, where he goes in and out, sleeps, and uses the chest in it (core/camp.ts shelterDoor).
+ *  builds: where he stands to build it instead, where at its stands his mallet would come down on nothing of it, or on
+ *  what stands inside it (the woodshed's open front, the old firewood pile in it; the log cabin's porch, with the wall
+ *  tent's porch and its chest on it): on walkable ground, each facing its middle, his strike landing on a part of it
+ *  that is there at every stage (tests/campmodels.test.ts).
+ *  chest: (a shelter) where the middle of the storage chest sits in it, by the door (it faces out of the door, as the
+ *  shelter does): just inside the tent's open front, on the wall tent's and the log cabin's porches, its front at the
+ *  front of the floor, so he reaches it from the door (the tent's, where it is built, by CARPENTRY.reach; the cabin's
+ *  porch roof reaches out 0.17 m past its floor). floor: (a shelter) how high the floor the chest stands on is (the
+ *  tent's planks, the wall tent's and the log cabin's porches), so it is drawn standing on it. spit: (a fire) the
+ *  spit's two posts and its height, where his fish cooks (render/cooking.ts). furniture: (the chest) it stands inside
+ *  the shelter and blocks nothing of its own; its blocks are its own box where it sits, at its shelter's `chest`.
+ *  lean: how far he leans down (radians, forward) as his mallet lands, at each stage he builds it (footings, frame,
+ *  half built), so it comes down on what is there (render/arms.ts malletLean; tests/campmodels.test.ts checks every
+ *  stage from every stand); none (0) for what is as high as his swing. aim: (the chest) where on it, in its own frame,
+ *  he aims his strikes from the shelter's door (core/camp.ts buildSpot), when not at its middle. */
+export interface Shape {
+  at?: number;
+  turn?: number;
+  blocks: readonly Block[];
+  reach: number;
+  tall: number;
+  stands?: readonly StepPoint[];
+  builds?: readonly StepPoint[];
+  chest?: StepPoint;
+  floor?: number;
+  spit?: { posts: readonly [StepPoint, StepPoint]; height: number };
+  furniture?: boolean;
+  lean?: readonly [footings: number, frame: number, half: number];
+  aim?: StepPoint;
+}
+
+/** Each structure's shape at its spot, step by step (the designs the owner picked, 13 Oct 2026: docs/designs/; models
+ *  in wt/designs/designs/models.ts). The campfire, the firewood pile, the tent and the training dummy block exactly as
+ *  their spots did before (world/camp.ts); the storage chest, furniture in the shelter since the camp build, blocks
+ *  nothing. */
+export const SHAPES: Partial<Record<MakeId, Shape>> = {
+  // the fire spot: a ring of stones round the fire; then (turned a little, so its seats clear the woodshed) a raised
+  // ring of stones with a spit across it, a split log on stumps behind, a plain log in front and a stump stool. Each
+  // seat is in the way along all of its length, a ring every quarter metre or less, each wide enough that a walk past
+  // it keeps his legs clear of the log (world/nav.ts keeps less room round a ring than round a box; the camp build's
+  // stage 6, tests/wholecamp.test.ts)
+  campfire: { blocks: [{ ring: [0, 0, 0.62] }], reach: 0.62, tall: 0.8, lean: [0.6, 0.6, 0.6] },
+  stone_hearth: {
+    turn: 0.35,
+    blocks: [
+      { ring: [0, 0, 1.15] },
+      { ring: [0.56, -1.63, 0.3] }, { ring: [0.31, -1.6, 0.3] }, { ring: [0.06, -1.57, 0.3] }, { ring: [-0.19, -1.54, 0.3] },
+      { ring: [-0.43, -1.51, 0.3] }, { ring: [-0.68, -1.48, 0.3] }, { ring: [-0.93, -1.45, 0.3] },
+      { ring: [-1.08, 1.2, 0.3] }, { ring: [-0.89, 1.27, 0.3] }, { ring: [-0.7, 1.34, 0.3] }, { ring: [-0.51, 1.41, 0.3] },
+      { ring: [-0.33, 1.48, 0.3] }, { ring: [-0.14, 1.55, 0.3] }, { ring: [0.05, 1.61, 0.3] },
+      { ring: [1.24, -0.76, 0.3] },
+    ],
+    reach: 2.05, tall: 1.0, lean: [0.5, 0.5, 0.45],
+    stands: [[-1.8, 0], [1.8, 0.25]],
+    spit: { posts: [[0, 0.95], [0, -0.95]], height: 0.86 },
+  },
+  // the tent's spot: the tent (the tarp over a log frame, its door to the fire); the wall tent round it, its guy-rope
+  // stakes out to the sides and its porch to the front; the log cabin round that, with its chimney up the left side
+  shelter: { blocks: [{ box: [-0.95, 0.95, -1.2, 1.2] }], reach: 1.55, tall: 1.6, stands: [[0, 1.85]], chest: [0, 0.86], floor: 0.05, lean: [0.5, 0, 0] },
+  wall_tent: {
+    at: -0.7,
+    blocks: [{ box: [-1.75, 1.75, -1.6, 1.5] }, { box: [-1.3, 1.3, 1.5, 2.4] }],
+    reach: 2.75, tall: 2.9, stands: [[0, 3.05]], chest: [-0.72, 2.09], floor: 0.16, lean: [0, 0, 0],
+  },
+  log_cabin: {
+    at: -1.0,
+    blocks: [{ box: [-2.02, 2.02, -1.8, 1.65] }, { box: [-2.8, -1.84, -1.05, -0.05] }, { box: [-1.85, 1.85, 1.65, 2.7] }],
+    reach: 3.3, tall: 4.2, stands: [[0.5, 3.35]], builds: [[2.85, 0.47]], chest: [0.95, 2.25], floor: 0.18, lean: [0.25, 0.25, 0.25],
+  },
+  // beside the fire: logs on two bearers; then a woodshed over them, its chopping block at its right
+  woodpile: { blocks: [{ box: [-0.6, 0.6, -0.3, 0.3] }], reach: 0.75, tall: 0.9, stands: [[0, 0.95]], lean: [0.55, 0.55, 0.5] },
+  woodshed: {
+    blocks: [{ box: [-0.9, 0.9, -0.67, 0.7] }, { ring: [1.18, 0.3, 0.25] }],
+    reach: 1.5, tall: 1.7, stands: [[0, 1.35], [-1.55, 0]], builds: [[1.52, 0.94]], lean: [0.3, 0.2, 0.2],
+  },
+  dummy: { blocks: [{ ring: [0, 0, 0.5] }], reach: 0.5, tall: 1.7, lean: [0.6, 0.2, 0] },
+  // the storage chest: furniture in the shelter, by its door (the owner, 13 Oct 2026: "maybe chest is just furniture in
+  // the tent or house"), at each shelter's `chest`; a box of logs 0.9 m across and 0.56 deep, in the way of nothing
+  // (built from the shelter's door, all but upright: leaning further in, his head would go into the tent; his strikes
+  // aimed at its right end, where the tent's side comes down low enough for his head to stay above and outside it; the
+  // tent's open end is rolled back clear of his swing, render/campmodels.ts TENT_OPEN)
+  chest: { furniture: true, blocks: [{ box: [-0.45, 0.45, -0.28, 0.28] }], reach: 0.6, tall: 0.9, lean: [0.2, 0.2, 0.2], aim: [0.4, 0] },
+};
+
+/** Going in and out of the shelter (core/camp.ts shelterDoor: the stand of the shelter step furthest out, built or
+ *  begun): he is at its door within `near` metres of it (and so at the chest in it), and the door keeps `slack` metres
+ *  of open ground to each side of it and in front of it, so a re-tune can't squeeze it shut (tests/chest.test.ts). */
+export const DOOR = { near: 0.5, slack: 0.25 };
+
+/** Going back to something half built by himself (the owner, 13 Oct 2026: "player is committed to building it"; D9,
+ *  D19): once nothing else has him (stoking the fire, a meal, bed, a tap that ends by itself), he goes back to it at
+ *  once, or `wait` seconds after a walk he was sent on ends (a tap on the ground); when there was no way there, he
+ *  looks again `retry` seconds later. Work that doesn't end by itself (chopping, a fight) keeps him until it does. */
+export const RESUME = { wait: 5, retry: 10 };
+
+/** The marker a spot shows while its goal asks for what is built there (the camp build, D1; render/structures.ts):
+ *  stakes `stake` metres high at the corners of the first step's footprint with a string between them, a cloth flag
+ *  `flag` metres up, a soft glint `glint` metres across now and then over the flag, like a pickup's, every `every`
+ *  seconds, and a tap area at least `tap` metres round. For the storage chest, a square chalked on the shelter's floor
+ *  where it will stand, with the same glint. */
+export const MARKER = { stake: 0.32, flag: 0.62, glint: 0.4, every: 2.4, tap: 0.6 };
+
+/** The tap area at each of the camp's spots (core/camp.ts tapBoxOf): a cylinder round the step there furthest out,
+ *  built or begun (or the first step, while its marker shows), `pad` metres beyond its reach and as tall as it is. */
+export const TAP = { pad: 0.15 };
+
+/** A save opened with him standing where something now stands (a bigger step than when it was saved: one from before
+ *  the camp build, saved with him behind the shelter, may have a wall tent there now) moves him out to the nearest open
+ *  ground, if that is within `nudge` metres, and he carries on with what he was doing (core/save.ts); only further off
+ *  does he start again where a new game starts. */
+export const LOAD = { nudge: 4 };
+
+/** The room each spot keeps at its largest step (tests/layout.test.ts): `gap` metres from everything else in the camp
+ *  (trees, rocks, bushes, things on the ground, the other spots) and `water` from the water's edge. */
+export const LAYOUT_GAP = { gap: 0.25, water: 0.6 };
 
 /** Bark peeled while chopping birch (systems/building.ts): a `chance` per log from `tree`, once the storage chest
- *  stands (`after`) and he has taken up Carpentry, while something he can build still needs more of it than he has (so
- *  the backpack never fills with bark nothing needs). A full backpack has no room for it. */
+ *  stands (`after`), while something he can build still needs more of it than he has (so the backpack never fills with
+ *  bark nothing needs). A full backpack has no room for it. */
 export const BARK = { tree: 'birch_tree', item: 'bark', chance: 0.3, after: 'chest' as MakeId };
 
-/** Where each new material comes from, one plain line shown in the Build list under a thing that is short of it. */
+/** Where each material the upgrades use comes from, one plain line shown in the Build list under a thing that is short
+ *  of it. */
 export const SOURCES: Record<string, string> = {
+  birch_logs: 'Birch logs: chop the birch trees round the clearing.',
+  stone: 'Stones: pick them up round the clearing and along the bank. They come back after a while.',
   fibre: 'Fibre: cut it from the reeds along the river bank.',
-  bark: 'Bark: birch logs sometimes give a strip as he chops, once he has done some carpentry.',
+  bark: 'Bark: peeled now and then while chopping birch, once the storage chest stands, while something you can build needs it.',
   clay: 'Clay: dig it from the patches on the river bank.',
 };
-
-/** Placing something (core/building.ts): the grid it snaps to (metres); how much room it keeps from anything else
- *  (`gap`: other structures and their spots, trees, rocks, things on the ground; `water`: the water's edge; `him`: where
- *  he stands); how far it keeps from the rats' nest beyond where they potter (`nest`) and from the goblin camp's
- *  palisade (`goblins`); how much open ground it may leave cut off from him (`pocket`, in walking-grid cells: a sliver
- *  between it and a tree is fine, a whole stretch of the camp isn't); how far from him a new copy starts (`ahead`), and
- *  how much ground on the camera's side of it is looked over for something standing that would hide it (`sight`), each
- *  thing standing taken as this much wider than its spot (`eaves`: a roof's overhang, the hut's chimney). */
-export const PLACE = { grid: 0.5, gap: 0.25, water: 0.6, him: 0.6, nest: 0.8, goblins: 1.5, pocket: 6, ahead: 2.5, sight: 3, eaves: 0.5 };

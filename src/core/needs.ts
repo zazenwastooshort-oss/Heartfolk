@@ -2,9 +2,9 @@
 // rest of the game shares: how full he is, a meal trip to the chest under way, bed (on his way at bedtime, or asleep)
 // and when he gets up, the bedtime the player set, and the last thing tapped while he slept, done when he wakes.
 // systems/needs.ts runs them. Headless.
-import { owned, type Back, type GameState } from './state';
+import { canSleep, owned, type Back, type GameState } from './state';
 import type { Layout, Vec2 } from '../world/layout';
-import { siteOf } from '../world/layout';
+import { chestHere } from './camp';
 import { DAY_SECONDS, dayFraction, nightOf } from './clock';
 import { foeKind, foeOf } from './targets';
 import { spare } from './building';
@@ -19,7 +19,7 @@ import { makeDef, type MakeId } from '../data/making';
  *  commands that send him somewhere (systems/commands.ts has them all), the last one tapped. */
 export type Later = { type: 'walk'; to: Vec2 } | { type: 'work'; nodeId: string } | { type: 'visit'; id: string; at?: Vec2 }
   | { type: 'pickup'; id: string } | { type: 'make'; id: MakeId } | { type: 'fight'; target: string } | { type: 'cook' }
-  | { type: 'next' } | { type: 'build'; id: MakeId; at?: Vec2; turn?: number };
+  | { type: 'next' } | { type: 'build'; id: MakeId };
 
 /** In bed: what he goes back to when he gets up (null for nothing), and when he gets up (in-game seconds; null while he
  *  is on his way to bed sent early by a tap on the shelter: set once he lies down). */
@@ -95,9 +95,6 @@ export function goblinRace(state: GameState, layout: Layout): boolean {
 
 // ---- sleep ----
 
-/** Whether there is a shelter to sleep in: built at this layout's tent spot (never in the village). */
-export const hasShelter = (state: GameState, layout: Layout) => !!siteOf(layout, 'tent') && state.built.includes('shelter');
-
 /** The next time of day `hour` o'clock comes, from `time` (in-game seconds; `time` itself when it is that hour). */
 export function nextHour(time: number, hour: number): number {
   const t = Math.floor(time / DAY_SECONDS) * DAY_SECONDS + hour * DAY_SECONDS / 24;
@@ -126,11 +123,11 @@ export function wakeAt(time: number, bedtime: number, early: boolean): number {
 /** Rested after a night's sleep, he stays so until nightfall (20:00, STOKE.at), whatever time he got up. */
 export const restedTill = (time: number) => nextHour(time, STOKE.at * 24);
 
-/** Whether he is due in bed now: at the camp with the shelter standing, from his bedtime until SLEEP.late hours before
- *  his waking hour, not yet to bed tonight. */
+/** Whether he is due in bed now: at the camp with a shelter standing (the tent, the wall tent or the log cabin), from
+ *  his bedtime until SLEEP.late hours before his waking hour, not yet to bed tonight. */
 export function bedtimeNow(state: GameState, layout: Layout): boolean {
   const n = state.needs, late = SLEEP.late / 24 * DAY_SECONDS;
-  return !!layout.camp && hasShelter(state, layout) && bedHours(state.time, n.bedtime) && bedHours(state.time + late, n.bedtime)
+  return !!layout.camp && canSleep(state, layout) && bedHours(state.time, n.bedtime) && bedHours(state.time + late, n.bedtime)
     && n.slept < nightOf(state.time);
 }
 
@@ -164,32 +161,31 @@ export function savedLater(v: unknown, state: GameState, layout: Layout): Later 
     case 'fight': { const id = str('target'); return id ? { type: 'fight', target: id } : null; }
     case 'cook': return { type: 'cook' };
     case 'next': return { type: 'next' };
-    case 'build': {
-      const id = make('id'), at = spot(v.at);
-      if (!id) return null;
-      return at ? { type: 'build', id, at, turn: Number.isSafeInteger(v.turn) ? ((v.turn as number) % 4 + 4) % 4 : 0 } : { type: 'build', id };
-    }
+    // (since the camp build nothing is placed: a build tap kept from before has its id only)
+    case 'build': { const id = make('id'); return id ? { type: 'build', id } : null; }
     default: return null;
   }
 }
 
 /** His needs as saved (readSave, after his task, trip, stoking and cooking are checked): fullness a number from 0 to 1,
  *  anything else (none saved, from before needs) full; a meal trip only on his way to a chest that stands, never beside
- *  a trip, stoking or cooking; bed only with the shelter standing, asleep or on his way there, getting up within a
+ *  a trip, stoking or cooking; bed only with a shelter standing, asleep or on his way there, getting up within a
  *  night's sleep from now (asleep in a save from before bedtimes, 0.0.26 and 0.0.27, he sleeps on until his waking hour);
- *  his bedtime one of SLEEP.bedtimes, else SLEEP.bedtime; the night he last went to bed not after this one; a tap kept
- *  only while he sleeps (savedLater). `back` checks what a meal or bed goes back to (savedBack in core/save.ts). */
+ *  his bedtime one of SLEEP.bedtimes, else SLEEP.bedtime; the night he last went to bed not after this one (tonight,
+ *  asleep: on his way to bed sent early by a tap it isn't yet, so a tap elsewhere still changes his mind and he goes at
+ *  his bedtime; at his bedtime it was set as he set off); a tap kept only while he sleeps (savedLater). `back` checks
+ *  what a meal or bed goes back to (savedBack in core/save.ts). */
 export function savedNeeds(v: unknown, state: GameState, layout: Layout, back: (v: unknown) => Back | null): Needs {
   const n = isRecord(v) ? v : {}, p = state.player, fresh = freshNeeds();
   const fullness = finite(n.fullness) ? Math.min(1, Math.max(0, n.fullness)) : fresh.fullness;
   const bedtime = SLEEP.bedtimes.includes(n.bedtime as number) ? n.bedtime as number : fresh.bedtime;
   const slept = Number.isSafeInteger(n.slept) && (n.slept as number) <= nightOf(state.time) ? n.slept as number : fresh.slept;
   const retryAt = finite(n.retryAt) && n.retryAt <= state.time + 60 ? n.retryAt : fresh.retryAt;
-  const toChest = p.pending?.kind === 'visit' && p.pending.id === 'chest' && state.built.includes('chest') && !!siteOf(layout, 'chest');
+  const toChest = p.pending?.kind === 'visit' && p.pending.id === 'chest' && chestHere(state, layout);
   const meal = isRecord(n.meal) && toChest && !p.trip && !p.stoke && !p.cook ? { back: back(n.meal.back) } : null;
   const asleep = p.task.kind === 'sleep', toBed = !meal && p.pending?.kind === 'visit' && p.pending.id === 'shelter';
   let bed: Bed | null = null;
-  if (hasShelter(state, layout) && (asleep || toBed)) {
+  if (canSleep(state, layout) && (asleep || toBed)) {
     const b = isRecord(n.bed) ? n.bed : null, most = state.time + SLEEP.hours / 24 * DAY_SECONDS + 1;
     const until = b && finite(b.until) && b.until > state.time && b.until <= most ? b.until : null;
     if (b && (until !== null || (toBed && b.until === null))) bed = { back: back(b.back), until };
@@ -197,5 +193,5 @@ export function savedNeeds(v: unknown, state: GameState, layout: Layout, back: (
     else if (asleep && wakeAt(state.time, bedtime, false) - state.time <= DAY_SECONDS / 2) bed = { back: null, until: wakeAt(state.time, bedtime, false) };
   }
   const later = bed ? savedLater(n.later, state, layout) : null;
-  return { fullness, meal, bed, bedtime, slept: bed ? Math.max(slept, nightOf(state.time)) : slept, later, retryAt };
+  return { fullness, meal, bed, bedtime, slept: bed && asleep ? Math.max(slept, nightOf(state.time)) : slept, later, retryAt };
 }

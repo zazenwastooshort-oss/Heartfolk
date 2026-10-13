@@ -7,23 +7,78 @@
 // tool), the elbow bending toward its pole (PoleL/PoleR on the hips). Inside a single clip it changes nothing.
 // The tool is in his hands while he works and on short hops to the next tree or rock (toolInHand); on longer walks,
 // and whenever else he isn't working, the free clips carry it on his back with the arms keyed on their own, and ArmIK
-// leaves them be (armedWeight).
+// leaves them be (armedWeight). What he has out (heldTool): the tool for the job, his weapon, or (the camp build) his
+// mallet while he builds, swung with the Mine clip over and over as long as he works (malletSwing), leaning down as it
+// lands on something low (malletLean).
 import * as THREE from 'three';
-import type { PlayerState } from '../core/state';
-import { ARMED_CLIPS, SHORT_HOP } from '../data/animation';
+import type { GameState, PlayerState } from '../core/state';
+import type { Layout } from '../world/layout';
+import { carries } from '../core/tools';
+import { ARMED_CLIPS, SHORT_HOP, SWINGS } from '../data/animation';
+import { RESOURCES, TOOL_IDS, type ToolId } from '../data/skills';
+import type { GearId } from '../data/combat';
 
 /** Whether he has the tool in his hands: while he works a node (waiting at a stump or an empty rock included), and
  *  since 0.0.21 on a short walk to one (under SHORT_HOP along his path: on to the next tree or rock, or the last stretch
  *  of a longer walk to work). On longer walks (to work from afar, back to work from the bank) and on every other walk
  *  (to the bank, a tapped spot, a building), and the rest of the time (standing about, the moment at the bank door) it
  *  is on his back and his arms are free (the owner, 11 and 12 Oct 2026). Fighting (0.0.22: practising on the training
- *  dummy) his weapon is in his hands, as a tool is at work, and (chapter 2) on a short walk on to the next rat. */
+ *  dummy) his weapon is in his hands, as a tool is at work, and (chapter 2) on a short walk on to the next rat; building
+ *  (the camp build) his mallet. */
 export function toolInHand(p: Pick<PlayerState, 'task' | 'pending' | 'path' | 'pos'>): boolean {
-  if (p.task.kind === 'gather' || p.task.kind === 'fight') return true;
+  if (p.task.kind === 'gather' || p.task.kind === 'fight' || p.task.kind === 'raise') return true;
   if (p.task.kind !== 'walk' || (p.pending?.kind !== 'node' && p.pending?.kind !== 'fight')) return false;
   let left = 0, at = p.pos;
   for (const w of p.path) { left += Math.hypot(w.x - at.x, w.z - at.z); at = w; if (left >= SHORT_HOP) return false; }
   return true;
+}
+
+/** What he can have out: one of his tools, the weapon he wears (by its id in GEAR), or (the camp build, D11) his
+ *  mallet, which isn't one of his tools (nothing to make, fetch or keep in the chest): it is out only while he builds. */
+export type Held = ToolId | GearId | 'mallet';
+
+/** What is drawn on him (T2.11): building, the mallet in his hands; fighting, or on his way to, the weapon he wears
+ *  (`weapon`, when there is a model for it: `weapons`); fishing, the rod (only then: it is too long to carry on his
+ *  back); at work at a tree or rock, or on his way to one, its tool if he carries it; otherwise the one he last had out
+ *  (`last`) if he still carries it, else any he carries, else none. A tool kept in the storage chest isn't on him
+ *  (core/tools.ts carries). */
+export function heldTool(state: GameState, layout: Layout, last: Held | null, weapons: ReadonlySet<string>): Held | null {
+  const p = state.player, task = p.task, weapon = state.equipment.weapon;
+  if (task.kind === 'raise') return 'mallet';
+  const workId = task.kind === 'gather' ? task.nodeId : p.pending?.kind === 'node' ? p.pending.id : null;
+  const spot = workId ? layout.nodes.find(n => n.id === workId) : undefined;
+  const swing = spot ? SWINGS[RESOURCES[spot.resource]!.skill] : null;
+  const fighting = task.kind === 'fight' || p.pending?.kind === 'fight';
+  const owns = (t: Held | null | undefined): t is Held => !!t && t !== 'mallet' && (weapons.has(t) ? t === weapon : carries(state, t as ToolId));
+  const onBack = (t: Held | null | undefined): t is Held => owns(t) && t !== 'rod';
+  if (fighting && owns(weapon)) return weapon!;
+  if (swing?.tool === 'rod' && task.kind === 'gather' && owns('rod')) return 'rod';
+  if (swing && onBack(swing.tool)) return swing.tool;
+  if (onBack(last)) return last;
+  return TOOL_IDS.find(onBack) ?? null;
+}
+
+/** Where the Mine clip is (seconds into it) while he builds, after `worked` seconds of work (GameState.underway): his
+ *  mallet swung over and over, one swing straight after another, as long as he works at it (as chopping and mining
+ *  are: the owner, 13 Oct 2026, "a nice building animation movement, with a hammer or something"), each landing (the
+ *  clip's impact) a whole number of swings into the work. Carpentry XP comes on the knock (CARPENTRY.knock,
+ *  systems/building.ts), which needn't fall on a swing. */
+export function malletSwing(worked: number): number {
+  const { impact, cycle } = SWINGS.mining;
+  return ((worked + impact) % cycle + cycle) % cycle;
+}
+
+/** Leaning down as his mallet comes down on something low (SHAPES' lean in data/building.ts, by the stage he builds:
+ *  footings on the ground, a campfire's stones, a firewood pile's bearers): how far (radians, forward) `at` seconds
+ *  into the Mine clip, `most` at the moment it lands, from `from` seconds in and back up by the end of the swing, so
+ *  the strike comes down on the top of it instead of over it. */
+export const LOW_KNOCK = { from: 0.4 };
+const smooth = (x: number) => { const c = Math.min(1, Math.max(0, x)); return c * c * (3 - 2 * c); };
+export function malletLean(at: number, most: number): number {
+  const { impact, cycle } = SWINGS.mining;
+  if (most <= 0 || at <= LOW_KNOCK.from) return 0;
+  if (at < impact) return most * smooth((at - LOW_KNOCK.from) / (impact - LOW_KNOCK.from));
+  return most * (1 - smooth((at - impact) / (cycle - impact)));
 }
 
 /** How much of the blended pose comes from clips that hold the tool, for ArmIK.solve: 0 while the clip being faded

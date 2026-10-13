@@ -132,6 +132,19 @@ describe('the row in the page (index.html)', () => {
     expect(ids(shown.menu).at(-1)).toBe('test');
   });
 
+  it('the Build button can be reached on the narrowest phones (360 and 375 px, upright and sideways): in the row, or in More', () => {
+    // (the camp build: the Build window is the camp's overview, In 5) every button showing, the book's and Build's too
+    const real = buttonsOf(html).map(b => ({ ...b, hidden: false }));
+    expect(real.map(b => b.id)).toContain('build');
+    for (const [w, h] of [[360, 740], [375, 812], [740, 360], [812, 375]] as [number, number][]) {
+      const { room, measure } = railRoom(w, h), { row, menu } = railSplit(real, room, measure);
+      expect(row.some(b => b.id === 'build') || menu.some(b => b.id === 'build'), `${w}x${h}`).toBe(true);
+      // what stays in the row, and More when there is one, fits along it
+      const n = row.length + (menu.length ? 1 : 0);
+      expect(n * measure.size + (n - 1) * measure.gap + measure.pad, `${w}x${h}`).toBeLessThanOrEqual(room);
+    }
+  });
+
   it("measures the row as index.html draws it", () => {
     expect(css(/\.rail-btn \{[^}]*min-height: (\d+)px/)).toBe(String(RAIL_SIDE.size));
     expect(css(/@media \(max-width: (\d+)px\)[^{]*\{\s*\.rail \{/)).toBe(String(UPRIGHT_MAX));

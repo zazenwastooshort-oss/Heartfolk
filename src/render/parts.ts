@@ -1,11 +1,32 @@
 // Helpers for the models built in code from many small parts (gear.ts, props.ts, the goblin's club in creatures.ts):
 // one flat-shaded material per look, made once and shared, and merging a finished model's parts into one mesh per
 // material, so a phone draws a hide vest or a palisade in a handful of calls instead of one, and a shadow, for every
-// stitch and stake (village.ts merges its statics the same way).
+// stitch and stake (village.ts merges its statics the same way); and things of which as many show as there are (the
+// logs in the firewood pile or the woodshed, render/campmodels.ts), merged the same way, each mesh drawn as far as the
+// count. Also the small textures drawn on a canvas that more than one view uses: the sparkle of a glint (a pickup's,
+// a marker's).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const made = new Map<string, THREE.MeshStandardMaterial>();
+
+/** A canvas texture drawn by `draw` on a `size` square, or none without a page to draw it on (the headless tests). */
+export function canvasTexture(size: number, draw: (g: CanvasRenderingContext2D) => void): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  draw(c.getContext('2d')!);
+  return new THREE.CanvasTexture(c);
+}
+
+/** A four-pointed sparkle with a soft glow, for additive blending: a pickup's glint (render/pickups.ts), and a marker's
+ *  (render/structures.ts). */
+export const sparkleTexture = () => canvasTexture(64, g => {
+  const glow = g.createRadialGradient(32, 32, 0, 32, 32, 30);
+  glow.addColorStop(0, 'rgba(255,250,220,0.9)'); glow.addColorStop(0.25, 'rgba(255,240,190,0.35)'); glow.addColorStop(1, 'rgba(255,240,190,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, 64, 64);
+  g.fillStyle = 'rgba(255,255,240,0.95)';
+  for (const [w, h] of [[3, 30], [30, 3]]) { g.beginPath(); g.ellipse(32, 32, w!, h!, 0, 0, Math.PI * 2); g.fill(); }
+});
 
 /** A flat-shaded material of `color`, made the first time it is asked for and shared by everything that asks for the
  *  same look after that: to change one model's, give it a clone, never change this one. */
@@ -40,4 +61,46 @@ export function mergeByMaterial(root: THREE.Object3D): THREE.Group {
     out.add(mesh);
   }
   return out;
+}
+
+/** Things of which as many show as there are (the logs in the firewood pile or the woodshed), merged like
+ *  mergeByMaterial into one mesh per material, in a group: `show(n)` draws only the first n of them. */
+export interface Counted { group: THREE.Group; size: number; show(n: number): void }
+
+/** `items` (each a mesh or a group of them, placed in a shared frame), first to show first, merged into one mesh per
+ *  material: each mesh draws as far as the last item shown, so showing more or fewer costs nothing. */
+export function counted(items: THREE.Object3D[]): Counted {
+  const holder = new THREE.Group();
+  for (const it of items) holder.add(it);
+  holder.updateMatrixWorld(true);
+  const buckets = new Map<THREE.Material, { geos: THREE.BufferGeometry[]; ends: number[] }>();
+  items.forEach((it, i) => {
+    it.traverse(o => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      let g = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+      if (g.index) g = g.toNonIndexed();
+      for (const name of Object.keys(g.attributes)) if (name !== 'position' && name !== 'normal') g.deleteAttribute(name);
+      if (!g.getAttribute('normal')) g.computeVertexNormals();
+      const key = mesh.material as THREE.Material, b = buckets.get(key) ?? buckets.set(key, { geos: [], ends: [] }).get(key)!;
+      b.geos.push(g);
+      b.ends[i] = (b.ends[i] ?? 0) + g.getAttribute('position').count;
+    });
+  });
+  const group = new THREE.Group(), meshes: { mesh: THREE.Mesh; upTo: number[] }[] = [];
+  for (const [material, b] of buckets) {
+    const mesh = new THREE.Mesh(mergeGeometries(b.geos, false)!, material);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    // upTo[n]: how many vertices the first n items have in this mesh
+    const upTo = [0];
+    for (let i = 0; i < items.length; i++) upTo.push(upTo[i]! + (b.ends[i] ?? 0));
+    meshes.push({ mesh, upTo }); group.add(mesh);
+  }
+  return {
+    group, size: items.length,
+    show(n: number) {
+      const k = Math.max(0, Math.min(items.length, Math.floor(n)));
+      for (const { mesh, upTo } of meshes) { mesh.geometry.setDrawRange(0, upTo[k]!); mesh.visible = upTo[k]! > 0; }
+    },
+  };
 }

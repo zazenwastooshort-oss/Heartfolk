@@ -1,6 +1,6 @@
 // A headless player for the playthrough test (tests/playthrough.test.ts): it plays a camp game the way a sensible,
 // low-effort idle player would. It sends only what the page lets a player send (the commands the UI queues: pickup,
-// work, make, fight, cook, eat, drop, style), and decides only from what a player can see: the goal card
+// work, make, build, fight, cook, eat, drop, style), and decides only from what a player can see: the goal card
 // (the current goal, what it needs and how much of it he has, carried or in the chest), what he carries, his health,
 // what lies about the world (things on the ground, trees standing or felled, rats, goblins), what he is doing, and the
 // notices (the events the HUD turns into notices). What things give is what a player learns from the hover text and
@@ -13,7 +13,9 @@
 //   stone, a branch, a birch, a copper rock, a berry bush, a fishing spot, a rat for its hide, a goblin for the
 //   chief's map); the game gathers on by itself and stops once the goal has enough. Only a rat or goblin that is up:
 //   a beaten one has no tap area until it is back (render/rats.ts, render/goblins.ts), so with none up it waits.
-// - a making goal: what it still needs is gathered as above, then make (the goal card's Build or Make button).
+// - a making goal: what it still needs is gathered as above, then make (the goal card's Make button), or, for something
+//   built at the camp's spots (in stages since the camp build), build (the goal card's Build button); once that is
+//   begun the goal is paid for (its lines stay ticked), and he is left to build it, or sent back to it (Carry on).
 // - a levels goal: for combat styles (and Vitality) it practises on the training dummy, picking under Train a style
 //   the goal still asks for (as the notices say once one is done), and fights rats for a style the dummy has said it
 //   can teach no more of; for a gathering skill it works that skill's nearest node; for Cooking it catches fish and
@@ -30,7 +32,11 @@
 // Stoking the fire at nightfall and being knocked out are never interrupted: he goes back to work by himself. Nor
 // (his needs) are his meals and his nights in the shelter: a sensible player lets him eat and sleep (the night goes
 // by quickly while he sleeps), and he goes back by himself.
-import { allGoalsDone, canDrop, currentGoal, maxHealth, owned, type GameState } from '../src/core/state';
+// With `upgrades` (the camp build's review, PACE-no-upgrades) the player also builds up the camp: once the storage
+// chest stands, with nothing under way and the goal card offering nothing to build, he begins the first upgrade the
+// Build window offers that he has everything for, and lets him build it (the playthrough hands the materials in).
+import { allGoalsDone, canDrop, currentGoal, goalPaid, maxHealth, owned, type GameState } from '../src/core/state';
+import { begunIds, buildRows, stagedDef } from '../src/core/building';
 import type { EventBus, GameEvent } from '../src/core/events';
 import { ratUp, ratsOf } from '../src/core/rats';
 import { CHIEF_ID, goblinsOf } from '../src/core/goblins';
@@ -55,10 +61,11 @@ import { levelFor } from '../src/data/xp';
 const NOTICES = new Set<GameEvent['type']>([
   'goalLevel', 'backpackFull', 'noStorage', 'noRoom', 'cantFight', 'cantEat', 'cantCook', 'cookedAll', 'allGathered',
   'goalEnough', 'wokeUp', 'missing', 'goalFirst', 'noPath', 'needTool', 'levelTooLow', 'made', 'goalDone', 'cantDrop',
+  'cantBuild',
 ]);
 
 /** Commands that send him somewhere to do something: one that leaves him standing idle was refused. */
-const SENDS = new Set<Command['type']>(['pickup', 'work', 'make', 'fight', 'cook', 'visit', 'walk']);
+const SENDS = new Set<Command['type']>(['pickup', 'work', 'make', 'build', 'fight', 'cook', 'visit', 'walk']);
 
 /** Seconds of play between looks while the player is there. */
 const LOOK_EVERY = 1;
@@ -86,9 +93,10 @@ const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.z - b.z);
 const levelOf = (state: GameState, skill: SkillId) => levelFor(state.skills[skill] ?? 0);
 const isStyle = (s: string): s is CombatStyle => (STYLES as string[]).includes(s);
 
-/** What the current goal still asks for, as the goal card shows it. items: things still wanted (how many more), with
- *  raw fish added while cooked fish are wanted (or a Cooking level) and he is out of raw ones (or still catching
- *  them); make: the goal's thing, once everything it needs is there; cook: cook at the campfire now; styles: combat
+/** What the current goal still asks for, as the goal card shows it. items: things still wanted (how many more; none
+ *  once the goal is paid for, its thing begun), with raw fish added while cooked fish are wanted (or a Cooking level)
+ *  and he is out of raw ones (or still catching them); make: the goal's thing, once everything it needs is there (or
+ *  it is begun); cook: cook at the campfire now; styles: combat
  *  styles still short of the level the goal asks; skills: other skills still short (Vitality, a gathering skill,
  *  Cooking). */
 export interface Plan { goal: Goal; items: Record<string, number>; make: MakeId | null; cook: boolean; styles: CombatStyle[]; skills: SkillId[] }
@@ -114,8 +122,9 @@ export class Bot {
   private start: number | null = null;
   private visit = -1;
 
-  /** visits: when the player is there (Visits); null, the default, for always: an attentive player. */
-  constructor(private layout: Layout, events: EventBus, private visits: Visits | null = null) {
+  /** visits: when the player is there (Visits); null, the default, for always: an attentive player. upgrades: he also
+   *  builds every upgrade he can along the way (see above). */
+  constructor(private layout: Layout, events: EventBus, private visits: Visits | null = null, private upgrades = false) {
     events.on(e => {
       if (!NOTICES.has(e.type)) return;
       this.noticed = true;
@@ -153,7 +162,7 @@ export class Bot {
   /** What the current goal still asks for. */
   plan(state: GameState): Plan {
     const goal = currentGoal(state), def = goal.makes ? makeDef(goal.makes) : null, items: Record<string, number> = {};
-    for (const [id, n] of Object.entries(def?.needs ?? goal.needs)) { const short = n - owned(state, id); if (short > 0) items[id] = short; }
+    if (!goalPaid(state, goal)) for (const [id, n] of Object.entries(def?.needs ?? goal.needs)) { const short = n - owned(state, id); if (short > 0) items[id] = short; }
     const make = def && !Object.keys(items).length ? def.id : null;
     const levels = Object.entries(goal.levels ?? {}).filter(([id, n]) => levelOf(state, id as SkillId) < n!).map(([id]) => id as SkillId);
     const styles = levels.filter(isStyle), skills = levels.filter(s => !isStyle(s));
@@ -180,6 +189,8 @@ export class Bot {
     const plan = this.plan(state), out: Command[] = [];
     const style = this.styleFor(state, plan);
     if (style !== state.combatStyle) out.push({ type: 'style', style });
+    const up = this.upgrade(state, plan);
+    if (up) { out.push(up); return out; }
     if (this.useful(state, plan, style)) return out;
     const next = this.next(state, plan, style);
     if (!next) return out;
@@ -213,16 +224,27 @@ export class Bot {
       if ('pickupId' in trip) return this.wantsPickup(plan, trip.pickupId);
       return this.wantsFight(state, plan, trip.fight, style);
     }
-    if (task.kind === 'make') return plan.make === task.id;
+    if (task.kind === 'make' || task.kind === 'raise') return plan.make === task.id || (task.kind === 'raise' && this.upgrading(task.id));
     if (task.kind === 'gather') return this.wantsNode(plan, task.nodeId);
     if (task.kind === 'pickup') return this.wantsPickup(plan, task.id);
     if (task.kind === 'fight') return this.wantsFight(state, plan, task.target, style);
-    if (pending?.kind === 'make') return plan.make === pending.id;
+    if (pending?.kind === 'make' || pending?.kind === 'raise') return plan.make === pending.id || (pending.kind === 'raise' && this.upgrading(pending.id));
     if (pending?.kind === 'node') return this.wantsNode(plan, pending.id);
     if (pending?.kind === 'pickup') return this.wantsPickup(plan, pending.id);
     if (pending?.kind === 'fight') return this.wantsFight(state, plan, pending.id, style);
     return false;                                                   // standing about, or walking nowhere useful
   }
+
+  /** (upgrades) The upgrade to begin now: with nothing under way and the goal card offering nothing to build, the first
+   *  the Build window offers that he has everything for. */
+  private upgrade(state: GameState, plan: Plan): Command | null {
+    if (!this.upgrades || plan.make || begunIds(state).length) return null;
+    const row = buildRows(state, this.layout).find(r => !!r.staged.upgrades && !Object.keys(r.missing).length);
+    return row ? { type: 'build', id: row.id } : null;
+  }
+
+  /** (upgrades) Whether building `id` is the player's own choice, an upgrade, so he is left to build it. */
+  private upgrading(id: MakeId): boolean { return this.upgrades && !!stagedDef(id)?.upgrades; }
 
   private nodeGives(nodeId: string): string | null {
     const spot = this.layout.nodes.find(n => n.id === nodeId);
@@ -250,7 +272,7 @@ export class Bot {
 
   /** The next thing to tap: make the goal's thing, cook, the nearest source of something still wanted, or training. */
   private next(state: GameState, plan: Plan, style: CombatStyle): Command | null {
-    if (plan.make) return { type: 'make', id: plan.make };
+    if (plan.make) return stagedDef(plan.make) ? { type: 'build', id: plan.make } : { type: 'make', id: plan.make };
     if (plan.cook) return { type: 'cook' };
     let best: { command: Command; d: number } | null = null;
     for (const item of Object.keys(plan.items)) {

@@ -3,7 +3,7 @@
 // with goalLines too, so the card and the book always agree. Since the survival book (core/survival.ts) ui/book.ts no
 // longer draws these goal pages; goalLines (the card's counts, and the Making pages' counting) and opensBook are used.
 import type { GameEvent } from './events';
-import { allGoalsDone, currentGoal, goalFinished, goalMet, owned, type GameState } from './state';
+import { allGoalsDone, currentGoal, goalFinished, goalMet, goalPaid, owned, type GameState } from './state';
 import { CAMP_DONE, GOALS, type Goal } from '../data/goals';
 import { levelFor } from '../data/xp';
 import type { SkillId } from '../data/skills';
@@ -22,9 +22,10 @@ export interface BookPage {
 }
 
 /** What a goal needs and how much of each he has, as the goal card counts it: carried or stored, never more than is
- *  needed. A finished goal has every line ticked, even after its things were used up (the campfire's planks). */
+ *  needed. A finished goal has every line ticked, even after its things were used up (the campfire's planks); so does
+ *  one paid for (the camp build: the thing it makes begun, what it needed taken), while he builds it. */
 export function goalLines(state: GameState, goal: Goal): BookLine[] {
-  const finished = goalFinished(state, goal);
+  const finished = goalPaid(state, goal);
   const items = Object.entries(goal.needs).map(([id, need]) => {
     const got = finished ? need : Math.min(need, owned(state, id));
     return { id, need, got, done: got >= need };

@@ -6,6 +6,18 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.31', date: '13 Oct 2026', notes: [
+      'Nothing at the camp shows until your goal needs it. Then a few stakes, a string and a little flag mark the spot.',
+      'Everything at the camp now goes up stage by stage while he works at it with a mallet. Every knock trains Carpentry, and each level makes him a little quicker.',
+      'Once he begins building something he sees it through. If the fire, a meal, bed or one of your taps calls him away, he goes back to it afterwards.',
+      'Open Build to see your whole camp: what is under way, what you can build or upgrade, what each needs and how long it takes. Press one and he walks over to start.',
+      'Right-click a building, or hold your finger on it, to see what you can do there: look in the chest, store everything, sleep, cook, upgrade and more.',
+      'Once the chest is built, your tent can become a wall tent and then a log cabin, each bigger and more restful than the last. The campfire can become a stone hearth with a spit and log seats, and the firewood pile a woodshed.',
+      'The storage chest is now furniture inside your shelter. Tap the shelter by day to look in it, and use Store everything to empty his backpack into it. At night, a tap sends him to bed.',
+      'The log bench and the workbench are gone for now. If you had built or started them, what they took is back in your chest. A lean-to is now a wall tent, and a log hut a log cabin.',
+    ],
+  },
+  {
     version: '0.0.30', date: '13 Oct 2026', notes: [
       'Once berries are part of his story he gets hungry about once a day. He eats from his pack or the chest, then gets back to work, and never touches food your goal is counting.',
       'Every night he goes to bed in the shelter at his bedtime, sleeps 6 hours and wakes rested. Pick the hour in Settings, from 22:00 to 01:00.',

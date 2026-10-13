@@ -5,7 +5,6 @@ import { createRng } from '../src/core/rng';
 import { STEP } from '../src/core/loop';
 import { step } from '../src/sim';
 import { VILLAGE, type NodeSpot } from '../src/world/layout';
-import { navFor } from '../src/world/nav';
 import { walkTo, goWork, reachFor } from '../src/actors/player';
 import { serialize, deserialize } from '../src/core/save';
 import { applyCommands } from '../src/systems/commands';
@@ -14,6 +13,8 @@ import { RESOURCES } from '../src/data/skills';
 import { BACKPACK_SLOTS } from '../src/data/hauling';
 import { SWINGS } from '../src/data/animation';
 import { XP_TABLE } from '../src/data/xp';
+import { navFor } from '../src/world/nav';
+import { LOAD } from '../src/data/building';
 
 function setup(seed = 1) {
   const state = createState(VILLAGE, seed), events = new EventBus(), log: GameEvent[] = [];
@@ -231,8 +232,14 @@ describe('saving', () => {
     expect(() => deserialize(JSON.stringify({ ...s.state, version: 999 }), VILLAGE)).toThrow();
     const broken = JSON.parse(serialize(s.state)); broken.player.pos.x = null;
     expect(deserialize(JSON.stringify(broken), VILLAGE).player.pos).toEqual(VILLAGE.start);
-    const inside = JSON.parse(serialize(s.state)); inside.player.pos = { ...VILLAGE.buildings[0]!.pos };
-    expect(deserialize(JSON.stringify(inside), VILLAGE).player.pos).toEqual(VILLAGE.start);
+    // inside something (since the camp build): moved out to the nearest open ground, when that is near
+    const at = { ...VILLAGE.buildings[0]!.pos }, inside = JSON.parse(serialize(s.state)); inside.player.pos = at;
+    const out = deserialize(JSON.stringify(inside), VILLAGE).player.pos;
+    expect(navFor(VILLAGE).walkable(out)).toBe(true);
+    expect(Math.hypot(out.x - at.x, out.z - at.z)).toBeLessThanOrEqual(LOAD.nudge);
+    // far from any open ground: back to the start
+    const far = JSON.parse(serialize(s.state)); far.player.pos = { x: 500, z: 500 };
+    expect(deserialize(JSON.stringify(far), VILLAGE).player.pos).toEqual(VILLAGE.start);
   });
   it('upgrades a version 1 save (from the clearing) without losing progress', () => {
     const v1 = {
@@ -276,7 +283,7 @@ describe('saving', () => {
     const { backpack: _b, trip: _t, ...player } = s0.state.player;
     const v3 = { ...s0.state, version: 3, player, bank: { birch_logs: 120, copper_ore: 40 } };
     const s = deserialize(JSON.stringify(v3), VILLAGE);
-    expect(SAVE_VERSION).toBe(11);
+    expect(SAVE_VERSION).toBe(12);
     expect(s.version).toBe(SAVE_VERSION);
     expect(s.bank).toEqual({ birch_logs: 120, copper_ore: 40 });
     expect(s.player.backpack).toEqual({});

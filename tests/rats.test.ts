@@ -7,6 +7,7 @@
 // Other goals may sit between or after chapter 2's: a goal is made current by marking every goal before it done, never
 // by its position.
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { createState, currentGoal, goalFinished, maxHealth, owned, SAVE_VERSION, type GameState } from '../src/core/state';
 import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
@@ -20,6 +21,7 @@ import { catchUpAway, step } from '../src/sim';
 import { CAMP } from '../src/world/camp';
 import { VILLAGE, siteOf, type Layout, type Vec2 } from '../src/world/layout';
 import { navFor } from '../src/world/nav';
+import { standsOf } from '../src/world/steps';
 import { waterOf } from '../src/world/water';
 import { applyCommands, type Command } from '../src/systems/commands';
 import { attackRoll, defenceRoll, effectiveLevel, hitChance, maxHitOf, roll, strikeReach } from '../src/systems/combat';
@@ -125,7 +127,7 @@ describe('the nest downriver', () => {
   });
 
   it('is clear of the camp\'s spots, its trees and rocks, the fishing banks, the things to pick up; it blocks walking', () => {
-    const spots = [CAMP.hearth, CAMP.camp!.tent, CAMP.camp!.chest, CAMP.camp!.woodpile, CAMP.camp!.dummy];
+    const spots = [CAMP.hearth, CAMP.camp!.tent, CAMP.camp!.woodpile, CAMP.camp!.dummy];
     for (const o of spots) expect(dist(o.pos, NEST.pos)).toBeGreaterThan(o.radius + NEST.roam + 4);
     for (const n of CAMP.nodes) expect(dist(n.pos, NEST.pos), n.id).toBeGreaterThan(NEST.roam + 2.5);
     for (const p of CAMP.pickups!) expect(dist(p.pos, NEST.pos), p.id).toBeGreaterThan(NEST.radius + 1);
@@ -144,7 +146,8 @@ describe('the nest downriver', () => {
       expect(s.state.rats[spot.id]).toMatchObject({ health: RAT.health, downUntil: null, pos: spot.home, to: null, bite: null });
       expect(nav.findPath(CAMP.start, spot.home), spot.id).not.toBeNull();
     }
-    const places = [CAMP.start, CAMP.hearth.pos, CAMP.camp!.chest.pos, ...CAMP.nodes.map(n => n.pos)];
+    // (the chest is in the shelter, used at its door)
+    const places = [CAMP.start, CAMP.hearth.pos, standsOf(CAMP, 'shelter')[0]!, ...CAMP.nodes.map(n => n.pos)];
     for (const from of places) for (const to of places) expect(nav.findPath(nav.nearestWalkable(from), nav.nearestWalkable(to))).not.toBeNull();
   });
 
@@ -355,8 +358,7 @@ describe("a rat's bite, as in OSRS", () => {
    *  share that hurt him. */
   const bitten = (style: 'attack' | 'defence', defence: number, wear: Partial<GameState['equipment']> = {}) => {
     const s = ready(11);
-    s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
-    s.state.player.backpack = { cooked_fish: 28 };
+    s.state.player.backpack = { cooked_fish: 28 };                // (mid-fight, he never goes to bed)
     s.state.combatStyle = style;
     Object.assign(s.state.equipment, wear);
     s.state.skills.defence = XP_TABLE[defence]!; s.state.skills.vitality = XP_TABLE[60]!; s.state.health = maxHealth(s.state);
@@ -497,7 +499,6 @@ describe('food in a fight', () => {
   it('nightfall on his way to the chest for food: he takes the logs there but keeps what he carries, then fetches food', () => {
     const go = (tapChest: boolean) => {
       const s = ready();
-      s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
       s.state.woodpile = 0;                                   // the logs come from the chest
       s.state.bank = { birch_logs: 6, cooked_fish: 4 };
       s.state.player.backpack = { copper_ore: 2, rat_hide: 2 };
@@ -817,7 +818,7 @@ describe('saving the rats', () => {
     const raw = JSON.parse(serialize(s.state, Date.now()));
     delete raw.rats;
     raw.version = 10;                                          // as 0.0.22 to 0.0.24 wrote it
-    expect(SAVE_VERSION).toBe(11);
+    expect(SAVE_VERSION).toBe(12);
     const back = readSave(JSON.stringify(raw), CAMP).state;
     expect(back.rats).toEqual(Object.fromEntries(ratsOf(CAMP).map(r => [r.id, expect.objectContaining({ health: RAT.health, downUntil: null, pos: r.home, to: null, bite: null })])));
     expect(currentGoal(back)).toBe(GOALS[at('meal') + 1]);
@@ -852,9 +853,12 @@ describe('away time while fighting the rats', () => {
   const reopen = (saved: string, seed = 21) => {
     const t = setup(CAMP, seed), state = readSave(saved, CAMP).state, log: GameEvent[] = [];
     t.events.on(e => log.push(e));
-    const started = performance.now();
+    // how quick: the processor time this test's own process spent on it, so other work on the machine (the rest of the
+    // suite running beside it) doesn't count
+    const started = process.cpuUsage();
     const r = catchUpAway(state, NOW, NOW + 2 * 60 * 60 * 1000, { ...t.ctx, rng: createRng(99) });
-    return { state, r, ms: performance.now() - started, log };
+    const used = process.cpuUsage(started);
+    return { state, r, ms: (used.user + used.system) / 1000, log };
   };
 
   it('two hours closed (24 minutes of play) catch up the same every time, quickly; the note tells the rats and hides', () => {
@@ -866,7 +870,13 @@ describe('away time while fighting the rats', () => {
     const saved = serialize(s.state, NOW), a = reopen(saved), b = reopen(saved);
     expect(a.state).toEqual(b.state);
     expect(a.r.summary).toEqual(b.r.summary);
-    expect(a.ms).toBeLessThan(1000);
+    // quick against the same catch-up of the whole camp left be, timed here alongside it, so a busy machine slows both
+    // alike: fighting rats may cost a little more a step than the camp's own round, never 3 times as much (about 0.3 s
+    // alone, either of them). The better of two tries of each, so one slow moment doesn't count
+    const whole = readFileSync(new URL('./fixtures/camp/whole-camp.json', import.meta.url), 'utf8');
+    const camp = JSON.stringify({ ...JSON.parse(whole), savedAt: NOW });
+    const ref = Math.min(reopen(camp).ms, reopen(camp).ms);
+    expect(Math.min(a.ms, b.ms)).toBeLessThan(3 * ref);
     expect(a.r.away.game).toBeCloseTo(24 * 60, 0);
     const { beaten = 0, hides = 0 } = a.r.summary;
     expect(beaten).toBeGreaterThan(15);
