@@ -136,14 +136,16 @@ describe('saves say when they were written (format 8)', () => {
     const s = working();
     const v7 = JSON.stringify({ ...JSON.parse(serialize(s.state)), version: 7 });
     const loaded = readSave(v7, CAMP);
-    expect(SAVE_VERSION).toBe(12);
+    expect(SAVE_VERSION).toBe(13);
     expect(loaded.state.version).toBe(SAVE_VERSION);
     expect(loaded.savedAt).toBeNull();
-    expect(loaded.state).toEqual(s.state);
+    // (Discovery, format 13: a save from before it is given what it has come across, every bit of what was found here)
+    expect(loaded.state.discovered).toEqual(expect.arrayContaining(s.state.discovered));
+    expect({ ...loaded.state, discovered: s.state.discovered }).toEqual(s.state);
     const { away, summary } = catchUpAway(loaded.state, loaded.savedAt, NOW, s.ctx);
     expect(away.game).toBe(0);
     expect(didSomething(summary)).toBe(false);
-    expect(loaded.state).toEqual(s.state);
+    expect({ ...loaded.state, discovered: s.state.discovered }).toEqual(s.state);
     const store = memory();
     save(store, loaded.state, NOW);
     expect(load(store, CAMP)!.savedAt).toBe(NOW);

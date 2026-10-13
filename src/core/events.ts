@@ -137,6 +137,10 @@ export type GameEvent =
   | { type: 'fetchTool'; tool: ToolId }
   /** (systems/tools.ts) the first time he leaves tools in the storage chest: from now on they are kept there */
   | { type: 'toolsKept' }
+  /** (Discovery, systems/discovery.ts) he discovered `id` (data/discovery.ts: an item, or a thing in MAKES), once ever:
+   *  the first tap on it in the world, or it came into his hands, or he made or built it. None for what a new game
+   *  starts with, or an old save is given (D5) */
+  | { type: 'discovered'; id: string }
   | { type: 'arrived' };
 
 type Handler = (e: GameEvent) => void;

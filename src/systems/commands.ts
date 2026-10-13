@@ -22,6 +22,7 @@ import { stagedDef } from '../core/building';
 import { goWorkWith } from './tools';
 import { sleepsThrough, type Later } from '../core/needs';
 import { SLEEP } from '../data/sleep';
+import { discoverTapped } from './discovery';
 
 export type Command =
   | { type: 'walk'; to: Vec2 }
@@ -72,6 +73,9 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
   for (const sent of queue.splice(0)) {
     // (the camp build) making something built at the camp's spots begins it in stages: the build command
     const c: Command = sent.type === 'make' && stagedDef(sent.id) ? { type: 'build', id: sent.id } : sent;
+    // (Discovery, D1) the first tap on a thing in the world discovers what it names, whatever comes of the command (he
+    // can't use it yet, he is asleep, he is knocked out): a copper rock before the pickaxe still shows copper ore
+    discoverTapped(state, layout, c, events);
     // dropping something doesn't send him anywhere: whatever he is doing carries on, a trip to the bank (the chest)
     // or stoking the fire included
     if (c.type === 'drop') { drop(state, c.item, c.count, events); continue; }

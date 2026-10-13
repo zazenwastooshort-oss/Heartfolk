@@ -115,7 +115,7 @@ describe('cooking at the campfire', () => {
     expect(s.state.player.cook).toBeNull();
     runUntil(s, () => s.state.player.task.kind === 'idle' && !s.state.player.pending, 30);
     expect(dist(s.state.player.pos, FIRE)).toBeLessThan(CAMP.hearth.radius + 1);
-    expect(s.log.filter(e => e.type !== 'arrived' && e.type !== 'visited')).toEqual([]);
+    expect(s.log.filter(e => e.type !== 'arrived' && e.type !== 'visited' && e.type !== 'discovered')).toEqual([]);
     expect(s.state.player.backpack).toEqual({ berries: 3 });
     // once he owns one, the same tap says there is nothing to cook, and he stays put
     s.state.tools.rod = true;

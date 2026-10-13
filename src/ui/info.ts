@@ -55,7 +55,7 @@ export function infoNews(state: GameState, pages: InformationPages, seen: Seen):
 }
 
 /** A journal page's title: the days its lines are from ("Day 2", "Days 2 to 3"), "Earlier" for lines from before the
- *  book kept days (an old save's), or "Journal" while it is empty (as the book titles them, ui/book.ts). */
+ *  book kept days (an old save's), or "Journal" while it is empty (as the old book titled them). */
 export function journalTitle(page: SurvivalPage): string {
   const days = page.journal.flatMap(l => l.day === null ? [] : [l.day]);
   if (!days.length) return page.journal.length ? 'Earlier' : 'Journal';

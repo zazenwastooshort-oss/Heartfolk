@@ -1,4 +1,5 @@
-// His survival book's pages (chapter 2): what ui/book.ts draws, worked out headless so the tests can check it. In the
+// His survival book's pages (chapter 2): what the book drew (ui/book.ts, until 0.0.38: now Information's Journal and Tips,
+// ui/info.ts, and Discovery's cards, core/discovery.ts, read the same data), worked out headless so the tests can check it. In the
 // order of SECTIONS (data/survival.ts): the Journal (his thoughts so far, a few to a page, by day), Making (a page for
 // each thing whose page has come unstuck: what it needs, how many of each he has, and where it is made; done once it
 // is made), Food (with how much each heals), Materials and places, and Tips. Only pages that have come unstuck

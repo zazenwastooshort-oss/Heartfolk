@@ -297,10 +297,10 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .win-ok:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 /* wooden buttons, one look everywhere: a painted green plank (Build, the windows' own buttons), oiled amber wood for
    the main action (Got it, Place), bare wood for the rest (Drop, Turn, Cancel), each with a darker lower edge and
-   sinking when pressed; a choice not taken (text size, Train, the book's tabs, Start over) is a slot carved into the
+   sinking when pressed; a choice not taken (text size, Train, Information's tabs, Start over) is a slot carved into the
    canvas, and the one taken a green plank in it. Any other button takes the look with .btn (green), .btn.main (amber)
    or .btn.plain (bare wood) */
-.btn, .goal-build, .set-btn, .brow-go, .book-turn button, .pick-do button, .win-ok, .seg button, .train button, .book-tabs button {
+.btn, .goal-build, .set-btn, .brow-go, .pick-do button, .win-ok, .seg button, .train button {
   border: 0; border-radius: 6px; background: var(--m-plank); color: var(--ink); box-shadow: var(--lift); text-shadow: 0 1px 0 rgba(0, 0, 0, .4); cursor: pointer; }
 /* a new button's size, as the others' own rules give them theirs: a finger-sized target in the game's font */
 .btn { min-height: 44px; padding: 10px 14px; font: 700 0.875rem/1 var(--body); }
@@ -308,7 +308,7 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .btn:disabled { opacity: .45; cursor: default; }
 .btn.plain, .pick-do button:not(.eat) { background: var(--m-wood); }
 .btn.main, .win-ok { background: var(--m-amber); color: var(--button-ink); text-shadow: 0 1px 0 rgba(255, 236, 200, .35); }
-.seg button:not([aria-pressed="true"]), .train button:not(.on), .book-tabs button:not([aria-selected="true"]), .set-btn.reset {
+.seg button:not([aria-pressed="true"]), .train button:not(.on), .set-btn.reset {
   background: rgba(6, 14, 5, .4); color: var(--muted); box-shadow: inset 0 2px 3px rgba(0, 0, 0, .5), 0 1px 0 rgba(241, 232, 212, .08); text-shadow: none; }
 /* a window's section headings (Settings, the Backpack's parts, the Train choice) */
 .set > h3, .pack-sec > h3, .pack-head > h3, .train > h3 { margin: 0 0 6px; font: 600 0.75rem/1.3 var(--body); color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
@@ -425,13 +425,8 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .set-btn.reset.armed { color: var(--ink); box-shadow: inset 0 0 0 2px var(--accent), inset 0 2px 3px rgba(0, 0, 0, .5); }
 .seg button:focus-visible, .set-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
-/* his survival book (src/ui/book.ts) in its window: one page of soft, muted paper with dark brown text; plain, no
-   effects. Tabs above the page jump to a section (a dot on one with a page not yet read). */
-#book .win-body { padding: 10px; }
-.book-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
-.book-tabs button { position: relative; flex: 1 1 auto; min-height: 36px; padding: 6px 10px; font: 600 0.8125rem/1 var(--body); }
-.book-tabs button.new::after { content: ''; position: absolute; top: 4px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
-.book-tabs button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* the pages of Information (src/ui/info.ts): soft, muted paper with dark brown text; plain, no effects (the old book's,
+   0.0.17 to 0.0.37) */
 /* Information (src/ui/info.ts; 0.0.38, the owner: "Let's do Journaling and tips as a (informstion) button"): opened by
    the "i" beside the clock, or at the current goal's page by the goal line's name. Three tabs, a choice like the
    Settings' (.seg): Story, Journal and Tips, a dot on one while it has something new (a journal entry, a tip not read
@@ -448,7 +443,6 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .page-journal .said { font-style: italic; }
 .page .page-heals { margin-top: 10px; font: 600 0.9375rem/1.3 var(--body); color: #3f5a30; }
 .page .page-where { margin-top: 4px; font-style: italic; color: #574330; }
-.book-count { align-self: center; min-width: 4.5em; text-align: center; font: 600 0.8125rem/1 var(--body); color: var(--muted); font-variant-numeric: tabular-nums; }
 .rail-btn.new::after { content: ''; position: absolute; top: 6px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
 /* the same height on every page where there's room, so the page-turn buttons stay put */
 .page { min-height: min(25rem, 50vh); box-sizing: border-box; background: var(--m-paper); color: #3a2a1b; border-radius: 3px; padding: 14px 18px 18px;
@@ -470,10 +464,6 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .page-needs .need-count { font: 600 1rem/1 var(--body); font-variant-numeric: tabular-nums; }
 .page .page-hint { padding-top: 10px; border-top: 1px dashed rgba(58, 42, 27, .3); font-style: italic; color: #574330; }
 .page .page-stuck { margin-top: 16px; text-align: center; font-style: italic; color: #6b5640; }
-.book-turn { display: flex; gap: 8px; padding: 0 10px 10px; }
-.book-turn button { flex: 1; min-height: 46px; font: 700 0.9375rem/1 var(--body); }
-.book-turn button:disabled { opacity: .45; cursor: default; }
-.book-turn button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
 /* chapter 2's combat, over the game (src/ui/combat.ts, src/ui/rats.ts): the numbers that float up over what he strikes
    (muted brick for a hit, slate for a miss), and a small bar over his head when hurt */
@@ -574,23 +564,132 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
   .goal-open:hover, .goal-go:hover { background: rgba(241, 232, 212, .05); }
   .cm-item:not(.off):hover { filter: brightness(1.12); }
   /* wood lightens a little under the mouse */
-  .btn:hover:not(:disabled), .goal-build:hover, .set-btn:hover, .brow-go:hover:not(:disabled), .book-turn button:hover:not(:disabled), .pick-do button:hover,
-  .win-ok:hover, .seg button:hover, .train button:hover, .book-tabs button:hover, .rail-btn:hover, .win-x:hover::before,
+  .btn:hover:not(:disabled), .goal-build:hover, .set-btn:hover, .brow-go:hover:not(:disabled), .pick-do button:hover,
+  .win-ok:hover, .seg button:hover, .train button:hover, .rail-btn:hover, .win-x:hover::before,
   .ver:hover, .pack-slot:hover:not(:disabled) { filter: brightness(1.12); }
 }
 /* a press: the wood sinks (a gentle 1 px, and only its shadow where motion is turned down) */
 .goal-open:active, .goal-go:active { background: rgba(241, 232, 212, .08); }
-.btn:active:not(:disabled), .goal-build:active, .set-btn:active, .brow-go:active:not(:disabled), .book-turn button:active:not(:disabled), .pick-do button:active,
-.win-ok:active, .seg button:active, .train button:active, .book-tabs button:active, .rail-btn:active { box-shadow: var(--sunk); }
+.btn:active:not(:disabled), .goal-build:active, .set-btn:active, .brow-go:active:not(:disabled), .pick-do button:active,
+.win-ok:active, .seg button:active, .train button:active, .rail-btn:active { box-shadow: var(--sunk); }
 .win-x:active::before { box-shadow: var(--sunk), 0 0 0 1px var(--wood-dark); }
 .pack-slot:active:not(:disabled) { filter: brightness(1.2); }
 .cm-item:not(.off):active { box-shadow: var(--sunk); }
 @media (prefers-reduced-motion: no-preference) {
-  .btn:active:not(:disabled), .goal-build:active, .set-btn:active, .brow-go:active:not(:disabled), .book-turn button:active:not(:disabled), .pick-do button:active,
-  .win-ok:active, .seg button:active, .train button:active, .book-tabs button:active, .rail-btn:active,
+  .btn:active:not(:disabled), .goal-build:active, .set-btn:active, .brow-go:active:not(:disabled), .pick-do button:active,
+  .win-ok:active, .seg button:active, .train button:active, .rail-btn:active,
   .win-x:active .icon, .ver:active { transform: translateY(1px); }
 }
 @media (prefers-reduced-motion: reduce) { .bar i, .goal-bar i, .hint, .notice, .thought { transition: none; } .pack-sec.lit { animation: none; } }
+
+/* Discovery (src/ui/discovery.ts; game 0.0.38, in the Book's place in the row): the tree of what he has found, like
+   Minecraft's advancements, sunk into the window's canvas, and beside it (under it on a phone held upright, once a card
+   is open) the card of the thing tapped, on parchment like the book's page. The window is as tall as the room above the
+   bar allows, so it never changes size as the tree grows. A node is a tile with its picture and its name under it, put in
+   place by the code (GRID in src/ui/discovery.ts: a 48 px tile, its name ending at most 45 px below the tile's middle): found
+   things lit on parchment in a wooden rim, made ones with a green tick, what they open glowing amber, a "?" for what is
+   not found yet; a dot on what is new since the window was last opened. The lines are one SVG under the nodes, and the
+   bands (the camp, food, fighting) each have their name on a paper tag that stays at the left as the tree scrolls */
+#discoveryWin { height: min(720px, 100%); }
+.disc { flex: 1 1 auto; min-height: 0; display: flex; gap: 10px; margin: 0 4px 4px; padding: 10px 10px 12px; }
+.disc-tree { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; touch-action: pan-x pan-y;
+  border-radius: 6px; background: rgba(6, 14, 5, .26); box-shadow: inset 0 2px 6px rgba(0, 0, 0, .4), 0 1px 0 rgba(241, 232, 212, .06);
+  scrollbar-width: thin; scrollbar-color: rgba(241, 232, 212, .3) transparent; cursor: grab; }
+.disc-tree.panning { cursor: grabbing; }
+.disc-map { position: relative; margin: 0 auto; }
+.disc-bands { position: absolute; inset: 0; pointer-events: none; }
+.disc-band { position: absolute; left: 4px; right: 4px; border-radius: 8px; background: rgba(241, 232, 212, .035); border-top: 1px dashed rgba(241, 232, 212, .14); }
+.disc-band-name { position: sticky; left: 6px; display: inline-block; margin: 5px 0 0 4px; padding: 2px 8px 3px; border-radius: 2px; background: var(--m-paper); color: var(--paper-ink);
+  font: 600 0.6875rem/1.2 var(--body); letter-spacing: .06em; text-transform: uppercase; box-shadow: 0 1px 2px rgba(0, 0, 0, .35); }
+.disc-lines { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.disc-lines path { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.disc-lines .lit { stroke: rgba(241, 232, 212, .5); }
+.disc-lines .glow { stroke: rgba(232, 166, 94, .7); stroke-dasharray: 6 5; }
+.disc-lines .dim { stroke: rgba(241, 232, 212, .3); stroke-dasharray: 2 5; }
+.disc-lines .on { stroke: var(--accent); stroke-width: 3; stroke-dasharray: none; }
+.dn { position: absolute; width: 112px; display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 0; padding: 0; border: 0;
+  background: none; color: var(--ink); font: inherit; cursor: pointer; }
+.dn-tile { position: relative; box-sizing: border-box; width: 48px; height: 48px; flex: none; display: grid; place-items: center; border-radius: 9px;
+  background: var(--tray); box-shadow: var(--tray-edge); }
+.dn-tile .item-pic { width: 38px; height: 38px; }
+.dn-name { max-width: 100%; box-sizing: border-box; padding: 1px 6px 2px; border-radius: 4px; background: rgba(18, 31, 16, .86); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 600 clamp(11px, 0.75rem, 13px)/1.2 var(--body); text-shadow: 0 1px 0 rgba(0, 0, 0, .5); }
+.dn-name:empty { display: none; }
+.dn.found .dn-tile, .dn.made .dn-tile { background: var(--m-paper);
+  box-shadow: inset 0 0 0 1px rgba(110, 74, 36, .4), inset 0 0 8px rgba(150, 104, 52, .25), 0 0 0 2px var(--frame-light), 0 0 0 3px var(--wood-dark), 0 2px 6px rgba(0, 0, 0, .45); }
+.dn-made { position: absolute; top: -7px; right: -8px; width: 19px; height: 19px; box-sizing: border-box; display: grid; place-items: center; border-radius: 50%;
+  background: #5b7a46; border: 2px solid var(--paper); box-shadow: 0 1px 2px rgba(0, 0, 0, .45); }
+.dn-made::after { content: ''; width: 3px; height: 7px; margin-top: -2px; border: solid #f1e8d4; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.dn.glow .dn-tile { box-shadow: var(--tray-edge), 0 0 0 2px rgba(232, 166, 94, .9), 0 0 14px 3px rgba(232, 166, 94, .45); }
+.dn.glow .item-pic { opacity: .62; filter: saturate(.55); }
+.dn.glow .dn-name { color: #f3c48d; }
+.dn.unknown .dn-tile { background: rgba(6, 14, 5, .5); box-shadow: inset 0 0 0 2px rgba(241, 232, 212, .22); }
+.dc-q { font: 700 1.5rem/1 var(--display); color: var(--muted); }
+.dn.new .dn-tile::before { content: ''; position: absolute; top: -5px; left: -5px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--wood-dark); }
+.dn.on .dn-tile { outline: 3px solid var(--accent); outline-offset: 3px; }
+.dn.on .dn-name { color: var(--accent); }
+.dn:focus { outline: none; }
+.dn:focus-visible .dn-tile { outline: 2px solid var(--ink); outline-offset: 3px; }
+.dn.on:focus-visible .dn-tile { outline-width: 3px; }
+.disc-empty { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); margin: 0; padding: 0 24px; text-align: center; color: var(--muted); font-size: 0.875rem; line-height: 1.45; }
+.disc-side { flex: 0 0 300px; min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(241, 232, 212, .3) transparent; }
+.disc-hint { margin: 0; padding: 12px 14px; border: 1px dashed rgba(241, 232, 212, .2); border-radius: 6px; color: var(--muted); font-size: 0.8125rem; line-height: 1.45; }
+.disc-card { box-sizing: border-box; min-height: 100%; padding: 8px 12px 14px; border-radius: 3px; background: var(--m-paper); color: var(--paper-ink);
+  font: 0.9375rem/1.45 Georgia, "Times New Roman", serif; box-shadow: inset 0 0 0 1px rgba(58, 42, 27, .25), inset 0 0 24px rgba(150, 104, 52, .2), 0 2px 6px rgba(0, 0, 0, .35); }
+.disc-card :focus-visible { outline: 2px solid var(--paper-ink); outline-offset: 1px; }
+.dc-head { display: flex; align-items: center; gap: 10px; }
+.dc-pic { flex: none; width: 48px; height: 48px; display: grid; place-items: center; border-radius: 8px; background: rgba(90, 60, 30, .1); box-shadow: inset 0 0 0 1px rgba(90, 60, 30, .28); }
+.dc-pic .item-pic { width: 40px; height: 40px; }
+.dc-names { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 3px 8px; }
+.dc-name { flex: 1 0 100%; margin: 0; font: 700 1.2rem/1.15 var(--display); color: #33240f; }
+.dc-kind { font: 600 0.6875rem/1.3 var(--body); letter-spacing: .06em; text-transform: uppercase; color: #6b5640; }
+.dc-state { padding: 1px 7px 2px; border: 1.5px solid #8a6a48; border-radius: 3px; font: 600 0.6875rem/1.3 var(--body); letter-spacing: .04em; color: #6b5640; }
+.dc-state.made { border-color: #4f6b3e; color: #3f5a30; }
+.dc-x { align-self: flex-start; margin: -4px -8px 0 0; }
+.dc-facts { margin: 8px 0 0; font: 600 0.875rem/1.35 var(--body); color: #3f5a30; }
+.dc-note { margin: 8px 0 0; font-style: italic; color: #574330; }
+.dc-title { margin: 10px 0 2px; font: 700 0.9375rem/1.25 var(--display); color: #33240f; }
+.dc-text { margin: 0; }
+.dc-head + .dc-text { margin-top: 8px; }
+.dc-sec { margin: 12px 0 4px; padding-top: 8px; border-top: 1px dashed rgba(58, 42, 27, .3); font: 600 0.6875rem/1.3 var(--body); letter-spacing: .06em; text-transform: uppercase; color: #6b5640; }
+.dc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.dc-row { box-sizing: border-box; width: 100%; min-height: 44px; display: grid; grid-template-columns: 22px 28px minmax(0, 1fr) auto; align-items: center; gap: 8px; margin: 0; padding: 4px 6px;
+  border: 0; border-radius: 5px; background: none; color: inherit; font: 600 0.875rem/1.25 var(--body); text-align: left; }
+button.dc-row { cursor: pointer; }
+.dc-row .tick { box-sizing: border-box; width: 22px; height: 22px; display: grid; place-items: center; border: 2px solid rgba(58, 42, 27, .4); border-radius: 50%; }
+.dc-row .tick.done { background: #5b7a46; border-color: #5b7a46; }
+.dc-row .tick.done::after { content: ''; width: 4px; height: 9px; margin-top: -3px; border: solid #f1e8d4; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
+.dc-mini { width: 28px; height: 28px; flex: none; display: grid; place-items: center; }
+.dc-mini .item-pic { width: 28px; height: 28px; }
+.dc-mini .dc-q { font-size: 1.1rem; }
+.disc-card .dc-q { color: #8a6a48; }
+.dc-what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-what.unseen { font-weight: 500; font-style: italic; color: #6b5640; }
+.dc-count { font-variant-numeric: tabular-nums; }
+.dc-where { margin: 8px 0 0; font-style: italic; color: #574330; }
+.dc-from { margin: 0; padding-left: 18px; display: grid; gap: 3px; font-size: 0.875rem; }
+.dc-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.dc-link { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 4px 6px; border: 1px solid rgba(90, 60, 30, .35); border-radius: 6px;
+  background: rgba(255, 250, 235, .35); color: var(--paper-ink); font: 600 0.8125rem/1.2 var(--body); cursor: pointer; }
+@media (hover: hover) {
+  button.dc-row:hover, .dc-link:hover { background: rgba(90, 60, 30, .12); }
+  .dn:hover .dn-tile { filter: brightness(1.1); }
+}
+button.dc-row:active, .dc-link:active { background: rgba(90, 60, 30, .2); }
+/* a phone held upright: the card under the tree once one is open, the tree keeping the top two fifths */
+@media (max-width: 600px) {
+  .disc { flex-direction: column; gap: 8px; padding: 8px; }
+  .disc:not(.carded) .disc-side { display: none; }
+  .disc.carded .disc-tree { flex: 0 0 40%; }
+  .disc.carded .disc-side { flex: 1 1 0; }
+}
+/* a phone held sideways: little height, so less room round the tree and a narrower card beside it */
+@media (max-height: 499px) {
+  .disc { gap: 6px; padding: 4px 6px 6px; }
+  .disc-side { flex-basis: 264px; }
+  .disc-card { padding: 4px 10px 10px; }
+  .disc-hint { padding: 8px 10px; }
+}
 </style>
 </head>
 <body>
@@ -639,9 +738,9 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 19.5 13 11"/><path d="M10.6 7.4l3.6-3.6 6 6-3.6 3.6z"/><path d="M12.4 9.2l3.4 3.4"/></svg>
         <span>Build</span>
       </button>
-      <button class="rail-btn" type="button" data-opens="book" aria-controls="book" aria-expanded="false" hidden>
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.8C10.2 5.4 7.6 4.8 4 5.2v13.3c3.6-.4 6.2.2 8 1.6 1.8-1.4 4.4-2 8-1.6V5.2c-3.6-.4-6.2.2-8 1.6z"/><path d="M12 6.8v13.3"/></svg>
-        <span>Book</span>
+      <button class="rail-btn" type="button" data-opens="discovery" aria-controls="discoveryWin" aria-expanded="false">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.9 10a2.1 2.1 0 1 0 0 4.2 2.1 2.1 0 0 0 0-4.2zM12 4.4a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM12 15.8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM19.4 2.2a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6zM19.4 8.8a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6zM19.4 16a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6z"/><path d="M6.4 10.8c1.3-1.6 2.2-2.9 3.7-3.6M6.5 13.6c1.2 1.6 2.1 2.9 3.6 3.6M13.9 5.7c1.2-.7 2.3-1.2 3.7-1.5M13.9 7.3c1.3.8 2.4 1.7 3.8 2.6M14.1 17.8h3.5"/></svg>
+        <span>Discovery</span>
       </button>
       <button class="rail-btn" type="button" data-opens="settings" aria-controls="settingsWin" aria-expanded="false">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="16" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></svg>
@@ -682,23 +781,18 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
         <p class="build-none" id="buildNone" hidden>Nothing more to build for now.</p>
       </div>
     </section>
-    <section class="win" id="book" data-win="book" data-width="440" role="dialog" aria-labelledby="bookName" hidden>
-      <div class="win-bar"><h2 class="win-title" id="bookName">Survival book</h2><button class="win-x" type="button" aria-label="Close the book"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
-      <div class="win-body" id="bookBody">
-        <div class="book-tabs" id="bookTabs" role="group" aria-label="Sections"></div>
-        <div class="page" id="bookPage">
-          <p class="page-lead" id="bookLead" hidden>Your survival book. It came down the falls with you.</p>
-          <div class="page-head"><span id="bookNo">Journal</span><span class="page-done" id="bookDone" hidden>Made</span></div>
-          <h3 class="page-title" id="bookTitle">Journal</h3>
-          <p id="bookText"></p>
-          <p class="page-heals" id="bookHeals" hidden></p>
-          <ul class="page-needs" id="bookNeeds"></ul>
-          <p class="page-where" id="bookWhere" hidden></p>
-          <ol class="page-journal" id="bookJournal"></ol>
-          <p class="page-stuck" id="bookStuck" hidden>More pages are still stuck together from the river. They come loose as you find your way.</p>
+    <section class="win disc-win" id="discoveryWin" data-win="discovery" data-width="860" role="dialog" aria-labelledby="discoveryTitle" hidden>
+      <div class="win-bar"><h2 class="win-title" id="discoveryTitle">Discovery</h2><button class="win-x" type="button" aria-label="Close discovery"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
+      <div class="disc" id="discBody">
+        <div class="disc-tree" id="discTree">
+          <div class="disc-map" id="discMap" role="group" aria-label="What you have discovered"><div class="disc-bands" id="discBands" aria-hidden="true"></div><svg class="disc-lines" id="discLines" aria-hidden="true"></svg></div>
+          <p class="disc-empty" id="discEmpty" hidden>Nothing discovered yet. <span class="touch">Tap</span><span class="mouse">Click</span> things in the world, a plank, a stone, a tree, to find out what they are and what they make.</p>
+        </div>
+        <div class="disc-side" id="discSide">
+          <p class="disc-hint" id="discHint"><span class="touch">Tap</span><span class="mouse">Click</span> a thing to see its card: what it is, what it needs and where to find it. Lit things you have found; glowing ones you could find or make next; a ? is something not found yet.</p>
+          <article class="disc-card" id="discCard" aria-labelledby="discCardName" hidden></article>
         </div>
       </div>
-      <div class="win-foot book-turn"><button type="button" id="bookPrev">&lsaquo; Previous</button><span class="book-count" id="bookCount"></span><button type="button" id="bookNext">Next &rsaquo;</button></div>
     </section>
     <section class="win" id="settingsWin" data-win="settings" data-width="340" role="dialog" aria-labelledby="settingsTitle" hidden>
       <div class="win-bar"><h2 class="win-title" id="settingsTitle">Settings</h2><button class="win-x" type="button" aria-label="Close the settings"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>

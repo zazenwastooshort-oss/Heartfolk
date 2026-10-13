@@ -150,13 +150,15 @@ describe('the bar at the foot (index.html .dock; the owner, 13 Oct 2026: "a perm
 });
 
 describe('two windows side by side on a 1280 px wide screen (index.html)', () => {
-  it('the backpack and the book fit across it, within its edges', () => {
+  it('the backpack and Discovery (or Information) fit across it, within its edges', () => {
     expect(cssPx(/--edge: (\d+)px/)).toBe(EDGE);
     const room = 1280 - 2 * EDGE;
-    expect(wide(room)(['backpack', 'book'])).toBe(true);
-    let open = opening([], 'backpack', 1, wide(room));
-    open = opening(open, 'book', 2, wide(room));
-    expect(ids(open)).toEqual(['backpack', 'book']);
+    for (const other of ['discovery', 'info']) {
+      expect(wide(room)(['backpack', other]), other).toBe(true);
+      let open = opening([], 'backpack', 1, wide(room));
+      open = opening(open, other, 2, wide(room));
+      expect(ids(open)).toEqual(['backpack', other]);
+    }
   });
 });
 
@@ -166,10 +168,10 @@ describe('windows in the page (index.html)', () => {
   /** Every button on the bar that opens a window: the row's, and the "i" beside the clock (0.0.38). */
   const openers = [...html.matchAll(/<button class="(?:rail-btn|info-btn)"[^>]*? data-opens="(\w+)" aria-controls="(\w+)"[^>]*>/g)];
 
-  it('has the windows of the row of buttons, in their order (backpack, skills, build, book, settings), then Information', () => {
-    expect(windows.map(m => m[2])).toEqual(['backpack', 'skills', 'build', 'book', 'settings', 'info']);
-    expect(buttons.map(m => m[1])).toEqual(['backpack', 'skills', 'build', 'book', 'settings']);
-    expect(openers.map(m => m[1])).toEqual(['backpack', 'skills', 'build', 'book', 'settings', 'info']);
+  it("has the windows, in the order of their buttons: backpack, skills, build, discovery (in the Book's place), settings, then Information", () => {
+    expect(windows.map(m => m[2])).toEqual(['backpack', 'skills', 'build', 'discovery', 'settings', 'info']);
+    expect(buttons.map(m => m[1])).toEqual(['backpack', 'skills', 'build', 'discovery', 'settings']);
+    expect(openers.map(m => m[1])).toEqual(['backpack', 'skills', 'build', 'discovery', 'settings', 'info']);
   });
 
   it('every window has a title bar with its title and a close button, and a button on the bar that opens it', () => {
@@ -191,9 +193,9 @@ describe('windows in the page (index.html)', () => {
     }
   });
 
-  it("the book's button waits until he has his book, and the Build button until there is something to build", () => {
+  it("the Build button waits until there is something to build; Discovery's shows from a new game", () => {
     const hidden = (b: RegExpMatchArray) => /^<button[^>]* hidden>/.test(b[0]);
-    expect(buttons.filter(hidden).map(b => b[1])).toEqual(['build', 'book']);
+    expect(buttons.filter(hidden).map(b => b[1])).toEqual(['build']);
   });
 
   it("the notes over the game share the look, and their x does what their own button does", () => {
@@ -204,8 +206,8 @@ describe('windows in the page (index.html)', () => {
     }
   });
 
-  it('keeps the ids the other modules fill in (ui/combat.ts, ui/armour.ts, ui/away.ts)', () => {
-    for (const id of ['healthRow', 'healthBar', 'healthText', 'trainRow', 'armourRow', 'armour', 'book', 'news', 'intro', 'away', 'awayLead', 'awayList', 'awayOk', 'floats', 'notice', 'hint']) {
+  it('keeps the ids the other modules fill in (ui/combat.ts, ui/armour.ts, ui/away.ts: Information, where the book was)', () => {
+    for (const id of ['healthRow', 'healthBar', 'healthText', 'trainRow', 'armourRow', 'armour', 'infoWin', 'news', 'intro', 'away', 'awayLead', 'awayList', 'awayOk', 'floats', 'notice', 'hint']) {
       expect(html, id).toContain(`id="${id}"`);
     }
   });

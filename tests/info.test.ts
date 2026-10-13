@@ -161,10 +161,11 @@ describe('the window in the page (index.html)', () => {
     expect(Number(html.match(/\.info-turn \.btn \{[^}]*min-height: (\d+)px/)?.[1])).toBeGreaterThanOrEqual(44);
   });
 
-  it('its own CSS stands right after the .book-tabs rules (merged beside the Discovery window\'s)', () => {
-    const at = html.indexOf('.book-tabs button:focus-visible');
-    const next = html.indexOf('\n', at) + 1;
-    expect(html.slice(next, next + 40)).toMatch(/^\/\* Information \(src\/ui\/info\.ts/);
+  it('its own CSS stands right after the pages\' paper (.page, its own since the old Book went)', () => {
+    const at = html.indexOf('/* the pages of Information (src/ui/info.ts)');
+    expect(at).toBeGreaterThan(0);
+    const next = html.indexOf('*/', at) + 2;
+    expect(html.slice(next).trimStart().slice(0, 40)).toMatch(/^\/\* Information \(src\/ui\/info\.ts/);
   });
 
   it('the "i" is round, the clock\'s height, and 44 px to tap', () => {

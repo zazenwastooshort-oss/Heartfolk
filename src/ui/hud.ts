@@ -6,7 +6,7 @@
 // Information (ui/info.ts, D6); once the camp is set up, saying so. His state beside it shows the skill gaining XP, its
 // level and a thin bar (his health beside it: ui/combat.ts; each as an icon and a number where room is short, ui/rail.ts).
 // Then the clock, hover text, notices and floating "+xp" numbers. What the panel used to show lives in windows now
-// (ui/windows.ts): the backpack (ui/backpack.ts), the skills (ui/skills.ts), his book (ui/book.ts), Information and the
+// (ui/windows.ts): the backpack (ui/backpack.ts), the skills (ui/skills.ts), Discovery (ui/discovery.ts), Information (ui/info.ts) and the
 // settings (ui/settings.ts). Reads state and listens to events; never changes the game (the Build button and the arrow
 // send commands).
 import * as THREE from 'three';
@@ -190,7 +190,7 @@ export class Hud {
       else if (e.type === 'cantCook') this.notice('You have no raw fish to cook. Catch some first.');
       else if (e.type === 'cookedAll') this.notice("That's all your fish cooked.");
       else if (e.type === 'cooked') { const out = e.burnt ? 'burnt_fish' : 'cooked_fish'; this.pendingItems[out] = (this.pendingItems[out] ?? 0) + 1; }
-      // picking up his book opens it instead of a notice (ui/book.ts)
+      // picking up his book opens Information at the story instead of a notice (main.ts)
       else if (e.type === 'pickedUp' && e.item) this.pendingItems[e.item] = (this.pendingItems[e.item] ?? 0) + e.count;
       // (chapter 2) a rat he beat left a hide in his backpack
       else if (e.type === 'beaten' && e.item) this.pendingItems[e.item] = (this.pendingItems[e.item] ?? 0) + 1;

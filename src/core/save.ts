@@ -20,6 +20,7 @@ import { NavGrid } from '../world/nav';
 import { restedTill, savedNeeds } from './needs';
 import { savedToolsInChest } from './tools';
 import { AT_SPOT, atSpot, buildSpot, canCook, chestHere, spotEnds, useSpot } from './camp';
+import { savedDiscovered } from './discovery';
 
 export interface Storage { get(key: string): string | null; set(key: string, value: string): void }
 
@@ -83,6 +84,11 @@ const migrations: Record<number, (s: any) => any> = {
   // the camp build (13 Oct 2026): the lean-to and the log hut became the wall tent and the log cabin, the log bench and
   // the workbench and placing them went (campBuildSave)
   11: (s) => campBuildSave(s),
+  // Discovery (game 0.0.38): what he has discovered. Nothing was saved of it before, so none is kept (a hand-edited
+  // save's list included), and readSave gives him everything the save has already come across (savedDiscovered in
+  // core/discovery.ts: what he holds, his tools and what he wears, everything built, every goal done and its things,
+  // the book's pages already come unstuck), with no notice for any of it
+  12: (s) => { const out = { ...s }; delete out.discovered; return out; },
 };
 
 // ---- the camp build's save (format 11 to 12) ----
@@ -632,6 +638,9 @@ export function readSave(raw: string, layout: Layout): Loaded {
   // on his way to bed sent early by a tap (before 0.0.34): no bed now, so he isn't on his way there either
   if (!state.needs.bed && p.pending?.kind === 'visit' && p.pending.id === 'shelter') { p.pending = null; p.path = []; if (p.task.kind === 'walk') p.task = { kind: 'idle' }; }
   state.toolsInChest = savedToolsInChest(data.toolsInChest, state, layout);
+  // (Discovery) what he has discovered: checked, with anything he holds now; an older save (or a damaged list) is given
+  // what it has already come across, from what is read above (his things, the goals done, the book's pages)
+  state.discovered = savedDiscovered(data.discovered, state);
   return { state, savedAt, closedAt };
 }
 
@@ -642,32 +651,36 @@ export function readSave(raw: string, layout: Layout): Loaded {
 export const UNREAD_KEY = `${SAVE_KEY}.unread`;
 export const UNREAD_LAST_KEY = `${SAVE_KEY}.unread.last`;
 
-/** Where a save from before this format (the camp build's 12: 0.0.22 to 0.0.30) is kept as it was, the first time it
- *  is opened, before the first save in the new format writes over it: so a mistake found later in the migration, or a
+/** The format whose saves from before are kept as they were (BEFORE_KEY): the camp build's 12. */
+const BEFORE_FORMAT = 12;
+
+/** Where a save from before the camp build's format (12: 0.0.22 to 0.0.30) is kept as it was, the first time it is
+ *  opened, before the first save in a newer format writes over it: so a mistake found later in its migration, or a
  *  different choice for what it does (the lean-to begun, the bench given back), can still be put right from the
  *  original, and a page too old to read the new format (it starts a new game) never loses it for good. Only the first:
- *  a later save from before is never written over it. */
-export const BEFORE_KEY = `${SAVE_KEY}.before${SAVE_VERSION}`;
+ *  a later save from before is never written over it. (Discovery's format 13 only adds what he has discovered, worked
+ *  out from the rest of the save, so a format 12 save isn't kept aside.) */
+export const BEFORE_KEY = `${SAVE_KEY}.before${BEFORE_FORMAT}`;
 
 /** Sets `key` to `raw` only while it holds nothing; storage blocked, nothing is kept and nothing goes wrong. */
 function keep(storage: Storage, key: string, raw: string): boolean {
   try { if (storage.get(key)) return false; storage.set(key, raw); return true; } catch { return false; }
 }
 
-/** Keeps `raw` under BEFORE_KEY when it is a save from before this format and nothing is kept there yet; whether it was
- *  kept. */
+/** Keeps `raw` under BEFORE_KEY when it is a save from before the camp build's format and nothing is kept there yet;
+ *  whether it was kept. */
 export function keepBefore(storage: Storage, raw: string | null | undefined): boolean {
   if (!raw) return false;
   try {
     const version = (JSON.parse(raw) as { version?: unknown } | null)?.version;
-    return typeof version === 'number' && version < SAVE_VERSION && keep(storage, BEFORE_KEY, raw);
+    return typeof version === 'number' && version < BEFORE_FORMAT && keep(storage, BEFORE_KEY, raw);
   } catch { return false; }
 }
 
 /** The running game the artifact viewer hands over when it swaps in a new version of the page (main.ts), read as any
- *  save is (it throws as readSave does). Opening it never goes through load(), so the save from before this format is
- *  kept under BEFORE_KEY here, as load() would keep it: the one this browser has stored (as it was saved, with when),
- *  or else the one handed over. */
+ *  save is (it throws as readSave does). Opening it never goes through load(), so a save from before the camp build's
+ *  format is kept under BEFORE_KEY here, as load() would keep it: the one this browser has stored (as it was saved,
+ *  with when), or else the one handed over. */
 export function handedOverGame(storage: Storage, raw: string, layout: Layout): GameState {
   const state = deserialize(raw, layout);
   if (!keepBefore(storage, storage.get(SAVE_KEY))) keepBefore(storage, raw);
@@ -675,8 +688,8 @@ export function handedOverGame(storage: Storage, raw: string, layout: Layout): G
 }
 
 /** The saved game and when it was saved, or null when there is none (or it can't be read: then it is kept under
- *  UNREAD_KEY first, as a new game is about to save over it). A save from before this format is kept under BEFORE_KEY
- *  as it was, as it is read. */
+ *  UNREAD_KEY first, as a new game is about to save over it). A save from before the camp build's format is kept under
+ *  BEFORE_KEY as it was, as it is read. */
 export function load(storage: Storage, layout: Layout): Loaded | null {
   let raw: string | null = null;
   try {

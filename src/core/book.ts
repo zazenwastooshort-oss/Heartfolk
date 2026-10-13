@@ -1,7 +1,7 @@
 // His book (0.0.17): one page per goal (data/goals.ts), in order, up to the goal he is on; the pages after it are
 // still stuck together from the river. Headless, so the tests can check what each page shows; the goal card counts
-// with goalLines too, so the card and the book always agree. Since the survival book (core/survival.ts) ui/book.ts no
-// longer draws these goal pages; goalLines (the card's counts, and the Making pages' counting) and opensBook are used.
+// with goalLines too, so the card and the book always agree. Since the survival book (core/survival.ts) the book (ui/book.ts until
+// 0.0.38) no longer drew these goal pages; goalLines (the card's counts, and the Making pages' counting) and opensBook are used.
 // Since 0.0.38 the goal pages are back, as the Story in the Information window (ui/info.ts, core/survival.ts's
 // informationPages), opened at the current goal's page by the goal line's name.
 import type { GameEvent } from './events';

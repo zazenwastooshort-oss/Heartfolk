@@ -17,8 +17,8 @@ import { bindInput } from './ui/input';
 import { News } from './ui/news';
 import { Intro } from './ui/intro';
 import { BackpackWindow } from './ui/backpack';
-import { Book } from './ui/book';
 import { Information } from './ui/info';
+import { opensBook } from './core/book';
 import { Windows } from './ui/windows';
 import { Rail } from './ui/rail';
 import { SkillsWindow } from './ui/skills';
@@ -37,6 +37,7 @@ import { BuildWindow } from './ui/build';
 import { CampMenu } from './ui/campmenu';
 import { NeedsHud } from './ui/needs';
 import { BedtimeSetting } from './ui/bedtime';
+import { DiscoveryNotices, DiscoveryWindow } from './ui/discovery';
 
 // An artifact viewer can swap in a new version of the page while it is open and hand the game's snapshot
 // to the new version, so play carries on. Everywhere else `hot` is absent, hence the optional chaining.
@@ -91,6 +92,7 @@ function start(data: HotData): void {
   const bubble = new ThoughtBubble(state, view, queue);             // his thoughts over his head; a tap sends him off to do the goal
   const activity = new ActivityTag(view, layout);                   // what he is doing, over his head (Settings can hide it)
   const needs = new NeedsHud(layout, events, hud);                  // Hungry in the strip; meals, bedtime, his tools from the chest
+  const discoveries = new DiscoveryNotices(events, hud);            // (Discovery) "Discovered: copper ore.", once for each thing
   events.on(e => { if (e.type === 'strike') view.strike(e.nodeId); });     // chips fly where the tool lands
   events.on(e => { if (e.type === 'hit') view.hit(e.target, e.damage); }); // the training dummy wobbles when struck
   const build = new BuildWindow(windows, events, layout, queue, hud);   // the Build window: what can be built, and how far along
@@ -100,9 +102,10 @@ function start(data: HotData): void {
   bindInput(view, layout, queue, state, { hover: label => hud.hover(label), openChest: lookIn, menu, notice: text => hud.notice(text) });
   showModels(view, layout);                                         // dev only: ?models in the address shows chapter 2's models
   const skills = new SkillsWindow(windows, events);                 // each skill's level, and what he trains
-  const book = new Book(state, events, layout, windows);            // his book: a page per goal, opened from its button or the goal card
   const info = new Information(state, layout, windows);             // the "i" beside the clock: the story, his journal and tips
   hud.goalName = () => info.showGoal();                             // the goal line's name opens the story at its page
+  events.on(e => { if (opensBook(e)) info.showGoal(); });         // and so does picking up his book at the wreck
+  const discovery = new DiscoveryWindow(state, layout, windows);    // (Discovery) the tree of what he has found, its button where the Book's was
   const news = new News(!newGame);                                  // a returning player sees what changed since
   const sound = new Sound(layout, events);                          // the camp's sounds and the music, made as it plays
   new Settings(windows, news, () => { startingOver = true; clearSave(browserStorage); location.reload(); }, activity, sound);   // text size, the tag, sound, What's new, Start over
@@ -157,6 +160,7 @@ function start(data: HotData): void {
       simulate(real);
       view.draw(state, dt);
       hud.update(state, dt);
+      discoveries.update();                                         // after the HUD's own notices of this frame
       combat.update(dt);
       sleepHud.update(state, dt);
       bubble.update(state, dt);
@@ -170,8 +174,8 @@ function start(data: HotData): void {
       skills.update(state);
       build.update(state);
       menu.update();
-      book.update();
       info.update();
+      discovery.update();
       awayNote.update();
       sinceSave += dt; if (sinceSave > 10 && !startingOver && !closed) { sinceSave = 0; save(browserStorage, state, playedTo()); }
     });

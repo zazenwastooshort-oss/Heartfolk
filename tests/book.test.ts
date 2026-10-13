@@ -1,4 +1,4 @@
-// His book (game 0.0.17; core/book.ts, drawn by ui/book.ts): one page per goal, in order, up to the goal he is on and
+// His book (game 0.0.17; core/book.ts, drawn since 0.0.38 as Information's Story, ui/info.ts): one page per goal, in order, up to the goal he is on and
 // no further; finished pages stay done after their things are used up; each line's tick and count match the goal
 // card's (which counts with the same goalLines); and picking the book up opens it.
 import { describe, expect, it } from 'vitest';

@@ -101,10 +101,11 @@ export class AwayNote {
     this.update();
   }
 
-  /** Each frame: while "What's new", the welcome or his book is open, the note waits, stepping aside if one opened
-   *  over it (from the version button or the goal card); once none is, it shows. */
+  /** Each frame: while "What's new", the welcome or Information is open (it opens by itself as he picks up his book),
+   *  the note waits, stepping aside if one opened over it (from the version button or the goal line); once none is, it
+   *  shows. */
   update(): void {
-    const inTheWay = !$('news').hidden || !$('intro').hidden || !$('book').hidden;
+    const inTheWay = !$('news').hidden || !$('intro').hidden || !$('infoWin').hidden;
     if (inTheWay && !this.panel.hidden) { this.panel.hidden = true; this.waiting = true; }
     if (!this.waiting || inTheWay) return;
     this.waiting = false;

@@ -22,6 +22,7 @@ import { updateThoughts } from './systems/thoughts';
 import { resumeBuild, updateBuilding } from './systems/building';
 import { updateNeeds } from './systems/needs';
 import { updateTools } from './systems/tools';
+import { updateDiscovery } from './systems/discovery';
 import { closedFor, emptySummary, openFor, tally, type Away, type AwaySummary } from './systems/away';
 
 /** `away` (13 Oct 2026): catching up time the game was closed, when he doesn't go to bed (systems/needs.ts). */
@@ -59,6 +60,8 @@ export function step(state: GameState, dt: number, ctx: SimContext): void {
   if (ctx.layout.camp) updateThoughts(state, ctx.layout, dt);
   // (the camp build) something half built, and nothing else has him: back to it by himself
   resumeBuild(state, ctx.layout, ctx.events);
+  // (Discovery) whatever came into his hands this step, or he made or built, is discovered
+  updateDiscovery(state, ctx.layout, ctx.events);
 }
 
 /** Catch up `seconds` of play in whole steps, one after another with nothing drawn in between: time the tab spent in

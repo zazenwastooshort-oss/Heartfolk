@@ -7,7 +7,7 @@
 // stone axe, firewood (since 0.0.21 a pile stacked beside the fire), the shelter, the stone pickaxe, copper ore, then
 // the storage chest (built since 0.0.19); chapter 2 adds food: berries, a fishing rod, fish and a cooked meal. With
 // all of them finished the camp is set up: the card and the last page of his book say so (CAMP_DONE). Since 0.0.17
-// each goal is a page in his book (core/book.ts, ui/book.ts), with a few words of its own (`page`). Chapter 2, holding
+// each goal is a page in his book (core/book.ts; since 0.0.38 Information's Story, ui/info.ts), with a few words of its own (`page`). Chapter 2, holding
 // the camp (0.0.22), goes on after the chest: a training dummy, a stone club (his first weapon), then practice on the
 // dummy, a goal that asks for levels (`levels`) rather than things; after food, the rats in the woods (their hides),
 // the hide armour, and last the goblin camp blocking the way down the river (the chief's torn map): the end of chapter 2.

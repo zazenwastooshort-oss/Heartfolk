@@ -579,7 +579,7 @@ describe('saves', () => {
     expect(back.built).toEqual(c.state.built);
     expect(back).not.toHaveProperty('placed');
     expect(back.version).toBe(SAVE_VERSION);
-    expect(SAVE_VERSION).toBe(12);
+    expect(SAVE_VERSION).toBe(13);
   });
 
   it('damaged progress falls back, and what a dropped one took goes back into the chest', () => {

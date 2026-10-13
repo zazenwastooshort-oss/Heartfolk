@@ -122,6 +122,57 @@ export const TOOL_PICTURES: Record<ToolId, string> = {
     `<circle cx="9.4" cy="23" r="2" fill="#6f5034" ${lined}/>`,
 };
 
+/** A flame: an orange tongue with a yellow heart, its foot at (16, `foot`). */
+const flame = (foot: number) => `<g transform="translate(0 ${foot - 22.7})">` +
+  `<path d="M16 5.5c2.6 3.6 6.8 6.6 6.2 11.6-.4 3.4-3 5.6-6.2 5.6s-5.8-2.2-6.2-5.4c-.4-2.8 1-4.8 2.6-6.4.2 1.8.9 3 2 3.6-.6-3.4.2-6.2 1.6-9z" fill="#e8913a" ${lined}/>` +
+  `<path d="M16 12.5c1.8 2.2 3.4 3.8 3 6.2-.3 1.6-1.5 2.6-3 2.6s-2.7-1-3-2.6c-.3-1.8.9-3.6 3-6.2z" fill="#f6d06a"/></g>`;
+/** A birch log's cut end, seen end on, at (x, y). */
+const logEnd = (x: number, y: number, r: number) =>
+  `<circle cx="${x}" cy="${y}" r="${r}" fill="#e2c48e" ${lined}/><circle cx="${x}" cy="${y}" r="${(r * 0.45).toFixed(2)}" fill="none" stroke="#b88d55" stroke-width="1"/>`;
+
+/** The camp's buildings (the things in MAKES that are built, data/making.ts; 0.0.38, for Discovery's tree): the
+ *  campfire, the firewood pile, the tent, the storage chest, the training dummy, and the upgrades built in their place,
+ *  the wall tent, the log cabin, the stone hearth and the woodshed. Colours from their models (render/camp*.ts). */
+export const BUILDING_PICTURES: Record<string, string> = {
+  campfire: flame(22.7) + stick('M6.5 26 25.5 21.5', '#7a5634', 3.2) + stick('M6.5 21.5 25.5 26', '#6f5034', 3.2),
+  // logs on two bearers, stacked end on in threes
+  woodpile: `<rect x="3" y="27.2" width="26" height="2.6" rx="1" fill="#7a5634" ${lined}/>` +
+    logEnd(7.6, 23.4, 4.2) + logEnd(16, 23.4, 4.2) + logEnd(24.4, 23.4, 4.2) + logEnd(11.8, 16.2, 4.2) + logEnd(20.2, 16.2, 4.2) + logEnd(16, 9, 4.2),
+  // the tarp over a frame of logs, its door open
+  shelter: `<path d="M3.5 26.5 16 6l12.5 20.5z" fill="#d8c39a" ${lined}/><path d="M16 6l12.5 20.5h-7z" fill="#c4ad82"/>` +
+    `<path d="M16 13 11.6 26.5h8.8z" fill="#5a4630" ${lined}/><path d="M3.5 26.5 16 6l12.5 20.5z" fill="none" ${lined}/>` +
+    stick('M16 3.5V7', '#7a5634', 1.6) + stick('M2.5 27.5h27', '#6f5034', 1.4),
+  // a box of split logs, its lid and two bands
+  chest: `<path d="M5 14h22v12.5H5z" fill="#a8774a" ${lined}/><path d="M5 14c0-4 3-6.5 6.5-6.5h9c3.5 0 6.5 2.5 6.5 6.5z" fill="#b98757" ${lined}/>` +
+    `<path d="M5.6 20.2h20.8" fill="none" stroke="#7d5432" stroke-width="1.1"/>` +
+    `<path d="M10.5 8v18.5M21.5 8v18.5" fill="none" stroke="#6b4a2c" stroke-width="2"/>` +
+    `<rect x="14.4" y="12.4" width="3.2" height="4.2" rx=".6" fill="#cdb995" ${lined}/>`,
+  // a post and crossbar with a stuffed sack for a body
+  dummy: stick('M16 30V6', '#7a5634', 2.6) + stick('M6.5 12.5h19', '#7a5634', 2.2) +
+    `<path d="M10.5 13.6c0-1 1-1.6 2-1.6h7c1 0 2 .6 2 1.6l1 9c0 1.4-1 2.4-2.4 2.4h-8.2c-1.4 0-2.4-1-2.4-2.4z" fill="#c9b48a" ${lined}/>` +
+    `<path d="M11.2 18h9.6" fill="none" stroke="#7d6a48" stroke-width="1.3" stroke-linecap="round"/>` +
+    `<circle cx="16" cy="7.4" r="3.6" fill="#c9b48a" ${lined}/>` + stick('M11 29.6h10', '#6f5034', 1.6),
+  // a timber frame round the canvas, a plank floor and a stovepipe
+  wall_tent: `<rect x="21.4" y="5.5" width="2.8" height="7" fill="#4a4743" ${lined}/>` +
+    `<path d="M6 15.5h20V27H6z" fill="#e2d2ad" ${lined}/><path d="M3.5 16.5 16 7l12.5 9.5z" fill="#c4ad82" ${lined}/>` +
+    `<path d="M13 27v-8.5h6V27z" fill="#5a4630" ${lined}/>` + stick('M6 16.5V27M26 16.5V27', '#7a5634', 1.5) +
+    `<rect x="4" y="26.6" width="24" height="2.6" rx=".6" fill="#c09463" ${lined}/>`,
+  // round logs, a stone chimney, a lit window
+  log_cabin: `<path d="M21.5 4.5h4.2v9l-4.2-3z" fill="#9b988f" ${lined}/>` +
+    `<path d="M5 15.5h22v12H5z" fill="#9a6b40" ${lined}/><path d="M5 18.6h22M5 21.6h22M5 24.6h22" fill="none" stroke="#6f4a28" stroke-width="1.1"/>` +
+    `<path d="M2.5 16.5 16 6.5l13.5 10z" fill="#6f4a2a" ${lined}/>` +
+    `<rect x="14" y="20" width="5" height="7.5" fill="#4a321c" ${lined}/><rect x="7.5" y="18.6" width="3.8" height="3.4" fill="#f6d06a" ${lined}/>`,
+  // a ring of stones round the fire, a spit over it on two forked posts
+  stone_hearth: flame(21) + stick('M5.5 23V9.5M26.5 23V9.5', '#7a5634', 1.8) + stick('M3.8 10.2h24.4', '#6f5034', 1.6) +
+    `<ellipse cx="6.8" cy="24" rx="3.6" ry="2.8" fill="#9b988f" ${lined}/><ellipse cx="12.2" cy="25.2" rx="3.6" ry="2.8" fill="#8d877d" ${lined}/>` +
+    `<ellipse cx="17.8" cy="25.4" rx="3.6" ry="2.8" fill="#a39f96" ${lined}/><ellipse cx="23.4" cy="24.4" rx="3.6" ry="2.8" fill="#8d877d" ${lined}/>`,
+  // a bark roof on two posts over logs stacked end on
+  woodshed: stick('M6 13v15M26 13v15', '#6f5034', 2) +
+    logEnd(10.8, 24.6, 3.1) + logEnd(16.6, 24.6, 3.1) + logEnd(22.2, 24.6, 3.1) + logEnd(13.6, 19.2, 3.1) + logEnd(19.4, 19.2, 3.1) +
+    `<path d="M2.5 12.5 16 5.5l13.5 7v2.8H2.5z" fill="#9a6b40" ${lined}/><path d="M6 12.6h20" fill="none" stroke="#6f4a28" stroke-width="1.1"/>` +
+    stick('M3 29h26', '#6f5034', 1.2),
+};
+
 /** What an empty slot of what he wears shows, faintly: the shape of a piece that goes there. */
 export const SLOT_SHAPES: Record<Slot, GearId> = { weapon: 'stone_club', head: 'hide_cap', body: 'hide_vest', shield: 'hide_shield' };
 
@@ -132,10 +183,11 @@ export const BUNDLE = `<path d="M8 13c0-2 2-3.5 4-3.5h8c2 0 4 1.5 4 3.5l1.5 10c.
 /** Whether a thing (an item or a piece of gear) has a picture of its own. */
 export const hasPicture = (id: string) => Object.hasOwn(ITEM_PICTURES, id) || Object.hasOwn(GEAR_PICTURES, id);
 
-/** A thing's picture (an item or a piece of gear) as a whole SVG element, or the bundle when it has none. */
+/** A thing's picture (an item, a piece of gear, a tool or one of the camp's buildings) as a whole SVG element, or the
+ *  bundle when it has none. */
 export function picture(id: string, className = 'item-pic'): string {
   const inner = Object.hasOwn(ITEM_PICTURES, id) ? ITEM_PICTURES[id] : Object.hasOwn(GEAR_PICTURES, id) ? GEAR_PICTURES[id as GearId]
-    : Object.hasOwn(TOOL_PICTURES, id) ? TOOL_PICTURES[id as ToolId] : BUNDLE;
+    : Object.hasOwn(TOOL_PICTURES, id) ? TOOL_PICTURES[id as ToolId] : Object.hasOwn(BUILDING_PICTURES, id) ? BUILDING_PICTURES[id] : BUNDLE;
   return `<svg class="${className}" viewBox="0 0 32 32" aria-hidden="true">${inner}</svg>`;
 }
 
@@ -145,7 +197,7 @@ const pass = (d: string) => `<path d="${d}" stroke-width=".9" opacity=".55"/>`;
 /** The icons on the row of buttons (index.html's .rail; ui/rail.ts puts each on the button whose data-opens is its key):
  *  hand-inked in cream on a 24 x 24 grid (the rustic UI pass, 13 Oct 2026), slightly uneven strokes and a second, lighter
  *  pass here and there, no fills (index.html's .icon draws them in the button's colour). A rucksack, tally marks for
- *  skills, a mallet and a nail, an open book, a wooden cog; `jobs`, a list of tasks pinned up, is for the Jobs window's
+ *  skills, a mallet and a nail, an open book, a little branching tree for Discovery, a wooden cog; `jobs`, a list of tasks pinned up, is for the Jobs window's
  *  button (data-opens="jobs"); `more`, three dots, is the row's More button for the ones that don't fit. */
 export const RAIL_ICONS: Record<string, string> = {
   backpack: '<path d="M7.1 9.7c-.2-2 1.2-3.4 3.1-3.5l3.9-.1c2 0 3.3 1.3 3.2 3.3l.3 9.2c0 1.3-.7 2-2 2.1l-6.5.1c-1.3 0-2-.7-2.1-2z"/>' +
@@ -158,6 +210,13 @@ export const RAIL_ICONS: Record<string, string> = {
     '<path d="M17.6 17.6l.1 3.9"/><path d="M16.1 17.5c1-.2 2-.2 3 0"/>' + pass('M5.8 20.4l7.3-7.4M13.6 7.6l3 3M20.6 21.6c-1.4.3-2.8.3-4.2.1'),
   book: '<path d="M12 7.2C10.1 5.7 7.6 5.2 4.2 5.6l.2 12.9c3.3-.3 5.8.2 7.6 1.6"/><path d="M12 7.2c1.9-1.5 4.4-2 7.8-1.6l-.2 12.9c-3.3-.3-5.8.2-7.6 1.6"/>' +
     '<path d="M12 7.3 11.9 20"/>' + pass('M6.4 9.1c1.3-.1 2.5.1 3.6.6M6.5 11.8c1.3-.1 2.4.1 3.5.6M6.6 14.5c1.2-.1 2.3.1 3.3.5M14 9.6c1.1-.5 2.2-.7 3.5-.6M14 12.3c1.1-.5 2.3-.7 3.5-.6'),
+  // (Discovery, 0.0.38, in the Book's place) a little branching tree: one thing found at the left, what it leads to
+  discovery: '<path d="M2.7 12.1c0-1.2 1-2.1 2.2-2.1s2 .9 2 2.1-.9 2.2-2.1 2.2-2.1-1-2.1-2.2z"/>' +
+    '<path d="M10 6.5c-.1-1.2.8-2.1 2-2.1 1.2-.1 2.1.8 2.1 2s-.9 2.1-2.1 2.1c-1.1 0-2-.8-2-2z"/><path d="M10 17.8c0-1.2.9-2 2.1-2s2 .9 2 2-.9 2.1-2.1 2.1-2-.9-2-2.1z"/>' +
+    '<path d="M17.6 4c0-1 .8-1.8 1.8-1.8s1.8.8 1.8 1.8-.8 1.8-1.8 1.8-1.8-.8-1.8-1.8z"/><path d="M17.6 10.6c0-1 .8-1.8 1.8-1.8s1.9.8 1.8 1.8c0 1-.8 1.8-1.8 1.8s-1.8-.8-1.8-1.8z"/>' +
+    '<path d="M17.6 17.9c0-1 .8-1.9 1.8-1.8 1 0 1.8.8 1.8 1.8s-.8 1.8-1.8 1.8-1.8-.8-1.8-1.8z"/>' +
+    '<path d="M6.4 10.8c1.3-1.6 2.2-2.9 3.7-3.6"/><path d="M6.5 13.6c1.2 1.6 2.1 2.9 3.6 3.6"/><path d="M13.9 5.7c1.2-.7 2.3-1.2 3.7-1.5"/>' +
+    '<path d="M13.9 7.3c1.3.8 2.4 1.7 3.8 2.6"/><path d="M14.1 17.8c1.2-.1 2.3-.1 3.5 0"/>' + pass('M3.4 15.6c.9.6 1.9.7 2.9.3M10.8 21.2c.9.5 1.9.5 2.8 0M18.2 21c.7.3 1.5.3 2.2 0'),
   settings: '<path d="M9.4 6.6 10.9 5.9 10.8 3.7 13.1 3.3 13.1 5.8 14.7 6.2 16 7.4 17.8 6 19.4 7.5 17.7 8.8 18.2 10.6 18.1 12.4 20.8 12.9 19.8 15.1 17.7 14.5 16.8 15.9 15.8 17.2 16.7 19.2 14.6 20 13.7 18.1 12 18.4 10.2 18.3 9.4 20.3 7.3 19.1 8.2 17.2 7.1 15.9 6.3 14.4 4 15.1 3.4 12.9 5.9 12.2 5.8 10.7 6.5 9 4.7 7.6 6.2 5.9 7.7 7.1z"/>' +
     '<path d="M12.1 9.4c1.5 0 2.6 1.2 2.5 2.7 0 1.4-1.2 2.5-2.7 2.4-1.4 0-2.4-1.2-2.4-2.6.1-1.5 1.2-2.5 2.6-2.5z"/>' + pass('M7.6 10.4c.5-1.4 1.4-2.4 2.6-3'),
   jobs: '<path d="M6.3 5.2 17.9 4.8l.4 15.5-11.7.4z"/><path d="M12 3.1c.8 0 1.3.6 1.3 1.3s-.6 1.2-1.3 1.2-1.2-.5-1.2-1.3.5-1.2 1.2-1.2z"/>' +
