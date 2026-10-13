@@ -102,8 +102,8 @@ describe('the bar at the foot (index.html .dock; the owner, 13 Oct 2026: "a perm
     expect(goal).not.toContain('goalThought');              // his thought is over his head and in the journal
     // the slim line: 44 px tall, its arrow 44 px to tap, its Build button's tap area the line's height
     expect(html).toMatch(/\.goal \{[^}]*min-height: 44px;/);
-    expect(html).toMatch(/\.goal-go::after \{ content: ''; position: absolute; inset: -3px -4px -3px -4px; \}/);
-    expect(cssPx(/\.goal-go \{[^}]*width: (\d+)px/) + 8).toBeGreaterThanOrEqual(44);
+    expect(html).toMatch(/\.goal-go::after \{ content: ''; position: absolute; inset: -3px -6px -3px -2px; \}/);
+    expect(cssPx(/\.goal-go \{[^}]*width: (\d+)px/) + 6 + 2).toBeGreaterThanOrEqual(44);
     expect(cssPx(/\.goal-build \{[^}]*min-height: (\d+)px/) + 2 * 7).toBeGreaterThanOrEqual(44);
   });
 
