@@ -6,6 +6,13 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.29', date: '13 Oct 2026', notes: [
+      'The camp has a new look: canvas windows in wooden frames, wooden buttons, and parchment for his book, notes and thoughts.',
+      'The buttons at the edge are a strip of planks with hand-drawn icons. If they ever don\'t all fit, the last ones tuck into a More button.',
+      'Health and skill bars are twisted rope that fills with colour, and the clock hangs on a little wooden sign.',
+    ],
+  },
+  {
     version: '0.0.28', date: '13 Oct 2026', notes: [
       'He sleeps until 7:00 now, and the moonlight moves across the sky, so you can watch the night turn to dawn.',
       'If you switch away or your screen goes off while he sleeps, that time no longer races by twenty times over.',

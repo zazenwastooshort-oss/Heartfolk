@@ -1,12 +1,12 @@
 // The windows (the UI foundation, the owner's go of 12 Oct 2026): panels that open from the row of buttons (index.html's
 // .rail: Backpack, Skills, Book, Settings) and close with their x, with the same button, or with Esc. On a phone one
 // window is open at a time, so opening one closes the other; on a wide screen two may stand side by side beside the
-// buttons, while they fit clear of the goal card. One look for all (index.html's .win): forest green, cream text, a
-// title bar with the close button, scrolling inside when tall. A window is a <section class="win" data-win="id"
+// buttons, while they fit clear of the goal card. One look for all (index.html's .win): forest-green canvas in a wooden
+// frame, cream text, a header board with the close button, scrolling inside when tall. A window is a <section class="win" data-win="id"
 // data-width="360"> in #wins with its title bar and body, and its button a <button data-opens="id"> in the row: a new
 // window later is one more of each (tests/windows.test.ts checks every window has both). The notes over the game (.note:
-// the welcome, "What's new", "While you were away") share the look; their x does what their own button does, and Esc
-// closes a note before any window. With the buttons down the right side the windows stand against them from the top,
+// the welcome, "What's new", "While you were away") are parchment with dark ink; their x does what their own button
+// does, and Esc closes a note before any window. With the buttons down the right side the windows stand against them from the top,
 // unless that would cover the goal card (a mid-size screen: a tablet held upright, a phone held sideways): then they
 // start under the card where there's height for them, or else stand between the card and the buttons, narrower
 // (`windowSpot`), so its Build button stays one tap away. This also keeps places on the stage up to date: --below-card
@@ -110,6 +110,7 @@ export class Windows {
       if (e.key !== 'Escape') return;
       const note = [...document.querySelectorAll<HTMLElement>('.note')].find(n => !n.hidden), last = newest(this.opened);
       if (note) document.getElementById(note.querySelector<HTMLElement>('[data-close]')?.dataset.close ?? '')?.click();
+      else if (this.escape()) { /* the row's More menu closed first (ui/rail.ts) */ }
       else if (last) this.close(last.id);
       else return;
       e.preventDefault(); e.stopPropagation();
@@ -120,6 +121,12 @@ export class Windows {
     window.addEventListener('resize', () => { this.refit(); this.place(); });
     this.place();
   }
+
+  /** Esc closes this first, before any window, when it says it did (ui/rail.ts: the row's More menu while it is open). */
+  escape: () => boolean = () => false;
+  /** Where keyboard focus goes back to when a window closes: its button, or what stands in for it while the button can't
+   *  be seen (ui/rail.ts: the row's More, while the button is in its menu). */
+  focusBack: (button: HTMLButtonElement) => HTMLElement = b => b;
 
   /** Called with a window's id whenever it opens or closes (closed to make room for another, too). */
   on(listener: (id: string, open: boolean) => void): void { this.listeners.push(listener); }
@@ -160,7 +167,7 @@ export class Windows {
     this.show();
     // keyboard focus goes back to the window's button, rather than being lost with the window
     if (focused) {
-      if (w.button && !w.button.hidden) w.button.focus({ preventScroll: true });
+      if (w.button && !w.button.hidden) this.focusBack(w.button).focus({ preventScroll: true });
       else (document.activeElement as HTMLElement | null)?.blur();
     }
     this.tell(id, false);

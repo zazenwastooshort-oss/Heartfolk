@@ -122,6 +122,37 @@ export function picture(id: string, className = 'item-pic'): string {
   return `<svg class="${className}" viewBox="0 0 32 32" aria-hidden="true">${inner}</svg>`;
 }
 
+/** A second, lighter pass of the pen over a hand-inked icon: thinner and fainter, as a sketch's extra strokes. */
+const pass = (d: string) => `<path d="${d}" stroke-width=".9" opacity=".55"/>`;
+
+/** The icons on the row of buttons (index.html's .rail; ui/rail.ts puts each on the button whose data-opens is its key):
+ *  hand-inked in cream on a 24 x 24 grid (the rustic UI pass, 13 Oct 2026), slightly uneven strokes and a second, lighter
+ *  pass here and there, no fills (index.html's .icon draws them in the button's colour). A rucksack, tally marks for
+ *  skills, a mallet and a nail, an open book, a wooden cog; `jobs`, a list of tasks pinned up, is for the Jobs window's
+ *  button (data-opens="jobs"); `more`, three dots, is the row's More button for the ones that don't fit. */
+export const RAIL_ICONS: Record<string, string> = {
+  backpack: '<path d="M7.1 9.7c-.2-2 1.2-3.4 3.1-3.5l3.9-.1c2 0 3.3 1.3 3.2 3.3l.3 9.2c0 1.3-.7 2-2 2.1l-6.5.1c-1.3 0-2-.7-2.1-2z"/>' +
+    '<path d="M10.1 6.3c-.4-1.7.4-3 1.9-3s2.3 1.2 1.9 2.9"/><path d="M7.2 10.5c1.6 1.3 3.2 1.9 4.9 1.9 1.8 0 3.4-.7 5.1-2"/>' +
+    '<path d="M12.1 12.4v3.1"/><path d="M10.9 15.5l2.5-.1.1 2.1-2.5.1z"/><path d="M6.9 14.1c-1.3.2-1.9 1-1.8 2.3l.2 2.1c.1 1 .8 1.5 1.7 1.4"/>' +
+    pass('M8.6 19.5l1.4-1.2M11.1 19.6l1.4-1.2M15.4 7.6c.9.4 1.4 1.1 1.5 2'),
+  skills: '<path d="M6.3 6.6 6.7 17.6"/><path d="M9.7 6.1l.2 11.7"/><path d="M13.1 6.8 13 17.6"/><path d="M16.5 6.3l.3 11.3"/>' +
+    '<path d="M4.1 15.8C9 13.4 14.1 10.9 19.6 8.2"/><path d="M4.2 20.6c4.9-.7 10.4-.6 15.9.1"/>' + pass('M4.6 21.9c3.6-.4 7.4-.4 11.2 0'),
+  build: '<path d="M4.9 19.7 12.4 12.1"/><path d="M10.8 9.2l4.5-4.6c.5-.5 1.2-.5 1.7 0l3 2.9c.5.5.5 1.2 0 1.7l-4.6 4.5c-.5.5-1.2.5-1.7 0l-2.9-2.9c-.5-.5-.5-1.1 0-1.6z"/>' +
+    '<path d="M17.6 17.6l.1 3.9"/><path d="M16.1 17.5c1-.2 2-.2 3 0"/>' + pass('M5.8 20.4l7.3-7.4M13.6 7.6l3 3M20.6 21.6c-1.4.3-2.8.3-4.2.1'),
+  book: '<path d="M12 7.2C10.1 5.7 7.6 5.2 4.2 5.6l.2 12.9c3.3-.3 5.8.2 7.6 1.6"/><path d="M12 7.2c1.9-1.5 4.4-2 7.8-1.6l-.2 12.9c-3.3-.3-5.8.2-7.6 1.6"/>' +
+    '<path d="M12 7.3 11.9 20"/>' + pass('M6.4 9.1c1.3-.1 2.5.1 3.6.6M6.5 11.8c1.3-.1 2.4.1 3.5.6M6.6 14.5c1.2-.1 2.3.1 3.3.5M14 9.6c1.1-.5 2.2-.7 3.5-.6M14 12.3c1.1-.5 2.3-.7 3.5-.6'),
+  settings: '<path d="M9.4 6.6 10.9 5.9 10.8 3.7 13.1 3.3 13.1 5.8 14.7 6.2 16 7.4 17.8 6 19.4 7.5 17.7 8.8 18.2 10.6 18.1 12.4 20.8 12.9 19.8 15.1 17.7 14.5 16.8 15.9 15.8 17.2 16.7 19.2 14.6 20 13.7 18.1 12 18.4 10.2 18.3 9.4 20.3 7.3 19.1 8.2 17.2 7.1 15.9 6.3 14.4 4 15.1 3.4 12.9 5.9 12.2 5.8 10.7 6.5 9 4.7 7.6 6.2 5.9 7.7 7.1z"/>' +
+    '<path d="M12.1 9.4c1.5 0 2.6 1.2 2.5 2.7 0 1.4-1.2 2.5-2.7 2.4-1.4 0-2.4-1.2-2.4-2.6.1-1.5 1.2-2.5 2.6-2.5z"/>' + pass('M7.6 10.4c.5-1.4 1.4-2.4 2.6-3'),
+  jobs: '<path d="M6.3 5.2 17.9 4.8l.4 15.5-11.7.4z"/><path d="M12 3.1c.8 0 1.3.6 1.3 1.3s-.6 1.2-1.3 1.2-1.2-.5-1.2-1.3.5-1.2 1.2-1.2z"/>' +
+    '<path d="M8.4 9.5l1.3 1.4 2-2.8"/><path d="M13.3 9.9l3.1-.1"/><path d="M8.5 14.1l1.3 1.4 2-2.8"/><path d="M13.3 14.5l3.1-.1"/>' +
+    '<path d="M8.8 18h1.9"/><path d="M13.3 18.1l2.3-.1"/>' + pass('M18.9 6.4l.3 13.2'),
+  more: '<path d="M5.7 12.4h.1M12 11.8h.1M18.3 12.3h.1" stroke-width="3.4"/>' + pass('M4.4 15.6c4.9-.6 10-.6 15.2 0'),
+};
+
+/** The close button's x on every window and note (ui/rail.ts puts it in each .win-x): two inked strokes, like the row's
+ *  icons. */
+export const CLOSE_ICON = '<path d="M6.8 6.6c3.4 3.3 6.9 7 10.6 10.9"/><path d="M17.2 6.4C13.6 10 10.2 13.6 6.6 17.4"/>' + pass('M7.8 6.2c1.2 1 2.3 2.1 3.3 3.2');
+
 /** Every skill's icon (SKILLS in data/skills.ts): cream-style lines on a 24 x 24 grid, drawn in the skill's colour by
  *  the page (index.html's .icon). A pickaxe, an axe, a sword, a flexed arm, a shield, a heart, a fish, a pot, a mallet. */
 export const SKILL_ICONS: Record<SkillId, string> = {
