@@ -31,6 +31,7 @@ import { playTime } from './systems/sleep';
 import { SleepHud, sleepNotices } from './ui/sleep';
 import { ThoughtBubble } from './ui/thoughts';
 import { ActivityTag } from './ui/activity';
+import { Sound } from './ui/sound';
 import { BuildWindow } from './ui/build';
 import { CampMenu } from './ui/campmenu';
 import { NeedsHud } from './ui/needs';
@@ -100,7 +101,8 @@ function start(data: HotData): void {
   const skills = new SkillsWindow(windows, events);                 // each skill's level, and what he trains
   const book = new Book(state, events, layout, windows);            // his book: a page per goal, opened from its button or the goal card
   const news = new News(!newGame);                                  // a returning player sees what changed since
-  new Settings(windows, news, () => { startingOver = true; clearSave(browserStorage); location.reload(); }, activity);   // text size, the tag, What's new, Start over
+  const sound = new Sound(layout, events);                          // the camp's sounds and the music, made as it plays
+  new Settings(windows, news, () => { startingOver = true; clearSave(browserStorage); location.reload(); }, activity, sound);   // text size, the tag, sound, What's new, Start over
   const bedtime = new BedtimeSetting(queue);                        // his bedtime, in the Settings window
   new Intro(newGame);                                               // a new one is told what the game is about
   const awayNote = new AwayNote();                                  // and what he did while they were away
@@ -119,8 +121,8 @@ function start(data: HotData): void {
   // time is counted from.
   const clock = new FrameClock(opened, openedAt, document.hidden);
   // For checking a running game from the browser console: hearthfolk.state, hearthfolk.view, hearthfolk.clock, and
-  // hearthfolk.away (the away time caught up on opening, what he did and how many milliseconds it took)
-  (window as unknown as { hearthfolk: unknown }).hearthfolk = { state, queue, view, clock, away: back && { ...back.away, summary: back.summary, ms: awayMs } };
+  // hearthfolk.away (the away time caught up on opening, what he did and how many milliseconds it took), hearthfolk.sound
+  (window as unknown as { hearthfolk: unknown }).hearthfolk = { state, queue, view, clock, sound, away: back && { ...back.away, summary: back.summary, ms: awayMs } };
 
   const loop = new FixedLoop(dt => { applyCommands(state, layout, queue, events); step(state, dt, ctx); });
   new ResizeObserver(() => view.resize(stage.clientWidth, stage.clientHeight)).observe(stage);
@@ -137,7 +139,8 @@ function start(data: HotData): void {
     behind.add(openFor(playTime(state, real)).game, real);         // quicker while he sleeps: the night is seen to pass
     if (behind.play <= 0.25) { loop.advance(behind.next()); return; }
     applyCommands(state, layout, queue, events);
-    catchUp(state, behind.next(), ctx);
+    sound.hushed = true;                                            // a catch-up makes no sound
+    try { catchUp(state, behind.next(), ctx); } finally { sound.hushed = false; }
   }
   /** The real time the game has been played up to, for a save: the last frame's, less what is still to catch up. */
   const playedTo = () => clock.playedTo - behind.owedMs;
@@ -153,6 +156,7 @@ function start(data: HotData): void {
       sleepHud.update(state, dt);
       bubble.update(state, dt);
       activity.update(state);
+      sound.update(state, dt);
       needs.update(state);
       bedtime.update(state);
       rats.update(dt);

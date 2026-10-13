@@ -6,6 +6,14 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.35', date: '13 Oct 2026', notes: [
+      'Sound! The river and the falls, a soft wind, birds by day, crickets at night and the campfire crackling.',
+      'His work sounds too: chopping, the clink of the pick, a fish biting, the hammer as he builds, blows in a fight, eating and cooking, and a chime for each level and goal.',
+      'Quiet music now and then, with long rests between.',
+      'Music and Sounds have their own settings (Off, Low, Medium, High). The sound starts once you tap or click the game.',
+    ],
+  },
+  {
     version: '0.0.34', date: '13 Oct 2026', notes: [
       'The storage chest is built from logs only. Copper ore is no use until it is smelted, so it waits in the chest for now.',
       'At bedtime he finishes what he is doing first: the fight he is in, the swing, the knock of his hammer, the fish on the fire.',
