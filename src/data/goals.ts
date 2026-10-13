@@ -61,9 +61,9 @@ export const GOALS: Goal[] = [
     hint: 'Tap a grey rock flecked with green to mine it.',
     ready: 'You have enough copper ore.', needs: { copper_ore: 3 } },
   { id: 'chest', title: 'A storage chest',
-    page: 'Everything you own is on your back. A sturdy chest by the shelter will keep it safe, and logs in it keep the fire going at night.',
+    page: 'Everything you own is on your back. A sturdy chest in the shelter will keep it safe, and logs in it keep the fire going at night.',
     hint: 'Chop birch trees for logs, and keep 3 copper ore. If your backpack is full, open it and drop some spare ore.',
-    ready: 'You have it all. Tap Build, or tap the marker beside the shelter.', needs: MAKES.chest.needs, makes: 'chest' },
+    ready: 'You have it all. Tap Build, or tap the marker in the shelter.', needs: MAKES.chest.needs, makes: 'chest' },
   // chapter 2, holding the camp (0.0.22)
   { id: 'dummy', title: 'A training dummy',
     page: "The woods won't stay quiet forever. A dummy of logs and sacking is a safe place to learn to fight.",

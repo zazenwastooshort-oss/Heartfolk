@@ -14,15 +14,22 @@
 // sack body; once built, a hit area tagged userData.fightId sends him to practise on it, and it wobbles a little each
 // time he strikes it. Since chapter 2 a tap on the built campfire (userData.cookId) cooks the raw fish he has, once he
 // owns a rod or has some. Models from assets/models/village.glb: CampfireCold's stones and ash, the wreck's Plank, the
-// village Hearth's flames, the Tent. Reads state; never changes it.
+// village Hearth's flames, the Tent. Since the camp build (13 Oct 2026) the storage chest is furniture in the shelter:
+// it, its faint outline and its tap areas sit at the shelter's `chest` (core/camp.ts chestPlace: just inside the
+// tent's open front, on the porch of a wall tent or log cabin), and by day, while its marker shows, it is begun or it
+// stands, a tap there is the chest's rather than the shelter's (at night the shelter's: to bed). (A stopgap until the
+// camp build's stages 4 and 5 draw it and give the shelter its own menu.) Reads state; never changes it.
 import * as THREE from 'three';
 import { owned, type GameState } from '../core/state';
 import type { Layout, Vec2 } from '../world/layout';
 import { siteOf } from '../world/layout';
+import { reachOf, shapeOf, type StepPlace } from '../world/steps';
 import { MAKES, type MakeDef, type MakeId } from '../data/making';
 import { FIRE_LOOK, WOODPILE } from '../data/fire';
 import { COOK } from '../data/cooking';
 import { markerShown, progressOf, stepShown } from '../core/building';
+import { chestPlace } from '../core/camp';
+import { isNight } from '../core/clock';
 
 const RING = { width: 0.08, gap: 0.12, segments: 48, color: 0xf1e8d4 };   // the ring round a site not built yet
 const PLAN_OPACITY = 0.3;          // how faint the outline inside it is
@@ -44,6 +51,8 @@ interface SiteView {
   model: THREE.Group; flames: THREE.Object3D[]; light: THREE.PointLight | null; smoke: Puff[];
   /** the firewood pile's logs, bottom row first: as many show as it holds */
   logs: THREE.Object3D[] | null;
+  /** furniture (the chest): it moves with the shelter it is in (chestPlace); where it was last put, as "x,z,rot" */
+  furniture: boolean; at: string;
   shown: boolean | null; pop: number;
   /** the fire: how far it has flared up from being stoked (0..1), and how low it burns (0 normal .. 1 low) */
   flare: number; low: number;
@@ -76,12 +85,14 @@ export class StructuresView {
       if (def.gives.kind !== 'structure' || def.at === 'here' || !build) continue;
       const site = siteOf(layout, def.at);
       if (!site) continue;
+      // furniture (the chest) sits in the shelter at its own size, moved where it is each frame (update)
+      const furniture = !!shapeOf(def.id)?.furniture, radius = furniture ? reachOf(def.id) : site.radius;
       const { model, flames, plan: outline, store, cook, logs, fight, sway, sleep } = build(proto);
       // before it is built: a faint outline of it inside a ring on the ground, which fills up while he builds
       const plan = new THREE.Group(); plan.position.set(site.pos.x, 0, site.pos.z);
       outline.rotation.y = site.rot ?? 0;
       outline.traverse(o => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = planMat; });
-      const inner = site.radius + RING.gap;
+      const inner = radius + RING.gap;
       const ring = new THREE.RingGeometry(inner, inner + RING.width, RING.segments, 1, -Math.PI / 2).rotateX(Math.PI / 2);
       const track = new THREE.Mesh(ring, ringMat(0.32)), fill = new THREE.Mesh(ring.clone(), ringMat(0.85));
       track.position.y = 0.03; fill.position.y = 0.035; fill.visible = false;
@@ -93,21 +104,21 @@ export class StructuresView {
       // campfire (chapter 2) to cook at it
       let storeHit: THREE.Mesh | null = null;
       if (store || cook) {
-        storeHit = new THREE.Mesh(new THREE.CylinderGeometry(site.radius + 0.2, site.radius + 0.2, 0.9, 12), new THREE.MeshBasicMaterial({ visible: false }));
+        storeHit = new THREE.Mesh(new THREE.CylinderGeometry(radius + 0.2, radius + 0.2, 0.9, 12), new THREE.MeshBasicMaterial({ visible: false }));
         storeHit.position.set(site.pos.x, 0.45, site.pos.z); storeHit.userData[store ? 'storeId' : 'cookId'] = def.id; storeHit.visible = false;
         scene.add(storeHit); this.pickables.push(storeHit);
       }
       // once built, something to fight (the training dummy) can be tapped to practise on it: tall, like the dummy
       let fightHit: THREE.Mesh | null = null;
       if (fight) {
-        fightHit = new THREE.Mesh(new THREE.CylinderGeometry(site.radius, site.radius, 1.7, 12), new THREE.MeshBasicMaterial({ visible: false }));
+        fightHit = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 1.7, 12), new THREE.MeshBasicMaterial({ visible: false }));
         fightHit.position.set(site.pos.x, 0.85, site.pos.z); fightHit.userData.fightId = def.id; fightHit.visible = false;
         scene.add(fightHit); this.pickables.push(fightHit);
       }
       // once built, the shelter can be tapped to send him to bed in it
       let sleepHit: THREE.Mesh | null = null;
       if (sleep) {
-        sleepHit = new THREE.Mesh(new THREE.CylinderGeometry(site.radius, site.radius, 1.6, 12), new THREE.MeshBasicMaterial({ visible: false }));
+        sleepHit = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 1.6, 12), new THREE.MeshBasicMaterial({ visible: false }));
         sleepHit.position.set(site.pos.x, 0.8, site.pos.z); sleepHit.userData.sleepId = def.id; sleepHit.visible = false;
         scene.add(sleepHit); this.pickables.push(sleepHit);
       }
@@ -127,7 +138,7 @@ export class StructuresView {
         }
       }
       this.views.push({ def, pos: site.pos, rot: site.rot ?? 0, plan, fill, hit, storeHit, cook: !store && !!cook, fightHit, sway: sway ?? null, wobble: null, sleepHit,
-        model, flames, light, smoke, logs: logs ?? null, shown: null, pop: 1, flare: 0, low: 0 });
+        model, flames, light, smoke, logs: logs ?? null, furniture, at: '', shown: null, pop: 1, flare: 0, low: 0 });
     }
   }
 
@@ -141,10 +152,27 @@ export class StructuresView {
     v.wobble = { t: 0, amp: damage > 0 ? WOBBLE.hit : WOBBLE.miss, x: (dx * c - dz * s) / d, z: (dx * s + dz * c) / d };
   }
 
+  /** Furniture (the chest) put where it sits now: its outline and ring, its tap areas and its model. */
+  private put(v: SiteView, at: StepPlace): void {
+    const key = `${at.pos.x.toFixed(3)},${at.pos.z.toFixed(3)},${at.rot.toFixed(3)}`;
+    if (key === v.at) return;
+    v.at = key; v.pos = at.pos; v.rot = at.rot;
+    v.plan.position.set(at.pos.x, 0, at.pos.z);
+    v.plan.children[0]?.rotation.set(0, at.rot, 0);
+    v.hit.position.set(at.pos.x, v.hit.position.y, at.pos.z);
+    v.storeHit?.position.set(at.pos.x, v.storeHit.position.y, at.pos.z);
+    v.model.position.set(at.pos.x, 0, at.pos.z); v.model.rotation.y = at.rot;
+  }
+
   /** t: seconds; night: 0 by day .. 1 at night. */
   update(state: GameState, t: number, dt: number, night: number): void {
     const task = state.player.task;
+    // the chest sits in the shelter drawn at the tent's spot; by day, while its marker shows, it is begun or it stands, a
+    // tap at the shelter is the chest's (at night, the shelter's: to bed)
+    const chestAt = chestPlace(state, this.layout), dark = isNight(state.time);
+    const chestTaps = !dark && (markerShown(state, this.layout, 'chest') || state.underway.chest !== undefined || state.built.includes('chest'));
     for (const v of this.views) {
+      if (v.furniture && chestAt) this.put(v, chestAt);
       const built = state.built.includes(v.def.id), begun = state.underway[v.def.id] !== undefined;
       // its spot shows only once its goal comes up (its marker), or once begun, until it is built
       v.plan.visible = v.hit.visible = !built && (begun || markerShown(state, this.layout, v.def.id));
@@ -157,10 +185,18 @@ export class StructuresView {
         for (const pt of v.smoke) pt.sprite.visible = built;
         v.shown = built;
       }
+      // the chest's taps are the shelter's at night (to bed)
+      if (v.furniture) {
+        if (dark) v.hit.visible = false;
+        if (v.storeHit) v.storeHit.visible = built && !dark;
+      }
       // the shelter (the tent) gives way to its upgrade once that one is half built (render/building.ts draws it); its tap
       // area stays. (The campfire and the firewood pile stay drawn under their upgrades' placeholders until the camp
       // build's stage 4 draws the stone hearth and the woodshed.)
-      if (v.sleepHit) v.model.visible = built && stepShown(state, 'tent') === v.def.id;
+      if (v.sleepHit) {
+        v.model.visible = built && stepShown(state, 'tent') === v.def.id;
+        v.sleepHit.visible = built && !chestTaps;
+      }
       // the campfire's tap area cooks only once there is cooking to do (he owns a rod, or has raw fish); until then a
       // tap on the fire walks him beside it and the hover says nothing, as before there was cooking
       if (v.cook && v.storeHit) v.storeHit.visible = built && (state.tools.rod || owned(state, COOK.raw) > 0);
@@ -333,7 +369,7 @@ const BUILD: Partial<Record<MakeId, (proto: (name: string) => THREE.Object3D) =>
     model.add(proto('Tent').clone(true));
     return { model, flames: [], plan: proto('Tent').clone(true), sleep: true };
   },
-  // the storage chest beside the shelter; until it is built, the whole chest faint
+  // the storage chest, in the shelter by its door; until it is built, the whole chest faint
   chest: () => ({ model: chestModel(), flames: [], plan: chestModel(), store: true }),
   // the firewood pile beside the fire: as many logs as it holds; until it is built, a full pile faint. A tap on it
   // stacks the logs he carries on it

@@ -86,7 +86,7 @@ export const MAKE_NOTES: Partial<Record<MakeId, string>> = {
   woodpile: 'Logs stacked beside the fire, ready for the night.',
   shelter: 'The torn tarp over a frame of logs, with planks to sleep on.',
   stone_pickaxe: 'A heavier, pointed stone lashed to a branch. It breaks rock.',
-  chest: 'Logs held together with copper. It keeps your things safe by the shelter.',
+  chest: 'Logs held together with copper. It keeps your things safe in the shelter.',
   dummy: 'Logs and sacking on a post. A safe thing to learn to fight on.',
   stone_club: 'A heavy branch with a round stone lashed to its end. It hits hard.',
   rod: "Long branches, and thread from the tarp's frayed edge for a line.",
@@ -104,15 +104,15 @@ export const MAKE_NOTES: Partial<Record<MakeId, string>> = {
 export const SITE_WHERE: Partial<Record<SiteId | 'here', string>> = {
   hearth: 'Built at the fire spot.',
   tent: 'Built at the shelter spot by the fire.',
-  chest: 'Built beside the shelter.',
   woodpile: 'Stacked beside the fire.',
   dummy: 'Built on the grass west of the fire.',
   here: 'Made wherever you stand.',
 };
 
-/** Where one thing is built, for its Making page, when its site's words (SITE_WHERE) don't say it best: the camp's
- *  upgrades, each in place of the thing before it. */
+/** Where one thing is built, for its Making page, when its site's words (SITE_WHERE) don't say it best: the storage
+ *  chest, furniture in the shelter, and the camp's upgrades, each in place of the thing before it. */
 export const MAKE_WHERE: Partial<Record<MakeId, string>> = {
+  chest: 'Kept inside the shelter, by the door.',
   wall_tent: 'Built round the tent, at the shelter spot.',
   log_cabin: 'Built in place of the wall tent, at the shelter spot.',
   stone_hearth: 'Built round the campfire.',

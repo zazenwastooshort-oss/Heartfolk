@@ -16,7 +16,7 @@ import type { Layout } from '../world/layout';
 import { siteOf } from '../world/layout';
 import { isNight, nightOf } from '../core/clock';
 import { goVisit } from '../actors/player';
-import { canStoke } from '../core/camp';
+import { canStoke, chestHere } from '../core/camp';
 import { STOKE, WOODPILE } from '../data/fire';
 import { backpackCount, backpackFull, deposit, isStore, stopStoking, useUp } from './backpack';
 import { backToWork } from './hauling';
@@ -24,7 +24,9 @@ import { backToWork } from './hauling';
 // whether the fire is his to stoke (the campfire, with the pile or the chest to take logs from): core/camp.ts
 export { canStoke };
 
-const isBuilt = (state: GameState, layout: Layout, id: 'woodpile' | 'chest') => !!siteOf(layout, id) && state.built.includes(id);
+/** Whether the firewood pile stands here, or the storage chest (in the shelter: core/camp.ts). */
+const isBuilt = (state: GameState, layout: Layout, id: 'woodpile' | 'chest') =>
+  id === 'chest' ? chestHere(state, layout) : !!siteOf(layout, id) && state.built.includes(id);
 
 /** Where he takes the logs from: the pile while it holds any, else the chest while it holds any, else his backpack
  *  (null); or nowhere (false) when there is no log anywhere. */

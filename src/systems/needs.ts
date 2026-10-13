@@ -25,7 +25,7 @@ import type { EventBus } from '../core/events';
 import type { Layout } from '../world/layout';
 import { nightOf } from '../core/clock';
 import { HUNGER_PER_SECOND, atGoblins, bedtimeNow, goalsFood, goblinRace, hungerStarted, isHungry, midFight, nothingToEat, sinceBedtime, spareFood, wakeAt } from '../core/needs';
-import { chestStands } from '../core/tools';
+import { chestHere } from '../core/camp';
 import { HUNGER, NEEDS_RETRY } from '../data/needs';
 import { FOOD } from '../data/food';
 import { KEEP_FOOD } from '../data/hauling';
@@ -44,7 +44,7 @@ const FILLING_FIRST = Object.keys(FOOD).sort((a, b) => FOOD[b]!.fills - FOOD[a]!
 /** Food he may eat that he carries (spare: not counted by the current goal). */
 const carriesFood = (state: GameState) => FILLING_FIRST.some(f => (state.player.backpack[f] ?? 0) > 0 && spareFood(state, f) > 0);
 /** Food he may eat in the storage chest, where it stands. */
-const chestFood = (state: GameState, layout: Layout) => chestStands(state, layout) && FILLING_FIRST.some(f => (state.bank[f] ?? 0) > 0 && spareFood(state, f) > 0);
+const chestFood = (state: GameState, layout: Layout) => chestHere(state, layout) && FILLING_FIRST.some(f => (state.bank[f] ?? 0) > 0 && spareFood(state, f) > 0);
 const goingTo = (state: GameState, id: string) => state.player.pending?.kind === 'visit' && state.player.pending.id === id;
 
 /** He eats from his backpack until he is full (HUNGER.full) or has nothing more to spare, the most filling food first;

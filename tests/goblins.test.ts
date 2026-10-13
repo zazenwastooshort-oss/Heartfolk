@@ -295,7 +295,6 @@ describe('fighting the goblins', () => {
 
   it('its swing lands as often as its attack roll against his defence (with his armour) says', () => {
     const s = ready(11);
-    s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
     s.state.player.backpack = { cooked_fish: 28 };
     s.state.skills.vitality = XP_TABLE[60]!; s.state.health = maxHealth(s.state);
     engage(s, 'goblin1');

@@ -340,6 +340,9 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .stored > small { color: var(--muted); }
 .pack-chip { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 0.8125rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
 .pack-chip .item-pic { flex: none; width: 26px; height: 26px; }
+/* Store everything (src/ui/backpack.ts): under what is in the chest, across the section */
+.store-all { display: block; width: 100%; margin-top: 10px; }
+.store-all[hidden] { display: none; }
 
 /* his hunger in the strip (src/ui/needs.ts): a warm amber bar of how full he is; a short pill, so Health, Hungry and
    the skill fit on one row on a narrow phone (360 px) */
@@ -555,7 +558,7 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
           <div class="pick-do"><button type="button" class="eat" id="pickEat" hidden>Eat</button><button type="button" id="pickDrop1" hidden>Drop one</button><button type="button" id="pickDropAll" hidden>Drop all</button></div>
         </div>
         <div class="pack-sec" id="armourRow" hidden><h3>Wearing</h3><div class="worn" id="armour" role="group"></div><p class="worn-bonus" id="bonus"></p></div>
-        <div class="pack-sec" id="bankRow" hidden><h3 id="bankName">Chest</h3><div class="stored" id="bank"></div></div>
+        <div class="pack-sec" id="bankRow" hidden><h3 id="bankName">Chest</h3><div class="stored" id="bank"></div><button type="button" class="btn store-all" id="storeAll" hidden>Store everything</button></div>
         <div class="pack-sec" id="pileRow" hidden><h3>Firewood pile</h3><div class="stored" id="pile"></div></div>
       </div>
     </section>

@@ -1,7 +1,9 @@
 // The camp's layout for the camp build (docs/plans/2026-10-13-camp-build-plan.md, In 11; T11.1, T11.2, T11.5, T11.8):
 // each spot keeps room for its largest step, every step's footprint lies inside the next one's, walking blocks each
-// step by its own shape (and the first five exactly as their spots did before), and with everything built at its
-// largest he can still reach every door, work point, rock, tree, fishing spot and thing on the ground.
+// step by its own shape (and the campfire, the firewood pile, the tent and the dummy exactly as their spots did before;
+// the storage chest, furniture in the shelter, not at all), and with everything built at its largest he can still
+// reach every door, work point, rock, tree, fishing spot and thing on the ground. (The shelter's door and the chest in
+// it: tests/chest.test.ts.)
 import { describe, expect, it } from 'vitest';
 import { CAMP } from '../src/world/camp';
 import { inArea, siteOf, VILLAGE, type BuildingSpot, type Layout, type PropSpot, type Vec2 } from '../src/world/layout';
@@ -112,7 +114,7 @@ describe('the layout', () => {
 
   it('T11.1: each spot holds its largest step with room round it: clear of the other spots, the water, the scree, trees, rocks, bushes, things on the ground, the nest and the goblin camp', () => {
     const water = waterOf(CAMP), land = landOf(CAMP), falls = CAMP.falls!, gap = LAYOUT_GAP.gap;
-    const spots: MakeId[] = [...LARGEST, 'chest'];
+    const spots: MakeId[] = LARGEST;
     for (const id of spots) {
       const { edge, inside } = footprint(CAMP, id), all = [...edge, ...inside];
       // on the land, out of the water by LAYOUT_GAP.water, and off the scree at the wall's foot
@@ -152,10 +154,11 @@ describe('the layout', () => {
     expect(walkGrid(state, CAMP).findPath(CAMP.start, wake)).not.toBeNull();
   });
 
-  it('T11.8: the first five, and the chest at its own spot, are in the way exactly as their spots were before', () => {
+  it('T11.8: the campfire, the firewood pile, the tent and the dummy are in the way exactly as their spots were before', () => {
     // the old rule: a round spot blocked out to its radius like a prop, one with corners by its width and depth like a
-    // building (world/nav.ts before the camp build)
-    const sites = { campfire: 'hearth', woodpile: 'woodpile', shelter: 'tent', chest: 'chest', dummy: 'dummy' } as const;
+    // building (world/nav.ts before the camp build). (The storage chest had a spot of its own then; since the camp
+    // build's stage 3 it is in the shelter and in the way of nothing: tests/chest.test.ts, T8.1.)
+    const sites = { campfire: 'hearth', woodpile: 'woodpile', shelter: 'tent', dummy: 'dummy' } as const;
     const before = (ids: (keyof typeof sites)[]): Layout => {
       const buildings: BuildingSpot[] = [], props: PropSpot[] = [];
       for (const id of ids) {

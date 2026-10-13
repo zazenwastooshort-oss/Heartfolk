@@ -86,12 +86,12 @@ export interface Layout {
   /** the model drawn at the hearth: the village's big Hearth when not given, or null for nothing there yet (the camp,
    *  whose campfire is built there: siteOf, data/making.ts). With nothing there, nothing is in the way either. */
   hearthModel?: string | null;
-  /** the camp a new game starts at: the spots where his shelter, a tent, and his storage chest are built (siteOf
-   *  'tent' and 'chest'; nothing stands there until then): each one's middle, which way it faces (towards the fire),
-   *  how far round it it reaches (its ring, and where he stands to build it), and its width and depth, which are in
-   *  the way once it stands. The campfire is built at `hearth`; the firewood pile (0.0.21) beside it. The training
-   *  dummy (0.0.22) stands at `dummy`, round (no width and depth): a post with a crossbar, in the way out to its radius. */
-  camp?: { tent: Required<Site>; chest: Required<Site>; woodpile: Required<Site>; dummy: Site };
+  /** the camp a new game starts at: the spot where his shelter, a tent, is built (siteOf 'tent'; nothing stands there
+   *  until then; since the camp build his storage chest stands in it, by its door, with no spot of its own): its middle,
+   *  which way it faces (towards the fire), how far round it it reaches, and its width and depth. The campfire is built
+   *  at `hearth`; the firewood pile (0.0.21) beside it. The training dummy (0.0.22) stands at `dummy`, round (no width
+   *  and depth). What stands at each spot is in the way by its own shape (world/steps.ts). */
+  camp?: { tent: Required<Site>; woodpile: Required<Site>; dummy: Site };
   falls?: Falls;
   /** things lying on the ground to pick up by hand (the camp's wreck, stones and branches) */
   pickups?: PickupSpot[];
@@ -144,13 +144,12 @@ export interface Site { pos: Vec2; radius: number; rot?: number; w?: number; d?:
 
 /** Where something is built (MAKES' `at` in data/making.ts) in this layout: the camp's hearth, where nothing stands
  *  until its campfire is built (the village's already has its big Hearth), the camp's tent spot, where his shelter
- *  goes, and the camp's chest spot beside it; or null where this layout has no such place. A structure built there
- *  stands on it, and each step built there (the shelter's upgrades too) is in the way by its own shape (world/steps.ts,
- *  world/nav.ts). */
+ *  goes (and the storage chest in it), the firewood pile's and the training dummy's; or null where this layout has no
+ *  such place. A structure built there stands on it, and each step built there (the shelter's upgrades too) is in the
+ *  way by its own shape (world/steps.ts, world/nav.ts). */
 export function siteOf(layout: Layout, id: SiteId): Site | null {
   if (id === 'hearth') return layout.hearthModel === null ? layout.hearth : null;
   if (id === 'tent') return layout.camp?.tent ?? null;
-  if (id === 'chest') return layout.camp?.chest ?? null;
   if (id === 'woodpile') return layout.camp?.woodpile ?? null;
   if (id === 'dummy') return layout.camp?.dummy ?? null;
   return null;

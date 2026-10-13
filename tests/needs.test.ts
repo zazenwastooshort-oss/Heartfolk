@@ -59,14 +59,16 @@ const workingOn = (state: GameState, resource: string) => {
 /** Just short of hungry: he gets hungry `in` seconds of play from now. */
 const nearlyHungry = (s: Setup, inSeconds = 1) => { s.state.needs.fullness = HUNGER.hungry + HUNGER.perDay / DAY_SECONDS * inSeconds; };
 
-/** A camp at the goal `goal` (every goal before it done, never counting which they are), morning on day 1. */
+/** A camp at the goal `goal` (every goal before it done, never counting which they are), morning on day 1. Without
+ *  its `shelter` (so he works through the night, not to bed) there is no storage chest either: since the camp build the
+ *  chest stands in the shelter. */
 function campAt(goal: string, { shelter = true, hour = 8 } = {}): Setup {
   const s = setup(CAMP), before = GOALS.slice(0, GOALS.findIndex(g => g.id === goal));
   s.state.goalsDone = before.map(g => g.id);
   for (const g of before) {
     const make = g.makes;
     if (!make) continue;
-    if (['campfire', 'woodpile', 'shelter', 'chest', 'dummy'].includes(make)) { if (make !== 'shelter' || shelter) s.state.built.push(make as GameState['built'][number]); }
+    if (['campfire', 'woodpile', 'shelter', 'chest', 'dummy'].includes(make)) { if ((make !== 'shelter' && make !== 'chest') || shelter) s.state.built.push(make as GameState['built'][number]); }
     else if (make === 'stone_axe') s.state.tools.axe = true;
     else if (make === 'stone_pickaxe') s.state.tools.pick = true;
     else if (make === 'rod') s.state.tools.rod = true;
@@ -209,7 +211,7 @@ describe('hungry', () => {
   });
 
   it('mid-fight with the rats and nothing on him: once the rat is down, to the chest for a bite, then back to the rats', () => {
-    const s = campAt('rats', { shelter: false });
+    const s = campAt('rats');
     s.state.skills.vitality = XP_TABLE[40]!; s.state.health = maxHealth(s.state);
     s.state.bank = { cooked_fish: 8 };
     s.state.player.backpack = { cooked_fish: 1 };
@@ -576,7 +578,8 @@ describe('bedtime', () => {
     const s = campAt('dummy', { shelter: false, hour: 19.5 });
     s.state.woodpile = 10;
     send(s, { type: 'work', nodeId: 'camp_copper1' });
-    runUntil(s, () => s.state.time > at(2, 3), DAY_SECONDS);
+    // (his backpack kept from filling: with no shelter there is no chest to empty it into)
+    runUntil(s, () => { s.state.player.backpack = {}; return s.state.time > at(2, 3); }, DAY_SECONDS);
     expect(of(s, 'bedtime')).toHaveLength(0);
     expect(workingOn(s.state, 'copper_rock')).toBe(true);
   });

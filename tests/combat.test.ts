@@ -18,6 +18,7 @@ import { catchUpAway, step } from '../src/sim';
 import { CAMP } from '../src/world/camp';
 import { VILLAGE, siteOf, type Layout, type Vec2 } from '../src/world/layout';
 import { navFor } from '../src/world/nav';
+import { standsOf } from '../src/world/steps';
 import { waterOf } from '../src/world/water';
 import { applyCommands, type Command } from '../src/systems/commands';
 import {
@@ -177,7 +178,7 @@ describe("the dummy's spot at the camp", () => {
     expect(dist(SPOT.pos, CAMP.hearth.pos)).toBeLessThan(8);
     // its ring and tap area stay clear of the others' (render/structures.ts: a ring reaches 0.2 m past its spot's
     // radius, a tap area 0.37 m), with room to walk between
-    const others = [CAMP.hearth, CAMP.camp!.tent, CAMP.camp!.chest, CAMP.camp!.woodpile];
+    const others = [CAMP.hearth, CAMP.camp!.tent, CAMP.camp!.woodpile];
     for (const o of others) expect(dist(o.pos, SPOT.pos)).toBeGreaterThan(o.radius + SPOT.radius + 2 * 0.37 + 1);
     for (const n of CAMP.nodes) expect(dist(n.pos, SPOT.pos), n.id).toBeGreaterThan(2);
     for (const p of CAMP.pickups!) expect(dist(p.pos, SPOT.pos), p.id).toBeGreaterThan(1.4);
@@ -197,7 +198,8 @@ describe("the dummy's spot at the camp", () => {
       if (nav.walkable(stand) && nav.findPath(CAMP.start, stand)) open++;
     }
     expect(open).toBe(24);
-    const places = [CAMP.start, CAMP.hearth.pos, CAMP.camp!.chest.pos, CAMP.camp!.tent.pos, ...CAMP.nodes.map(n => n.pos)];
+    // (the chest is in the shelter, used at its door)
+    const places = [CAMP.start, CAMP.hearth.pos, standsOf(CAMP, 'shelter')[0]!, CAMP.camp!.tent.pos, ...CAMP.nodes.map(n => n.pos)];
     for (const from of places) for (const to of places) {
       expect(nav.findPath(nav.nearestWalkable(from), nav.nearestWalkable(to)), `${from.x},${from.z} > ${to.x},${to.z}`).not.toBeNull();
     }

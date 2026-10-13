@@ -91,7 +91,7 @@ describe('the pages of his book', () => {
     expect(pages.at(-1)!.lines).toEqual([{ id: 'birch_logs', need: 10, got: 0, done: false }, { id: 'copper_ore', need: 3, got: 3, done: true }]);
     // with everything there the page says to build it, as the card does (0.0.19)
     s.state.player.backpack.birch_logs = 10;
-    expect(bookPages(s.state).at(-1)!.hint).toBe('You have it all. Tap Build, or tap the marker beside the shelter.');
+    expect(bookPages(s.state).at(-1)!.hint).toBe('You have it all. Tap Build, or tap the marker in the shelter.');
     // every page has words of its own
     expect(new Set(GOALS.map(g => g.page)).size).toBe(GOALS.length);
   });

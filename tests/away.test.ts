@@ -50,7 +50,6 @@ function campSet(seed = 5): Setup {
 /** That camp at `hour` o'clock with a few logs in the chest for the fire, him at work on `nodeId`. */
 function working(nodeId = 'camp_birch1', hour = 9): Setup {
   const s = campSet();
-  s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
   s.state.bank = { birch_logs: 6, bark: MAKES.woodshed.needs.bark! };   // (the woodshed's bark: none peeled while he chops)
   s.state.time = at(0, hour);
   send(s, { type: 'work', nodeId });
@@ -69,12 +68,15 @@ function reopen(state: GameState, savedAt: number | undefined, layout: Layout = 
   events.on(e => log.push(e));
   return { ...loaded, ...catchUpAway(loaded.state, loaded.savedAt, NOW, { layout, rng: createRng(seed), events }), log };
 }
-/** The same game played on for `seconds` with the same luck, as if it had never closed. */
-function playedOn(state: GameState, seconds: number, layout: Layout = CAMP, seed = 7) {
+/** The same game played on with the same luck, as catchUpAway plays it: `open` seconds with the game open (a hidden
+ *  page, or a background tab: he goes to bed at his bedtime), then `closed` seconds of play while it was closed (he
+ *  doesn't go to bed then: the owner, 13 Oct 2026). */
+function playedOn(state: GameState, time: { open?: number; closed?: number }, layout: Layout = CAMP, seed = 7) {
   const s = readSave(serialize(state), layout).state, events = new EventBus(), summary = emptySummary();
   events.on(e => tally(summary, e));
   const ctx = { layout, rng: createRng(seed), events };
-  for (let n = Math.round(seconds / STEP); n > 0; n--) step(s, STEP, ctx);
+  for (let n = Math.round((time.open ?? 0) / STEP); n > 0; n--) step(s, STEP, ctx);
+  for (let n = Math.round((time.closed ?? 0) / STEP); n > 0; n--) step(s, STEP, { ...ctx, away: true });
   return { state: s, summary };
 }
 function memory(): Storage & { data: Map<string, string> } {
@@ -136,14 +138,11 @@ describe('saves say when they were written (format 8)', () => {
     expect(SAVE_VERSION).toBe(12);
     expect(loaded.state.version).toBe(SAVE_VERSION);
     expect(loaded.savedAt).toBeNull();
-    // (this one has the chest standing with no shelter, which play never leaves: the camp build's migration gives it the
-    // tent its chest now stands in)
-    const was = { ...s.state, built: [...s.state.built, 'shelter' as const] };
-    expect(loaded.state).toEqual(was);
+    expect(loaded.state).toEqual(s.state);
     const { away, summary } = catchUpAway(loaded.state, loaded.savedAt, NOW, s.ctx);
     expect(away.game).toBe(0);
     expect(didSomething(summary)).toBe(false);
-    expect(loaded.state).toEqual(was);
+    expect(loaded.state).toEqual(s.state);
     const store = memory();
     save(store, loaded.state, NOW);
     expect(load(store, CAMP)!.savedAt).toBe(NOW);
@@ -166,8 +165,8 @@ describe('opening the game after it was closed', () => {
     expect(r.savedAt).toBe(NOW - HOUR);
     expect(r.away).toMatchObject({ real: 3600, counted: 3600, open: false });
     expect(r.state.time - s.state.time).toBeCloseTo(12 * 60, 3);
-    // exactly as if the game had stayed open 12 minutes
-    const ref = playedOn(s.state, 12 * 60);
+    // exactly as if he had played on 12 minutes (closed, he never goes to bed: the owner, 13 Oct 2026)
+    const ref = playedOn(s.state, { closed: 12 * 60 });
     expect(r.state).toEqual(ref.state);
     expect(r.summary).toEqual(ref.summary);
     // and that is 12 minutes' worth: logs at the birch's rate (trips to the chest included), 10 XP each
@@ -262,7 +261,7 @@ describe('opening the game after it was closed', () => {
     send(s, { type: 'work', nodeId: 'copper1' });
     run(s, 20);
     const r = reopen(s.state, NOW - HOUR, VILLAGE);
-    expect(r.state).toEqual(playedOn(s.state, 12 * 60, VILLAGE).state);
+    expect(r.state).toEqual(playedOn(s.state, { closed: 12 * 60 }, VILLAGE).state);
     const ore = r.summary.items.copper_ore!, copper = RESOURCES.copper_rock!;
     expect(ore).toBeGreaterThan(12 * 60 / copper.time * 0.6);
     expect(r.summary.xp).toEqual({ mining: ore * copper.xp });
@@ -284,7 +283,7 @@ describe('opening the game after it was closed', () => {
 describe('a game left open in a background tab', () => {
   it('catches up at full speed, the same as playing on', () => {
     const s = working();
-    const ref = playedOn(s.state, 10 * 60, CAMP, 5);
+    const ref = playedOn(s.state, { open: 10 * 60 }, CAMP, 5);
     const away = openFor(10 * 60);
     const summary = catchUp(s.state, away.game, { ...s.ctx, rng: createRng(5) });
     expect(s.state).toEqual(ref.state);
@@ -350,7 +349,7 @@ describe('opening the page (awayOnOpening, as main.ts calls it)', () => {
     const r = awayOnOpening(loaded, false, NOW, { layout: CAMP, rng: createRng(7), events: new EventBus() })!;
     expect(r.away).toMatchObject({ real: 3600, counted: 3600, open: false });
     expect(loaded.state.time - s.state.time).toBeCloseTo(12 * 60, 3);
-    expect(loaded.state).toEqual(playedOn(s.state, 12 * 60).state);
+    expect(loaded.state).toEqual(playedOn(s.state, { closed: 12 * 60 }).state);
     expect(tellAway(null, r.away, r.summary, false)).toEqual({ spans: [r.away], summary: r.summary });
   });
 
@@ -495,8 +494,8 @@ describe('hidden, then closed (0.0.21)', () => {
     const r = catchUpAway(loaded.state, loaded.savedAt, NOW, { ...s.ctx, rng: createRng(5) }, loaded.closedAt);
     expect(r.away).toEqual(closedFor(NOW - HOUR, NOW));
     expect(r.away.game).toBeCloseTo(12 * 60);
-    // the same as playing on for the 2 hours hidden and then 12 minutes
-    const ref = playedOn(s.state, 2 * 3600 + 12 * 60, CAMP, 5), open = playedOn(s.state, 2 * 3600, CAMP, 5);
+    // the same as playing on for the 2 hours hidden (to bed at his bedtime) and then 12 minutes closed (not)
+    const ref = playedOn(s.state, { open: 2 * 3600, closed: 12 * 60 }, CAMP, 5), open = playedOn(s.state, { open: 2 * 3600 }, CAMP, 5);
     expect(loaded.state).toEqual(ref.state);
     // the note tells only what he did in the 12 minutes after it closed
     const logs = (x: { summary: ReturnType<typeof emptySummary> }) => x.summary.items.birch_logs ?? 0;

@@ -6,12 +6,15 @@
 // the camp build says (T12.1, T12.2): the lean-to and the log hut are the wall tent and the log cabin, the log bench and
 // the workbench gone with what they took given back to the chest, and one thing at most under way. A damaged save
 // never throws, and one that can't be read is kept aside (T12.3); an old sleeper behind the tent sleeps on, moved out
-// of the wall tent that now stands there (T12.4); a damaged save with two things under way keeps one (T12.5).
+// of the wall tent that now stands there (T12.4); a damaged save with two things under way keeps one (T12.5). One on
+// his way to the chest (at its own spot then), the firewood pile, the fire, bed or something he builds goes on to where
+// he stands for it now: the chest is in the shelter, used at its door (the camp build's stage 3).
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { campBuildSave, load, readSave, SAVE_KEY, serialize, UNREAD_KEY, type Storage } from '../src/core/save';
 import { createState, currentGoal, SAVE_VERSION, type GameState } from '../src/core/state';
 import { begunIds, walkGrid } from '../src/core/building';
+import { atSpot, buildSpot, useSpot } from '../src/core/camp';
 import { EventBus } from '../src/core/events';
 import { createRng, type Rng } from '../src/core/rng';
 import { STEP } from '../src/core/loop';
@@ -369,5 +372,43 @@ describe('a damaged save with two things under way (T12.5)', () => {
     for (const [item, n] of Object.entries(MAKES.wall_tent.needs)) expect(idle.bank[item], item).toBe((state.bank[item] ?? 0) + n);
     // read back again: nothing given back twice
     expect(readSave(serialize(idle), CAMP).state).toEqual(idle);
+  });
+});
+
+// ---- on his way somewhere at the camp when it was saved (the camp build's stage 3) ----
+
+describe('on his way to the camp\'s places when it was saved: the chest at the shelter\'s door now', () => {
+  /** The frozen saves that, read back, have him on his way to something at the camp: the chest (its own spot beside the
+   *  tent until the camp build; in the shelter now, used at its door), the shelter (to bed), the campfire, the firewood
+   *  pile (its spot moved out along its line), or something he builds (from its own stands now). */
+  const GOING = ALL.filter(f => {
+    const pending = readSave(rawOf(f), CAMP).state.player.pending;
+    return pending?.kind === 'raise' || (pending?.kind === 'visit' && ['chest', 'shelter', 'campfire', 'woodpile'].includes(pending.id));
+  });
+
+  it('there are such saves from every release: to the chest, the fire, the pile, bed and something begun', () => {
+    for (const v of Object.keys(CASES)) expect(GOING.some(f => f.startsWith(v)), v).toBe(true);
+    const ids = new Set(GOING.map(f => readSave(rawOf(f), CAMP).state.player.pending!.id));
+    for (const id of ['chest', 'shelter', 'campfire', 'woodpile', 'wall_tent']) expect(ids.has(id), id).toBe(true);
+  });
+
+  it.each(GOING)('%s: his way goes on to where he stands for it now, on open ground, and he gets there', file => {
+    const { state } = readSave(rawOf(file), CAMP), p = state.player, pending = p.pending!;
+    const spot = pending.kind === 'raise' ? buildSpot(state, CAMP, pending.id) : useSpot(state, CAMP, pending.id);
+    expect(spot).not.toBeNull();
+    expect(p.task.kind).toBe('walk');
+    expect(atSpot(spot!, p.path.at(-1)!)).toBe(true);
+    const nav = walkGrid(state, CAMP);
+    let from = p.pos;
+    for (const q of p.path) { expect(nav.lineOfSight(from, q)).toBe(true); from = q; }
+    // played on, he gets there: the visit is seen to, or he is at work building
+    const ctx = { layout: CAMP, rng: createRng(1), events: new EventBus() };
+    let there = false;
+    ctx.events.on(e => { if (e.type === 'visited' && pending.kind === 'visit' && e.id === pending.id) there = true; });
+    for (let t = 0; t < 120 && !there; t += STEP) {
+      step(state, STEP, ctx);
+      if (pending.kind === 'raise' && state.player.task.kind === 'raise' && state.player.task.id === pending.id) there = true;
+    }
+    expect(there).toBe(true);
   });
 });

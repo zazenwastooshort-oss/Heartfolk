@@ -1,12 +1,15 @@
-// Sleeping in the shelter (12 Oct 2026): the notices that go with it, a slow "z" drifting up over the tent while he
-// sleeps, and the day and night dial beside the clock (the owner: "a radial for day and night"): a small disc, the day
-// pale and the night dark, noon at the top and midnight at the bottom, with a hand at the time of day. Listens to events
-// and reads the game; changes nothing in it.
+// Sleeping in the shelter (12 Oct 2026): the notices that go with it, a slow "z" drifting up over the shelter while he
+// sleeps (over the one drawn at the tent's spot: the tent, the wall tent, the log cabin), and the day and night dial
+// beside the clock (the owner: "a radial for day and night"): a small disc, the day pale and the night dark, noon at the
+// top and midnight at the bottom, with a hand at the time of day. Listens to events and reads the game; changes nothing
+// in it.
 import type { EventBus } from '../core/events';
 import type { GameState } from '../core/state';
 import { dayFraction } from '../core/clock';
+import { stepShown } from '../core/building';
 import { wakeLabel } from './needs';
-import { siteOf, type Layout } from '../world/layout';
+import type { Layout } from '../world/layout';
+import { stepPlace } from '../world/steps';
 import { STOKE } from '../data/fire';
 import type { Hud } from './hud';
 
@@ -44,7 +47,7 @@ export function sleepNotices(events: EventBus, hud: Hud): void {
   });
 }
 
-/** The dial, the "Rested" chip beside it, and the "z" over the tent while he sleeps. */
+/** The dial, the "Rested" chip beside it, and the "z" over the shelter while he sleeps. */
 export class SleepHud {
   private zIn = 0;
   private hand: Element | null;
@@ -64,7 +67,8 @@ export class SleepHud {
     this.zIn -= dt;
     if (this.zIn > 0) return;
     this.zIn = 1.1;
-    const tent = siteOf(this.layout, 'tent');
-    if (tent) this.hud.drift('z', tent.pos);
+    // over the middle of the shelter drawn at the tent's spot (a wall tent, from half built on)
+    const shown = stepShown(state, 'tent'), place = shown ? stepPlace(this.layout, shown) : null;
+    if (place) this.hud.drift('z', place.pos);
   }
 }

@@ -1061,14 +1061,28 @@ describe('committed: he goes back to what is half built (In 2, D9)', () => {
   it('T2.6: hungry while he builds, he eats at the chest, then comes back', () => {
     const c = camp();
     c.state.bank.cooked_fish = 6;
-    send(c, { type: 'build', id: 'wall_tent' });
+    send(c, { type: 'build', id: 'woodshed' });
     runUntil(c, () => c.state.player.task.kind === 'raise', 30);
     c.state.needs.fullness = 0.3;
-    watch(c, 'wall_tent', () => of(c, 'meal').length > 0, 60);
+    watch(c, 'woodshed', () => of(c, 'meal').length > 0, 60);
     expect(of(c, 'mealOff')).toHaveLength(1);
     expect(of(c, 'meal')).toHaveLength(1);
     run(c, 0.2);
-    expect(backAt(c, 'wall_tent')).toBe(true);
+    expect(backAt(c, 'woodshed')).toBe(true);
+    watch(c, 'woodshed', () => c.state.built.includes('woodshed'), MAKES.woodshed.time + 30);
+    expect(c.state.built).toContain('woodshed');
+  });
+
+  it('T2.6: hungry while he builds the wall tent, at the shelter\'s door where the chest is, he eats from it there and builds on', () => {
+    const c = camp();
+    c.state.bank.cooked_fish = 6;
+    send(c, { type: 'build', id: 'wall_tent' });
+    runUntil(c, () => c.state.player.task.kind === 'raise', 30);
+    c.state.needs.fullness = 0.3;
+    watch(c, 'wall_tent', () => of(c, 'meal').length > 0, 10);
+    expect(of(c, 'mealOff')).toHaveLength(0);
+    expect(of(c, 'meal')).toHaveLength(1);
+    expect(c.state.player.task).toEqual({ kind: 'raise', id: 'wall_tent' });
     watch(c, 'wall_tent', () => c.state.built.includes('wall_tent'), MAKES.wall_tent.time + 30);
     expect(c.state.built).toContain('wall_tent');
   });

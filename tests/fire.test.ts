@@ -21,9 +21,12 @@ import { GOALS } from '../src/data/goals';
 import { BACKPACK_SLOTS } from '../src/data/hauling';
 import { STOKE } from '../src/data/fire';
 import { MAKES } from '../src/data/making';
+import { DOOR } from '../src/data/building';
+import { standsOf } from '../src/world/steps';
 
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.z - b.z);
-const FIRE = CAMP.hearth.pos, CHEST = CAMP.camp!.chest.pos;
+/** The fire, and the shelter's door (the tent's), where the chest in it is used since the camp build. */
+const FIRE = CAMP.hearth.pos, CHEST = standsOf(CAMP, 'shelter')[0]!;
 const LOGS = STOKE.item;
 
 function setup(layout: Layout = CAMP, seed = 5) {
@@ -81,7 +84,7 @@ describe('the storage chest stores things, like the bank', () => {
     expect(s.log.find(e => e.type === 'banked')).toEqual({ type: 'banked', items: { birch_logs: BACKPACK_SLOTS } });
     expect(s.state.bank).toEqual({ bark: BARK_NEEDED, birch_logs: BACKPACK_SLOTS });
     expect(s.state.player.backpack).toEqual({});
-    expect(dist(s.state.player.pos, CHEST)).toBeLessThan(CAMP.camp!.chest.radius + 1);
+    expect(dist(s.state.player.pos, CHEST)).toBeLessThanOrEqual(DOOR.near);
     // after a moment at the chest he goes back to the birches
     runUntil(s, () => s.state.player.trip === null, 5);
     expect(atBirch(s.state)).toBe(true);
@@ -116,7 +119,7 @@ describe('the storage chest stores things, like the bank', () => {
     expect(s.state.player.backpack).toEqual({});
     run(s, 3);
     expect(s.state.player.task.kind).toBe('idle');
-    expect(dist(s.state.player.pos, CHEST)).toBeLessThan(CAMP.camp!.chest.radius + 1);
+    expect(dist(s.state.player.pos, CHEST)).toBeLessThanOrEqual(DOOR.near);
     expect(navFor(CAMP, s.state.built).walkable(s.state.player.pos)).toBe(true);
     send(s, { type: 'visit', id: 'chest' });
     run(s, 1);
@@ -178,7 +181,7 @@ describe('stoking the fire at night', () => {
     runUntil(s, () => (s.state.player.stoke?.logs ?? 0) > 0, 60);
     expect(s.state.bank).toEqual({ birch_logs: 2 });
     expect(s.state.player.stoke!.logs).toBe(3);
-    expect(dist(s.state.player.pos, CHEST)).toBeLessThan(CAMP.camp!.chest.radius + 1);
+    expect(dist(s.state.player.pos, CHEST)).toBeLessThanOrEqual(DOOR.near);
     expect(s.state.player.pending).toEqual({ kind: 'visit', id: 'campfire' });
     runUntil(s, () => s.state.player.task.kind === 'stoke', 60);
     expect(dist(s.state.player.pos, FIRE)).toBeLessThan(CAMP.hearth.radius + 1);
@@ -225,7 +228,6 @@ describe('stoking the fire at night', () => {
 
   it('with no logs at all he stays at work, the fire burns low with nothing lost, and burns normally once stoked', () => {
     const s = campSet();
-    s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
     s.state.player.backpack = { copper_ore: 2 };
     s.state.time = at(0, NIGHTFALL) - 0.5;
     send(s, { type: 'work', nodeId: 'camp_copper1' });
@@ -293,7 +295,6 @@ describe('stoking the fire at night', () => {
 
   it('a full backpack he was taking to the chest is emptied there on the way, then he stokes and goes back to work', () => {
     const s = campSet();
-    s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
     s.state.bank = { birch_logs: 2, bark: BARK_NEEDED };          // (the woodshed's bark: none peeled while he chops)
     send(s, { type: 'work', nodeId: 'camp_birch1' });
     runUntil(s, () => count(s, 'backpackFull') > 0, 900);

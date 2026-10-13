@@ -18,6 +18,7 @@ import { step } from '../src/sim';
 import { CAMP } from '../src/world/camp';
 import { VILLAGE, siteOf, type Layout, type Vec2 } from '../src/world/layout';
 import { navFor } from '../src/world/nav';
+import { standsOf, stepPlace } from '../src/world/steps';
 import { applyCommands, type Command } from '../src/systems/commands';
 import { GOALS } from '../src/data/goals';
 import { BUILD_REACH, MAKES, makeDef, type MakeDef, type MakeId } from '../src/data/making';
@@ -28,7 +29,9 @@ import { onGround } from '../src/systems/pickups';
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.z - b.z);
 const FIRE = CAMP.hearth.pos;
 const CAMPFIRE = MAKES.campfire, STONE_AXE = MAKES.stone_axe, SHELTER = MAKES.shelter, STONE_PICK = MAKES.stone_pickaxe, CHEST = MAKES.chest;
-const TENT = CAMP.camp!.tent.pos, CHEST_SPOT = CAMP.camp!.chest;
+const TENT = CAMP.camp!.tent.pos;
+/** The tent's door: where he builds the chest just inside it, and uses it (the camp build: the chest is in the shelter). */
+const DOOR_AT = standsOf(CAMP, 'shelter')[0]!;
 const goal = (id: string) => GOALS.find(g => g.id === id)!;
 const ofKind = (kind: PickupKind) => CAMP.pickups!.filter(p => p.kind === kind);
 
@@ -112,7 +115,7 @@ describe('the things to make (data/making.ts)', () => {
     // the chest is a making goal, built since 0.0.19
     expect(goal('chest')).toMatchObject({ title: 'A storage chest', needs: { birch_logs: 10, copper_ore: 3 }, makes: 'chest' });
     expect(makeDef('chest')).toBe(MAKES.chest);
-    expect(goal('chest').ready).toBe('You have it all. Tap Build, or tap the marker beside the shelter.');
+    expect(goal('chest').ready).toBe('You have it all. Tap Build, or tap the marker in the shelter.');
     // each thing built at the camp's spots says to tap its marker (the camp build: nothing shows there until then)
     for (const g of GOALS.filter(x => x.makes && stagedDef(x.makes))) expect(g.ready, g.id).toMatch(/tap the marker/);
     // he keeps mining after the copper goal until his backpack is full, so the hint says to make room for the logs
@@ -676,7 +679,8 @@ describe('building the shelter', () => {
     expect(walkGrid(s.state, CAMP).walkable(TENT)).toBe(false);
     runUntil(s, () => s.state.player.task.kind === 'raise', 60);
     const started = s.state.time, at = { ...s.state.player.pos };
-    expect(dist(at, TENT)).toBeCloseTo(CAMP.camp!.tent.radius + BUILD_REACH, 1);
+    // (the camp build) at its stand, in front of its door, as far out as his mallet reaches: the door he uses after
+    expect(dist(at, DOOR_AT)).toBeLessThan(0.1);
     run(s, SHELTER.time - 2);
     expect(s.state.player.task.kind).toBe('raise');
     expect(s.state.built).toEqual(['campfire', 'woodpile']);
@@ -875,23 +879,21 @@ describe('the stone pickaxe and copper ore', () => {
 });
 
 describe('building the storage chest (0.0.19)', () => {
-  it('has the chest: logs and copper ore, built in stages at the camp chest spot beside the shelter, a structure', () => {
-    expect(CHEST).toMatchObject({ name: 'Storage chest', verb: 'Build', needs: { birch_logs: 10, copper_ore: 3 }, at: 'chest', time: 45, gives: { kind: 'structure' } });
-    expect(stagedDef('chest')).not.toBeNull();
-    expect(siteOf(CAMP, 'chest')).toEqual(CHEST_SPOT);
-    expect(siteOf(VILLAGE, 'chest')).toBeNull();                // the village has its bank
-    // near the shelter and the fire, but clear of both once all three stand, with room to walk between them
-    expect(dist(CHEST_SPOT.pos, TENT)).toBeLessThan(3);
-    expect(dist(CHEST_SPOT.pos, FIRE)).toBeLessThan(5);
-    const all = navFor(CAMP, ['campfire', 'shelter', 'chest']);
-    expect(all.walkable(CHEST_SPOT.pos)).toBe(false);
-    expect(navFor(CAMP, ['campfire', 'shelter']).walkable(CHEST_SPOT.pos)).toBe(true);
-    // a path from the tent's door side to behind the chest, and from the fire round to the tent's far side
-    expect(all.findPath(FIRE.x > 0 ? { x: FIRE.x, z: FIRE.z + 1.4 } : FIRE, { x: CHEST_SPOT.pos.x - 0.4, z: CHEST_SPOT.pos.z + 1.3 })).not.toBeNull();
+  it('has the chest: logs and copper ore, built in stages in the shelter, by its door (the camp build), a structure', () => {
+    expect(CHEST).toMatchObject({ name: 'Storage chest', verb: 'Build', needs: { birch_logs: 10, copper_ore: 3 }, at: 'tent', time: 45, gives: { kind: 'structure' } });
+    expect(stagedDef('chest')).toMatchObject({ inside: 'tent' });
+    expect(Object.keys(CAMP.camp!)).not.toContain('chest');     // no spot of its own
+    expect(stepPlace(VILLAGE, 'chest')).toBeNull();              // the village has its bank
+    // it adds nothing to what is in the way: the shelter round it is
+    const all = navFor(CAMP, ['campfire', 'shelter', 'chest']), before = navFor(CAMP, ['campfire', 'shelter']);
+    for (let x = TENT.x - 4; x < FIRE.x + 4; x += 0.4) for (let z = FIRE.z - 4; z < TENT.z + 4; z += 0.4) expect(all.walkable({ x, z })).toBe(before.walkable({ x, z }));
+    // its door is near the fire, and a path goes from the fire to it, and round to the tent's far side
+    expect(dist(DOOR_AT, FIRE)).toBeLessThan(5);
+    expect(all.findPath(FIRE.x > 0 ? { x: FIRE.x, z: FIRE.z + 1.4 } : FIRE, DOOR_AT)).not.toBeNull();
     expect(all.findPath(CAMP.start, { x: TENT.x - 2.2, z: TENT.z + 1 })).not.toBeNull();
   });
 
-  it('on a fresh camp game, after copper ore: logs chopped, built beside the shelter, the materials gone, every goal done', () => {
+  it('on a fresh camp game, after copper ore: logs chopped, built in the shelter from its door, the materials gone, every goal done', () => {
     const s = readyForShelter();
     makeIt(s, 'shelter');
     pickUpSome(s, 'branch', STONE_PICK.needs.branch!);
@@ -909,7 +911,7 @@ describe('building the storage chest (0.0.19)', () => {
     send(s, { type: 'build', id: 'chest' });
     expect(owned(s.state, 'copper_ore')).toBe(ore - 3);              // taken at once
     runUntil(s, () => s.state.player.task.kind === 'raise', 60);
-    expect(dist(s.state.player.pos, CHEST_SPOT.pos)).toBeCloseTo(CHEST_SPOT.radius + BUILD_REACH, 0);
+    expect(dist(s.state.player.pos, DOOR_AT)).toBeLessThan(0.1);           // at the tent's door
     // he works its time (a little less: Carpentry level 3 on the way), whatever the night sends him off to meanwhile
     // (his first bedtime comes while he builds it: he sleeps, and goes back to it in the morning)
     let working = 0;
@@ -926,9 +928,8 @@ describe('building the storage chest (0.0.19)', () => {
     const chestAt = GOALS.findIndex(g => g.id === 'chest');
     expect(s.state.goalsDone).toEqual(GOALS.slice(0, chestAt + 1).map(g => g.id));
     expect(allGoalsDone(s.state)).toBe(chestAt === GOALS.length - 1);
-    // he stands on open ground beside it; the chest itself is in the way, and stays built after a reload
+    // he stands on open ground at the door; the chest stays built after a reload
     expect(navFor(CAMP, s.state.built).walkable(s.state.player.pos)).toBe(true);
-    expect(navFor(CAMP, s.state.built).walkable(CHEST_SPOT.pos)).toBe(false);
     expect(deserialize(serialize(s.state), CAMP).built).toEqual(['campfire', 'woodpile', 'shelter', 'chest']);
   });
 

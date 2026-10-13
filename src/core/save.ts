@@ -14,10 +14,11 @@ import { savedGoblins } from './goblins';
 import { KNOCKED_OUT } from '../data/rats';
 import { CHIEF } from '../data/goblins';
 import { savedThoughts } from './thoughts';
-import { savedBuilding, walkGrid } from './building';
+import { lineOf, savedBuilding, walkGrid } from './building';
 import type { NavGrid } from '../world/nav';
 import { restedTill, savedNeeds } from './needs';
 import { savedToolsInChest } from './tools';
+import { AT_SPOT, atSpot, buildSpot, canCook, chestHere, spotEnds, useSpot } from './camp';
 
 export interface Storage { get(key: string): string | null; set(key: string, value: string): void }
 
@@ -281,9 +282,11 @@ function savedBack(v: unknown, state: GameState, layout: Layout): Back | null {
 /** Stoking the fire (0.0.19), as saved: only where the fire is his to stoke (the campfire stands, with the firewood
  *  pile or the chest), fetching the logs from one that stands (or with logs from his backpack already in hand: `from`
  *  null; one that doesn't say, from before 0.0.21 or damaged, came from the chest), with a whole number of logs
- *  carried (none before he reaches the pile or the chest). Anything else is null. */
+ *  carried (none before he reaches the pile or the chest). Anything else is null. The chest is in the shelter since the
+ *  camp build (core/camp.ts chestHere), so a save from before it, stoking from the chest at its own spot, carries on at
+ *  the shelter's door with the logs it had. */
 function savedStoke(v: unknown, state: GameState, layout: Layout): Stoke | null {
-  const has = (id: 'woodpile' | 'chest') => state.built.includes(id) && !!siteOf(layout, id);
+  const has = (id: 'woodpile' | 'chest') => id === 'chest' ? chestHere(state, layout) : state.built.includes(id) && !!siteOf(layout, id);
   if (!isRecord(v) || !state.built.includes('campfire') || !siteOf(layout, 'hearth') || (!has('woodpile') && !has('chest'))) return null;
   const from = v.from === 'woodpile' || v.from === 'chest' ? v.from : v.from === null ? null : has('chest') ? 'chest' : null;
   if (from && !has(from)) return null;
@@ -293,12 +296,11 @@ function savedStoke(v: unknown, state: GameState, layout: Layout): Stoke | null 
 }
 
 /** Cooking at the campfire (chapter 2), as saved: only where the campfire stands, and fetching raw fish only from a
- *  chest that stands. Anything else is null. */
+ *  chest that stands (in the shelter since the camp build). Anything else is null. */
 function savedCook(v: unknown, state: GameState, layout: Layout): Cook | null {
-  const has = (id: 'campfire' | 'chest', site: 'hearth' | 'chest') => state.built.includes(id) && !!siteOf(layout, site);
-  if (!isRecord(v) || !has('campfire', 'hearth')) return null;
+  if (!isRecord(v) || !canCook(state, layout)) return null;
   const fetch = v.fetch === true;
-  return fetch && !has('chest', 'chest') ? null : { fetch };
+  return fetch && !chestHere(state, layout) ? null : { fetch };
 }
 
 /** Whether `id` can be made at all (data/making.ts): it exists, it is made where he stands, and it isn't made yet (a
@@ -388,6 +390,34 @@ function savedWhere(state: GameState, layout: Layout): void {
   if (!p.path.length || (!moved && wayClear(nav, p.pos, p.path))) return;
   const end = near(p.path.at(-1)!), way = end && nav.findPath(p.pos, end);
   if (way) p.path = way; else stop();
+}
+
+/** Whether a visit to `id` is to something at the camp: the storage chest, the shelter, or something built at the
+ *  camp's spots (the campfire, the firewood pile), not one of the village's buildings or its land. */
+const campVisit = (id: string) => id === 'chest' || id === 'shelter' || lineOf(id) !== null;
+
+/** Where he was on his way to at the camp, read back (readSave, after where he stands and what he was going to are
+ *  checked): a visit to the chest, the shelter, the campfire or the firewood pile, or building something. Each is
+ *  where he stands for it now (core/camp.ts): the chest, at its own spot before the camp build, is in the shelter and
+ *  used at its door; the firewood pile's spot moved out along its line; a bigger step has its own stands. A way that
+ *  doesn't end there is found again from where he stands, to the nearest he can reach; with no way there, or nothing
+ *  there to go to now, he stops where he is (what the way was for, stoking the fire, a meal, bed, cooking or a trip,
+ *  is seen to after this as for any way that stopped). */
+function savedCampWay(state: GameState, layout: Layout): void {
+  const p = state.player, pending = p.pending;
+  if (pending?.kind !== 'raise' && (pending?.kind !== 'visit' || !campVisit(pending.id))) return;
+  const spot = pending.kind === 'raise' ? buildSpot(state, layout, pending.id) : useSpot(state, layout, pending.id);
+  const stop = () => { p.pending = null; p.path = []; if (p.task.kind === 'walk') p.task = { kind: 'idle' }; };
+  if (!spot) { stop(); return; }
+  if (atSpot(spot, p.path.at(-1) ?? p.pos)) return;
+  const nav = walkGrid(state, layout);
+  for (const end of spotEnds(spot, p.pos)) {
+    const at = nav.walkable(end) || !spot.stands.length ? end : nav.nearestWalkable(end);
+    if (!nav.walkable(at) || Math.hypot(at.x - end.x, at.z - end.z) > AT_SPOT.slip) continue;
+    const way = nav.findPath(p.pos, at);
+    if (way) { p.path = way; return; }
+  }
+  stop();
 }
 
 /** The game in a save, without when it was saved (readSave has both). */
@@ -514,6 +544,9 @@ export function readSave(raw: string, layout: Layout): Loaded {
     || (p.pending?.kind === 'fight' && (!targetOf(state, layout, p.pending.id) || !state.equipment.weapon))) {
     p.pending = null; p.path = []; if (p.task.kind === 'walk') p.task = { kind: 'idle' };
   }
+  // (the camp build) on his way to something at the camp: walked again to where he stands for it now (the chest at the
+  // shelter's door, the firewood pile's moved stand, a bigger step's own stands), or stopped
+  savedCampWay(state, layout);
   // a trip only makes sense on the way to the bank or waiting at its door, back to a node that still exists or to
   // gathering pickups the layout still has
   const trip = p.trip as Partial<{ nodeId: unknown; pickupId: unknown; fight: unknown; store: unknown; leaveAt: unknown }> | null;

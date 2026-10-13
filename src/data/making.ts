@@ -1,6 +1,7 @@
 // Things he makes (game 0.0.15), as tables only: what each needs, where it is made, how long he works at it and what
 // it gives. The campfire came first, then the stone axe (0.0.16), then the shelter at the tent's spot and the stone
-// pickaxe (0.0.18), then the storage chest beside the shelter (0.0.19), the camp's storage like the village's bank,
+// pickaxe (0.0.18), then the storage chest (0.0.19; since the camp build furniture in the shelter, by its door), the
+// camp's storage like the village's bank,
 // and the firewood pile beside the fire (0.0.21), stacked with logs he stokes the fire from at night. Chapter 2 (0.0.22):
 // the training dummy beside the camp, the stone club, his first weapon, which he wears (gear: data/combat.ts), and the
 // fishing rod, made where he stands. systems/making.ts does the work for what is made where he stands; since the camp
@@ -10,10 +11,11 @@ import type { ToolId } from './skills';
 import type { GearId } from './combat';
 
 /** Places in a layout where something is built (siteOf in world/layout.ts): 'hearth' is the camp's fire spot, 'tent'
- *  the camp's tent spot, 'chest' the camp's chest spot beside the shelter, 'woodpile' the spot beside the fire for the
- *  firewood pile, 'dummy' the training dummy's spot beside the camp (0.0.22). A new site is a name here and a line in
- *  siteOf. Each thing built at a spot, and each of its upgrades, has its own shape there (SHAPES in data/building.ts). */
-export type SiteId = 'hearth' | 'tent' | 'chest' | 'woodpile' | 'dummy';
+ *  the camp's tent spot (the shelter, and since the camp build the storage chest in it: it has no spot of its own any
+ *  more), 'woodpile' the spot beside the fire for the firewood pile, 'dummy' the training dummy's spot beside the camp
+ *  (0.0.22). A new site is a name here and a line in siteOf. Each thing built at a spot, and each of its upgrades, has
+ *  its own shape there (SHAPES in data/building.ts). */
+export type SiteId = 'hearth' | 'tent' | 'woodpile' | 'dummy';
 
 export type MakeId = 'campfire' | 'stone_axe' | 'woodpile' | 'shelter' | 'stone_pickaxe' | 'chest' | 'dummy' | 'stone_club' | 'rod'
   | 'hide_cap' | 'hide_vest' | 'hide_shield'
@@ -26,7 +28,8 @@ export type MakeId = 'campfire' | 'stone_axe' | 'woodpile' | 'shelter' | 'stone_
  *  needs: the items it uses up, taken from his backpack first, then the bank (something built in stages: when he begins
  *  it; something made where he stands: when it is made).
  *  at: the site where it will stand (he works beside it), or 'here': made wherever he stands (a tool). Every spot is
- *  fixed (the owner, 13 Oct 2026: "sure, fixed location").
+ *  fixed (the owner, 13 Oct 2026: "sure, fixed location"). The storage chest is at the tent's spot: it stands in the
+ *  shelter, by its door (SHAPES' chest in data/building.ts), and he builds it from the door.
  *  time: seconds he works at it (something built in stages: at Carpentry level 1; a little less at higher levels, D5).
  *  The brief's first proposal (13 Oct 2026, tunable): campfire 20 s, firewood pile 25, training dummy 40, storage chest
  *  45, tent 60, wall tent 2 minutes, log cabin 4, stone hearth and woodshed 90 s each.
@@ -75,11 +78,12 @@ export const MAKES: Record<MakeId, MakeDef> = {
     id: 'stone_pickaxe', name: 'Stone pickaxe', verb: 'Make', needs: { branch: 2, stone: 3 }, at: 'here', time: 3,
     gives: { kind: 'tool', tool: 'pick' }, done: 'You made a stone pickaxe.',
   },
-  // a box of split logs with copper straps, beside the shelter: the camp's storage (systems/hauling: a full backpack is
-  // emptied into it, as at the village's bank)
+  // a box of split logs with copper straps, in the shelter by its door (the owner, 13 Oct 2026: "maybe chest is just
+  // furniture in the tent or house"): the camp's storage (systems/hauling: a full backpack is emptied into it at the
+  // shelter's door, as at the village's bank)
   chest: {
-    id: 'chest', name: 'Storage chest', verb: 'Build', needs: { birch_logs: 10, copper_ore: 3 }, at: 'chest', time: 45,
-    gives: { kind: 'structure' }, done: 'Your storage chest is built. A full backpack is emptied into it now.',
+    id: 'chest', name: 'Storage chest', verb: 'Build', needs: { birch_logs: 10, copper_ore: 3 }, at: 'tent', time: 45,
+    gives: { kind: 'structure' }, done: 'Your storage chest is built, just inside the tent. A full backpack is emptied into it now.',
   },
   // chapter 2 (0.0.22): a post and crossbar of logs with a stuffed sack for a body, beside the camp; once he has a
   // weapon, tapping it sends him to practise on it (systems/combat.ts)
@@ -140,8 +144,9 @@ export const MAKES: Record<MakeId, MakeDef> = {
   },
 };
 
-/** How far beyond the ring of something built at a spot he stands while he builds it (data/building.ts SHAPES' reach;
- *  until the camp build's stage 3 sends him to each step's own stands), or stands beside it to use it (the chest). */
+/** How far beyond the ring of something round built at a spot (the campfire, the training dummy: data/building.ts
+ *  SHAPES' reach, no stands of their own) he stands to build it or use it, on whichever side is nearest. Everything
+ *  with corners has its own stands (SHAPES' stands), and the storage chest is used at the shelter's door. */
 export const BUILD_REACH = 0.6;
 
 /** The row for `id`, or null for one that isn't in MAKES (yet). */

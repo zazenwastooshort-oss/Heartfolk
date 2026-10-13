@@ -3,8 +3,9 @@
 // and flows on to the south-west. He washes up on the pool's bank with nothing, and wreckage washed up with him:
 // planks, a torn tarp, a smashed crate and his book, strewn along the bank. Stones and branches lie round the clearing,
 // and (for building, data/building.ts) reeds and clay along the river bank.
-// The camp starts bare: the campfire, the firewood pile, the shelter (a tent), the storage chest and (0.0.22) the
-// training dummy have their spots here and are built later; each spot keeps room for its largest upgrade (the stone
+// The camp starts bare: the campfire, the firewood pile, the shelter (a tent) and (0.0.22) the training dummy have
+// their spots here and are built later (the storage chest, since the camp build, in the shelter by its door, with no
+// spot of its own); each spot keeps room for its largest upgrade (the stone
 // hearth, the woodshed, the log cabin: SHAPES in data/building.ts). Since chapter 2 berry bushes grow in a patch east of the
 // fire, fish rise in the pool and along the river, and rats live round a nest in the edge of the woods downriver; past
 // them, where the river leaves the valley, goblins have made a camp in a small clearing by the bank, blocking the way
@@ -32,11 +33,6 @@ function seeded(seed: number) { let s = seed; return () => (s = (s * 16807) % 21
 // stands, the tent (village.glb's Tent) is in the way by its canvas, 1.9 m wide and 2.4 deep; its ring, and where he
 // stands to build it, reach round its corners and pegs (1.53 m from its middle).
 const FIRE = W(2.4, 3.0), TENT = W(-1.6, 5.8), TENT_SIZE = { w: 1.9, d: 2.4, radius: 1.55 };
-// where the storage chest is built (0.0.19): beside the tent on its south-east side, a little forward of its middle,
-// facing the fire, on open ground between the tent and the fire with room to walk round it. It is 0.9 m across and
-// 0.56 deep; its ring reaches just round its corners. It stands 2.9 m from the tent's middle, so its ring and tap area
-// stay clear of the tent's (1.75 m and 1.92 m out from the tent's middle; the chest's 0.8 m and 0.97 m).
-const CHEST = W(0.9, 7.3), CHEST_SIZE = { w: 0.9, d: 0.56, radius: 0.6 };
 // where the firewood pile is stacked (0.0.21): beside the fire on its east side, end on to it, with room to walk
 // between them. Logs on two bearers, 1.2 m along and 0.6 across; its ring reaches just round its ends. Since the camp
 // build (13 Oct 2026) 0.9 m further out along its line from the fire than before (4.6, 2.2), so the woodshed it
@@ -127,9 +123,9 @@ export const CAMP: Layout = {
   river: RIVER,
   paths: [],                            // nobody has worn a track here yet
   parcels: [],
-  // the shelter's spot, the storage chest's, the firewood pile's and the training dummy's (siteOf)
+  // the shelter's spot (the storage chest stands in the shelter), the firewood pile's and the training dummy's (siteOf)
   camp: {
-    tent: { pos: TENT, rot: facing(TENT, FIRE), ...TENT_SIZE }, chest: { pos: CHEST, rot: facing(CHEST, FIRE), ...CHEST_SIZE },
+    tent: { pos: TENT, rot: facing(TENT, FIRE), ...TENT_SIZE },
     woodpile: { pos: WOODPILE, rot: facing(WOODPILE, FIRE), ...WOODPILE_SIZE },
     dummy: { pos: DUMMY, rot: 0, ...DUMMY_SIZE },
   },

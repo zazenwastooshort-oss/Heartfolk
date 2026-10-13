@@ -20,6 +20,7 @@ import { catchUpAway, step } from '../src/sim';
 import { CAMP } from '../src/world/camp';
 import { VILLAGE, siteOf, type Layout, type Vec2 } from '../src/world/layout';
 import { navFor } from '../src/world/nav';
+import { standsOf } from '../src/world/steps';
 import { waterOf } from '../src/world/water';
 import { applyCommands, type Command } from '../src/systems/commands';
 import { attackRoll, defenceRoll, effectiveLevel, hitChance, maxHitOf, roll, strikeReach } from '../src/systems/combat';
@@ -125,7 +126,7 @@ describe('the nest downriver', () => {
   });
 
   it('is clear of the camp\'s spots, its trees and rocks, the fishing banks, the things to pick up; it blocks walking', () => {
-    const spots = [CAMP.hearth, CAMP.camp!.tent, CAMP.camp!.chest, CAMP.camp!.woodpile, CAMP.camp!.dummy];
+    const spots = [CAMP.hearth, CAMP.camp!.tent, CAMP.camp!.woodpile, CAMP.camp!.dummy];
     for (const o of spots) expect(dist(o.pos, NEST.pos)).toBeGreaterThan(o.radius + NEST.roam + 4);
     for (const n of CAMP.nodes) expect(dist(n.pos, NEST.pos), n.id).toBeGreaterThan(NEST.roam + 2.5);
     for (const p of CAMP.pickups!) expect(dist(p.pos, NEST.pos), p.id).toBeGreaterThan(NEST.radius + 1);
@@ -144,7 +145,8 @@ describe('the nest downriver', () => {
       expect(s.state.rats[spot.id]).toMatchObject({ health: RAT.health, downUntil: null, pos: spot.home, to: null, bite: null });
       expect(nav.findPath(CAMP.start, spot.home), spot.id).not.toBeNull();
     }
-    const places = [CAMP.start, CAMP.hearth.pos, CAMP.camp!.chest.pos, ...CAMP.nodes.map(n => n.pos)];
+    // (the chest is in the shelter, used at its door)
+    const places = [CAMP.start, CAMP.hearth.pos, standsOf(CAMP, 'shelter')[0]!, ...CAMP.nodes.map(n => n.pos)];
     for (const from of places) for (const to of places) expect(nav.findPath(nav.nearestWalkable(from), nav.nearestWalkable(to))).not.toBeNull();
   });
 
@@ -355,8 +357,7 @@ describe("a rat's bite, as in OSRS", () => {
    *  share that hurt him. */
   const bitten = (style: 'attack' | 'defence', defence: number, wear: Partial<GameState['equipment']> = {}) => {
     const s = ready(11);
-    s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
-    s.state.player.backpack = { cooked_fish: 28 };
+    s.state.player.backpack = { cooked_fish: 28 };                // (mid-fight, he never goes to bed)
     s.state.combatStyle = style;
     Object.assign(s.state.equipment, wear);
     s.state.skills.defence = XP_TABLE[defence]!; s.state.skills.vitality = XP_TABLE[60]!; s.state.health = maxHealth(s.state);
@@ -497,7 +498,6 @@ describe('food in a fight', () => {
   it('nightfall on his way to the chest for food: he takes the logs there but keeps what he carries, then fetches food', () => {
     const go = (tapChest: boolean) => {
       const s = ready();
-      s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
       s.state.woodpile = 0;                                   // the logs come from the chest
       s.state.bank = { birch_logs: 6, cooked_fish: 4 };
       s.state.player.backpack = { copper_ore: 2, rat_hide: 2 };

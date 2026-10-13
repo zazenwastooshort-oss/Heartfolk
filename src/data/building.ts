@@ -56,7 +56,7 @@ export const STAGED: Partial<Record<MakeId, StagedDef>> = {
 export const SHELTERS: MakeId[] = ['shelter', 'wall_tent', 'log_cabin'];
 
 /** The camp's spots, each with what is built there, first to last: the first step, then its upgrades. The storage
- *  chest is in none (it is furniture in the shelter: the camp build's stage 3). */
+ *  chest is in none: it is furniture in the shelter, by its door (SHAPES' chest), whichever shelter stands. */
 export type LineId = 'hearth' | 'tent' | 'woodpile' | 'dummy';
 export const LINES: Record<LineId, MakeId[]> = {
   hearth: ['campfire', 'stone_hearth'],
@@ -83,10 +83,14 @@ export type Block = { box: readonly [x0: number, x1: number, z0: number, z1: num
  *  spot's facing.
  *  blocks: what of it is in the way, every step's inside the next one's (nested).
  *  reach: how far round its middle its ring (and its tap area) reaches. tall: how high its tap area goes.
- *  stands: where he stands to build it and use it (CARPENTRY.reach in front of a face), on walkable ground.
- *  chest: (a shelter) where the storage chest sits in it. spit: (a fire) the spit's two posts and its height, where
- *  the cooking stick goes. furniture: (the chest, from the camp build's stage 3) it stands inside the shelter and
- *  blocks nothing of its own. */
+ *  stands: where he stands to build it and use it (CARPENTRY.reach in front of a face), on walkable ground; a
+ *  shelter's is its door, where he goes in and out, sleeps, and uses the chest in it (core/camp.ts shelterDoor).
+ *  chest: (a shelter) where the middle of the storage chest sits in it, by the door (it faces out of the door, as the
+ *  shelter does): just inside the tent's open front, on the wall tent's and the log cabin's porches, its front at the
+ *  front of the floor, so he reaches it from the door (the tent's, where it is built, by CARPENTRY.reach; the cabin's
+ *  porch roof reaches out 0.17 m past its floor). spit: (a fire) the spit's two posts and its height, where the
+ *  cooking stick goes. furniture: (the chest) it stands inside the shelter and blocks nothing of its own; its blocks
+ *  are its own box where it sits, at its shelter's `chest`. */
 export interface Shape {
   at?: number;
   turn?: number;
@@ -100,7 +104,9 @@ export interface Shape {
 }
 
 /** Each structure's shape at its spot, step by step (the designs the owner picked, 13 Oct 2026: docs/designs/; models
- *  in wt/designs/designs/models.ts). The first five block exactly as their spots did before (world/camp.ts). */
+ *  in wt/designs/designs/models.ts). The campfire, the firewood pile, the tent and the training dummy block exactly as
+ *  their spots did before (world/camp.ts); the storage chest, furniture in the shelter since the camp build, blocks
+ *  nothing. */
 export const SHAPES: Partial<Record<MakeId, Shape>> = {
   // the fire spot: a ring of stones round the fire; then (turned a little, so its seats clear the woodshed) a raised
   // ring of stones with a spit across it, a split log on stumps behind, a plain log in front and a stump stool
@@ -119,11 +125,11 @@ export const SHAPES: Partial<Record<MakeId, Shape>> = {
   },
   // the tent's spot: the tent (the tarp over a log frame, its door to the fire); the wall tent round it, its guy-rope
   // stakes out to the sides and its porch to the front; the log cabin round that, with its chimney up the left side
-  shelter: { blocks: [{ box: [-0.95, 0.95, -1.2, 1.2] }], reach: 1.55, tall: 1.6, stands: [[0, 1.85]], chest: [0, 0.95] },
+  shelter: { blocks: [{ box: [-0.95, 0.95, -1.2, 1.2] }], reach: 1.55, tall: 1.6, stands: [[0, 1.85]], chest: [0, 0.92] },
   wall_tent: {
     at: -0.7,
     blocks: [{ box: [-1.75, 1.75, -1.6, 1.5] }, { box: [-1.3, 1.3, 1.5, 2.4] }],
-    reach: 2.75, tall: 2.9, stands: [[0, 3.05]], chest: [-0.62, 1.95],
+    reach: 2.75, tall: 2.9, stands: [[0, 3.05]], chest: [-0.55, 2.09],
   },
   log_cabin: {
     at: -1.0,
@@ -137,12 +143,14 @@ export const SHAPES: Partial<Record<MakeId, Shape>> = {
     reach: 1.5, tall: 1.7, stands: [[0, 1.35], [-1.55, 0]],
   },
   dummy: { blocks: [{ ring: [0, 0, 0.5] }], reach: 0.5, tall: 1.7 },
-  // the storage chest, at its own spot beside the tent until it becomes furniture inside the shelter (stage 3)
-  chest: { blocks: [{ box: [-0.45, 0.45, -0.28, 0.28] }], reach: 0.6, tall: 0.9 },
+  // the storage chest: furniture in the shelter, by its door (the owner, 13 Oct 2026: "maybe chest is just furniture in
+  // the tent or house"), at each shelter's `chest`; a box of logs 0.9 m across and 0.56 deep, in the way of nothing
+  chest: { furniture: true, blocks: [{ box: [-0.45, 0.45, -0.28, 0.28] }], reach: 0.6, tall: 0.9 },
 };
 
-/** Going in and out of the shelter (the camp build's stage 3): he is at its door within `near` metres of it, and the
- *  door keeps `slack` metres of open ground round it, so a re-tune can't squeeze it shut. */
+/** Going in and out of the shelter (core/camp.ts shelterDoor: the stand of the shelter step furthest out, built or
+ *  begun): he is at its door within `near` metres of it (and so at the chest in it), and the door keeps `slack` metres
+ *  of open ground to each side of it and in front of it, so a re-tune can't squeeze it shut (tests/chest.test.ts). */
 export const DOOR = { near: 0.5, slack: 0.25 };
 
 /** Going back to something half built by himself (the owner, 13 Oct 2026: "player is committed to building it"; D9,
