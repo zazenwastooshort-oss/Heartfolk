@@ -5,6 +5,7 @@ These need Pillow; the ComfyUI python has it: `A:\ComfyUI\ComfyUI_windows_portab
 | Script | Does | Usage |
 | --- | --- | --- |
 | `web_page.mjs` | Turns the web build (`dist-web/index.html`) into `dist-web/hearthfolk-camp.html` for the camp game's artifact link (removes the outer html/head/body tags the host supplies, puts the title first) and `dist-web/preview.html` for local testing. Plain Node, no packages | Run by `npm run build:web` |
+| `freeze_saves.mjs` | Freezes real saves from the camp release tags into `tests/fixtures/saves/` (see its README): a temporary worktree of each tag runs that version's freeze script from `freeze/` (`common.ts` and one script per save format, copied in as tests) with its own code, then is removed. Plain Node, no packages | `node tools/freeze_saves.mjs [version ...]` |
 | `build_demo.py` | Packs `assets/sprites/miner_v2_demo/` into one WebP atlas and writes `demos/miner_demo.html` from the template | `tools/build_demo.py` |
 | `build_demo_3d.py` | Embeds `assets/models/miner.glb` in `demos/miner_3d.template.html`, writing `demos/miner_3d.html` (plain Python, no Pillow needed) | `tools/build_demo_3d.py` |
 | `make_sheet.py` | Frames to a transparent sprite sheet plus a preview GIF on grass | `tools/make_sheet.py assets/sprites/<dir> [ms_per_frame]` |

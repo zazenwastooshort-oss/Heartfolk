@@ -1,0 +1,5 @@
+# Old saves, frozen from the releases
+
+Real camp saves from the release tags (camp-0.0.22, 0.0.24, 0.0.27, 0.0.29, 0.0.30), for testing that every player's save still loads with nothing lost (`tests/saves.test.ts`). Each `<version>-<case>.json` is exactly the text that version kept in the browser (`localStorage['hearthfolk_camp']`), made by that version's own code: `tools/freeze_saves.mjs` checks out each tag in a temporary worktree and runs its freeze script from `tools/freeze/` there (the cases are listed at the top of each script and in `tests/saves.test.ts`). Don't edit them by hand; re-run `node tools/freeze_saves.mjs [version]` instead. A case a tag can't produce would be written by hand and named `-hand`; there are none.
+
+To open one in the game in a browser: on the game's address (any missing page on the same port works), set `localStorage['hearthfolk_camp']` to the file's text, then open the game with a fresh query (`?fresh=N`). Each save says it was played up to its release's time (`savedAt`), so the game first catches up the most away time there is (24 minutes of play); delete `savedAt` from the text first to see the save as it was.
