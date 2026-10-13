@@ -36,7 +36,7 @@ import { BuildWindow } from './ui/build';
 import { CampMenu } from './ui/campmenu';
 import { NeedsHud } from './ui/needs';
 import { BedtimeSetting } from './ui/bedtime';
-import { DiscoveryNotices } from './ui/discovery';
+import { DiscoveryNotices, DiscoveryWindow } from './ui/discovery';
 
 // An artifact viewer can swap in a new version of the page while it is open and hand the game's snapshot
 // to the new version, so play carries on. Everywhere else `hot` is absent, hence the optional chaining.
@@ -102,6 +102,7 @@ function start(data: HotData): void {
   showModels(view, layout);                                         // dev only: ?models in the address shows chapter 2's models
   const skills = new SkillsWindow(windows, events);                 // each skill's level, and what he trains
   const book = new Book(state, events, layout, windows);            // his book: a page per goal, opened from its button or the goal card
+  const discovery = new DiscoveryWindow(state, layout, windows);    // (Discovery) the tree of what he has found, its button in the Book's place
   const news = new News(!newGame);                                  // a returning player sees what changed since
   const sound = new Sound(layout, events);                          // the camp's sounds and the music, made as it plays
   new Settings(windows, news, () => { startingOver = true; clearSave(browserStorage); location.reload(); }, activity, sound);   // text size, the tag, sound, What's new, Start over
@@ -171,6 +172,7 @@ function start(data: HotData): void {
       build.update(state);
       menu.update();
       book.update();
+      discovery.update();
       awayNote.update();
       sinceSave += dt; if (sinceSave > 10 && !startingOver && !closed) { sinceSave = 0; save(browserStorage, state, playedTo()); }
     });

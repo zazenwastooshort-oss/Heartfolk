@@ -128,15 +128,18 @@ describe('windows in the page (index.html)', () => {
   const windows = [...html.matchAll(/<section class="win[^"]*" id="(\w+)" data-win="(\w+)" data-width="(\d+)"[^>]*>([\s\S]*?)<\/section>\s*(?=<section class="win|<\/div>)/g)];
   const buttons = [...html.matchAll(/<button class="rail-btn" type="button" data-opens="(\w+)" aria-controls="(\w+)"[^>]*>([\s\S]*?)<\/button>/g)];
 
-  it('has the five windows, in the order of their buttons: backpack, skills, build, book, settings', () => {
-    expect(windows.map(m => m[2])).toEqual(['backpack', 'skills', 'build', 'book', 'settings']);
-    expect(buttons.map(m => m[1])).toEqual(['backpack', 'skills', 'build', 'book', 'settings']);
+  it("has the windows, in the order of their buttons: backpack, skills, build, discovery (in the Book's place), settings", () => {
+    // (Discovery, 0.0.38) the old Book window stays in the page without a button until it is taken out at the merge
+    // (its Journal and Tips go to the Information window); Discovery's window comes right after it
+    expect(windows.map(m => m[2])).toEqual(['backpack', 'skills', 'build', 'book', 'discovery', 'settings']);
+    expect(buttons.map(m => m[1])).toEqual(['backpack', 'skills', 'build', 'discovery', 'settings']);
   });
 
   it('every window has a title bar with its title and a close button, and a button in the row that opens it', () => {
     for (const [, id, win, width, body] of windows) {
       expect(body, win).toMatch(/<div class="win-bar"><h2 class="win-title" id="\w+">[^<]+<\/h2><button class="win-x" type="button" aria-label="[^"]+">/);
       expect(Number(width), win).toBeGreaterThanOrEqual(300);
+      if (win === 'book') continue;                          // (the old Book, buttonless until it goes: above)
       const button = buttons.find(b => b[1] === win);
       expect(button, win).toBeDefined();
       expect(button![2], win).toBe(id);                      // aria-controls names the window
@@ -150,9 +153,9 @@ describe('windows in the page (index.html)', () => {
     }
   });
 
-  it("the book's button waits until he has his book, and the Build button until there is something to build", () => {
+  it("the Build button waits until there is something to build; Discovery's shows from a new game", () => {
     const hidden = (b: RegExpMatchArray) => /^<button[^>]* hidden>/.test(b[0]);
-    expect(buttons.filter(hidden).map(b => b[1])).toEqual(['build', 'book']);
+    expect(buttons.filter(hidden).map(b => b[1])).toEqual(['build']);
   });
 
   it("the notes over the game share the look, and their x does what their own button does", () => {
