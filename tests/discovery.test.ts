@@ -22,7 +22,7 @@ import { discoveredText, DiscoveryNotices } from '../src/ui/discovery';
 import type { Hud } from '../src/ui/hud';
 import { CAMP } from '../src/world/camp';
 import { VILLAGE, type Layout } from '../src/world/layout';
-import { BANDS, JOINS, NODES, NODE_IDS, PAGES_OF, isNode } from '../src/data/discovery';
+import { BANDS, JOINS, LINED, NODES, NODE_IDS, PAGES_OF, isNode } from '../src/data/discovery';
 import { ITEMS, RESOURCES } from '../src/data/skills';
 import { MAKES, type MakeId } from '../src/data/making';
 import { FOOD } from '../src/data/food';
@@ -104,6 +104,21 @@ describe('the nodes and how they join, from the data (D2, D4)', () => {
       .toEqual(['material', 'food', 'food', 'tool', 'tool', 'gear', 'gear', 'building', 'building']);
     for (const id of NODE_IDS) expect(BANDS).toContain(band(id));
   });
+
+  it('the bands top to bottom: food, the camp, fighting, so no line passes over a band (the camp leads to both, they to nothing of the other)', () => {
+    expect(BANDS).toEqual(['food', 'camp', 'fighting']);
+    for (const j of JOINS.filter(x => LINED.includes(x.how))) {
+      expect(Math.abs(BANDS.indexOf(NODES[j.from]!.band) - BANDS.indexOf(NODES[j.to]!.band)), `${j.from} -> ${j.to}`).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('the tree draws the main joins as lines; what a thing is only used with (the shelter the chest stands in) is on the cards alone', () => {
+    expect(LINED).toEqual(['needs', 'gathers', 'drops', 'cooks', 'upgrade']);
+    const tree = discoveryTree(allFound(), CAMP);
+    expect(tree.lines.some(l => l.from === 'shelter' && l.to === 'chest')).toBe(false);
+    expect(nodeCard(allFound(), CAMP, 'chest')!.with.map(i => [i.id, i.how])).toEqual([['shelter', 'inside']]);
+    expect(nodeCard(allFound(), CAMP, 'shelter')!.usedIn.map(u => u.id)).toContain('chest');
+  });
 });
 
 describe('what shows (D3)', () => {
@@ -182,9 +197,20 @@ describe('the layout (D4)', () => {
         expect(p.row >= -0.5 && p.row <= tree.rows - 0.5, name).toBe(true);
       }
     }
-    // every join between two nodes shown is a line, once
+    // every main join between two nodes shown is a line, once
     const ids = new Set(tree.nodes.map(n => n.id));
-    expect(tree.lines.length).toBe(JOINS.filter(j => ids.has(j.from) && ids.has(j.to)).length);
+    expect(tree.lines.length).toBe(JOINS.filter(j => LINED.includes(j.how) && ids.has(j.from) && ids.has(j.to)).length);
+    // a line within a band keeps to it (its rows, or between them and at its edges); one between two bands runs along
+    // the gutter at the edge of the band it goes to, never among a band's things on the way
+    const band = (id: string) => tree.bands.find(b => b.band === NODES[id]!.band)!;
+    for (const l of tree.lines) {
+      const a = band(l.from), b = band(l.to), name = `${what}: ${l.from} -> ${l.to}`;
+      const gutter = a === b ? null : b.top > a.top ? b.top - 0.5 : b.top + b.rows - 0.5;
+      for (const p of l.points.slice(1, -1)) {
+        if (gutter !== null) expect(p.row, name).toBe(gutter);
+        else expect(p.row >= a.top - 0.5 && p.row <= a.top + a.rows - 0.5, name).toBe(true);
+      }
+    }
     expect(tree.bands.map(b => b.band)).toEqual(BANDS.filter(b => tree.nodes.some(n => n.band === b)));
     expect(tree.rows).toBe(tree.bands.reduce((a, b) => a + b.rows, 0));
   }
@@ -193,19 +219,22 @@ describe('the layout (D4)', () => {
     for (const [what, state] of [['everything found', allFound()], ['the whole camp', wholeCamp()]] as const) {
       const tree = discoveryTree(state, CAMP);
       tidy(tree, what);
-      // (the stones and branches feed most of chapter 1 and 2's recipes, so some crossing near them is unavoidable;
-      // 43 when this was written, 52 before neighbours were swapped to cross fewer)
-      expect(crossings(tree), what).toBeLessThanOrEqual(46);
+      // (the stones and branches feed most of chapter 1 and 2's recipes, in all three bands, so some crossing beside
+      // them is unavoidable: 22 when this was written, 43 before the bands were put food, camp, fighting, things from
+      // the ground beside their use, the shelter's line to the chest left to the cards and the layout tried from a few
+      // starts)
+      expect(crossings(tree), what).toBeLessThanOrEqual(24);
     }
   });
 
-  it('any set of things found is tidy too, and laid out the same each time', () => {
+  it('any set of things found is tidy too, with few crossings, and laid out the same each time', () => {
     const rng = createRng(38);
     for (let n = 0; n < 60; n++) {
       const s = createState(CAMP, 1);
       s.discovered = CAMP_NODES.filter(() => rng.next() < 0.35);
       const tree = discoveryTree(s, CAMP);
       tidy(tree, s.discovered.join(','));
+      expect(crossings(tree), s.discovered.join(',')).toBeLessThanOrEqual(26);   // (at most 25 when this was written; 44 before)
       expect(JSON.stringify(discoveryTree({ ...s, discovered: [...s.discovered].reverse() }, CAMP))).toBe(JSON.stringify(tree));
     }
   });
@@ -217,6 +246,14 @@ describe('the layout (D4)', () => {
     expect(col('birch_logs')).toBeGreaterThan(col('stone_axe'));
     expect(col('raw_fish')).toBeGreaterThan(col('rod'));
     expect(col('log_cabin')).toBe(tree.cols - 1);
+    // a thing from the ground sits just before the first thing it leads to, beside its use rather than a long line
+    // away: fibre by the wall tent, the tarp by the tent, clay by the stone hearth
+    for (const n of tree.nodes) {
+      if (tree.lines.some(l => l.to === n.id)) continue;
+      const uses = tree.lines.filter(l => l.from === n.id).map(l => col(l.to));
+      if (uses.length) expect(n.col, n.id).toBe(Math.min(...uses) - 1);
+    }
+    expect([col('fibre'), col('tarp'), col('clay')]).toEqual([col('wall_tent') - 1, col('shelter') - 1, col('stone_hearth') - 1]);
   });
 });
 

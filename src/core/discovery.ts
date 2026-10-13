@@ -13,14 +13,17 @@
 //       'found'   found (discovered): lit;
 //       'glow'    not found, but one of what leads to it is (a recipe one of whose inputs is found): glowing, named;
 //       'unknown' not found, an input of a shown recipe: drawn as "?", its name never shown (`name` is '?').
-//     Nothing else shows (D3). `lines`: every join between two shown nodes, `from` to `to` (always a later column),
-//     with `how` (data/discovery.ts JoinHow) and `points`: its way through the grid, from `from`'s spot to `to`'s, one
+//     Nothing else shows (D3). `lines`: every main join (data/discovery.ts LINED: not what a thing is only used with,
+//     the shelter the chest stands in, which is on the cards alone) between two shown nodes, `from` to `to` (always a
+//     later column), with `how` (JoinHow) and `points`: its way through the grid, from `from`'s spot to `to`'s, one
 //     point in each column between them; a point between columns' nodes never lands on a node (it takes a free row, or
 //     a half row, x.5, between two nodes), so a line drawn straight across each column through its point and curving
-//     between columns never runs through a node. `cols`, `rows`: the grid's size. `bands`: the three bands top to bottom
-//     (the camp, food, fighting; D4), each with its first row and how many rows it has (a band with nothing shown has
-//     none and isn't listed). Columns are by depth (things from the ground first; a material gathered with a tool after
-//     the tool), with no empty column; rows are placed so lines cross as little as is easy.
+//     between columns never runs through a node; a line within a band keeps to it, and one between two bands runs along
+//     the gutter at the edge of the band it goes to (the half row between the bands). `cols`, `rows`: the grid's size.
+//     `bands`: the three bands top to bottom (BANDS: food, the camp, fighting, so no line passes over a band; D4), each
+//     with its first row and how many rows it has (a band with nothing shown has none and isn't listed). Columns are by
+//     depth (a material gathered with a tool after the tool), with a thing from the ground just before the first thing
+//     it leads to, and no empty column; rows are placed so lines cross as little as is easy.
 //
 //   nodeCard(state, layout, id): NodeCard | null
 //     A shown node's card (null for one not shown): its name, kind, band and state; `words`, the book's lines for it
@@ -47,7 +50,7 @@
 import { made, owned, begun, type GameState } from './state';
 import { siteOf, type Layout } from '../world/layout';
 import {
-  BANDS, DROPS, FIRES, JOINS, NODES, NODE_IDS, ORIGINS, PAGES_OF, TOOL_MAKER, gearMaker, goalThings, isNode, pageThings,
+  BANDS, DROPS, FIRES, JOINS, LINED, NODES, NODE_IDS, ORIGINS, PAGES_OF, TOOL_MAKER, gearMaker, goalThings, isNode, pageThings,
   type Band, type JoinHow, type NodeKind, type Origin,
 } from '../data/discovery';
 import { ITEMS, RESOURCES, SKILLS, TOOL_IDS, TOOLS } from '../data/skills';
@@ -64,6 +67,7 @@ import { STOKE } from '../data/fire';
 import { SLOTS } from '../data/combat';
 import { MAKE_NOTES, MAKE_WHERE, SITE_WHERE, SURVIVAL } from '../data/survival';
 import { makeKey } from './thoughts';
+import { createRng } from './rng';
 
 export type NodeState = 'made' | 'found' | 'glow' | 'unknown';
 
@@ -199,24 +203,54 @@ function crossed(ways: { first: number; rows: number[] }[], cols: number): numbe
   return n;
 }
 
+/** How many times two lines that have nothing to do with each other (neither the same start nor the same end) pass a
+ *  column at the same point between its nodes, so that they would read as one line there. */
+function shared(ways: { first: number; rows: number[]; from: string; to: string }[]): number {
+  const at = new Map<string, { from: string; to: string }[]>();
+  for (const w of ways) for (let k = 1; k < w.rows.length - 1; k++) {
+    const key = `${w.first + k}:${w.rows[k]}`, here = at.get(key) ?? [];
+    here.push(w); at.set(key, here);
+  }
+  let n = 0;
+  for (const here of at.values()) for (let i = 0; i < here.length; i++) for (let k = i + 1; k < here.length; k++) {
+    if (here[i]!.from !== here[k]!.from && here[i]!.to !== here[k]!.to) n++;
+  }
+  return n;
+}
+
+/** How many starts the layout is tried from, and the seed of their shuffles. */
+const STARTS = 4, STARTS_SEED = 38;
+
 /** The trees laid out lately, by what shows (the layout depends on nothing else), so drawing it every frame doesn't
  *  lay it out again each time. Read only: the same tree is handed out again. */
 const laidOut = new Map<string, DiscoveryTree>();
 
-/** The tree for the nodes shown (shownNodes), laid out: columns by depth (no empty one), the three bands, and rows to
- *  keep lines short and crossing little: a few sweeps ordering each column by where its neighbours are, each node then
- *  as near its neighbours' rows as its band allows, then swapping neighbours in a column wherever that crosses fewer
- *  lines. Each line's way through the columns between its ends takes a free row there, or a half row between two
- *  nodes, nearest the straight line between its ends. */
+/** The tree for the nodes shown (shownNodes), laid out: columns by depth, with things from the ground moved on beside
+ *  their use (no empty column); the three bands; and rows to keep lines short and tidy, tried from a few starts: sweeps
+ *  ordering each column by where its neighbours are, each node then as near its neighbours' rows as its band allows,
+ *  then each node moved to wherever in its column crosses fewest lines (or puts fewest on one way); the tidiest start
+ *  kept. Each line's way through the columns between its ends takes a free row there, or a half row between two nodes,
+ *  nearest the straight line between its ends (a line between bands, the gutter), then a point at a time wherever it is
+ *  tidiest. */
 export function layoutTree(shown: Map<string, NodeState>): DiscoveryTree {
   const ids = [...shown.keys()].sort((a, b) => NODES[a]!.order - NODES[b]!.order);
   const key = ids.map(id => `${id}:${shown.get(id)}`).join(',');
   const kept = laidOut.get(key);
   if (kept) return kept;
+  const joins = JOINS.filter(j => LINED.includes(j.how) && shown.has(j.from) && shown.has(j.to));
+  // columns by depth; then each thing nothing leads into (from the ground, or a "?") moved on to just before the first
+  // thing it leads to, beside its use rather than a long line away (fibre by the wall tent, clay by the stone hearth);
+  // then no empty column
   const depths = [...new Set(ids.map(id => NODES[id]!.depth))].sort((a, b) => a - b);
-  const col = new Map(ids.map(id => [id, depths.indexOf(NODES[id]!.depth)]));
-  const cols = depths.length;
-  const joins = JOINS.filter(j => shown.has(j.from) && shown.has(j.to));
+  const at = new Map(ids.map(id => [id, depths.indexOf(NODES[id]!.depth)]));
+  for (const id of ids) {
+    if (joins.some(j => j.to === id)) continue;
+    const uses = joins.filter(j => j.from === id).map(j => at.get(j.to)!);
+    if (uses.length) at.set(id, Math.min(...uses) - 1);
+  }
+  const used = [...new Set(at.values())].sort((a, b) => a - b);
+  const col = new Map(ids.map(id => [id, used.indexOf(at.get(id)!)]));
+  const cols = used.length;
   const near = new Map<string, string[]>(ids.map(id => [id, []]));
   for (const j of joins) { near.get(j.from)!.push(j.to); near.get(j.to)!.push(j.from); }
   const bands = BANDS.filter(b => ids.some(id => NODES[id]!.band === b));
@@ -227,23 +261,26 @@ export function layoutTree(shown: Map<string, NodeState>): DiscoveryTree {
   const rows = bands.reduce((a, b) => a + height.get(b)!, 0);
   const y = new Map<string, number>();
   const stack = () => { for (const b of bands) for (const g of groups.get(b)!) g.forEach((id, i) => y.set(id, top.get(b)! + i)); };
-  stack();
-  // order: sweep right then left, each column's nodes by the mean row of their neighbours on the side swept from
-  for (let pass = 0; pass < 8; pass++) {
-    const right = pass % 2 === 0;
-    for (let k = 1; k < cols; k++) {
-      const c = right ? k : cols - 1 - k;
-      for (const b of bands) {
-        const g = groups.get(b)![c]!;
-        const by = new Map(g.map(id => {
-          const side = near.get(id)!.filter(o => right ? col.get(o)! < c : col.get(o)! > c);
-          return [id, side.length ? mean(side.map(o => y.get(o)!)) : y.get(id)!];
-        }));
-        g.sort((a, b2) => by.get(a)! - by.get(b2)! || y.get(a)! - y.get(b2)!);
+  /** The order of each column's nodes, swept right then left: each by the mean row of its neighbours on the side
+   *  swept from. */
+  const sweep = () => {
+    stack();
+    for (let pass = 0; pass < 8; pass++) {
+      const right = pass % 2 === 0;
+      for (let k = 1; k < cols; k++) {
+        const c = right ? k : cols - 1 - k;
+        for (const b of bands) {
+          const g = groups.get(b)![c]!;
+          const by = new Map(g.map(id => {
+            const side = near.get(id)!.filter(o => right ? col.get(o)! < c : col.get(o)! > c);
+            return [id, side.length ? mean(side.map(o => y.get(o)!)) : y.get(id)!];
+          }));
+          g.sort((a, b2) => by.get(a)! - by.get(b2)! || y.get(a)! - y.get(b2)!);
+        }
+        stack();
       }
-      stack();
     }
-  }
+  };
   // rows, in that order: each node as near the mean row of all its neighbours as its band and order allow, sweeping
   // right, left, right
   const place = () => {
@@ -266,7 +303,12 @@ export function layoutTree(shown: Map<string, NodeState>): DiscoveryTree {
     const taken = new Set(ids.map(id => `${col.get(id)}:${y.get(id)}`));
     return joins.map(j => {
       const a = col.get(j.from)!, ra = y.get(j.from)!, b = col.get(j.to)!, rb = y.get(j.to)!, out = [ra];
+      // a line from one band to another runs along the gutter at the edge of the band it goes to, never among a
+      // band's things on the way
+      const from = NODES[j.from]!.band, to = NODES[j.to]!.band;
+      const gutter = from === to ? null : bands.indexOf(to) > bands.indexOf(from) ? top.get(to)! - 0.5 : top.get(to)! + height.get(to)! - 0.5;
       for (let c = a + 1; c < b; c++) {
+        if (gutter !== null) { out.push(gutter); continue; }
         const at = ra + (rb - ra) * (c - a) / (b - a), whole = Math.round(at);
         if (whole >= 0 && whole < rows && !taken.has(`${c}:${whole}`)) { out.push(whole); continue; }
         const up = Math.floor(at) + 0.5, down = up - 1;
@@ -274,23 +316,73 @@ export function layoutTree(shown: Map<string, NodeState>): DiscoveryTree {
         out.push(Math.min(rows - 0.5, Math.max(-0.5, row)));
       }
       out.push(rb);
-      return { first: a, rows: out };
+      return { first: a, rows: out, from: j.from, to: j.to, between: gutter !== null };
     });
   };
+  /** How untidy a set of ways is: its crossings, and lines sharing a way that would read as one. */
+  const untidy = (w: ReturnType<typeof ways>) => crossed(w, cols) + shared(w);
+  /** Then each node moved to wherever in its column's order is tidiest (sifting), until none moves; how untidy that
+   *  leaves it. */
+  const sift = () => {
+    place();
+    let best = untidy(ways());
+    for (let pass = 0, moved = true; pass < 8 && moved && best > 0; pass++) {
+      moved = false;
+      for (const b of bands) for (const g of groups.get(b)!) for (const id of [...g]) {
+        let at = g.indexOf(id);
+        for (let i = 0; i < g.length; i++) {
+          g.splice(g.indexOf(id), 1); g.splice(i, 0, id);
+          place();
+          const n = untidy(ways());
+          if (n < best) { best = n; at = i; moved = true; }
+        }
+        g.splice(g.indexOf(id), 1); g.splice(at, 0, id);
+      }
+    }
+    return best;
+  };
+  // swept and sifted from a few starts (the nodes in their own order, then shuffled, the same way every time), the
+  // tidiest kept
+  const rng = createRng(STARTS_SEED);
+  let least = Infinity, tidiest: string[][] = [];
+  for (let start = 0; start < STARTS && least > 0; start++) {
+    if (start) for (const b of bands) for (const g of groups.get(b)!) for (let i = g.length - 1; i > 0; i--) {
+      const k = Math.floor(rng.next() * (i + 1));
+      [g[i], g[k]] = [g[k]!, g[i]!];
+    }
+    sweep();
+    const n = sift();
+    if (n < least) { least = n; tidiest = bands.flatMap(b => groups.get(b)!.map(g => [...g])); }
+  }
+  bands.flatMap(b => groups.get(b)!).forEach((g, i) => g.splice(0, g.length, ...tidiest[i]!));
   place();
-  // then neighbours in a column swapped wherever that crosses fewer lines
-  let best = crossed(ways(), cols);
-  for (let pass = 0, better = true; pass < 4 && better && best > 0; pass++) {
-    better = false;
-    for (const b of bands) for (const g of groups.get(b)!) for (let i = 0; i + 1 < g.length; i++) {
-      [g[i], g[i + 1]] = [g[i + 1]!, g[i]!];
-      place();
-      const n = crossed(ways(), cols);
-      if (n < best) { best = n; better = true; } else [g[i], g[i + 1]] = [g[i + 1]!, g[i]!];
+  // and last each line's way through the columns between its ends (a line within a band; one between bands keeps to
+  // its gutter) moved a point at a time to wherever is tidiest, at a free row or between two nodes of its band, as
+  // straight as that allows
+  const routes = ways(), taken = new Set(ids.map(id => `${col.get(id)}:${y.get(id)}`));
+  const travel = () => routes.reduce((a, w) => a + w.rows.reduce((t, r, k) => t + (k ? Math.abs(r - w.rows[k - 1]!) : 0), 0), 0);
+  const score = () => untidy(routes) * 100 + travel();
+  let now = score();
+  for (let pass = 0, moved = true; pass < 4 && moved; pass++) {
+    moved = false;
+    for (const w of routes) {
+      if (w.between) continue;
+      const band = NODES[w.from]!.band, lo = top.get(band)! - 0.5, hi = top.get(band)! + height.get(band)! - 0.5;
+      for (let k = 1; k < w.rows.length - 1; k++) {
+        const c = w.first + k;
+        let keep = w.rows[k]!;
+        for (let r = lo; r <= hi; r += 0.5) {
+          if (r === keep || (Number.isInteger(r) && taken.has(`${c}:${r}`))) continue;
+          const was = w.rows[k]!;
+          w.rows[k] = r;
+          const n = score();
+          if (n < now) { now = n; keep = r; moved = true; } else w.rows[k] = was;
+        }
+        w.rows[k] = keep;
+      }
     }
   }
-  place();
-  const lines: TreeLine[] = ways().map((w, i) => ({
+  const lines: TreeLine[] = routes.map((w, i) => ({
     from: joins[i]!.from, to: joins[i]!.to, how: joins[i]!.how, points: w.rows.map((row, k) => ({ col: w.first + k, row })),
   }));
   const nodes: TreeNode[] = ids.map(id => {

@@ -36,12 +36,15 @@ import { GOALS, type Goal } from './goals';
 import type { Place } from './thoughts';
 
 export type NodeKind = 'material' | 'food' | 'tool' | 'gear' | 'building';
-/** The tree's three bands, top to bottom (D4): the camp (wood, stone, buildings), food, and fighting (the club, hides,
- *  armour, the map). */
+/** The tree's three bands (D4): the camp (wood, stone, buildings), food, and fighting (the club, hides, armour, the
+ *  map). BANDS, below, puts them top to bottom. */
 export type Band = 'camp' | 'food' | 'fighting';
-export const BANDS: Band[] = ['camp', 'food', 'fighting'];
 /** How one thing leads to another (the list at the top). */
 export type JoinHow = 'needs' | 'gathers' | 'drops' | 'cooks' | 'upgrade' | 'inside';
+/** The joins the tree draws as lines, the main ones: what a thing is made from, the tool that gathers it, the weapon
+ *  that wins it, the fire that cooks it, the step it is built in place of. What a thing is only used with (the shelter
+ *  the chest stands in) is said on the cards alone, so the tree keeps to the lines that lead on. */
+export const LINED: JoinHow[] = ['needs', 'gathers', 'drops', 'cooks', 'upgrade'];
 
 /** A node. name: as the game writes it ("Birch logs", "Stone axe", "Tent"; "Tarp" and "Torn map", of which there is
  *  only one: ONLY_ONE). depth: its column (at the top). order: its
@@ -146,6 +149,18 @@ export const NODES: Record<string, DiscoveryNode> = nodes();
 /** Every node's id, in their order. */
 export const NODE_IDS: string[] = Object.keys(NODES);
 export const isNode = (id: string): boolean => Object.hasOwn(NODES, id);
+
+/** The bands top to bottom: the order in which fewest lines pass over a band between their ends' bands (on a tie, the
+ *  camp, food, fighting). The camp leads to both food and fighting and they to nothing of each other's, so the camp is
+ *  in the middle: food above it, fighting below, and no line runs from the camp through the food to the club. */
+function bandOrder(): Band[] {
+  const listed: Band[] = ['camp', 'food', 'fighting'];
+  const orders = (left: Band[]): Band[][] => left.length < 2 ? [left] : left.flatMap((b, i) => orders(left.filter((_, k) => k !== i)).map(o => [b, ...o]));
+  const over = (order: Band[]) => JOINS.filter(j => LINED.includes(j.how))
+    .reduce((n, j) => n + Math.max(0, Math.abs(order.indexOf(NODES[j.from]!.band) - order.indexOf(NODES[j.to]!.band)) - 1), 0);
+  return orders(listed).reduce((best, o) => over(o) < over(best) ? o : best);
+}
+export const BANDS: Band[] = bandOrder();
 
 /** Where an item comes from, for its card and for whether a layout has any (core/discovery.ts): picked up off the
  *  ground (a pickup kind, data/pickups.ts), gathered at a resource node (RESOURCES), left by a beaten creature, cooked
