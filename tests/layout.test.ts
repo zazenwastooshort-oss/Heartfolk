@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { CAMP } from '../src/world/camp';
 import { inArea, siteOf, VILLAGE, type BuildingSpot, type Layout, type PropSpot, type Vec2 } from '../src/world/layout';
-import { landOf, navFor } from '../src/world/nav';
+import { landOf, NavGrid, navFor } from '../src/world/nav';
 import { waterOf } from '../src/world/water';
 import { APRON, footOf, wallFootZ } from '../src/world/falls';
 import { blocksOf, outsideOf, shapeOf, standsOf, stepPlace, toGround } from '../src/world/steps';
@@ -152,6 +152,33 @@ describe('the layout', () => {
     const wake = wakeSpot(state, CAMP).pos;
     expect(walkGrid(state, CAMP).walkable(wake)).toBe(true);
     expect(walkGrid(state, CAMP).findPath(CAMP.start, wake)).not.toBeNull();
+  });
+
+  it('each set of steps built or begun is put on the bare grid in a moment, and comes out cell for cell as the grid made from scratch with them (review PERF-navstamp)', { timeout: 30_000 }, () => {
+    const area = landOf(CAMP).reduce((a, b) => ({ minX: Math.min(a.minX, b.minX), maxX: Math.max(a.maxX, b.maxX), minZ: Math.min(a.minZ, b.minZ), maxZ: Math.max(a.maxZ, b.maxZ) }));
+    // every way each spot can be (nothing, or its line up to each step, the last of them begun or built), with the
+    // other spots bare or at their largest
+    const lines = Object.keys(LINES) as LineId[], ways = (line: LineId) => [[], ...LINES[line].map((_, i) => LINES[line].slice(0, i + 1))] as MakeId[][];
+    const sets: MakeId[][] = [];
+    for (const line of lines) for (const way of ways(line)) for (const others of [false, true]) {
+      sets.push(lines.flatMap(l => l === line ? way : others ? LINES[l] : []));
+    }
+    expect(sets.length).toBe(2 * (3 + 4 + 3 + 2));
+    navFor(CAMP);                                                   // (the bare grid, made once)
+    const took: number[] = [];
+    for (const ids of sets) {
+      const begun = ids.length % 2 ? ids.slice(-1) : [], built = ids.slice(0, ids.length - begun.length);
+      const started = performance.now(), stamped = navFor(CAMP, [...built, 'chest'], begun);
+      took.push(performance.now() - started);
+      const scratch = new NavGrid(area, CAMP, built, begun), differ: string[] = [];
+      for (let x = area.minX + 0.2; x < area.maxX; x += 0.4) for (let z = area.minZ + 0.2; z < area.maxZ; z += 0.4) {
+        if (stamped.walkable({ x, z }) !== scratch.walkable({ x, z })) differ.push(`${x.toFixed(1)},${z.toFixed(1)}`);
+      }
+      expect(differ, ids.join('+')).toEqual([]);
+    }
+    // (a whole grid is about 45 ms on a desktop; a set of steps put on the bare one, a millisecond or two: the middle
+    // of them, so a pause of the machine's own doesn't count)
+    expect([...took].sort((a, b) => a - b)[took.length >> 1]!).toBeLessThan(10);
   });
 
   it('T11.8: the campfire, the firewood pile, the tent and the dummy are in the way exactly as their spots were before', () => {

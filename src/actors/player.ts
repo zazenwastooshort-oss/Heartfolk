@@ -156,8 +156,6 @@ export function goBuild(state: GameState, layout: Layout, id: MakeId): boolean {
   return !!spot && goSpot(state, layout, spot, { kind: 'raise', id });
 }
 
-/** Where he faces while making something: its site, or straight ahead for something made where he stands. */
-const makeAt = (layout: Layout, id: MakeId) => { const at = MAKES[id].at; return at === 'here' ? undefined : siteOf(layout, at)?.pos; };
 
 /** Walk to a building's door, to where he uses something he has built at the camp (core/camp.ts useSpot: the
  *  shelter's door, for the storage chest in it and for bed; the campfire, to stoke it or cook at it, and the firewood
@@ -225,7 +223,7 @@ export function updatePlayer(state: GameState, layout: Layout, dt: number, event
     const task = p.task;
     const at = task.kind === 'gather' ? layout.nodes.find(n => n.id === task.nodeId)?.pos
       : task.kind === 'pickup' ? layout.pickups?.find(x => x.id === task.id)?.pos
-      : task.kind === 'make' ? makeAt(layout, task.id) : task.kind === 'fight' ? targetOf(state, layout, task.target)?.pos
+      : task.kind === 'make' ? undefined : task.kind === 'fight' ? targetOf(state, layout, task.target)?.pos
       : task.kind === 'raise' ? buildSpot(state, layout, task.id)?.face
       : siteOf(layout, 'hearth')?.pos;
     if (at && len(sub(at, p.pos)) > 1e-3) p.heading = angleToward(p.heading, headingOf(sub(at, p.pos)), TURN_RATE * dt);

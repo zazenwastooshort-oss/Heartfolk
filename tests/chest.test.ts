@@ -29,6 +29,7 @@ import { besideChest } from '../src/systems/tools';
 import { knockOut, wakeSpot } from '../src/systems/rats';
 import { restedFactor } from '../src/systems/sleep';
 import { storeAll } from '../src/ui/backpack';
+import { stackedText } from '../src/ui/hud';
 import { CARPENTRY, DOOR, LINES, SHAPES, SHELTERS, STAGED } from '../src/data/building';
 import { MAKES, type MakeId } from '../src/data/making';
 import { GOALS } from '../src/data/goals';
@@ -117,14 +118,25 @@ describe('the chest has no spot of its own (T8.1)', () => {
       }
       expect(differ, sh.name).toEqual([]);
     }
+    // (review PERF-navkey) one grid for the same things in the way: the chest makes none of its own, and the one made as
+    // something is begun is the one used once it stands
+    const base = ['campfire', 'woodpile', 'shelter'];
+    expect(navFor(CAMP, [...base, 'chest'])).toBe(navFor(CAMP, base));
+    expect(navFor(CAMP, base, ['chest'])).toBe(navFor(CAMP, base));
+    expect(navFor(CAMP, ['campfire', 'shelter'], ['woodpile'])).toBe(navFor(CAMP, base));
+    expect(navFor(CAMP, [...base, 'chest'], ['wall_tent'])).toBe(navFor(CAMP, [...base, 'wall_tent', 'chest']));
+    expect(navFor(CAMP, [...base, 'wall_tent'])).not.toBe(navFor(CAMP, base));
     // its old spot beside the tent (0.0.19 to 0.0.30) is open ground
     expect(navFor(CAMP, ['campfire', 'shelter', 'chest']).walkable({ x: 0.9, z: 7.3 })).toBe(true);
   });
 
   it('it is there only in a shelter that stands: built, with the tent, the wall tent or the log cabin standing', () => {
     const state = createState(CAMP);
+    // (review ARCH-chestPlace-doc) nowhere for it to stand in a new game, nothing at the tent's spot
+    expect(chestPlace(state, CAMP)).toBeNull();
     state.built = ['campfire', 'chest'];
     expect(chestHere(state, CAMP)).toBe(false);                    // (a hand-edited save: no shelter)
+    expect(chestPlace(state, CAMP)).toBeNull();
     state.underway = { shelter: 30 };
     expect(chestHere(state, CAMP)).toBe(false);                    // the tent only begun
     for (const id of SHELTERS) { state.underway = {}; state.built = ['campfire', id, 'chest']; expect(chestHere(state, CAMP), id).toBe(true); }
@@ -333,12 +345,16 @@ describe('building the chest from the door (D3, T8.6)', () => {
     send(s, { type: 'build', id: 'chest' });
     expect(s.state.underway).toEqual({ chest: 0 });
     runUntil(s, () => s.state.player.task.kind === 'raise', 60);
-    const door = standsOf(CAMP, 'shelter')[0]!, chest = chestPlace(s.state, CAMP)!.pos, p = s.state.player;
+    // facing the point on it his strikes are aimed at (its right end, beside the tent's front pole: SHAPES' aim)
+    const door = standsOf(CAMP, 'shelter')[0]!, place = chestPlace(s.state, CAMP)!, chest = toGround(place, SHAPES.chest!.aim!), p = s.state.player;
+    expect(dist(chest, place.pos)).toBeLessThan(0.45);
     expect(dist(p.pos, door)).toBeLessThan(0.1);
     expect(buildSpot(s.state, CAMP, 'chest')).toMatchObject({ stands: [door], face: chest });
     run(s, 1);
     expect(turn(p.heading, headingOf({ x: chest.x - p.pos.x, z: chest.z - p.pos.z }))).toBeLessThan(0.02);
-    expect(doorToChest(SHELTERED[0]!)).toBeLessThanOrEqual(CARPENTRY.reach + 0.01);
+    // (a little back from the tent's open front, clear of its front pole: his swing, coming down a little beyond his
+    // reach, lands on its lid all the same, tests/campmodels.test.ts)
+    expect(doorToChest(SHELTERED[0]!)).toBeLessThanOrEqual(CARPENTRY.reach + 0.1);
     runUntil(s, () => s.state.built.includes('chest'), MAKES.chest.time + 5);
     expect(chestHere(s.state, CAMP)).toBe(true);
     expect(dist(s.state.player.pos, door)).toBeLessThan(0.1);
@@ -359,7 +375,7 @@ describe('building the chest from the door (D3, T8.6)', () => {
       // the floor the chest stands on (the log cabin's, 0.17 m). While a new shelter is at its footings or its frame,
       // the chest is still in the old one, the new one's footings between it and the door that has moved out in front
       // of them (D6: the old one is drawn until the new one is half built)
-      expect(doorToChest(sh), sh.name).toBeLessThanOrEqual(shown === outerOf(sh) ? CARPENTRY.reach + 0.2 : 1.2);
+      expect(doorToChest(sh), sh.name).toBeLessThanOrEqual(shown === outerOf(sh) ? CARPENTRY.reach + 0.2 : 1.25);
     }
   });
 });
@@ -523,12 +539,19 @@ describe('the stone hearth and the woodshed (T7.1 to T7.3)', () => {
     s.state.player.backpack = { birch_logs: 25 };
     send(s, { type: 'visit', id: 'woodpile' });
     runUntil(s, () => of(s, 'stacked').length > 0, 60);
-    expect(of(s, 'stacked')).toEqual([{ type: 'stacked', logs: WOODPILE.max - 12, pile: WOODPILE.max }]);
+    expect(of(s, 'stacked')).toEqual([{ type: 'stacked', logs: WOODPILE.max - 12, pile: WOODPILE.max, at: 'woodshed' }]);
     expect(atStand('woodshed', whereAt(s, 'stacked')!.pos)).toBe(true);
     expect(s.state.player.backpack).toEqual({ birch_logs: 25 - (WOODPILE.max - 12) });
     send(s, { type: 'visit', id: 'woodpile' });
     runUntil(s, () => of(s, 'stacked').length > 1, 60);
-    expect(of(s, 'stacked')[1]).toEqual({ type: 'stacked', logs: 0, pile: WOODPILE.max, reason: 'full' });
+    expect(of(s, 'stacked')[1]).toEqual({ type: 'stacked', logs: 0, pile: WOODPILE.max, at: 'woodshed', reason: 'full' });
+    // (review IU-pile-words) told as the woodshed, which stands there now
+    expect(stackedText(of(s, 'stacked')[0]!)).toBe(`Stacked ${WOODPILE.max - 12} birch logs in the woodshed (${WOODPILE.max} there now).`);
+    expect(stackedText(of(s, 'stacked')[1]!)).toBe('The woodshed is full.');
+    expect(stackedText({ type: 'stacked', logs: 0, pile: 3, at: 'woodshed', reason: 'none' })).toBe('You have no logs to stack in the woodshed.');
+    expect(stackedText({ type: 'stacked', logs: 5, pile: 9, at: 'woodpile' })).toBe('Stacked 5 birch logs on the firewood pile (9 there now).');
+    expect(stackedText({ type: 'stacked', logs: 0, pile: 30, at: 'woodpile', reason: 'full' })).toBe('The firewood pile is full.');
+    expect(stackedText({ type: 'stacked', logs: 0, pile: 3, at: 'woodpile', reason: 'none' })).toBe('You have no logs to stack on the firewood pile.');
     // at nightfall the logs come from it first, though the chest has some
     s.state.bank.birch_logs = 5;
     s.state.time = at(1, NIGHTFALL) - 0.05;
@@ -567,7 +590,7 @@ describe('the stone hearth and the woodshed (T7.1 to T7.3)', () => {
     s.state.player.backpack = { birch_logs: 4 };
     send(s, { type: 'visit', id: 'woodpile' });
     runUntil(s, () => of(s, 'stacked').length > 0, 60);
-    expect(of(s, 'stacked')).toEqual([{ type: 'stacked', logs: 4, pile: 6 - STOKE.logs + 4 }]);
+    expect(of(s, 'stacked')).toEqual([{ type: 'stacked', logs: 4, pile: 6 - STOKE.logs + 4, at: 'woodpile' }]);
     expect(atStand('woodshed', whereAt(s, 'stacked')!.pos)).toBe(true);
     runUntil(s, () => s.state.player.task.kind === 'raise', 30);
     expect(s.state.player.task).toEqual({ kind: 'raise', id: 'woodshed' });

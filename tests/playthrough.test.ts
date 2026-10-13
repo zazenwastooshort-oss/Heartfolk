@@ -14,6 +14,10 @@
 // HEARTHFOLK_SEEDS=20 plays seeds 1 to 20 instead of 1 to 4; HEARTHFOLK_VISIT=300,60 makes the bot a player who checks
 // in every 5 minutes of play and stays a minute (attentive while there), and HEARTHFOLK_VISIT=300 one who looks once
 // each time (one look per visit: an upper bound); HEARTHFOLK_TRACE=2 prints seed 2's taps and notices as it plays.
+// (The camp build's review, PACE-no-upgrades) A player who also builds every upgrade along the way, as soon as the chest
+// stands and nothing is under way (its materials handed in, never ones the goal on the card counts), plays seed 1 to
+// the end of chapter 2 with the same checks; HEARTHFOLK_UPGRADES=1 plays every seed so, and the pacing report says how
+// long chapter 2 takes then.
 // (In PowerShell: $env:HEARTHFOLK_PACING=1; npx vitest run tests/playthrough.test.ts)
 // The chapters are found by what ends them, never by position: chapter 1 ends with the goal that makes the storage
 // chest, chapter 2 with the last goal; the goblin camp is the goal that asks for the chief's torn map.
@@ -29,10 +33,11 @@ import { deserialize, serialize } from '../src/core/save';
 import { nextHour } from '../src/core/needs';
 import { step, type SimContext } from '../src/sim';
 import { CAMP } from '../src/world/camp';
-import { walkGrid } from '../src/core/building';
+import { begunIds, buildRows, forGoal, walkGrid } from '../src/core/building';
 import { backpackCount } from '../src/systems/backpack';
 import { GOALS, type Goal } from '../src/data/goals';
-import { makeDef } from '../src/data/making';
+import { makeDef, type MakeId } from '../src/data/making';
+import { STAGED } from '../src/data/building';
 import { CHIEF } from '../src/data/goblins';
 import { DUMMY, GEAR } from '../src/data/combat';
 import { SKILLS, type SkillId } from '../src/data/skills';
@@ -92,6 +97,9 @@ const QUIET = ['xpGained', 'strike', 'hit', 'bitten', 'arrived', 'itemGained', '
 /** The last goal of each chapter, by index in GOALS. */
 const CHAPTER_ENDS = [CHEST, GOALS.length - 1];
 const CHAPTER_NAMES = ['Chapter 1 (to the storage chest)', 'Chapter 2 (to the torn map)'];
+/** The camp's upgrades (each upgrading the step before it), and whether one is. */
+const stagedUpgrade = (id: string) => !!STAGED[id as MakeId]?.upgrades;
+const UPGRADE_IDS = Object.keys(STAGED).filter(stagedUpgrade).sort();
 
 /** One playthrough: when each goal finished, each chapter's end, and what the pacing report counts, per chapter. */
 interface Run {
@@ -127,6 +135,8 @@ interface Run {
   saves: { at: number; diff?: string }[];
   /** seconds of play in the run, and the real milliseconds it took */
   played: number; ms: number;
+  /** (a player who builds every upgrade along the way) the upgrades built, and what was handed in for them */
+  upgraded: string[]; handed: Record<string, number>;
 }
 
 const levelsOf = (state: GameState) => Object.fromEntries(Object.keys(SKILLS).map(s => [s, levelFor(state.skills[s as SkillId])])) as Record<SkillId, number>;
@@ -175,9 +185,9 @@ function differences(saved: unknown, loaded: unknown, path = '', out: string[] =
 }
 
 interface Game { state: GameState; events: EventBus; ctx: SimContext; bot: Bot }
-function newGame(seed: number, visits: Visits | null = null): Game {
+function newGame(seed: number, visits: Visits | null = null, upgrades = false): Game {
   const events = new EventBus();
-  return { state: createState(CAMP, seed), events, ctx: { layout: CAMP, rng: createRng(seed), events }, bot: new Bot(CAMP, events, visits) };
+  return { state: createState(CAMP, seed), events, ctx: { layout: CAMP, rng: createRng(seed), events }, bot: new Bot(CAMP, events, visits, upgrades) };
 }
 /** Let the bot play `g` until `done` (or `max` seconds of play pass); returns the seconds played. */
 function playUntil(g: Game, done: () => boolean, max: number): number {
@@ -186,16 +196,28 @@ function playUntil(g: Game, done: () => boolean, max: number): number {
   return t;
 }
 
+/** (a player who builds every upgrade along the way) With the chest standing and nothing under way, what the first
+ *  upgrade the Build window offers still lacks is handed in to the chest (as a player who gathered it meanwhile), unless
+ *  the goal on the card counts any of what it needs (then it waits, so the goal's own count is never given away). */
+function handIn(state: GameState, run: Run): void {
+  if (!state.built.includes('chest') || begunIds(state).length) return;
+  const row = buildRows(state, CAMP).find(r => !!r.staged.upgrades);
+  if (!row || Object.keys(row.def.needs).some(item => forGoal(state, item) > 0)) return;
+  for (const [item, n] of Object.entries(row.missing)) { state.bank[item] = (state.bank[item] ?? 0) + n; run.handed[item] = (run.handed[item] ?? 0) + n; }
+}
+
 /** Play a new game on `seed` with the bot until every goal is done (or, while the goblin camp can't be cleared yet, until
- *  it is the goal), he is stuck, or a chapter runs out of time. */
-function play(seed: number): Run {
-  const t0 = performance.now(), g = newGame(seed, VISITS), { events, ctx, bot } = g;
+ *  it is the goal), he is stuck, or a chapter runs out of time. `upgrades`: a player who also builds every upgrade along
+ *  the way (handIn). */
+function play(seed: number, upgrades = false): Run {
+  const t0 = performance.now(), g = newGame(seed, VISITS, upgrades), { events, ctx, bot } = g;
   const run: Run = {
     seed, done: {}, chapterEnd: CHAPTER_ENDS.map(() => null), levels: CHAPTER_ENDS.map(() => null),
     taps: CHAPTER_ENDS.map(() => 0), knockouts: CHAPTER_ENDS.map(() => 0), eaten: CHAPTER_ENDS.map(() => 0), refused: 0, untappable: [], ate: {},
     asleep: CHAPTER_ENDS.map(() => 0), nights: CHAPTER_ENDS.map(() => 0), meals: CHAPTER_ENDS.map(() => 0), sleptAt: {},
-    end: 'time', stuck: null, still: { for: 0, goal: '' }, problems: [], saves: [], played: 0, ms: 0,
+    end: 'time', stuck: null, still: { for: 0, goal: '' }, problems: [], saves: [], played: 0, ms: 0, upgraded: [], handed: {},
   };
+  if (upgrades) events.on(e => { if (e.type === 'made' && stagedUpgrade(e.make)) run.upgraded.push(e.make); });
   const start = g.state.time, played = () => g.state.time - start, min = (s: number) => (s / 60).toFixed(1);
   let chapter = 0, goalDone = false, slept = 0;
   // the goal card: the furthest it has got, when it last moved on, and the goal it shows
@@ -224,6 +246,7 @@ function play(seed: number): Run {
   const limit = (c: number) => CHAPTER_LIMITS.slice(0, c + 1).reduce((a, n) => a + n, 0);
   for (;;) {
     const taps = bot.log.length;
+    if (upgrades) handIn(g.state, run);
     bot.tick(g.state, events);
     run.taps[chapter]! += bot.log.length - taps;
     for (const tap of bot.log.slice(taps)) {
@@ -288,6 +311,10 @@ function play(seed: number): Run {
 
 const runs = new Map<number, Run>();
 const runOf = (seed: number) => { let r = runs.get(seed); if (!r) { r = play(seed); runs.set(seed, r); } return r; };
+/** (PACE-no-upgrades) The seeds a player who builds every upgrade along the way plays, and their runs. */
+const UPGRADE_SEEDS = process.env.HEARTHFOLK_UPGRADES === '1' ? SEEDS : [1];
+const upgradeRuns = new Map<number, Run>();
+const upgradeRunOf = (seed: number) => { let r = upgradeRuns.get(seed); if (!r) { r = play(seed, true); upgradeRuns.set(seed, r); } return r; };
 /** What a run says about itself when a check fails. */
 const about = (r: Run) => `seed ${r.seed}: ended "${r.end}" after ${(r.played / 60).toFixed(1)} min of play${r.stuck ? `\n  ${r.stuck}` : ''}`;
 
@@ -350,6 +377,22 @@ describe('the playthrough bot', { timeout: 60_000 }, () => {
       expect(r.taps.reduce((a, n) => a + n, 0), about(r)).toBeLessThan(r.played / 30);
     }
     expect(SEEDS.reduce((a, s) => a + runOf(s).ms, 0)).toBeLessThan(SEEDS.length * 5_000);
+  });
+});
+
+describe('a player who also builds every upgrade along the way (the camp build\'s review, PACE-no-upgrades)', { timeout: 120_000 }, () => {
+  it('plays to the end of chapter 2 with each upgrade begun as soon as it can be: every upgrade built, never stuck, always on the land, saves exact, no tap refused', () => {
+    for (const seed of UPGRADE_SEEDS) {
+      const r = upgradeRunOf(seed);
+      expect(r.problems, about(r)).toEqual([]);
+      expect(r.end, about(r)).toBe(GOBLINS_CLEARABLE ? 'done' : 'goblins');
+      expect(r.chapterEnd[0], about(r)).not.toBeNull();
+      expect([...r.upgraded].sort(), about(r)).toEqual(UPGRADE_IDS);
+      expect(r.refused, about(r)).toBe(0);
+      expect(r.untappable, about(r)).toEqual([]);
+      for (const s of r.saves) expect(s.diff, `seed ${seed}: the save at ${(s.at / 60).toFixed(1)} min read back differently`).toBeUndefined();
+      if (GOBLINS_CLEARABLE) expect(r.chapterEnd[1]! - r.chapterEnd[0]!, about(r)).toBeLessThan(CHAPTER_LIMITS[1]!);
+    }
   });
 });
 
@@ -496,6 +539,14 @@ afterAll(() => {
     lines.push('');
   }
   for (const r of all.filter(x => x.end === 'stuck' || x.end === 'time')) lines.push(`Seed ${r.seed} stopped early: ${r.stuck}`);
+  // (PACE-no-upgrades) a player who also builds every upgrade along the way
+  const ups = UPGRADE_SEEDS.map(s => upgradeRuns.get(s)).filter((r): r is Run => !!r && r.chapterEnd[1] !== null);
+  if (ups.length) {
+    lines.push(`With every upgrade built along the way, each begun as soon as nothing else was under way after the chest (its materials handed in; seeds ${ups.map(r => r.seed).join(', ')}):`);
+    lines.push(`  ${'Chapter 2'.padEnd(34)}${columns(ups.map(r => took(r, 1)), ups.map(r => took(r, 1) - r.asleep[1]! * (1 - 1 / SLEEP.speed)))}`);
+    const upStill = ups.map(r => r.still.for);
+    lines.push(`  the goal card's longest stretch without moving on: median ${clock(median(upStill))}, ${clock(Math.min(...upStill))} to ${clock(Math.max(...upStill))}`, '');
+  }
   const stillest = all.reduce((a, r) => r.still.for > a.still.for ? r : a), still = all.map(r => r.still.for);
   lines.push(`The goal card's longest stretch without moving on, per run: median ${clock(median(still))}, ${clock(Math.min(...still))} to ${clock(Math.max(...still))}`
     + ` (the longest on seed ${stillest.seed}, "${stillest.still.goal}"); the stuck check allows ${clock(STUCK)}.`);

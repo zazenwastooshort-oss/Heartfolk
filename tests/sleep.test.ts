@@ -139,6 +139,22 @@ describe('sleeping in the shelter', () => {
     expect(s.state.needs.bed).toBeNull();
   });
 
+  it('saved and opened on his way to bed sent early, his needs read back as they were: a tap elsewhere still changes his mind, and he goes to bed at his bedtime (review SAVE-slept-tap-to-bed)', () => {
+    const s = camp(21);
+    s.state.stokedNight = Math.floor(s.state.time / DAY_SECONDS - STOKE.at);
+    send(s, { type: 'sleep' });
+    run(s, 0.5);
+    expect(s.state.player.pending).toEqual({ kind: 'visit', id: 'shelter' });
+    const before = structuredClone(s.state.needs);
+    s.state = deserialize(serialize(s.state), CAMP);
+    expect(s.state.needs).toEqual(before);
+    send(s, { type: 'work', nodeId: 'camp_copper1' });
+    runUntil(s, () => of(s, 'bedtime').length > 0, DAY_SECONDS / 2);
+    expect(of(s, 'bedtime')).toHaveLength(1);
+    runUntil(s, () => s.state.player.task.kind === 'sleep', 120);
+    expect(s.state.player.task.kind).toBe('sleep');
+  });
+
   it('off to stoke the fire at nightfall, a tap on the shelter waits: he stokes first, then goes to bed', () => {
     const s = camp(19.9);
     s.state.woodpile = 10;                                            // logs to stoke with

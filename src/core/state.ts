@@ -173,8 +173,12 @@ export interface GameState {
    *  each needs was taken when he began. Once finished it is in `built` instead. At most one at a time (D8) */
   underway: Partial<Record<MakeId, number>>;
   /** (the camp build) the in-game time from which he may go back by himself to something half built (the camp build's
-   *  stage 2: RESUME in data/building.ts); 0 for at once. Read back as 0 */
+   *  stage 2: RESUME in data/building.ts); 0 for at once. Read back as saved when it is within RESUME.wait or
+   *  RESUME.retry (the longer) of the save's time (core/save.ts readSave), else 0 */
   resumeAt: number;
+  /** (the camp build) his way back to something half built was last found blocked, and he said so (noPath): he says it
+   *  once, not again until a way is found (systems/building.ts). Saved, so a game opened again doesn't say it again */
+  lostWay: boolean;
   /** (13 Oct 2026) his needs at the camp: how full he is, a meal trip or bed under way, his bedtime, a tap waiting for
    *  him to wake (core/needs.ts, systems/needs.ts) */
   needs: Needs;
@@ -292,6 +296,7 @@ export function createState(layout: Layout, seed = 1): GameState {
     thoughts: { journal: [], known: [], last: null, saidAt: null, passingAt: null },
     underway: {},
     resumeAt: 0,
+    lostWay: false,
     needs: freshNeeds(),
     toolsInChest: [],
   };

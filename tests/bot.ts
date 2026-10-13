@@ -32,8 +32,11 @@
 // Stoking the fire at nightfall and being knocked out are never interrupted: he goes back to work by himself. Nor
 // (his needs) are his meals and his nights in the shelter: a sensible player lets him eat and sleep (the night goes
 // by quickly while he sleeps), and he goes back by himself.
+// With `upgrades` (the camp build's review, PACE-no-upgrades) the player also builds up the camp: once the storage
+// chest stands, with nothing under way and the goal card offering nothing to build, he begins the first upgrade the
+// Build window offers that he has everything for, and lets him build it (the playthrough hands the materials in).
 import { allGoalsDone, canDrop, currentGoal, goalPaid, maxHealth, owned, type GameState } from '../src/core/state';
-import { stagedDef } from '../src/core/building';
+import { begunIds, buildRows, stagedDef } from '../src/core/building';
 import type { EventBus, GameEvent } from '../src/core/events';
 import { ratUp, ratsOf } from '../src/core/rats';
 import { CHIEF_ID, goblinsOf } from '../src/core/goblins';
@@ -119,8 +122,9 @@ export class Bot {
   private start: number | null = null;
   private visit = -1;
 
-  /** visits: when the player is there (Visits); null, the default, for always: an attentive player. */
-  constructor(private layout: Layout, events: EventBus, private visits: Visits | null = null) {
+  /** visits: when the player is there (Visits); null, the default, for always: an attentive player. upgrades: he also
+   *  builds every upgrade he can along the way (see above). */
+  constructor(private layout: Layout, events: EventBus, private visits: Visits | null = null, private upgrades = false) {
     events.on(e => {
       if (!NOTICES.has(e.type)) return;
       this.noticed = true;
@@ -185,6 +189,8 @@ export class Bot {
     const plan = this.plan(state), out: Command[] = [];
     const style = this.styleFor(state, plan);
     if (style !== state.combatStyle) out.push({ type: 'style', style });
+    const up = this.upgrade(state, plan);
+    if (up) { out.push(up); return out; }
     if (this.useful(state, plan, style)) return out;
     const next = this.next(state, plan, style);
     if (!next) return out;
@@ -218,16 +224,27 @@ export class Bot {
       if ('pickupId' in trip) return this.wantsPickup(plan, trip.pickupId);
       return this.wantsFight(state, plan, trip.fight, style);
     }
-    if (task.kind === 'make' || task.kind === 'raise') return plan.make === task.id;
+    if (task.kind === 'make' || task.kind === 'raise') return plan.make === task.id || (task.kind === 'raise' && this.upgrading(task.id));
     if (task.kind === 'gather') return this.wantsNode(plan, task.nodeId);
     if (task.kind === 'pickup') return this.wantsPickup(plan, task.id);
     if (task.kind === 'fight') return this.wantsFight(state, plan, task.target, style);
-    if (pending?.kind === 'make' || pending?.kind === 'raise') return plan.make === pending.id;
+    if (pending?.kind === 'make' || pending?.kind === 'raise') return plan.make === pending.id || (pending.kind === 'raise' && this.upgrading(pending.id));
     if (pending?.kind === 'node') return this.wantsNode(plan, pending.id);
     if (pending?.kind === 'pickup') return this.wantsPickup(plan, pending.id);
     if (pending?.kind === 'fight') return this.wantsFight(state, plan, pending.id, style);
     return false;                                                   // standing about, or walking nowhere useful
   }
+
+  /** (upgrades) The upgrade to begin now: with nothing under way and the goal card offering nothing to build, the first
+   *  the Build window offers that he has everything for. */
+  private upgrade(state: GameState, plan: Plan): Command | null {
+    if (!this.upgrades || plan.make || begunIds(state).length) return null;
+    const row = buildRows(state, this.layout).find(r => !!r.staged.upgrades && !Object.keys(r.missing).length);
+    return row ? { type: 'build', id: row.id } : null;
+  }
+
+  /** (upgrades) Whether building `id` is the player's own choice, an upgrade, so he is left to build it. */
+  private upgrading(id: MakeId): boolean { return this.upgrades && !!stagedDef(id)?.upgrades; }
 
   private nodeGives(nodeId: string): string | null {
     const spot = this.layout.nodes.find(n => n.id === nodeId);

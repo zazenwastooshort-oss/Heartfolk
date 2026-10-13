@@ -127,6 +127,16 @@ describe('windows make way for the goal card, so its Build button stays one tap 
     expect(wins).toContain(`gap: ${GAP}px`);
     expect(wins).toContain(`right: calc(var(--edge) + var(--rail) + ${GAP}px)`);
   });
+
+  it('on a phone held upright, with a window open, a notice goes below it, over the strip, clear of its title and its x (review IU-notice-over-window)', () => {
+    const upright = html.slice(html.indexOf('@media (max-width: 600px)'));
+    const rule = upright.match(/\.wins-open \.notice \{[^}]*\}/)?.[0] ?? '';
+    const strip = upright.match(/\.strip \{ bottom: ([^;]*);/)?.[1];
+    expect(rule).toContain('top: auto');
+    expect(strip).toBeDefined();
+    expect(rule).toContain(`bottom: ${strip}`);
+    expect(readFileSync(new URL('../src/ui/windows.ts', import.meta.url), 'utf8')).toMatch(/classList\.toggle\('wins-open', this\.opened\.length > 0\)/);
+  });
 });
 
 describe('two windows side by side on a 1280 px wide screen (index.html)', () => {

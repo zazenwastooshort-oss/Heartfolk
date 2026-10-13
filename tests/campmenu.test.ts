@@ -12,16 +12,17 @@ import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
 import { STEP } from '../src/core/loop';
 import { DAY_SECONDS } from '../src/core/clock';
-import { buildRows } from '../src/core/building';
-import { actionKey, campActions, campTap, hoverOf, tapBoxOf, type CampEntry } from '../src/core/camp';
+import { buildRows, stepShown } from '../src/core/building';
+import { actionKey, campActions, campTap, hoverOf, tapBoxOf, tapRefused, type CampEntry } from '../src/core/camp';
 import { foundNow } from '../src/core/thoughts';
 import { step } from '../src/sim';
 import { applyCommands, type Command } from '../src/systems/commands';
 import { CAMP } from '../src/world/camp';
 import { VILLAGE } from '../src/world/layout';
-import { commandOf, labelOf, menuSpot, noteOf, titleOf, whyText, type Box } from '../src/ui/campmenu';
+import { commandOf, labelOf, menuKey, menuSpot, noteOf, titleOf, whyText, type Box } from '../src/ui/campmenu';
 import { rowCommand } from '../src/ui/build';
 import { Gestures, type PointerAt } from '../src/ui/gesture';
+import { menuTarget, type Target } from '../src/ui/input';
 import { EDGE, GAP } from '../src/ui/windows';
 import { LINES, STAGED, type LineId } from '../src/data/building';
 import { MAKES, type MakeId } from '../src/data/making';
@@ -111,7 +112,9 @@ describe("the camp's menu (campActions, T5.4)", () => {
           // knocked out, everything but looking in the chest waits
           if (s.state.player.task.kind === 'knockedOut') expect(e.why?.kind ?? null, where).toBe(e.action.kind === 'look' ? null : 'down');
         }
-        expect(titleOf(s.state, CAMP, line), where).toBe(box ? MAKES[box.step].name : '');
+        // headed by what is drawn there (the old step until a bigger one is half built round it: review
+        // IU-shelter-words-midupgrade), else by its footings or its marker's thing
+        expect(titleOf(s.state, CAMP, line), where).toBe(box ? MAKES[stepShown(s.state, line) ?? box.step].name : '');
       }
     }
   });
@@ -241,6 +244,7 @@ describe("the camp's menu (campActions, T5.4)", () => {
     const s = camp(BASE, { underway: { wall_tent: MAKES.wall_tent.time * 0.4 } });
     expect(labelOf({ kind: 'look' })).toBe('Look in the chest');
     expect(labelOf({ kind: 'sleep', shelter: 'wall_tent' })).toBe('Sleep in the wall tent');
+    expect(labelOf({ kind: 'sleep', shelter: null })).toBe('Sleep in the shelter');
     expect(labelOf({ kind: 'build', id: 'log_cabin', how: 'upgrade' })).toBe('Upgrade to a log cabin');
     expect(labelOf({ kind: 'build', id: 'wall_tent', how: 'carry' })).toBe('Carry on with the wall tent');
     expect(labelOf({ kind: 'build', id: 'chest', how: 'build' })).toBe('Build the storage chest');
@@ -249,6 +253,51 @@ describe("the camp's menu (campActions, T5.4)", () => {
     expect(whyText({ kind: 'missing', items: { birch_logs: 4, fibre: 8 } })).toBe('Still needs 4 birch logs and 8 fibre.');
     expect(whyText({ kind: 'day' })).toBe("He isn't tired until night falls.");
     expect(whyText({ kind: 'down' })).toBe("He's knocked out.");
+  });
+});
+
+describe('the menu headed and worded by what is drawn (review IU-shelter-words-midupgrade)', () => {
+  it('headed by the tent while the wall tent goes up round it to its frame, then by the wall tent; its Sleep the tent\'s, then the shelter\'s', () => {
+    const footings = camp(BASE, { underway: { wall_tent: 9 }, hour: 22 }), half = camp(BASE, { underway: { wall_tent: MAKES.wall_tent.time * 0.7 }, hour: 22 });
+    expect(titleOf(footings.state, CAMP, 'tent')).toBe('Tent');
+    expect(labelOf(entryOf(footings.state, 'tent', 'sleep:shelter')!.action)).toBe('Sleep in the tent');
+    expect(titleOf(half.state, CAMP, 'tent')).toBe('Wall tent');
+    expect(entryOf(half.state, 'tent', 'sleep:shelter')).toBeDefined();
+    const sleep = campActions(half.state, CAMP, 'tent').find(e => e.action.kind === 'sleep')!;
+    expect(labelOf(sleep.action)).toBe('Sleep in the shelter');
+    expect(commandOf(sleep.action)).toEqual({ type: 'sleep' });
+    expect(titleOf(camp([...BASE, 'wall_tent'], {}).state, CAMP, 'tent')).toBe('Wall tent');
+  });
+});
+
+describe('a tap that can do nothing now says why, as the menu does, and walks him nowhere (review IU-pile-tap-disagrees)', () => {
+  it('the firewood pile or the woodshed with no logs on him, or full; anything else goes ahead', () => {
+    for (const built of [BASE, [...BASE, 'woodshed'] as MakeId[]]) {
+      const s = camp(built);
+      expect(tapRefused(s.state, CAMP, 'woodpile')).toEqual({ kind: 'noLogs' });
+      expect(whyText(tapRefused(s.state, CAMP, 'woodpile')!)).toBe('No logs on him to stack.');
+      s.state.player.backpack = { birch_logs: 4 };
+      expect(tapRefused(s.state, CAMP, 'woodpile')).toBeNull();
+      s.state.woodpile = WOODPILE.max;
+      expect(tapRefused(s.state, CAMP, 'woodpile')).toEqual({ kind: 'full' });
+    }
+    // the other spots: the tap's own command says why itself, without walking him (or goes ahead)
+    const s = camp(BASE);
+    for (const line of ['hearth', 'tent', 'dummy'] as LineId[]) expect(tapRefused(s.state, CAMP, line), line).toBeNull();
+    // while the woodshed goes up, a tap carries on with it
+    expect(tapRefused(camp(BASE, { underway: { woodshed: 9 } }).state, CAMP, 'woodpile')).toBeNull();
+  });
+});
+
+describe('the menu by the keyboard (review IU-menu-arrows)', () => {
+  it('Up and Left go back, Down and Right go on, round the ends; Home and End; any other key is left to the page', () => {
+    expect(menuKey('ArrowDown', -1, 3)).toBe(0); expect(menuKey('ArrowRight', -1, 3)).toBe(0);
+    expect(menuKey('ArrowUp', -1, 3)).toBe(2); expect(menuKey('ArrowLeft', -1, 3)).toBe(2);
+    expect(menuKey('ArrowRight', 1, 3)).toBe(2); expect(menuKey('ArrowLeft', 1, 3)).toBe(0);
+    expect(menuKey('ArrowRight', 2, 3)).toBe(0); expect(menuKey('ArrowLeft', 0, 3)).toBe(2);
+    expect(menuKey('Home', 2, 3)).toBe(0); expect(menuKey('End', 0, 3)).toBe(2);
+    expect(menuKey('Escape', 0, 3)).toBeUndefined(); expect(menuKey('a', 0, 3)).toBeUndefined();
+    expect(menuKey('ArrowLeft', -1, 0)).toBeUndefined();
   });
 });
 
@@ -271,6 +320,10 @@ describe('what a plain tap does, and its words under the mouse (campTap, D10, D1
       ['the chest built, by day', camp(BASE), 'tent', 'Look in|Chest'],
       ['a wall tent under way, by day', camp(BASE, { underway: { wall_tent: 9 } }), 'tent', 'Look in|Chest'],
       ['a wall tent under way, at night', camp(BASE, { underway: { wall_tent: 9 }, hour: 22 }), 'tent', 'Sleep in|Tent'],
+      // (review IU-shelter-words-midupgrade) half built, the wall tent is drawn there, not the tent he still sleeps in
+      ['a wall tent half built, at night', camp(BASE, { underway: { wall_tent: MAKES.wall_tent.time * 0.7 }, hour: 22 }), 'tent', 'Sleep in|Shelter'],
+      ['a log cabin half built, at night', camp([...BASE, 'wall_tent'], { underway: { log_cabin: MAKES.log_cabin.time * 0.7 }, hour: 22 }), 'tent', 'Sleep in|Shelter'],
+      ['a log cabin at its frame, at night', camp([...BASE, 'wall_tent'], { underway: { log_cabin: MAKES.log_cabin.time * 0.4 }, hour: 22 }), 'tent', 'Sleep in|Wall tent'],
       ['the wall tent at night', camp([...BASE, 'wall_tent'], { hour: 22 }), 'tent', 'Sleep in|Wall tent'],
       ['the log cabin at night', camp([...BASE, 'wall_tent', 'log_cabin'], { hour: 2 }), 'tent', 'Sleep in|Log cabin'],
       ['the campfire, with a rod', camp(BASE), 'hearth', 'Cook at|Campfire'],
@@ -327,6 +380,29 @@ describe('what a plain tap does, and its words under the mouse (campTap, D10, D1
 
 describe('the press classifier (ui/gesture.ts, T5.5)', () => {
   const p = (id: number, kind: PointerAt['kind'], x: number, y: number, t: number, button = 0): PointerAt => ({ id, kind, button, x, y, t });
+
+  it('a long press opens the menu for what the finger went down on, though the camera, following him, has moved it from under the finger since; a right click, for what is under the mouse then (review IU-hold-repick)', () => {
+    // what is under the finger's point: the woodshed while the camera is where it was, the grass (or a neighbour) once
+    // it has followed him a little way
+    const point = { x: 0, y: 0, z: 0 } as unknown as Extract<Target, { point: unknown }>['point'];
+    let camera = 0;
+    const under = (): Target => camera === 0 ? { kind: 'camp', spot: 'woodpile', point } : camera === 1 ? { kind: 'ground', point } : { kind: 'camp', spot: 'hearth', point };
+    const g = new Gestures();
+    g.start(p(1, 'touch', 300, 400, 0));
+    const held = under();                                           // the ring is drawn over the woodshed
+    camera = 1;                                                     // he walks on; the camera follows
+    const out = g.tick(LONG_PRESS.ms + 1);
+    expect(out).toEqual([{ type: 'menu', x: 300, y: 400, by: 'hold' }]);
+    expect(menuTarget('hold', held, under)).toBe('woodpile');
+    camera = 2;                                                     // or the fire has slid under the finger
+    expect(menuTarget('hold', held, under)).toBe('woodpile');
+    // a finger held on the grass opens nothing, whatever slides under it
+    expect(menuTarget('hold', { kind: 'ground', point }, under)).toBeNull();
+    // a right click: what is under the mouse as it is clicked
+    expect(menuTarget('click', held, under)).toBe('hearth');
+    camera = 1;
+    expect(menuTarget('click', held, under)).toBeNull();
+  });
 
   it('a left click or a finger lifted where it went down is a tap', () => {
     const g = new Gestures();

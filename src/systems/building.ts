@@ -24,18 +24,14 @@ import { WOODPILE } from '../data/fire';
 import { addXp } from './skills';
 import { addToBackpack, backpackFull, useUp } from './backpack';
 
-/** Games whose way back to something half built was last found blocked, and told so (noPath): told once, not again
- *  until a way is found. Not saved: a game opened again may be told once more. */
-const lost = new WeakSet<GameState>();
-
 /** Off to build `id` (begun), or back to it: on success the way is found again; with no way there he looks again a
- *  while later (RESUME.retry), saying so once (`told`: the caller says so itself, the build command). Returns whether
- *  he set off. */
+ *  while later (RESUME.retry), saying so once (GameState.lostWay; `told`: the caller says so itself, the build
+ *  command). Returns whether he set off. */
 function goBack(state: GameState, layout: Layout, id: MakeId, events: EventBus, told = false): boolean {
-  if (goBuild(state, layout, id)) { lost.delete(state); return true; }
+  if (goBuild(state, layout, id)) { state.lostWay = false; return true; }
   state.resumeAt = state.time + RESUME.retry;
-  if (!lost.has(state) && !told) events.emit({ type: 'noPath' });
-  lost.add(state);
+  if (!state.lostWay && !told) events.emit({ type: 'noPath' });
+  state.lostWay = true;
   return false;
 }
 

@@ -6,6 +6,7 @@
 // Chapter 2's goals follow the storage chest, and other goals may sit between or after them: a goal is made current by
 // marking every goal before it done, never by its position.
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { allGoalsDone, createState, currentGoal, goalFinished, goalMet, made, maxHealth, owned, SAVE_VERSION } from '../src/core/state';
 import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
@@ -636,8 +637,8 @@ describe('away time while practising', () => {
     practise(s);
     run(s, 5);
     const saved = serialize(s.state, 1_000_000), now = 1_000_000 + 2 * 60 * 60 * 1000;
-    const reopen = () => {
-      const t = setup(CAMP, 21), state = readSave(saved, CAMP).state, log: GameEvent[] = [];
+    const reopen = (raw = saved) => {
+      const t = setup(CAMP, 21), state = readSave(raw, CAMP).state, log: GameEvent[] = [];
       t.events.on(e => log.push(e));
       // how quick: the processor time this test's own process spent on it, so other work on the machine (the rest of
       // the suite running beside it) doesn't count
@@ -649,8 +650,13 @@ describe('away time while practising', () => {
     const a = reopen(), b = reopen();
     expect(a.state).toEqual(b.state);
     expect(a.r.summary).toEqual(b.r.summary);
-    // (about 0.3 s alone; beside the whole suite on a busy machine, up to about 1.1 s)
-    expect(a.ms).toBeLessThan(2000);
+    // (review PERF-speedcheck) quick against the same catch-up of the whole camp left be, timed here alongside it, so a
+    // busy machine slows both alike: practising may cost a little more a step than the camp's own round, never 3 times
+    // as much (about 0.3 s alone, either of them). The better of two tries of each, so one slow moment doesn't count
+    const whole = readFileSync(new URL('./fixtures/camp/whole-camp.json', import.meta.url), 'utf8');
+    const camp = JSON.stringify({ ...JSON.parse(whole), savedAt: 1_000_000 });
+    const ref = Math.min(reopen(camp).ms, reopen(camp).ms), ours = Math.min(a.ms, b.ms);
+    expect(ours).toBeLessThan(3 * ref);
     expect(a.r.away.game).toBeCloseTo(24 * 60, 0);
     expect(a.r.summary.xp.attack).toBeGreaterThan(0);
     expect(a.r.summary.xp.vitality).toBeGreaterThan(0);

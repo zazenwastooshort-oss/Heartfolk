@@ -103,7 +103,7 @@ describe('the storage chest stores things, like the bank', () => {
     expect(count(s, 'noStorage')).toBe(1);
     expect(count(s, 'backpackFull')).toBe(0);
     expect(backpackCount(s.state)).toBe(BACKPACK_SLOTS);
-    // tapping the chest's spot asks to build it rather than store anything
+    // (review TEST-stale-comment) a visit to the chest before it is built finds no way there and stores nothing
     send(s, { type: 'visit', id: 'chest' });
     expect(s.log.at(-1)).toEqual({ type: 'noPath' });
     expect(s.state.bank).toEqual({});
@@ -545,18 +545,18 @@ describe('the firewood pile (0.0.21)', () => {
     s.state.woodpile = 25; s.state.player.backpack = { birch_logs: 8, stone: 1 };
     send(s, { type: 'visit', id: 'woodpile' });
     runUntil(s, () => count(s, 'stacked') > 0, 60);
-    expect(s.log).toContainEqual({ type: 'stacked', logs: 5, pile: 30 });
+    expect(s.log).toContainEqual({ type: 'stacked', logs: 5, pile: 30, at: 'woodpile' });
     expect(s.state.woodpile).toBe(30);
     expect(s.state.player.backpack).toEqual({ birch_logs: 3, stone: 1 });
     expect(dist(s.state.player.pos, PILE)).toBeLessThan(CAMP.camp!.woodpile.radius + 1);
     // full, or with no logs to stack, it says so and nothing changes
     send(s, { type: 'visit', id: 'woodpile' });
     runUntil(s, () => count(s, 'stacked') > 1, 10);
-    expect(s.log.filter(e => e.type === 'stacked').at(-1)).toEqual({ type: 'stacked', logs: 0, pile: 30, reason: 'full' });
+    expect(s.log.filter(e => e.type === 'stacked').at(-1)).toEqual({ type: 'stacked', logs: 0, pile: 30, at: 'woodpile', reason: 'full' });
     s.state.woodpile = 2; s.state.player.backpack = {};
     send(s, { type: 'visit', id: 'woodpile' });
     runUntil(s, () => count(s, 'stacked') > 2, 10);
-    expect(s.log.filter(e => e.type === 'stacked').at(-1)).toEqual({ type: 'stacked', logs: 0, pile: 2, reason: 'none' });
+    expect(s.log.filter(e => e.type === 'stacked').at(-1)).toEqual({ type: 'stacked', logs: 0, pile: 2, at: 'woodpile', reason: 'none' });
   });
 
   it('logs he carries from the pile go back on it when the player sends him elsewhere', () => {

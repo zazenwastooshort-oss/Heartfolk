@@ -87,10 +87,12 @@ export interface Layout {
    *  whose campfire is built there: siteOf, data/making.ts). With nothing there, nothing is in the way either. */
   hearthModel?: string | null;
   /** the camp a new game starts at: the spot where his shelter, a tent, is built (siteOf 'tent'; nothing stands there
-   *  until then; since the camp build his storage chest stands in it, by its door, with no spot of its own): its middle,
-   *  which way it faces (towards the fire), how far round it it reaches, and its width and depth. The campfire is built
-   *  at `hearth`; the firewood pile (0.0.21) beside it. The training dummy (0.0.22) stands at `dummy`, round (no width
-   *  and depth). What stands at each spot is in the way by its own shape (world/steps.ts). */
+   *  until then; since the camp build his storage chest stands in it, by its door, with no spot of its own): its middle
+   *  and which way it faces (towards the fire). The campfire is built at `hearth`; the firewood pile (0.0.21) beside it.
+   *  The training dummy (0.0.22) stands at `dummy`. What stands at each spot is in the way, and is stood at and ringed,
+   *  by its own shape (SHAPES in data/building.ts, world/steps.ts); each spot's `radius`, `w` and `d` are its
+   *  footprint from before the camp build (0.0.18 to 0.0.30), kept only as the reference tests/layout.test.ts (T11.8)
+   *  checks SHAPES against, and read by nothing in the game. */
   camp?: { tent: Required<Site>; woodpile: Required<Site>; dummy: Site };
   falls?: Falls;
   /** things lying on the ground to pick up by hand (the camp's wreck, stones and branches) */

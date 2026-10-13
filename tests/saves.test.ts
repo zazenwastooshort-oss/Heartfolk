@@ -11,7 +11,7 @@
 // he stands for it now: the chest is in the shelter, used at its door (the camp build's stage 3).
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import { campBuildSave, load, readSave, SAVE_KEY, serialize, UNREAD_KEY, type Storage } from '../src/core/save';
+import { BEFORE_KEY, campBuildSave, load, readSave, SAVE_KEY, serialize, UNREAD_KEY, UNREAD_LAST_KEY, type Storage } from '../src/core/save';
 import { createState, currentGoal, SAVE_VERSION, type GameState } from '../src/core/state';
 import { begunIds, markerShown, walkGrid } from '../src/core/building';
 import { atSpot, buildSpot, chestPlace, useSpot } from '../src/core/camp';
@@ -26,6 +26,7 @@ import { STOKE } from '../src/data/fire';
 import { GOALS } from '../src/data/goals';
 import { LINES, LOAD } from '../src/data/building';
 import { MAKES, type MakeId } from '../src/data/making';
+import { CHANGELOG } from '../src/data/changelog';
 
 const DIR = new URL('./fixtures/saves/', import.meta.url);
 const FILES = readdirSync(DIR).filter(f => f.endsWith('.json')).sort();
@@ -296,7 +297,7 @@ describe('damaged and unreadable saves (T12.3)', () => {
     expect(() => play(state, 5)).not.toThrow();
   });
 
-  it('a save that can\'t be read is kept under its own key before a new game writes over it; only the first such', () => {
+  it('a save that can\'t be read is kept under its own key before a new game writes over it: the first for good, and the latest beside it', () => {
     const data = new Map<string, string>();
     const store: Storage = { get: k => data.get(k) ?? null, set: (k, v) => { data.set(k, v); } };
     // none at all, or one erased by Start over: nothing kept aside
@@ -308,17 +309,61 @@ describe('damaged and unreadable saves (T12.3)', () => {
     data.set(SAVE_KEY, '{"version": 12, "player": {broken');
     expect(load(store, CAMP)).toBeNull();
     expect(data.get(UNREAD_KEY)).toBe('{"version": 12, "player": {broken');
-    // another later doesn't write over it, nor does one from a newer game, nor a good one
+    // the same one again: nothing more kept
+    expect(load(store, CAMP)).toBeNull();
+    expect(data.has(UNREAD_LAST_KEY)).toBe(false);
+    // another later doesn't write over it, but is kept beside it (review SAVE-unread-first-only): the latest such, so a
+    // whole camp from a newer game opened in a page too old to read it isn't lost either
     data.set(SAVE_KEY, 'not even json');
     expect(load(store, CAMP)).toBeNull();
-    data.set(SAVE_KEY, JSON.stringify({ ...createState(CAMP), version: SAVE_VERSION + 1 }));
+    expect(data.get(UNREAD_LAST_KEY)).toBe('not even json');
+    const newer = JSON.stringify({ ...createState(CAMP), version: SAVE_VERSION + 1 });
+    data.set(SAVE_KEY, newer);
     expect(load(store, CAMP)).toBeNull();
+    expect(data.get(UNREAD_LAST_KEY)).toBe(newer);
     data.set(SAVE_KEY, serialize(createState(CAMP), Date.now()));
     expect(load(store, CAMP)).not.toBeNull();
     expect(data.get(UNREAD_KEY)).toBe('{"version": 12, "player": {broken');
+    expect(data.get(UNREAD_LAST_KEY)).toBe(newer);
+    expect(data.has(BEFORE_KEY)).toBe(false);                     // a save in today's format isn't kept aside
     // and where storage is blocked, it still just starts a new game
     const blocked: Storage = { get: () => { throw new Error('blocked'); }, set: () => { throw new Error('blocked'); } };
     expect(load(blocked, CAMP)).toBeNull();
+  });
+
+  it('a save from before format 12 is kept as it was the first time it is opened, before the new format writes over it (review SAVE-premigration-copy)', () => {
+    expect(BEFORE_KEY).toBe('hearthfolk_camp.before12');
+    for (const file of ['0.0.30-meal-back-raise.json', '0.0.22-built-all.json']) {
+      const data = new Map<string, string>();
+      const store: Storage = { get: k => data.get(k) ?? null, set: (k, v) => { data.set(k, v); } };
+      const old = rawOf(file);
+      data.set(SAVE_KEY, old);
+      const loaded = load(store, CAMP)!;
+      expect(loaded, file).not.toBeNull();
+      expect(data.get(BEFORE_KEY), file).toBe(old);
+      // the game saves in the new format, and opens that: the original stays as it was
+      data.set(SAVE_KEY, serialize(loaded.state, Date.now()));
+      expect(load(store, CAMP), file).not.toBeNull();
+      expect(data.get(BEFORE_KEY), file).toBe(old);
+      // another old save opened later (a second old tab) never writes over the first
+      data.set(SAVE_KEY, rawOf('0.0.27-lean_to-built.json'));
+      expect(load(store, CAMP), file).not.toBeNull();
+      expect(data.get(BEFORE_KEY), file).toBe(old);
+    }
+    // storage blocked: it loads all the same
+    const old = rawOf('0.0.29-log_hut-built.json');
+    const shy: Storage = { get: k => (k === SAVE_KEY ? old : null), set: () => { throw new Error('blocked'); } };
+    expect(load(shy, CAMP)).not.toBeNull();
+  });
+
+  it("a bench or workbench only begun is given back too, and the What's new note says so (review NOTE-bench-begun)", () => {
+    const raw = JSON.parse(rawOf('0.0.30-log_bench-begun.json'));
+    expect(Object.keys(raw.underway)).toEqual(['log_bench']);
+    const { state } = readSave(JSON.stringify(raw), CAMP);
+    expect(state.bank.birch_logs).toBe(raw.bank.birch_logs + 4);
+    expect(state.bank.branch).toBe(raw.bank.branch + 2);
+    const note = CHANGELOG.find(r => r.version === '0.0.31')!.notes.find(n => /bench/.test(n))!;
+    expect(note).toMatch(/built or started them, what they took is back in your chest/);
   });
 
   it('a village save reads back as before (the camp build changes nothing there)', () => {

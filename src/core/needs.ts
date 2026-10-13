@@ -171,8 +171,10 @@ export function savedLater(v: unknown, state: GameState, layout: Layout): Later 
  *  anything else (none saved, from before needs) full; a meal trip only on his way to a chest that stands, never beside
  *  a trip, stoking or cooking; bed only with a shelter standing, asleep or on his way there, getting up within a
  *  night's sleep from now (asleep in a save from before bedtimes, 0.0.26 and 0.0.27, he sleeps on until his waking hour);
- *  his bedtime one of SLEEP.bedtimes, else SLEEP.bedtime; the night he last went to bed not after this one; a tap kept
- *  only while he sleeps (savedLater). `back` checks what a meal or bed goes back to (savedBack in core/save.ts). */
+ *  his bedtime one of SLEEP.bedtimes, else SLEEP.bedtime; the night he last went to bed not after this one (tonight,
+ *  asleep: on his way to bed sent early by a tap it isn't yet, so a tap elsewhere still changes his mind and he goes at
+ *  his bedtime; at his bedtime it was set as he set off); a tap kept only while he sleeps (savedLater). `back` checks
+ *  what a meal or bed goes back to (savedBack in core/save.ts). */
 export function savedNeeds(v: unknown, state: GameState, layout: Layout, back: (v: unknown) => Back | null): Needs {
   const n = isRecord(v) ? v : {}, p = state.player, fresh = freshNeeds();
   const fullness = finite(n.fullness) ? Math.min(1, Math.max(0, n.fullness)) : fresh.fullness;
@@ -191,5 +193,5 @@ export function savedNeeds(v: unknown, state: GameState, layout: Layout, back: (
     else if (asleep && wakeAt(state.time, bedtime, false) - state.time <= DAY_SECONDS / 2) bed = { back: null, until: wakeAt(state.time, bedtime, false) };
   }
   const later = bed ? savedLater(n.later, state, layout) : null;
-  return { fullness, meal, bed, bedtime, slept: bed ? Math.max(slept, nightOf(state.time)) : slept, later, retryAt };
+  return { fullness, meal, bed, bedtime, slept: bed && asleep ? Math.max(slept, nightOf(state.time)) : slept, later, retryAt };
 }

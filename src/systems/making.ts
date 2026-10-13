@@ -21,14 +21,14 @@ export function missingFor(state: GameState, def: MakeDef): Record<string, numbe
 
 /** Whether `def` is made here (where he stands: everything else is built in stages, systems/building.ts) and isn't
  *  made yet: a tool he doesn't own (the village's axe, or one an old camp save kept), gear he doesn't wear. */
-export const canMake = (state: GameState, _layout: Layout, def: MakeDef) => def.at === 'here' && !made(state, def.id);
+export const canMake = (state: GameState, def: MakeDef) => def.at === 'here' && !made(state, def.id);
 
 export function updateMaking(state: GameState, layout: Layout, events: EventBus): void {
   const p = state.player, task = p.task;
   if (task.kind !== 'make' || state.time < task.doneAt) return;
   p.task = { kind: 'idle' };
   const def = MAKES[task.id];
-  if (!canMake(state, layout, def)) return;
+  if (!canMake(state, def)) return;
   const missing = missingFor(state, def);
   if (Object.keys(missing).length) { events.emit({ type: 'missing', make: def.id, items: missing }); return; }
   useUp(state, def.needs);

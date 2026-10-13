@@ -118,7 +118,7 @@ export const hasPlaceFor = (layout: Layout, id: MakeId): boolean => !!stagedDef(
 
 /** Whether the goal that makes `id` has come up: it is the current goal, or done (every goal before it done too), at a
  *  camp. Something no goal makes (an upgrade) has none. */
-export const goalUp = (state: GameState, layout: Layout, id: MakeId): boolean =>
+const goalUp = (state: GameState, layout: Layout, id: MakeId): boolean =>
   !!layout.camp && GOALS.some(g => g.makes === id) && !goalFirst(state, id);
 
 /** Whether what `staged` stands in (StagedDef.inside: the storage chest, the shelter) stands, when it stands in anything. */

@@ -8,8 +8,8 @@
 // stands (the woodshed once it is built), which he only looks at here: nothing is taken out of the chest by hand yet.
 // While he carries anything, the Chest section's "Store everything" sends him to the chest, at the shelter's door, to
 // put it all away (the camp build, D22). A day tap on the shelter, or Look in from its menu, opens the window at the
-// chest's section (showChest; In 8). The Backpack button shows how many things he carries. Reads state and sends eat, drop and visit
-// commands; never changes the game itself.
+// chest's section (showChest; In 8). The Backpack button shows how many things he carries. Reads state and sends eat,
+// drop and visit commands; never changes the game itself.
 import { canDrop, type GameState } from '../core/state';
 import type { Command } from '../systems/commands';
 import type { Layout } from '../world/layout';

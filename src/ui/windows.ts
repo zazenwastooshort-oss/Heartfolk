@@ -190,6 +190,8 @@ export class Windows {
       w.el.style.order = String(Math.max(0, slot));
       if (w.button) { w.button.classList.toggle('on', on); w.button.setAttribute('aria-expanded', String(on)); }
     }
+    // (a phone held upright: a notice goes below an open window, over the strip, not over its title and its x)
+    this.stage.classList.toggle('wins-open', this.opened.length > 0);
     this.place();
   }
 
@@ -207,10 +209,10 @@ export class Windows {
 
   /** --below-card: just under the goal card (or the top bar where there is no card). On a phone held upright,
    *  --above-bottom: just over the strip (while it shows) or the buttons, measured from the foot of the screen, and
-   *  --free-width the whole width (a notice shows over the window). With the buttons down the right side, the windows
-   *  make way for the goal card (windowSpot: --wins-top under it, or --wins-left beside it), and --free-width is the
-   *  width left of the open windows, or of the buttons while none is open or the windows are under the card (a notice
-   *  shows over them then, as on a phone). */
+   *  --free-width the whole width (with a window open, a notice shows below it, over the strip: index.html). With the
+   *  buttons down the right side, the windows make way for the goal card (windowSpot: --wins-top under it, or
+   *  --wins-left beside it), and --free-width is the width left of the open windows, or of the buttons while none is
+   *  open or the windows are under the card (a notice shows over them then). */
   private place(): void {
     const stage = this.stage.getBoundingClientRect(), card = $('goal'), cardBox = card.hidden ? null : card.getBoundingClientRect();
     const under = (cardBox ?? document.querySelector('.topbar')!.getBoundingClientRect()).bottom;

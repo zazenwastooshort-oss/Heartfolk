@@ -110,7 +110,7 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     } else if (c.type === 'make') {
       const def = makeDef(c.id), task = state.player.task;
       // not here, already made (built, or a tool he owns), or already at work on it: nothing to do
-      if (!def || !canMake(state, layout, def) || (task.kind === 'make' && task.id === def.id)) continue;
+      if (!def || !canMake(state, def) || (task.kind === 'make' && task.id === def.id)) continue;
       // the camp's goals come in order: the stone axe waits until the campfire is built
       const first = layout.camp ? goalFirst(state, def.id) : null;
       if (first) { events.emit({ type: 'goalFirst', make: def.id, goal: first.id }); continue; }
@@ -128,6 +128,9 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
       if (!isNight(state.time)) { events.emit({ type: 'cantSleep', shelter: bestShelter(state) ?? 'shelter' }); continue; }
       // off to stoke the fire: he finishes that, then goes to bed (systems/fire.ts goes back to { sleep })
       if (p.stoke) { p.stoke.back = { sleep: true }; events.emit({ type: 'bedLater' }); continue; }
+      // stoking stopped earlier tonight by a tap isn't taken up again on the way to bed (as at bedtime:
+      // systems/needs.ts)
+      state.stokeAgain = false;
       ok = goToBed(state, layout);
     } else if (c.type === 'build') {
       const go = startBuild(state, layout, c, events);

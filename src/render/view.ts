@@ -1,19 +1,18 @@
 // Draws the game: the ground and river, the village, fog over unclaimed land, the rocks and trees, things lying on the
-// ground to pick up, the camp's buildings as they go up (render/structures.ts), and the character with the tool for
-// the job (pick or axe; at the camp they are the stone pickaxe and stone axe he made; since 0.0.22 his stone club while
-// he practises on the training dummy, swung with the axe's Chop clip, resting between strikes) and the matching
-// animation, placed
-// from the game state every frame, plus effects (chips, the click cross). It reads state; it never changes it. The
-// tool is in his hands while he works and on his back otherwise, every walk included (toolInHand picks the armed or
+// ground to pick up, the camp's buildings as they go up (render/structures.ts), and the character with the tool for the
+// job (pick or axe; at the camp they are the stone pickaxe and stone axe he made; since 0.0.22 his stone club while he
+// practises on the training dummy, swung with the axe's Chop clip, resting between strikes) and the matching animation,
+// placed from the game state every frame, plus effects (chips, the click cross). It reads state; it never changes it.
+// The tool is in his hands while he works and on his back otherwise, every walk included (toolInHand picks the armed or
 // the free clip), hidden for the moment it moves between the two. A tool he doesn't own is never drawn: with none he
 // plays the free clips with nothing on his back. Clips crossfade, and ArmIK puts the hands back on the handle after
 // every blend into an armed clip. Since chapter 2: the berry bushes, the fishing spots, the rod he fishes with (held
 // only while he fishes, with the armed Idle clip, too long to carry on his back), its line and float, and a fish on a
-// stick over the campfire while he cooks. Since chapter 2's rats: the rats and their nest (render/rats.ts), his lean into
-// a strike at a rat, standing ready while he waits for them, and toppling over when one knocks him out. Since the goblin
-// camp: its palisade, tent, totem and fire ring and the goblins in it (render/goblins.ts, from a load of miner.glb of
-// their own). Since the camp build (13 Oct 2026) he builds with a mallet (render/campmodels.ts), drawn on the pick's
-// bone in place of the pick, swung with the Mine clip once for each knock of the work, landing on the knock.
+// stick over the campfire while he cooks. Since chapter 2's rats: the rats and their nest (render/rats.ts), his lean
+// into a strike at a rat, standing ready while he waits for them, and toppling over when one knocks him out. Since the
+// goblin camp: its palisade, tent, totem and fire ring and the goblins in it (render/goblins.ts, from a load of
+// miner.glb of their own). Since the camp build (13 Oct 2026) he builds with a mallet (render/campmodels.ts), drawn on
+// the pick's bone in place of the pick, swung with the Mine clip once for each knock of the work, landing on the knock.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import minerUrl from '../../assets/models/miner.glb?url';
@@ -42,7 +41,6 @@ import { CookingView } from './cooking';
 import { ArmIK, armedWeight, heldTool, malletLean, malletSwing, toolInHand, toolInTransit, type Held } from './arms';
 import { stageOf } from '../core/building';
 import { shapeOf } from '../world/steps';
-import { CARPENTRY } from '../data/building';
 import { WEAPON_MODELS, armourWorn, wearGear } from './gear';
 import { RatsView } from './rats';
 import { GoblinsView } from './goblins';
@@ -333,12 +331,11 @@ export class View {
         else this.play(IDLE.clip);
       }
       else if (task.kind === 'raise' && armed) {
-        // building: a swing of his mallet (the Mine clip) landing on each knock of the work, standing ready between;
-        // leaning down to something low, or to its footings, as it lands
+        // building: his mallet (the Mine clip) swung over and over as he works; leaning down as it lands on something
+        // low, as far as the stage he builds asks (SHAPES' lean)
         const at = malletSwing(state.underway[task.id] ?? 0);
-        if (at === null) this.play(IDLE.clip);
-        else { this.play(SWINGS.mining.clip); this.actions[SWINGS.mining.clip]!.time = at; }
-        if (stageOf(state, task.id) === 0 || (shapeOf(task.id)?.tall ?? 0) <= CARPENTRY.low) lean = malletLean(at);
+        this.play(SWINGS.mining.clip); this.actions[SWINGS.mining.clip]!.time = at;
+        lean = malletLean(at, shapeOf(task.id)?.lean?.[stageOf(state, task.id)] ?? 0);
       }
       else this.play(armed ? IDLE.clip : IDLE.freeClip);
       // making something where he stands, or stoking the fire: he bows down to it and back up, over and over (a

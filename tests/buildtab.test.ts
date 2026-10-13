@@ -49,12 +49,12 @@ const row = (s: Setup, id: MakeId) => buildRows(s.state, CAMP).find(r => r.id ==
 describe('what the Build window lists (T5.1)', () => {
   it('in each state of a game: nothing at first, the goal\'s thing as it comes up, the upgrades once the chest stands, anything begun first', () => {
     expect(ids(camp([], 'salvage'))).toEqual([]);
-    expect(sections(camp([], 'campfire'))).toEqual([['Build now', ['campfire']]]);
+    expect(sections(camp([], 'campfire'))).toEqual([['To build', ['campfire']]]);
     expect(ids(camp(['campfire'], 'stone_axe'))).toEqual([]);                                 // a tool, made where he stands
-    expect(sections(camp(['campfire', 'woodpile'], 'shelter'))).toEqual([['Build now', ['shelter']]]);
-    expect(sections(camp(['campfire', 'woodpile', 'shelter'], 'chest'))).toEqual([['Build now', ['chest']]]);
+    expect(sections(camp(['campfire', 'woodpile'], 'shelter'))).toEqual([['To build', ['shelter']]]);
+    expect(sections(camp(['campfire', 'woodpile', 'shelter'], 'chest'))).toEqual([['To build', ['chest']]]);
     // chapter 1 done: the upgrades of what stands, and the dummy as its goal comes up
-    expect(sections(camp(['campfire', 'woodpile', 'shelter', 'chest'], 'dummy'))).toEqual([['Build now', ['dummy']], ['Upgrades', ['wall_tent', 'stone_hearth', 'woodshed']]]);
+    expect(sections(camp(['campfire', 'woodpile', 'shelter', 'chest'], 'dummy'))).toEqual([['To build', ['dummy']], ['Upgrades', ['wall_tent', 'stone_hearth', 'woodshed']]]);
     expect(sections(camp(BASE))).toEqual([['Upgrades', ['wall_tent', 'stone_hearth', 'woodshed']]]);
     // the wall tent begun: first, under way; the cabin waits for it to stand
     expect(sections(camp(BASE, null, { wall_tent: 30 }))).toEqual([['Under way', ['wall_tent']], ['Upgrades', ['stone_hearth', 'woodshed']]]);
@@ -82,11 +82,11 @@ describe('what the Build window lists (T5.1)', () => {
     expect(row(b, 'log_cabin')).toMatchObject({ begun: true, progress: 0.5, stage: 1, missing: {} });
   });
 
-  it("each row's button: Build (or the thing's own verb), Upgrade, Carry on; and why it can't be pressed now", () => {
+  it("each row's button: Build (the firewood pile's too, not Stack: review IU-build-tab-labels), Upgrade, Carry on; and why it can't be pressed now", () => {
     const s = camp(['campfire'], 'firewood');
-    expect(rowButton(s.state, row(s, 'woodpile'))).toEqual({ label: 'Stack', ready: false, why: 'Still needs 10 birch logs.' });
+    expect(rowButton(s.state, row(s, 'woodpile'))).toEqual({ label: 'Build', ready: false, why: 'Still needs 10 birch logs.' });
     s.state.player.backpack = { birch_logs: 10 };
-    expect(rowButton(s.state, row(s, 'woodpile'))).toEqual({ label: 'Stack', ready: true, why: null });
+    expect(rowButton(s.state, row(s, 'woodpile'))).toEqual({ label: 'Build', ready: true, why: null });
     const c = camp(BASE);
     c.state.bank = { stone: 12, clay: 4, birch_logs: 12, fibre: 8 };
     expect(rowButton(c.state, row(c, 'stone_hearth'))).toEqual({ label: 'Upgrade', ready: true, why: null });

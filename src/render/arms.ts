@@ -8,15 +8,14 @@
 // The tool is in his hands while he works and on short hops to the next tree or rock (toolInHand); on longer walks,
 // and whenever else he isn't working, the free clips carry it on his back with the arms keyed on their own, and ArmIK
 // leaves them be (armedWeight). What he has out (heldTool): the tool for the job, his weapon, or (the camp build) his
-// mallet while he builds, swung with the Mine clip once for each knock of the work (malletSwing), leaning down to
-// something low (malletLean).
+// mallet while he builds, swung with the Mine clip over and over as long as he works (malletSwing), leaning down as it
+// lands on something low (malletLean).
 import * as THREE from 'three';
 import type { GameState, PlayerState } from '../core/state';
 import type { Layout } from '../world/layout';
 import { carries } from '../core/tools';
 import { ARMED_CLIPS, SHORT_HOP, SWINGS } from '../data/animation';
 import { RESOURCES, TOOL_IDS, type ToolId } from '../data/skills';
-import { CARPENTRY } from '../data/building';
 import type { GearId } from '../data/combat';
 
 /** Whether he has the tool in his hands: while he works a node (waiting at a stump or an empty rock included), and
@@ -59,25 +58,27 @@ export function heldTool(state: GameState, layout: Layout, last: Held | null, we
   return TOOL_IDS.find(onBack) ?? null;
 }
 
-/** Where the Mine clip is (seconds into it) while he builds, after `worked` seconds of work (GameState.underway): a
- *  swing of his mallet for each knock, landing (the clip's impact) on the knock itself (CARPENTRY.knock: when its
- *  Carpentry XP comes); between swings he stands ready, the mallet in his hands (null: the armed Idle). */
-export function malletSwing(worked: number): number | null {
-  const swing = SWINGS.mining, k = CARPENTRY.knock;
-  const into = ((worked + swing.impact) % k + k) % k;
-  return into < swing.cycle ? into : null;
+/** Where the Mine clip is (seconds into it) while he builds, after `worked` seconds of work (GameState.underway): his
+ *  mallet swung over and over, one swing straight after another, as long as he works at it (as chopping and mining
+ *  are: the owner, 13 Oct 2026, "a nice building animation movement, with a hammer or something"), each landing (the
+ *  clip's impact) a whole number of swings into the work. Carpentry XP comes on the knock (CARPENTRY.knock,
+ *  systems/building.ts), which needn't fall on a swing. */
+export function malletSwing(worked: number): number {
+  const { impact, cycle } = SWINGS.mining;
+  return ((worked + impact) % cycle + cycle) % cycle;
 }
 
-/** Leaning down to something low (CARPENTRY.low) as his mallet comes down on it: how far (radians, forward) `at`
- *  seconds into the Mine clip, most at the moment it lands (`lean`), from `from` seconds in and back up by the end of
- *  the swing, so the strike comes down on the top of a campfire's stones or a chest's boards instead of over them. */
-export const LOW_KNOCK = { lean: 0.45, from: 0.4 };
+/** Leaning down as his mallet comes down on something low (SHAPES' lean in data/building.ts, by the stage he builds:
+ *  footings on the ground, a campfire's stones, a firewood pile's bearers): how far (radians, forward) `at` seconds
+ *  into the Mine clip, `most` at the moment it lands, from `from` seconds in and back up by the end of the swing, so
+ *  the strike comes down on the top of it instead of over it. */
+export const LOW_KNOCK = { from: 0.4 };
 const smooth = (x: number) => { const c = Math.min(1, Math.max(0, x)); return c * c * (3 - 2 * c); };
-export function malletLean(at: number | null): number {
+export function malletLean(at: number, most: number): number {
   const { impact, cycle } = SWINGS.mining;
-  if (at === null || at <= LOW_KNOCK.from) return 0;
-  if (at < impact) return LOW_KNOCK.lean * smooth((at - LOW_KNOCK.from) / (impact - LOW_KNOCK.from));
-  return LOW_KNOCK.lean * (1 - smooth((at - impact) / (cycle - impact)));
+  if (most <= 0 || at <= LOW_KNOCK.from) return 0;
+  if (at < impact) return most * smooth((at - LOW_KNOCK.from) / (impact - LOW_KNOCK.from));
+  return most * (1 - smooth((at - impact) / (cycle - impact)));
 }
 
 /** How much of the blended pose comes from clips that hold the tool, for ArmIK.solve: 0 while the clip being faded

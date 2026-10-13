@@ -248,8 +248,8 @@ describe('the Build list', () => {
 
   it('T2.4: make never builds a structure any more: only things made where he stands can be made; the make command for one of the camp\'s begins it in stages', () => {
     const c = camp();
-    for (const def of Object.values(MAKES)) expect(canMake(setup().state, CAMP, def), def.id).toBe(def.at === 'here');
-    for (const id of STAGED_IDS) expect(canMake(c.state, CAMP, MAKES[id]), id).toBe(false);
+    for (const def of Object.values(MAKES)) expect(canMake(setup().state, def), def.id).toBe(def.at === 'here');
+    for (const id of STAGED_IDS) expect(canMake(c.state, MAKES[id]), id).toBe(false);
     send(c, { type: 'make', id: 'wall_tent' });
     expect(c.state.underway).toEqual({ wall_tent: 0 });            // begun, what it needs taken: not made in one go
     expect(c.state.player.pending).toEqual({ kind: 'raise', id: 'wall_tent' });
@@ -304,6 +304,7 @@ describe('building in stages', () => {
     expect(of(c, 'begun')).toEqual([{ type: 'begun', make: 'woodshed' }]);
     for (const [id, n] of Object.entries(MAKES.woodshed.needs)) expect(c.state.bank[id], id).toBe(bank[id as keyof typeof bank]! - n);
     expect(c.state.player.pending).toEqual({ kind: 'raise', id: 'woodshed' });
+    expect(c.state.lostWay).toBe(false);
     expect(stageOf(c.state, 'woodshed')).toBe(0);              // footings out
     expect(begunIds(c.state)).toEqual(['woodshed']);
     runUntil(c, () => c.state.player.task.kind === 'raise', 30);
@@ -693,6 +694,22 @@ function readyFor(id: MakeId, hour = 10): Setup {
   if (id === 'log_cabin') c.state.built.push('wall_tent');
   return c;
 }
+
+/** (review T2.5-blind) Nothing stale: standing about he is on his way nowhere; asleep, he is on his way nowhere and
+ *  stoking nothing. */
+const stale = (s: Setup, why: string) => {
+  const p = s.state.player;
+  if (p.task.kind !== 'idle' && p.task.kind !== 'sleep') return;
+  expect({ pending: p.pending, path: p.path.length, ...(p.task.kind === 'sleep' ? { stoke: p.stoke } : {}) }, `${why}: ${p.task.kind}`)
+    .toEqual({ pending: null, path: 0, ...(p.task.kind === 'sleep' ? { stoke: null } : {}) });
+};
+
+/** Whether he is at work that never ends by itself (D9: chopping or mining, gathering stones or branches, a fight), or
+ *  on his way to it, or to the chest and back to it. */
+const endless = (s: Setup) => {
+  const p = s.state.player, k = p.task.kind, q = p.pending?.kind;
+  return k === 'gather' || k === 'pickup' || k === 'fight' || q === 'node' || q === 'pickup' || q === 'fight' || !!p.trip;
+};
 
 /** Whether nothing has him (as resumeBuild sees it): standing about, going nowhere, nothing under way for him. */
 const free = (s: Setup) => {
@@ -1107,6 +1124,46 @@ describe('committed: he goes back to what is half built (In 2, D9)', () => {
     expect(c.state.time - there).toBeLessThan(RESUME.wait + 2 * STEP);
   });
 
+  it('T2.6: stoking stopped by a tap, then Sleep: he lies down with no walk or stoke left over, wakes, goes back to the build and stokes the next night (review SIM-sleep-frozen)', () => {
+    const c = camp(19.9);
+    c.state.woodpile = 10;
+    send(c, { type: 'build', id: 'wall_tent' });
+    runUntil(c, () => of(c, 'stokeOff').length > 0, 60);
+    expect(c.state.player.stoke).not.toBeNull();
+    // a tap while he is off to stoke stops it; he would set off again once he had nothing to do
+    send(c, { type: 'work', nodeId: CAMP.nodes.find(n => n.resource === 'birch_tree')!.id });
+    expect(c.state.stokeAgain).toBe(true);
+    run(c, 2);
+    send(c, { type: 'sleep' });
+    runUntil(c, () => c.state.player.task.kind === 'sleep', 60);
+    const p = c.state.player;
+    expect(p.task.kind).toBe('sleep');
+    expect(p.pending).toBeNull();
+    expect(p.path).toEqual([]);
+    expect(p.stoke).toBeNull();
+    expect(c.state.stokeAgain).toBe(false);
+    // a game saved stuck that way before the mend (asleep, yet on his way to the pile to stoke) opens unstuck: no way,
+    // no stoke, and he goes back to the build once he is up
+    const stuck = JSON.parse(serialize(c.state));
+    const pile = stepPlace(CAMP, 'woodpile')!.pos;
+    stuck.player.pending = { kind: 'visit', id: 'woodpile' };
+    stuck.player.path = [{ ...c.state.player.pos }, { ...pile }];
+    stuck.player.stoke = { back: null, logs: 0, empty: false, from: 'woodpile' };
+    const back = deserialize(JSON.stringify(stuck), CAMP);
+    expect(back.player.task.kind).toBe('sleep');
+    expect(back.player.pending).toBeNull();
+    expect(back.player.path).toEqual([]);
+    expect(back.player.stoke).toBeNull();
+    watch(c, 'wall_tent', () => of(c, 'awake').length > 0, DAY_SECONDS);
+    run(c, 0.2);
+    expect(backAt(c, 'wall_tent')).toBe(true);
+    watch(c, 'wall_tent', () => c.state.built.includes('wall_tent'), MAKES.wall_tent.time + 30);
+    expect(c.state.built).toContain('wall_tent');
+    const offs = of(c, 'stokeOff').length;
+    runUntil(c, () => of(c, 'stokeOff').length > offs, DAY_SECONDS);
+    expect(of(c, 'stokeOff').length).toBe(offs + 1);
+  });
+
   it('T2.6: fighting a rat, he doesn\'t go back while the fight goes on', () => {
     const c = camp();
     c.state.equipment.weapon = 'stone_club';
@@ -1155,6 +1212,11 @@ describe('committed: he goes back to what is half built (In 2, D9)', () => {
     }
     expect(tries).toBeGreaterThanOrEqual(3);                        // a look every RESUME.retry seconds, no more often
     expect(of(c, 'noPath')).toHaveLength(1);                        // ...and nothing more said
+    // (review ARCH-hidden-sim-state) whether he said so is the game's own: saved and opened again, nothing more said
+    c.state = deserialize(serialize(c.state), ringed);
+    expect(c.state.lostWay).toBe(true);
+    run(c, RESUME.retry * 2 + 1);
+    expect(of(c, 'noPath')).toHaveLength(1);
     // the rocks gone (the camp as it is): the next look finds the way
     c.ctx.layout = CAMP; c.layout = CAMP;
     runUntil(c, () => c.state.player.pending?.kind === 'raise', RESUME.retry + 1);
@@ -1191,7 +1253,7 @@ describe('committed: he goes back to what is half built (In 2, D9)', () => {
     }
   });
 
-  it('T2.5: committed, whatever he is sent to do: 200 seeded runs of taps, never two under way, never less done, nothing given back, never left standing', { timeout: 60_000 }, () => {
+  it('T2.5: committed, whatever he is sent to do: 200 seeded runs of taps by day, at night and at bedtime, never two under way, never less done, nothing given back, never left standing, never on his way somewhere standing about or asleep; then left alone, it gets built', { timeout: 180_000 }, () => {
     const kinds: ((s: Setup, r: () => number) => Command | null)[] = [
       (_, r) => ({ type: 'walk', to: { x: -8 + r() * 16, z: -4 + r() * 14 } }),
       (_, r) => ({ type: 'work', nodeId: CAMP.nodes[Math.floor(r() * CAMP.nodes.length)]!.id }),
@@ -1205,7 +1267,8 @@ describe('committed: he goes back to what is half built (In 2, D9)', () => {
     const limit = RESUME.wait + RESUME.retry + 1;
     for (let run = 0; run < 200; run++) {
       const rng = createRng(1000 + run), r = () => rng.next();
-      const id = STAGED_IDS[run % STAGED_IDS.length]!, s = readyFor(id, 8 + r() * 14);
+      // (review T2.5-blind) from 08:00 round to 04:00, so nightfall, stoking and bedtime come in many runs
+      const id = STAGED_IDS[run % STAGED_IDS.length]!, s = readyFor(id, 8 + r() * 20);
       s.ctx.rng = createRng(run);
       s.state.equipment.weapon = 'stone_club'; s.state.tools.rod = true;
       s.state.player.backpack.cooked_fish = 3; s.state.bank.raw_fish = 2;
@@ -1226,8 +1289,18 @@ describe('committed: he goes back to what is half built (In 2, D9)', () => {
           most = s.state.underway[id]!;
           standing = free(s) ? standing + STEP : 0;
           expect(standing, `run ${run}: standing about with the ${id} half built, ${JSON.stringify(s.state.player)}`).toBeLessThan(limit);
+          stale(s, `run ${run}`);
         }
       }
+      // left alone: it gets built, unless he is at work that never ends by itself (chopping, gathering, a fight: D9)
+      // (a minute on at such work and it is plainly his for good: no need to watch it for days)
+      for (let t = 0, busy = 0; t < 3 * DAY_SECONDS && !s.state.built.includes(id) && busy < 60; t += STEP) {
+        step(s.state, STEP, s.ctx);
+        stale(s, `run ${run}, left alone`);
+        busy = endless(s) ? busy + STEP : 0;
+      }
+      for (let t = 0; t < DAY_SECONDS && s.state.player.task.kind === 'sleep'; t += STEP) step(s.state, STEP, s.ctx);
+      if (!s.state.built.includes(id)) expect(endless(s), `run ${run}: the ${id} never finished, ${JSON.stringify(s.state.player)}`).toBe(true);
       expect(of(s, 'begun').filter(e => e.make === id), `run ${run}`).toHaveLength(1);
       expect(badNumbers(s.state), `run ${run}`).toEqual([]);
     }

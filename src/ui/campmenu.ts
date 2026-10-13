@@ -14,7 +14,7 @@ import type { Layout } from '../world/layout';
 import type { Hud } from './hud';
 import type { Windows } from './windows';
 import { actionKey, campActions, campTap, tapBoxOf, type CampAction, type CampEntry, type CampWhy } from '../core/camp';
-import { buildTime, progressOf, stageOf } from '../core/building';
+import { buildTime, progressOf, stageOf, stepShown } from '../core/building';
 import { STAGE_NAMES, type LineId } from '../data/building';
 import { MAKES } from '../data/making';
 import { MENU } from '../data/input';
@@ -44,7 +44,7 @@ export function labelOf(action: CampAction): string {
   switch (action.kind) {
     case 'look': return 'Look in the chest';
     case 'store': return 'Store everything';
-    case 'sleep': return `Sleep in the ${name(action.shelter)}`;
+    case 'sleep': return `Sleep in the ${action.shelter ? name(action.shelter) : 'shelter'}`;
     case 'build': return action.how === 'carry' ? `Carry on with the ${name(action.id)}` : action.how === 'upgrade' ? `Upgrade to a ${name(action.id)}`
       : `${MAKES[action.id].verb} the ${name(action.id)}`;
     case 'cook': return 'Cook fish';
@@ -74,10 +74,21 @@ export function noteOf(state: GameState, action: CampAction): string | null {
   return `${workTime(buildTime(state, id))}: ${itemList(MAKES[id].needs, ' and ')}`;
 }
 
-/** What the menu is headed: the thing at the spot (what stands there furthest out, or its marker's thing). */
+/** What the menu is headed: the thing drawn at the spot (stepShown: the old step until a bigger one is half built round
+ *  it), or, with nothing of it drawn yet, what stands there furthest out (its footings) or its marker's thing. */
 export function titleOf(state: GameState, layout: Layout, line: LineId): string {
   const box = tapBoxOf(state, layout, line);
-  return box ? MAKES[box.step].name : '';
+  return box ? MAKES[stepShown(state, line) ?? box.step].name : '';
+}
+
+/** Where a key moves the focus among the menu's `n` entries from `at` (-1: none yet): Down and Right on, Up and Left
+ *  back, round from the last to the first, Home and End to the first and the last; undefined for any other key (it is
+ *  the page's: Esc closes the menu). The arrows never reach the camera meanwhile. */
+export function menuKey(key: string, at: number, n: number): number | undefined {
+  if (!n) return undefined;
+  const on = at < 0 ? 0 : at + 1, back = at < 0 ? n - 1 : at - 1;
+  const to = ({ ArrowDown: on, ArrowRight: on, ArrowUp: back, ArrowLeft: back, Home: 0, End: n - 1 } as Record<string, number>)[key];
+  return to === undefined ? undefined : (to + n) % n;
 }
 
 /** A box on the screen (px). */
@@ -134,13 +145,13 @@ export class CampMenu {
     this.el.tabIndex = -1;
     // a right click (or a long press) on the board itself opens no browser menu over it either
     this.el.addEventListener('contextmenu', e => e.preventDefault());
-    // the arrow keys move between its entries (and don't turn the camera meanwhile)
+    // the arrow keys move between its entries (and don't turn the camera meanwhile, nor close it)
     this.el.addEventListener('keydown', e => {
       const items = [...this.list.querySelectorAll<HTMLButtonElement>('button[data-key]')], at = items.indexOf(document.activeElement as HTMLButtonElement);
-      const to = ({ ArrowDown: at < 0 ? 0 : at + 1, ArrowUp: at < 0 ? items.length - 1 : at - 1, Home: 0, End: items.length - 1 } as Record<string, number>)[e.key];
-      if (to === undefined || !items.length) return;
+      const to = menuKey(e.key, at, items.length);
+      if (to === undefined) return;
       e.preventDefault(); e.stopPropagation();
-      items[(to + items.length) % items.length]!.focus();
+      items[to]!.focus();
     });
     // Esc closes it before any window (ui/windows.ts asks this first, after the notes, and then the row's More menu)
     const before = windows.escape;

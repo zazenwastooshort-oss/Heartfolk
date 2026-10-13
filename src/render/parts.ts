@@ -3,11 +3,30 @@
 // material, so a phone draws a hide vest or a palisade in a handful of calls instead of one, and a shadow, for every
 // stitch and stake (village.ts merges its statics the same way); and things of which as many show as there are (the
 // logs in the firewood pile or the woodshed, render/campmodels.ts), merged the same way, each mesh drawn as far as the
-// count.
+// count. Also the small textures drawn on a canvas that more than one view uses: the sparkle of a glint (a pickup's,
+// a marker's).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const made = new Map<string, THREE.MeshStandardMaterial>();
+
+/** A canvas texture drawn by `draw` on a `size` square, or none without a page to draw it on (the headless tests). */
+export function canvasTexture(size: number, draw: (g: CanvasRenderingContext2D) => void): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  draw(c.getContext('2d')!);
+  return new THREE.CanvasTexture(c);
+}
+
+/** A four-pointed sparkle with a soft glow, for additive blending: a pickup's glint (render/pickups.ts), and a marker's
+ *  (render/structures.ts). */
+export const sparkleTexture = () => canvasTexture(64, g => {
+  const glow = g.createRadialGradient(32, 32, 0, 32, 32, 30);
+  glow.addColorStop(0, 'rgba(255,250,220,0.9)'); glow.addColorStop(0.25, 'rgba(255,240,190,0.35)'); glow.addColorStop(1, 'rgba(255,240,190,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, 64, 64);
+  g.fillStyle = 'rgba(255,255,240,0.95)';
+  for (const [w, h] of [[3, 30], [30, 3]]) { g.beginPath(); g.ellipse(32, 32, w!, h!, 0, 0, Math.PI * 2); g.fill(); }
+});
 
 /** A flat-shaded material of `color`, made the first time it is asked for and shared by everything that asks for the
  *  same look after that: to change one model's, give it a clone, never change this one. */

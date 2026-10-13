@@ -269,7 +269,7 @@ function savedBack(v: unknown, state: GameState, layout: Layout): Back | null {
   if (!isRecord(v)) return null;
   if (typeof v.nodeId === 'string') return v.nodeId in state.nodes ? { nodeId: v.nodeId } : null;
   if (typeof v.pickupId === 'string') return (layout.pickups ?? []).some(x => x.id === v.pickupId) ? { pickupId: v.pickupId } : null;
-  if (typeof v.make === 'string') return makeable(state, layout, v.make) ? { make: v.make as MakeId } : null;
+  if (typeof v.make === 'string') return makeable(state, v.make) ? { make: v.make as MakeId } : null;
   if (typeof v.fight === 'string') return targetOf(state, layout, v.fight) && state.equipment.weapon ? { fight: v.fight } : null;
   if (v.cook === true) return savedCook({ fetch: false }, state, layout) ? { cook: true } : null;
   if (v.sleep === true) return canSleep(state, layout) ? { sleep: true } : null;
@@ -307,7 +307,7 @@ function savedCook(v: unknown, state: GameState, layout: Layout): Cook | null {
  *  tool owned, gear worn). Since the camp build what is built at the camp's spots goes up in stages: an old save making
  *  one (a `make` task, on his way to make it, or going back to it after stoking the fire) took nothing yet, so that is
  *  just dropped, and he begins it again with the build command. */
-function makeable(state: GameState, _layout: Layout, id: unknown): boolean {
+function makeable(state: GameState, id: unknown): boolean {
   const def = typeof id === 'string' ? makeDef(id) : null;
   return !!def && def.at === 'here' && !made(state, def.id);
 }
@@ -475,6 +475,9 @@ export function readSave(raw: string, layout: Layout): Loaded {
     // walk, a while after finding no way), never longer than a wait could be; none (0) for anything else, or a save from
     // before it
     resumeAt: 0,
+    // (the camp build) his way back to something half built found blocked, and said so: true, or not (a save from
+    // before it)
+    lostWay: data.lostWay === true,
   };
   const wait = Math.max(RESUME.wait, RESUME.retry);
   if (finite(data.resumeAt) && data.resumeAt > 0 && data.resumeAt <= state.time + wait) state.resumeAt = data.resumeAt;
@@ -522,7 +525,7 @@ export function readSave(raw: string, layout: Layout): Loaded {
   if (p.task.kind === 'gather' && !(p.task.nodeId in state.nodes)) p.task = { kind: 'idle' };
   if (p.task.kind === 'pickup' && (!pickupThere(p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
   // making something: only something that can still be made here, with a time it is done
-  if (p.task.kind === 'make' && (!makeable(state, layout, p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
+  if (p.task.kind === 'make' && (!makeable(state, p.task.id) || !Number.isFinite(p.task.doneAt))) p.task = { kind: 'idle' };
   // building in stages: only something begun and not finished
   if (p.task.kind === 'raise' && !Object.hasOwn(state.underway, p.task.id)) p.task = { kind: 'idle' };
   // asleep: only in a shelter that stands (until when: his needs, below)
@@ -539,7 +542,7 @@ export function readSave(raw: string, layout: Layout): Loaded {
   if (p.task.kind === 'fight' && (!targetOf(state, layout, p.task.target) || !state.equipment.weapon
     || !Number.isFinite(p.task.progress) || p.task.progress < 0 || p.task.progress >= 1)) p.task = { kind: 'idle' };
   if ((p.pending?.kind === 'node' && !(p.pending.id in state.nodes)) || (p.pending?.kind === 'pickup' && !pickupThere(p.pending.id))
-    || (p.pending?.kind === 'make' && !makeable(state, layout, p.pending.id))
+    || (p.pending?.kind === 'make' && !makeable(state, p.pending.id))
     || (p.pending?.kind === 'raise' && !Object.hasOwn(state.underway, p.pending.id))
     || (p.pending?.kind === 'fight' && (!targetOf(state, layout, p.pending.id) || !state.equipment.weapon))) {
     p.pending = null; p.path = []; if (p.task.kind === 'walk') p.task = { kind: 'idle' };
@@ -547,6 +550,9 @@ export function readSave(raw: string, layout: Layout): Loaded {
   // (the camp build) on his way to something at the camp: walked again to where he stands for it now (the chest at the
   // shelter's door, the firewood pile's moved stand, a bigger step's own stands), or stopped
   savedCampWay(state, layout);
+  // a way goes only with a walk: standing about or asleep, he is on his way nowhere (a stale way, from a game saved
+  // after he lay down as the fire sent him off to stoke it, before 0.0.31 mended that, would keep him standing for good)
+  if ((p.task.kind === 'idle' || p.task.kind === 'sleep') && (p.pending || p.path.length)) { p.pending = null; p.path = []; }
   // a trip only makes sense on the way to the bank or waiting at its door, back to a node that still exists or to
   // gathering pickups the layout still has
   const trip = p.trip as Partial<{ nodeId: unknown; pickupId: unknown; fight: unknown; store: unknown; leaveAt: unknown }> | null;
@@ -588,19 +594,40 @@ export function readSave(raw: string, layout: Layout): Loaded {
   return { state, savedAt, closedAt };
 }
 
-/** Where a save that can't be read is kept (only the first such: a later one never writes over it), so a new game's
- *  first save doesn't lose it for good: it can be looked at, and perhaps mended, later. */
+/** Where a save that can't be read is kept, so a new game's first save doesn't lose it for good: it can be looked at,
+ *  and perhaps mended, later. The first such stays under UNREAD_KEY for good; a later one, different from it, goes under
+ *  UNREAD_LAST_KEY (each newer one over the one before it), so a whole camp opened in a page too old to read it (a tab
+ *  left open from before an update) is kept as well as the first. */
 export const UNREAD_KEY = `${SAVE_KEY}.unread`;
+export const UNREAD_LAST_KEY = `${SAVE_KEY}.unread.last`;
+
+/** Where a save from before this format (the camp build's 12: 0.0.22 to 0.0.30) is kept as it was, the first time it
+ *  is opened, before the first save in the new format writes over it: so a mistake found later in the migration, or a
+ *  different choice for what it does (the lean-to begun, the bench given back), can still be put right from the
+ *  original, and a page too old to read the new format (it starts a new game) never loses it for good. Only the first:
+ *  a later save from before is never written over it. */
+export const BEFORE_KEY = `${SAVE_KEY}.before${SAVE_VERSION}`;
+
+/** Sets `key` to `raw` only while it holds nothing; storage blocked, nothing is kept and nothing goes wrong. */
+function keep(storage: Storage, key: string, raw: string): boolean {
+  try { if (storage.get(key)) return false; storage.set(key, raw); return true; } catch { return false; }
+}
 
 /** The saved game and when it was saved, or null when there is none (or it can't be read: then it is kept under
- *  UNREAD_KEY first, as a new game is about to save over it). */
+ *  UNREAD_KEY first, as a new game is about to save over it). A save from before this format is kept under BEFORE_KEY
+ *  as it was, as it is read. */
 export function load(storage: Storage, layout: Layout): Loaded | null {
   let raw: string | null = null;
   try {
     raw = storage.get(SAVE_KEY);
-    return raw ? readSave(raw, layout) : null;
+    if (!raw) return null;
+    const loaded = readSave(raw, layout);
+    if ((JSON.parse(raw) as { version: number }).version < SAVE_VERSION) keep(storage, BEFORE_KEY, raw);
+    return loaded;
   } catch {
-    try { if (raw && !storage.get(UNREAD_KEY)) storage.set(UNREAD_KEY, raw); } catch { /* storage blocked */ }
+    if (raw && !keep(storage, UNREAD_KEY, raw)) {
+      try { if (storage.get(UNREAD_KEY) !== raw) storage.set(UNREAD_LAST_KEY, raw); } catch { /* storage blocked */ }
+    }
     return null;
   }
 }

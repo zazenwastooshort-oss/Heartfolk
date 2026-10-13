@@ -97,7 +97,7 @@ export function backToWork(state: GameState, layout: Layout, back: Trip | Back, 
   }
   if ('make' in back) {
     const def = makeDef(back.make);
-    if (def && canMake(state, layout, def)) goMake(state, layout, def.id);
+    if (def && canMake(state, def)) goMake(state, layout, def.id);
     return;
   }
   if ('pickupId' in back) {

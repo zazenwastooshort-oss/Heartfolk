@@ -5,6 +5,7 @@
 // The "While you were away" note lists what he did: systems/away.ts counts it from the events and keeps what the note
 // tells (tellAway), ui/away.ts words it.
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { createState, owned, SAVE_VERSION, type GameState } from '../src/core/state';
 import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
@@ -291,6 +292,21 @@ describe('a game left open in a background tab', () => {
     expect(worthNoting(away, summary)).toBe(true);
     expect(awayText([away], summary).lead).toBe('Away 10 min. The game was still open, so he worked all that time at full speed.');
     expect(awayText([openFor(5 * 3600)], summary).lead).toBe('Away 5 h. The game was still open, so he worked all that time at full speed.');
+  });
+});
+
+describe('a long catch-up while the game is open, a frame at a time (main.ts simulate, AWAY.chunk)', () => {
+  it('a frame\'s share of it is a short moment of work, even with the whole camp built (review PERF-awaychunk)', () => {
+    const whole = readFileSync(new URL('./fixtures/camp/whole-camp.json', import.meta.url), 'utf8');
+    const once = () => {
+      const s = setup(CAMP), state = readSave(whole, CAMP).state, started = process.cpuUsage();
+      catchUp(state, AWAY.chunk, { ...s.ctx, rng: createRng(3) });
+      const used = process.cpuUsage(started);
+      return (used.user + used.system) / 1000;
+    };
+    // (the processor time of this test's own process, the better of two tries: about 0.06 to 0.1 s on a desktop)
+    expect(AWAY.chunk).toBeLessThanOrEqual(5 * 60);
+    expect(Math.min(once(), once())).toBeLessThan(250);
   });
 });
 

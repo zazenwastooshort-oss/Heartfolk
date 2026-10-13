@@ -13,7 +13,7 @@ import { PICKUPS } from '../data/pickups';
 import { waterOf } from './water';
 import { BLOCKING, footOf } from './falls';
 import { goblinCampBlocks } from './goblincamp';
-import { blocksOf } from './steps';
+import { blocksOf, shapeOf } from './steps';
 
 const CELL = 0.4;
 const MARGIN = 0.35;                 // keep this far from walls, so the character doesn't clip them
@@ -31,6 +31,23 @@ export function distToLine(p: Vec2, line: Vec2[]): number {
 
 /** The land he can walk on: the layout's `village`, and (chapter 2) any more `land` joined to it. */
 export const landOf = (layout: Layout): Area[] => [layout.village, ...(layout.land ?? [])];
+
+/** Something in the way with corners (a building, a garden's fence, a step's box), turned `rot`, its half width and
+ *  depth with the room kept round it. */
+type Rect = { pos: Vec2; rot: number; hw: number; hd: number };
+const inRect = (p: Vec2, b: Rect): boolean => {
+  const dx = p.x - b.pos.x, dz = p.z - b.pos.z, c = Math.cos(b.rot), s = Math.sin(b.rot);
+  const lx = dx * c - dz * s, lz = dx * s + dz * c;      // into the building's own frame
+  return Math.abs(lx) <= b.hw && Math.abs(lz) <= b.hd;
+};
+const inCircle = (p: Vec2, [c, r]: [Vec2, number]): boolean => Math.hypot(p.x - c.x, p.z - c.z) <= r + MARGIN * 0.5;
+
+/** What the steps `ids` built or begun at the camp's spots put in the way (world/steps.ts): their boxes, with the room
+ *  kept round a building, and their rings. */
+function stepsInWay(layout: Layout, ids: readonly string[]): { rects: Rect[]; circles: [Vec2, number][] } {
+  const steps = [...new Set(ids)].map(id => blocksOf(layout, id));
+  return { rects: steps.flatMap(b => b.boxes).map(b => ({ pos: b.pos, rot: b.rot, hw: b.hw + MARGIN, hd: b.hd + MARGIN })), circles: steps.flatMap(b => b.rings) };
+}
 
 /** The box round all of it. */
 function boundsOf(land: Area[]): Area {
@@ -52,11 +69,11 @@ export class NavGrid {
     this.blocked = new Uint8Array(this.nx * this.nz);
     // what he has built or begun: a round part (the campfire) blocks out to its radius, a box (the tent) by its own
     // width and depth, turned its way, like a building
-    const steps = [...new Set([...built, ...begun])].map(id => blocksOf(layout, id));
+    const steps = stepsInWay(layout, [...built, ...begun]);
     const goblins = goblinCampBlocks(layout);
     const circles: [Vec2, number][] = [
       ...(layout.hearthModel !== null ? [[layout.hearth.pos, layout.hearth.radius] as [Vec2, number]] : []),
-      ...steps.flatMap(b => b.rings),
+      ...steps.circles,
       ...layout.nodes.map(n => [n.pos, n.radius * 0.8] as [Vec2, number]),
       ...layout.trees.map(t => [t.pos, (t.kind === 'oak' ? 0.4 : 0.3) * t.size] as [Vec2, number]),
       ...layout.bushes.map(b => [b, 0.45] as [Vec2, number]),
@@ -77,25 +94,39 @@ export class NavGrid {
     // he walks right to the water's edge but never into it
     const water = waterOf(layout), waterClear = CELL * Math.SQRT1_2;
     // gardens block with their fence, a little larger than the soil
-    const rects = [
+    const rects: Rect[] = [
       ...layout.buildings.map(b => ({ pos: b.pos, rot: b.rot, hw: b.w / 2 + MARGIN, hd: b.d / 2 + MARGIN })),
       ...layout.gardens.map(g => ({ pos: g.pos, rot: g.rot, hw: g.w / 2 + 0.3 + MARGIN, hd: g.d / 2 + 0.3 + MARGIN })),
-      ...steps.flatMap(b => b.boxes).map(b => ({ pos: b.pos, rot: b.rot, hw: b.hw + MARGIN, hd: b.hd + MARGIN })),
+      ...steps.rects,
       // (chapter 2) the goblin camp's palisade, its gate and the chief's tent
       ...goblins.rects.map(b => ({ pos: b.pos, rot: b.rot, hw: b.hw + MARGIN, hd: b.hd + MARGIN })),
     ];
     for (let iz = 0; iz < this.nz; iz++) for (let ix = 0; ix < this.nx; ix++) {
       const p = this.center(ix, iz);
       let block = !this.onLand(p);                           // edge cells whose middle lies off the land
-      if (!block) for (const b of rects) {
-        const dx = p.x - b.pos.x, dz = p.z - b.pos.z, c = Math.cos(b.rot), s = Math.sin(b.rot);
-        const lx = dx * c - dz * s, lz = dx * s + dz * c;      // into the building's own frame
-        if (Math.abs(lx) <= b.hw && Math.abs(lz) <= b.hd) { block = true; break; }
-      }
-      if (!block) for (const [c, r] of circles) if (Math.hypot(p.x - c.x, p.z - c.z) <= r + MARGIN * 0.5) { block = true; break; }
+      if (!block) for (const b of rects) if (inRect(p, b)) { block = true; break; }
+      if (!block) for (const c of circles) if (inCircle(p, c)) { block = true; break; }
       if (!block && water.edge(p) <= waterClear) block = true;   // where the land reaches the water
       if (block) this.blocked[iz * this.nx + ix] = 1;
     }
+  }
+
+  /** This grid (one with nothing built or begun at the camp's spots) with the steps `ids` put in the way as well: the
+   *  very grid made from scratch with them, cell for cell (a cell is in the way if anything is in it, so adding them
+   *  one by one comes to the same), looking only at the cells round each, a moment's work instead of the whole grid
+   *  again (the trees, the rocks and the water's edge; navFor). */
+  withSteps(layout: Layout, ids: readonly string[]): NavGrid {
+    const out = Object.assign(Object.create(NavGrid.prototype) as NavGrid, this);
+    out.blocked = this.blocked.slice();
+    const { rects, circles } = stepsInWay(layout, ids);
+    const mark = (at: Vec2, reach: number, inside: (p: Vec2) => boolean) => {
+      const ix0 = Math.max(0, Math.floor((at.x - reach - this.area.minX) / CELL) - 1), ix1 = Math.min(this.nx - 1, Math.ceil((at.x + reach - this.area.minX) / CELL) + 1);
+      const iz0 = Math.max(0, Math.floor((at.z - reach - this.area.minZ) / CELL) - 1), iz1 = Math.min(this.nz - 1, Math.ceil((at.z + reach - this.area.minZ) / CELL) + 1);
+      for (let iz = iz0; iz <= iz1; iz++) for (let ix = ix0; ix <= ix1; ix++) if (inside(this.center(ix, iz))) out.blocked[iz * this.nx + ix] = 1;
+    };
+    for (const b of rects) mark(b.pos, Math.hypot(b.hw, b.hd), p => inRect(p, b));
+    for (const c of circles) mark(c[0], c[1] + MARGIN, p => inCircle(p, c));
+    return out;
   }
 
   private center(ix: number, iz: number): Vec2 { return { x: this.area.minX + (ix + 0.5) * CELL, z: this.area.minZ + (iz + 0.5) * CELL }; }
@@ -217,14 +248,22 @@ export class NavGrid {
 
 const cache = new WeakMap<Layout, Map<string, NavGrid>>();
 /** The walking grid for the land the player has, with what he has built (GameState.built) and begun (GameState.underway)
- *  at the camp's spots, one kept per layout and set of built and begun things. Everything that walks him goes through
+ *  at the camp's spots, one kept per layout and set of things in the way. Everything that walks him goes through
  *  walkGrid in core/building.ts, which passes both; only the rats and goblins (core/rats.ts, core/goblins.ts) use what
- *  is built alone, and keep clear of the camp's spots anyway. Land claims (step 7) will rebuild it with more area. */
+ *  is built alone, and keep clear of the camp's spots anyway. Land claims (step 7) will rebuild it with more area.
+ *  Built and begun block alike, and furniture (the chest) not at all, so the grid is kept by the set of what blocks: the
+ *  one made as something is begun is the one used once it stands, and the chest makes none of its own (each new grid
+ *  is a moment's work, a stall on a phone). */
 export function navFor(layout: Layout, built: readonly string[] = [], begun: readonly string[] = []): NavGrid {
   let grids = cache.get(layout);
   if (!grids) { grids = new Map(); cache.set(layout, grids); }
-  const key = [...new Set(built)].sort().join(',') + '|' + [...new Set(begun)].sort().join(',');
+  const ids = [...new Set([...built, ...begun])].filter(id => !shapeOf(id)?.furniture).sort(), key = ids.join(',');
   let nav = grids.get(key);
-  if (!nav) { nav = new NavGrid(boundsOf(landOf(layout)), layout, built, begun); grids.set(key, nav); }
+  if (nav) return nav;
+  // the grid with nothing of the camp's in the way, made once, then each set of steps put on a copy of it
+  let bare = grids.get('');
+  if (!bare) { bare = new NavGrid(boundsOf(landOf(layout)), layout); grids.set('', bare); }
+  nav = ids.length ? bare.withSteps(layout, ids) : bare;
+  grids.set(key, nav);
   return nav;
 }

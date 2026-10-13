@@ -93,7 +93,7 @@ function start(data: HotData): void {
   const pack = new BackpackWindow(windows, queue, layout);           // what's in the backpack, to eat and drop things
   const lookIn = () => pack.showChest();                            // Look in the chest: the Backpack window at the chest
   const menu = new CampMenu(state, layout, queue, hud, windows, lookIn);   // a right click or long press on a camp building
-  bindInput(view, layout, queue, state, { hover: label => hud.hover(label), openChest: lookIn, menu });
+  bindInput(view, layout, queue, state, { hover: label => hud.hover(label), openChest: lookIn, menu, notice: text => hud.notice(text) });
   showModels(view, layout);                                         // dev only: ?models in the address shows chapter 2's models
   const skills = new SkillsWindow(windows, events);                 // each skill's level, and what he trains
   const book = new Book(state, events, layout, windows);            // his book: a page per goal, opened from its button or the goal card

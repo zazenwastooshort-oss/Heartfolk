@@ -43,9 +43,10 @@ export const chestHere = (state: GameState, layout: Layout) => state.built.inclu
 /** Where the storage chest sits (or will, while it is built or its marker shows): in the shelter drawn at the tent's
  *  spot (stepShown: the tent until a wall tent is half built), at its `chest` (data/building.ts SHAPES), facing out
  *  of the door as the shelter does, standing on its floor (`floor` metres up). Null with no shelter there, begun or
- *  built. */
+ *  built (a new game; the village), where there is nothing for it to stand in. */
 export function chestPlace(state: GameState, layout: Layout): (StepPlace & { floor: number }) | null {
-  const step = stepShown(state, 'tent') ?? outermost(state, 'tent') ?? 'shelter';
+  const step = stepShown(state, 'tent') ?? outermost(state, 'tent');
+  if (!step) return null;
   const place = stepPlace(layout, step), shape = SHAPES[step], at = shape?.chest;
   return place && at ? { pos: toGround(place, at), rot: place.rot, floor: shape.floor ?? 0 } : null;
 }
@@ -126,12 +127,13 @@ export function useSpot(state: GameState, layout: Layout, id: string): UseSpot |
 }
 
 /** Where he stands to build `id` (begun, or about to be): its own stands (in front of its faces, as far out as his
- *  mallet reaches), or round its ring for something round; the storage chest from the shelter's door, facing it (D3).
- *  Null where it has no place here. */
+ *  mallet reaches), or round its ring for something round; the storage chest from the shelter's door, facing it (D3:
+ *  the point on it his strikes are aimed at, SHAPES' aim, beside the tent's front pole). Null where it has no place
+ *  here. */
 export function buildSpot(state: GameState, layout: Layout, id: MakeId): UseSpot | null {
   if (id !== 'chest') return stepSpot(layout, id);
-  const spot = doorSpot(state, layout), chest = chestPlace(state, layout);
-  return spot && chest ? { ...spot, face: chest.pos } : spot;
+  const spot = doorSpot(state, layout), chest = chestPlace(state, layout), aim = SHAPES.chest?.aim;
+  return spot && chest ? { ...spot, face: aim ? toGround(chest, aim) : chest.pos } : spot;
 }
 
 /** Whether there is a fire to cook at: the campfire stands at this layout's fire spot (never in the village). */
@@ -167,14 +169,15 @@ export const canStoke = (state: GameState, layout: Layout) =>
 /** Something to do at one of the camp's spots. The UI turns each into the command it sends (ui/campmenu.ts), except
  *  Look in, which opens the Backpack at the chest's section and sends nothing (he goes nowhere).
  *  look: see what is in the storage chest. store: put everything he carries into it (the old tap on the chest).
- *  sleep: to bed in `shelter`, the best shelter that stands (by day he isn't tired yet). build: begin `id` ('build':
+ *  sleep: to bed in `shelter`, the best shelter that stands (by day he isn't tired yet); null while it isn't the one
+ *  drawn there (a bigger one half built round it), so the words say "the shelter" instead. build: begin `id` ('build':
  *  a marker's thing, the chest in the shelter; 'upgrade': the next step at a spot) or carry on with it ('carry').
  *  cook: his raw fish at the fire, `at` the campfire or the stone hearth. stack: the logs he carries, on the firewood
  *  pile or the woodshed (`at`). practise: on the training dummy. */
 export type CampAction =
   | { kind: 'look' }
   | { kind: 'store' }
-  | { kind: 'sleep'; shelter: MakeId }
+  | { kind: 'sleep'; shelter: MakeId | null }
   | { kind: 'build'; id: MakeId; how: 'build' | 'upgrade' | 'carry' }
   | { kind: 'cook'; at: MakeId }
   | { kind: 'stack'; at: MakeId }
@@ -195,7 +198,7 @@ export interface CampTap { action: CampAction; hover: string }
 
 /** An action's key, the same for the same action (the menu finds a choice again by it, and marks the tap's). */
 export const actionKey = (a: CampAction): string =>
-  a.kind === 'build' ? `build:${a.id}:${a.how}` : a.kind === 'sleep' ? `sleep:${a.shelter}` : a.kind === 'cook' || a.kind === 'stack' ? `${a.kind}:${a.at}` : a.kind;
+  a.kind === 'build' ? `build:${a.id}:${a.how}` : a.kind === 'sleep' ? `sleep:${a.shelter ?? 'shelter'}` : a.kind === 'cook' || a.kind === 'stack' ? `${a.kind}:${a.at}` : a.kind;
 
 /** Whether he carries anything to put in the storage chest: more than the few meals every trip there leaves on him
  *  (KEEP_FOOD). */
@@ -205,19 +208,27 @@ export function hasToStore(state: GameState): boolean {
   return all > Math.min(KEEP_FOOD, meals);
 }
 
-/** The words over a spot under the mouse for `action` (D15): "Look in|Chest", "Sleep in|Wall tent", "Carry on|Wall
- *  tent", "Upgrade to|Log cabin", "Cook at|Stone hearth", "Stack logs on|Woodshed", "Build|Campfire". */
+/** The words over a spot under the mouse for `action` (D15): "Look in|Chest", "Sleep in|Wall tent" ("Sleep in|Shelter"
+ *  while a bigger one is drawn round it), "Carry on|Wall tent", "Upgrade to|Log cabin", "Cook at|Stone hearth", "Stack
+ *  logs on|Woodshed", "Build|Campfire". */
 export function hoverOf(layout: Layout, action: CampAction): string {
   const name = (id: MakeId) => MAKES[id].name;
   switch (action.kind) {
     case 'look': return 'Look in|Chest';
     case 'store': return 'Store in|Chest';
-    case 'sleep': return `Sleep in|${name(action.shelter)}`;
+    case 'sleep': return `Sleep in|${action.shelter ? name(action.shelter) : 'Shelter'}`;
     case 'build': return `${action.how === 'carry' ? 'Carry on' : action.how === 'upgrade' ? 'Upgrade to' : MAKES[action.id].verb}|${name(action.id)}`;
     case 'cook': return `Cook at|${name(action.at)}`;
     case 'stack': return `Stack logs on|${name(action.at)}`;
     case 'practise': return fightLabel(layout, 'dummy') ?? `Practise on|${name('dummy')}`;
   }
+}
+
+/** The shelter he sleeps in, as the words name it: the best that stands while it is the one drawn at the tent's spot;
+ *  null (the shelter) from when a bigger one is half built round it, which is drawn there instead (D6). */
+function sleepIn(state: GameState): MakeId | null {
+  const best = bestShelter(state);
+  return best && stepShown(state, 'tent') === best ? best : null;
 }
 
 /** What is going on at `line`'s spot: the last step built there and the step under way there (begun, not built). */
@@ -241,8 +252,7 @@ export function campActions(state: GameState, layout: Layout, line: LineId): Cam
   const out: CampEntry[] = [];
   if (line === 'tent') {
     if (chestHere(state, layout)) out.push(use({ kind: 'look' }, null), use({ kind: 'store' }, hasToStore(state) ? null : { kind: 'empty' }));
-    const shelter = bestShelter(state);
-    if (shelter && canSleep(state, layout)) out.push(use({ kind: 'sleep', shelter }, task.kind === 'sleep' ? { kind: 'asleep' } : isNight(state.time) ? null : { kind: 'day' }));
+    if (bestShelter(state) && canSleep(state, layout)) out.push(use({ kind: 'sleep', shelter: sleepIn(state) }, task.kind === 'sleep' ? { kind: 'asleep' } : isNight(state.time) ? null : { kind: 'day' }));
     if (begun(state, 'chest')) out.push(build('chest', 'carry'));
     else if (markerShown(state, layout, 'chest')) out.push(build('chest', 'build'));
   } else if (line === 'hearth') {
@@ -260,6 +270,17 @@ export function campActions(state: GameState, layout: Layout, line: LineId): Cam
   return out;
 }
 
+/** Why a plain tap on `line`'s spot does nothing now, as its entry in the menu says, faded (review
+ *  IU-pile-tap-disagrees): Stack logs at the firewood pile or the woodshed with no logs on him, or the pile full. Null
+ *  when the tap goes ahead (every other tap's command says itself why it can't be done, without walking him anywhere:
+ *  he isn't tired yet, no fish to cook, still needs something). The UI says so instead of walking him over to say it. */
+export function tapRefused(state: GameState, layout: Layout, line: LineId): CampWhy | null {
+  const tap = campTap(state, layout, line);
+  if (tap?.action.kind !== 'stack') return null;
+  const key = actionKey(tap.action);
+  return campActions(state, layout, line).find(e => actionKey(e.action) === key)?.why ?? null;
+}
+
 /** What a plain tap on `line`'s spot does (D10, D15; T5.4), with its words under the mouse: its marker's thing, Build;
  *  something begun there, Carry on (D10: building comes first; the fire is still cooked at and the pile stacked from
  *  the menu); at the shelter, at night Sleep, by day the chest while its goal is up (Build, or Carry on), then once it
@@ -272,12 +293,12 @@ export function campTap(state: GameState, layout: Layout, line: LineId): CampTap
   const go = (action: CampAction): CampTap => ({ action, hover: hoverOf(layout, action) });
   if (!built) return under ? go({ kind: 'build', id: under, how: 'carry' }) : markerShown(state, layout, first) ? go({ kind: 'build', id: first, how: 'build' }) : null;
   if (line === 'tent') {
-    const shelter = bestShelter(state) ?? built;
+    const shelter = sleepIn(state);
     if (isNight(state.time)) return go({ kind: 'sleep', shelter });
     if (begun(state, 'chest')) return go({ kind: 'build', id: 'chest', how: 'carry' });
     if (markerShown(state, layout, 'chest')) return go({ kind: 'build', id: 'chest', how: 'build' });
     if (chestHere(state, layout)) return go({ kind: 'look' });
-    return { action: { kind: 'sleep', shelter }, hover: MAKES[built].name };
+    return { action: { kind: 'sleep', shelter }, hover: MAKES[stepShown(state, 'tent') ?? built].name };
   }
   if (under) return go({ kind: 'build', id: under, how: 'carry' });
   if (line === 'hearth') {

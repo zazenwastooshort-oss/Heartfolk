@@ -3,19 +3,19 @@
 // begun there, each at the stage it has reached (footings, frame, half built, built; core/building.ts stageOf), every
 // stage's model made the first time it is needed and kept; a new step is drawn round the one before it, which stands
 // inside its footings and frame until it is half built (D6: stepShown), the old step's guy ropes or pegs gone once the
-// new one is begun. Nothing shows at a spot until its goal comes up (the owner, 13 Oct 2026: "not visible until you
-// put it down to build"); then its marker (D1: stakes, a string and a cloth flag, glinting now and then) shows where it
+// new one is begun. Nothing shows at a spot until its goal comes up (the owner, 13 Oct 2026: "not visible until you put
+// it down to build"); then its marker (D1: stakes, a string and a cloth flag, glinting now and then) shows where it
 // goes until it is begun. While something is under way a ring round it (as far as it reaches) fills up as it goes up,
 // brighter while he works at it. The storage chest is furniture in the shelter (core/camp.ts chestPlace: just inside
 // the tent's open front, on the wall tent's and the log cabin's porches), drawn there stage by stage on the shelter's
-// floor, its marker a square chalked where it will stand. The fire's flames, its warm light and its smoke belong to
-// the spot, the campfire's and then the stone hearth's: they flare up while he stokes it and burn low on a night there
-// were no logs (FIRE_LOOK in data/fire.ts). The firewood pile and the woodshed show as many logs as the pile holds;
-// the hearth's own fish on its spit are put aside while his cook there (render/cooking.ts); the training dummy wobbles
-// when struck. Each spot has one invisible tap area round what shows there, growing with each step (core/camp.ts
-// tapBoxOf), tagged with its spot and what is drawn there for ui/input.ts (a tap on what is drawn there is on it, even
-// behind another spot's tap area): what a tap there does and its menu are core/camp.ts's (campTap, campActions). Made once village.glb is loaded (the campfire and the tent are its models). Reads state; never changes
-// it.
+// floor, its marker a square chalked where it will stand. The fire's flames, its warm light and its smoke belong to the
+// spot, the campfire's and then the stone hearth's: they flare up while he stokes it and burn low on a night there were
+// no logs (FIRE_LOOK in data/fire.ts). The firewood pile and the woodshed show as many logs as the pile holds; the
+// hearth's own fish on its spit are put aside while his cook there (render/cooking.ts); the training dummy wobbles when
+// struck. Each spot has one invisible tap area round what shows there, growing with each step (core/camp.ts tapBoxOf),
+// tagged with its spot and what is drawn there for ui/input.ts (a tap on what is drawn there is on it, even behind
+// another spot's tap area): what a tap there does and its menu are core/camp.ts's (campTap, campActions). Made once
+// village.glb is loaded (the campfire and the tent are its models). Reads state; never changes it.
 import * as THREE from 'three';
 import type { GameState } from '../core/state';
 import type { Layout, Vec2 } from '../world/layout';
@@ -26,7 +26,7 @@ import { FIRE_LOOK } from '../data/fire';
 import { markerShown, progressOf, stageOf, stepShown } from '../core/building';
 import { chestPlace, tapBoxOf } from '../core/camp';
 import { markerModel, stageParts, type Protos } from './campmodels';
-import { counted, mergeByMaterial, type Counted } from './parts';
+import { canvasTexture, counted, mergeByMaterial, sparkleTexture, type Counted } from './parts';
 
 const RING = { width: 0.08, gap: 0.12, segments: 48, color: 0xf1e8d4 };   // the ring round something under way
 const POP = 0.45;                  // seconds a new stage takes to settle in
@@ -47,28 +47,11 @@ interface SpotView { line: LineId; steps: StepView[]; marker: MarkerView | null;
 interface Wobble { t: number; amp: number; x: number; z: number }
 interface Puff { sprite: THREE.Sprite; age: number }
 
-/** A canvas texture drawn by `draw` on a `size` square, or none without a page to draw it on (the headless tests). */
-function canvasTexture(size: number, draw: (g: CanvasRenderingContext2D) => void): THREE.CanvasTexture | null {
-  if (typeof document === 'undefined') return null;
-  const c = document.createElement('canvas'); c.width = c.height = size;
-  draw(c.getContext('2d')!);
-  return new THREE.CanvasTexture(c);
-}
-
 /** A soft round puff, for the smoke. */
 const puffTexture = () => canvasTexture(64, g => {
   const grad = g.createRadialGradient(32, 32, 0, 32, 32, 31);
   grad.addColorStop(0, 'rgba(235,235,230,0.9)'); grad.addColorStop(0.5, 'rgba(225,225,220,0.45)'); grad.addColorStop(1, 'rgba(220,220,215,0)');
   g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
-});
-
-/** A four-pointed sparkle with a soft glow (a pickup's glint), for the markers. */
-const sparkleTexture = () => canvasTexture(64, g => {
-  const glow = g.createRadialGradient(32, 32, 0, 32, 32, 30);
-  glow.addColorStop(0, 'rgba(255,250,220,0.9)'); glow.addColorStop(0.25, 'rgba(255,240,190,0.35)'); glow.addColorStop(1, 'rgba(255,240,190,0)');
-  g.fillStyle = glow; g.fillRect(0, 0, 64, 64);
-  g.fillStyle = 'rgba(255,255,240,0.95)';
-  for (const [w, h] of [[3, 30], [30, 3]]) { g.beginPath(); g.ellipse(32, 32, w!, h!, 0, 0, Math.PI * 2); g.fill(); }
 });
 
 /** How the training dummy wobbles when struck: the most it leans (radians) for a hit that did damage and for a miss,

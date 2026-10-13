@@ -45,13 +45,13 @@ export function buildWhyText(why: BuildWhy): string {
   }
 }
 
-/** The Build window's sections, in order: what is under way (always first), what can be built now (the camp's first
- *  five), and the upgrades; only those with rows. */
+/** The Build window's sections, in order: what is under way (always first), the camp's first five still to build (some
+ *  faded, still short of something: "To build", not "Build now"), and the upgrades; only those with rows. */
 export interface BuildSection { title: string; rows: BuildRow[] }
 export function buildSections(rows: readonly BuildRow[]): BuildSection[] {
   return [
     { title: 'Under way', rows: rows.filter(r => r.begun) },
-    { title: 'Build now', rows: rows.filter(r => !r.begun && !r.staged.upgrades) },
+    { title: 'To build', rows: rows.filter(r => !r.begun && !r.staged.upgrades) },
     { title: 'Upgrades', rows: rows.filter(r => !r.begun && !!r.staged.upgrades) },
   ].filter(s => s.rows.length);
 }
@@ -77,11 +77,12 @@ export function needLines(state: GameState, row: BuildRow): NeedLine[] {
   });
 }
 
-/** A row's button: Carry on for something begun, Upgrade for an upgrade, else its own verb (Build, Stack); whether it
- *  can be pressed now, and why not (core/building.ts buildWhy). */
+/** A row's button: Carry on for something begun, Upgrade for an upgrade, else Build (the firewood pile's too: its own
+ *  verb, Stack, would read beside the pile's Stack logs as stacking logs on it); whether it can be pressed now, and why
+ *  not (core/building.ts buildWhy). */
 export function rowButton(state: GameState, row: BuildRow): { label: string; ready: boolean; why: string | null } {
   const why = buildWhy(state, row.id);
-  const label = row.begun ? 'Carry on' : row.staged.upgrades ? 'Upgrade' : row.def.verb;
+  const label = row.begun ? 'Carry on' : row.staged.upgrades ? 'Upgrade' : 'Build';
   return { label, ready: !why, why: why ? buildWhyText(why) : null };
 }
 

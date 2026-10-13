@@ -28,7 +28,7 @@ export type GameEvent =
   | { type: 'goalEnough'; item: string; goal: string }
   /** a tap on the firewood pile: `logs` he carried were stacked on it, now holding `pile`; none when he had none
    *  ('none') or it was full ('full') (0.0.21) */
-  | { type: 'stacked'; logs: number; pile: number; reason?: 'none' | 'full' }
+  | { type: 'stacked'; logs: number; pile: number; at: MakeId; reason?: 'none' | 'full' }   // at: the firewood pile, or the woodshed
   /** no room in the backpack for what he was sent to pick up */
   | { type: 'noRoom' }
   /** `count` of `item` dropped from the backpack, gone for good */

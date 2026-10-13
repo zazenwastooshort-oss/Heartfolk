@@ -15,11 +15,11 @@ import type { CampMenu } from './campmenu';
 import { RESOURCES, SKILLS } from '../data/skills';
 import { GATHERS, PICKUPS } from '../data/pickups';
 import { fightLabel } from '../core/targets';
-import { campTap } from '../core/camp';
-import { commandOf } from './campmenu';
+import { campTap, tapRefused } from '../core/camp';
+import { commandOf, whyText } from './campmenu';
 import { Gestures, type Gesture, type PointerAt } from './gesture';
 
-type Target =
+export type Target =
   | { kind: 'node'; id: string; point: THREE.Vector3 }
   | { kind: 'pickup'; id: string; point: THREE.Vector3 }
   /** (chapter 2) a rat or a goblin, to fight */
@@ -33,11 +33,12 @@ type Target =
   | null;
 
 /** What the scene's input calls out to: the words under the mouse ("Build|Campfire", or null over the grass), Look in
- *  the chest (the Backpack window at its section), and the camp's menu. */
+ *  the chest (the Backpack window at its section), the camp's menu, and a notice (why a tap there does nothing now). */
 export interface InputHooks {
   hover: (label: string | null) => void;
   openChest: () => void;
   menu: Pick<CampMenu, 'isOpen' | 'open' | 'close'>;
+  notice: (text: string) => void;
 }
 
 /** Whether an object is drawn: it and every parent visible. */
@@ -91,6 +92,15 @@ export function firstHit(ray: THREE.Raycaster, pickables: readonly THREE.Object3
     if (off < nearest) { nearest = off; near = h; }
   }
   return { hit: near, ground: floor };
+}
+
+/** Which of the camp's spots a press that opens the menu is for, or null for none: a long press, the one the finger
+ *  went down on (`held`), where the ring filled; the camera follows him as he walks, so by the time the press is long
+ *  enough what is under the finger now may have slid away from it, or a neighbour slid under it (review
+ *  IU-hold-repick). A right click: what is under the mouse as it is clicked (`now`). */
+export function menuTarget(by: 'click' | 'hold', held: Target, now: () => Target): LineId | null {
+  const t = by === 'hold' ? held : now();
+  return t?.kind === 'camp' ? t.spot : null;
 }
 
 /** The ring's length round the held finger (index.html's #holdCue circle, r 20). */
@@ -162,6 +172,9 @@ export function bindInput(view: View, layout: Layout, queue: Command[], state: G
     if (!t) return;
     const at = { x: t.point.x, z: t.point.z };
     if (t.kind === 'camp') {
+      // nothing to do there now (no logs on him to stack): he says why where he stands, as the menu's faded entry does
+      const no = tapRefused(state, layout, t.spot);
+      if (no) { hooks.notice(whyText(no)); return; }
       const tap = campTap(state, layout, t.spot);
       if (tap?.action.kind === 'look') { hooks.openChest(); return; }
       const c = tap ? commandOf(tap.action) : null;
@@ -183,8 +196,8 @@ export function bindInput(view: View, layout: Layout, queue: Command[], state: G
       else if (g.type === 'pinch') { hooks.menu.close(); view.cam.zoom(g.scale); }
       else if (g.type === 'tap') { if (!dismissed) act(pick({ clientX: g.x, clientY: g.y })); }
       else {
-        const t = pick({ clientX: g.x, clientY: g.y });
-        if (t?.kind === 'camp') hooks.menu.open(t.spot, { x: g.x, y: g.y });
+        const spot = menuTarget(g.by, held, () => pick({ clientX: g.x, clientY: g.y }));
+        if (spot) hooks.menu.open(spot, { x: g.x, y: g.y });
       }
     }
   }

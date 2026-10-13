@@ -14,7 +14,7 @@ export const CHANGELOG: Release[] = [
       'Right-click a building, or hold your finger on it, to see what you can do there: look in the chest, store everything, sleep, cook, upgrade and more.',
       'Once the chest is built, your tent can become a wall tent and then a log cabin, each bigger and more restful than the last. The campfire can become a stone hearth with a spit and log seats, and the firewood pile a woodshed.',
       'The storage chest is now furniture inside your shelter. Tap the shelter by day to look in it, and use Store everything to empty his backpack into it. At night, a tap sends him to bed.',
-      'The log bench and the workbench are gone for now. If you had built them, what they took is back in your chest. A lean-to is now a wall tent, and a log hut a log cabin.',
+      'The log bench and the workbench are gone for now. If you had built or started them, what they took is back in your chest. A lean-to is now a wall tent, and a log hut a log cabin.',
     ],
   },
   {

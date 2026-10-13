@@ -143,14 +143,15 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 
 /* the how-to-play hint for a new player, and notices: just under the goal card, in the middle of the room the windows
    leave (src/ui/windows.ts sets --below-card on the stage to the card's foot, and --free-width to how much of the
-   screen's width is left of the open windows); on a phone held upright a notice shows over an open window */
+   screen's width is left of the open windows); on a phone held upright, with a window open, a notice shows below it */
 .hint, .notice { position: absolute; left: calc(var(--free-width, 100%) / 2); top: var(--below-card, calc(110px + env(safe-area-inset-top, 0px)));
   transform: translateX(-50%); width: max-content; max-width: calc(var(--free-width, 100%) - 2 * var(--edge)); box-sizing: border-box; padding: 8px 12px; border-radius: 6px;
   background: var(--m-canvas); font-size: 0.8125rem; text-align: center; pointer-events: none; }
 .hint { z-index: 1; color: var(--chip-text); transition: opacity .5s ease-out; box-shadow: inset 0 0 0 1px rgba(241, 232, 212, .1), 0 0 0 2px var(--frame), 0 3px 10px rgba(0, 0, 0, .35); }
 .hint b { color: #ffffff; font-weight: 600; }
 .hint.gone, .hint.waiting { opacity: 0; }
-/* a notice: a slip of parchment taped up, dark ink; it floats over an open window on a phone, so it has a shadow */
+/* a notice: a slip of parchment taped up, dark ink; it floats over the scene (on a phone, over the strip below an open
+   window), so it has a shadow */
 .notice { z-index: 4; color: var(--paper-ink); opacity: 0; transition: opacity .3s ease-out; padding: 9px 14px; border-radius: 2px; background: var(--m-paper);
   box-shadow: inset 0 0 0 1px rgba(110, 74, 36, .3), inset 0 0 12px rgba(150, 104, 52, .22), 0 4px 14px rgba(0, 0, 0, .45); }
 .notice::before { content: ''; position: absolute; top: -6px; left: 50%; width: 38px; height: 12px; margin-left: -19px; transform: rotate(-3deg);
@@ -434,7 +435,7 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 
 .msg { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; text-align: center; color: var(--chip-text); }
 
-/* the Build window (src/ui/build.ts), the camp's overview: sections (under way, build now, upgrades), each thing a card
+/* the Build window (src/ui/build.ts), the camp's overview: sections (under way, to build, upgrades), each thing a card
    with what it needs (what's short in amber, how many the goal keeps), how long it takes, or how far along something
    begun is, and its button, with why it can't be pressed now over it */
 .build-lead { margin: 0 0 10px; color: var(--muted); font-size: 0.8125rem; line-height: 1.4; }
@@ -479,9 +480,11 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .cm-item.off .cm-note { color: var(--accent); opacity: 1; }
 .cm-item:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 /* a finger held on a building: a ring round it fills until the menu opens (src/ui/input.ts) */
-.hold-cue { position: absolute; z-index: 4; width: 64px; height: 64px; margin: -32px 0 0 -32px; pointer-events: none; }
+/* the ring round a held finger: wider than a fingertip and centred a little above the touch, so most of it shows round
+   the finger (src/ui/input.ts) */
+.hold-cue { position: absolute; z-index: 4; width: 104px; height: 104px; margin: -72px 0 0 -52px; pointer-events: none; }
 .hold-cue svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
-.hold-cue circle { fill: none; stroke-width: 4; }
+.hold-cue circle { fill: none; stroke-width: 3; }
 .hold-cue .track { stroke: rgba(30, 52, 27, .45); }
 .hold-cue .fill { stroke: var(--paper); stroke-linecap: round; stroke-dasharray: 125.66; stroke-dashoffset: 125.66; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .5)); }
 /* Look in the chest: its section lights up a moment (src/ui/backpack.ts) */
@@ -502,6 +505,9 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
   .wins { top: var(--below-card, calc(110px + env(safe-area-inset-top, 0px))); bottom: var(--above-bottom, calc(84px + env(safe-area-inset-bottom, 0px)));
     left: var(--edge); right: var(--edge); align-items: flex-end; }
   .wins > .win { flex: 1 1 auto; width: auto; }
+  /* with a window open, a notice goes below it, over the strip just above the buttons, clear of the window's title and
+     its x (src/ui/windows.ts marks the stage) */
+  .wins-open .notice { top: auto; bottom: calc(10px + env(safe-area-inset-bottom, 0px) + 62px + 8px); }
 }
 /* hover looks only with a mouse: on a touch screen a tapped button would keep its hover look until the next tap
    somewhere else, and look chosen. A press shows on every screen (:active) */

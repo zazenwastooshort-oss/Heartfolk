@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { allGoalsDone, currentGoal, made, maxHealth, type GameState } from '../core/state';
 import { goalLines, type BookLine } from '../core/book';
 import { begunIds, progressOf, stagedDef } from '../core/building';
-import type { EventBus } from '../core/events';
+import type { EventBus, GameEvent } from '../core/events';
 import type { Command } from '../systems/commands';
 import type { View } from '../render/view';
 import type { SkillId } from '../data/skills';
@@ -53,6 +53,13 @@ const countOf = (line: BookLine) => line.level ? `${SKILLS[line.id as SkillId]?.
  *  before he has the book. Once every goal is done, the camp is set up (CAMP_DONE). Since the survival book, `thought`:
  *  what he thinks about the goal, in his own words (data/thoughts.ts; the hint for a goal without one), shown under the
  *  title. */
+/** What is said when logs are stacked, or can't be: on the firewood pile, or (once it stands) in the woodshed. */
+export function stackedText(e: Extract<GameEvent, { type: 'stacked' }>): string {
+  const shed = e.at === 'woodshed', where = shed ? 'in the woodshed' : 'on the firewood pile';
+  if (e.logs > 0) return `Stacked ${itemList({ birch_logs: e.logs })} ${where} (${e.pile} there now).`;
+  return e.reason === 'full' ? `The ${shed ? 'woodshed' : 'firewood pile'} is full.` : `You have no logs to stack ${where}.`;
+}
+
 export interface GoalCard {
   title: string; line: string; progress: number; ready: boolean; build: { id: string; label: string; send: 'build' | 'make' } | null;
   hint: string; thought: string;
@@ -141,8 +148,7 @@ export class Hud {
       else if (e.type === 'needTool') { const t = TOOLS[e.tool]; this.notice(`You need ${t.a} to ${t.use}.`); }
       else if (e.type === 'allGathered') this.notice(`That's all the ${GATHERS[e.gather].name.toLowerCase()}.`);
       else if (e.type === 'goalEnough') this.notice(`That's enough ${itemName(e.item, 2)} for "${GOALS.find(g => g.id === e.goal)?.title ?? e.goal}".`);
-      else if (e.type === 'stacked') this.notice(e.logs > 0 ? `Stacked ${itemList({ birch_logs: e.logs })} on the firewood pile (${e.pile} there now).`
-        : e.reason === 'full' ? 'The firewood pile is full.' : 'You have no logs to stack on the firewood pile.');
+      else if (e.type === 'stacked') this.notice(stackedText(e));
       else if (e.type === 'noRoom') this.notice('Your backpack is full. Open the backpack to drop something.');
       else if (e.type === 'dropped') this.notice(`Dropped ${itemList({ [e.item]: e.count })}.`);
       else if (e.type === 'cantDrop') this.notice(`You won't find more ${itemName(e.item, 2)}, so you keep them.`);

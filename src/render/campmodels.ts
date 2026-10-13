@@ -29,7 +29,7 @@ export type Protos = (name: string) => THREE.Object3D;
 export interface StageParts { fixed: THREE.Object3D[]; guys: THREE.Object3D[]; logs: THREE.Object3D[]; fish: THREE.Object3D[]; sway: THREE.Object3D[] }
 
 /** The palette: the game's warm woods, cream canvas and greys (the designs' colours). */
-export const C = {
+const C = {
   log: '#a87c4c', logLight: '#b98f5c', logEnd: '#e2c48e', wood: '#8a6440', woodDark: '#6f5034', timber: '#5b4130',
   plank: '#c09463', plankDark: '#a27a50', bark: '#6e4c31', barkLight: '#84603f', rope: '#d2bb86', clay: '#b0663f',
   claySoft: '#c27a52', stone: '#8f897f', stoneLight: '#a7a094', stoneDark: '#77726a', tarp: '#d8c39a', tarpDark: '#bba57c',
@@ -237,33 +237,56 @@ function woodpile(s: Stages, shape: Shape): void {
   s.put(CARPENTRY.stages, CARPENTRY.stages, 'logs', pileLogs());
 }
 
-/** The tent (the shelter): pegs, then the poles and ridge with planks laid for a floor, then the tarp thrown over one
- *  side, then village.glb's Tent pegged out whole. The pegs go once the wall tent is begun round it (D6). */
+/** The tent (the shelter): pegs and the floor's planks stacked ready at the front, then the poles and ridge with the
+ *  planks laid for a floor, then the tarp thrown over one side, then village.glb's Tent pegged out whole, its front
+ *  open (In 8: the chest is seen just inside it): the canvas's front and its door flap left out, the flaps rolled up
+ *  and tied at the sides instead. The pegs go once the wall tent is begun round it (D6). */
 function shelter(s: Stages, P: Protos, shape: Shape): void {
   footings(s, shape);
   const tent = copy(P, 'Tent'), part = (re: RegExp) => tent.children.filter(o => re.test(o.name));
   s.put(0, CARPENTRY.stages, 'guys', part(/^peg/i).map(o => o.clone(true)));
+  // the planks stacked across the front of where the floor goes, where his mallet comes down from the door
+  for (let i = 0; i < 3; i++) {
+    const plank = copy(P, 'Plank'); plank.position.set(-0.04 + (i % 2) * 0.05, 0.016 + i * 0.066, 0.97 - (i % 2) * 0.03); plank.rotation.y = (i - 1) * 0.06;
+    s.only(0, 0, plank);
+  }
   s.add(1, ...part(/^(pole|ridge)/i).map(o => o.clone(true)));
   // the planks for a floor, along its length (the chest stands on them, SHAPES' floor)
   for (let i = 0; i < 4; i++) {
     const plank = copy(P, 'Plank'); plank.rotation.y = Math.PI / 2; plank.scale.set(2.05, 1, 1); plank.position.set(-0.57 + i * 0.38, 0, 0.1);
     s.add(1, plank);
   }
+  // the canvas without its front (the triangle across the door, z 1.2): over one side, then all of it
+  const back = (z: number) => z < 1.1;
   for (const canvas of part(/^canvas/i) as THREE.Mesh[]) {
-    s.only(2, 2, trimmed(canvas, x => x < 0.02));
-    s.add(3, canvas.clone());
+    s.only(2, 2, trimmed(canvas, (x, _y, z) => x < 0.02 && back(z)));
+    s.add(3, trimmed(canvas, (_x, _y, z) => back(z)));
   }
-  s.add(3, ...part(/^door/i).map(o => o.clone(true)));
+  // the front's flaps rolled up along its edges and tied, either side of the doorway
+  for (const sx of [-1, 1]) {
+    const foot: V3 = [sx * 0.9, 0.04, 1.23], top: V3 = [sx * 0.07, 1.36, 1.23];
+    const at = (k: number): V3 => [foot[0] + (top[0] - foot[0]) * k, foot[1] + (top[1] - foot[1]) * k, foot[2]];
+    s.add(3, pole(0.05, C.tarpDark, foot, top, 6));
+    for (const k of [0.3, 0.62]) s.add(3, pole(0.058, C.rope, at(k - 0.02), at(k + 0.02), 6));
+  }
 }
 
 /** The storage chest's look (0.0.19): a box of split-log boards under a lid, two copper straps over it and a copper
- *  latch at the front (+z, out of the shelter's door), in metres. Board by board, then the lid and the copper. */
-const CHEST = { w: 0.9, d: 0.56, boards: 3, board: 0.14, lid: 0.12, wood: ['#80583a', '#73502f'], lidWood: '#644428', copper: '#e8904e' };
+ *  latch at the front (+z, out of the shelter's door), in metres. Side by side, each side board by board, so what he
+ *  works on is at its full height from the start (his mallet lands on it from the door, all but upright, his head
+ *  outside the tent): the bottom and the two ends, then the back, then the front, then the lid and the copper. */
+const CHEST = { w: 0.9, d: 0.56, boards: 3, board: 0.14, side: 0.045, lid: 0.12, wood: ['#80583a', '#73502f'], lidWood: '#644428', copper: '#e8904e' };
 
 function chest(s: Stages): void {
   const metal = new THREE.MeshStandardMaterial({ color: CHEST.copper, roughness: 0.5, metalness: 0.25, flatShading: true });
-  for (let i = 0; i < CHEST.boards; i++) s.add(i, box(CHEST.w, CHEST.board, CHEST.d, CHEST.wood[i % CHEST.wood.length]!, 0, CHEST.board * (i + 0.5), 0));
-  const body = CHEST.boards * CHEST.board, high = body + CHEST.lid;
+  const body = CHEST.boards * CHEST.board, high = body + CHEST.lid, t = CHEST.side, wood = (i: number) => CHEST.wood[i % CHEST.wood.length]!;
+  s.add(0, box(CHEST.w - 2 * t, t, CHEST.d - 2 * t, wood(1), 0, t / 2, 0));
+  for (let i = 0; i < CHEST.boards; i++) {
+    const y = CHEST.board * (i + 0.5);
+    for (const sx of [-1, 1]) s.add(0, box(t, CHEST.board, CHEST.d, wood(i + 1), sx * (CHEST.w - t) / 2, y, 0));
+    s.add(1, box(CHEST.w - 2 * t, CHEST.board, t, wood(i), 0, y, -(CHEST.d - t) / 2));
+    s.add(2, box(CHEST.w - 2 * t, CHEST.board, t, wood(i), 0, y, (CHEST.d - t) / 2));
+  }
   s.add(3, box(CHEST.w + 0.04, CHEST.lid, CHEST.d + 0.04, CHEST.lidWood, 0, body + CHEST.lid / 2, 0));
   for (const x of [-0.29, 0.29]) { const strap = box(0.08, high + 0.016, CHEST.d + 0.07, C.log, x, (high + 0.016) / 2, 0); strap.material = metal; s.add(3, strap); }
   const latch = box(0.12, 0.13, 0.03, C.log, 0, body, CHEST.d / 2 + 0.04); latch.material = metal; s.add(3, latch);
@@ -479,7 +502,8 @@ function woodshed(s: Stages, shape: Shape): void {
   footings(s, shape);
   const X = 0.68, Z = 0.42, hf = 1.38, hb = 1.08;
   s.add(0, pole(0.21, C.wood, [X + 0.5, 0, 0.3], [X + 0.5, 0.42, 0.3], 7), box(0.3, 0.02, 0.3, C.logEnd, X + 0.5, 0.425, 0.3));
-  for (const [x, z, t] of [[X + 0.35, 0.72, 0.4], [X + 0.68, 0.62, -0.6]] as const) s.add(0, box(0.4, 0.08, 0.1, C.logEnd, x, 0.04, z, t));
+  // (the split pieces clear of the chopping block and of the stake at its corner)
+  for (const [x, z, t] of [[X + 0.35, 0.72, 0.4], [X + 0.68, 0.62, 0.72]] as const) s.add(0, box(0.4, 0.08, 0.1, C.logEnd, x, 0.04, z, t));
   for (const x of [-X, X]) s.add(1, pole(0.055, C.wood, [x, 0, Z], [x, hf, Z]), pole(0.055, C.wood, [x, 0, -Z], [x, hb, -Z]));
   s.add(1, pole(0.05, C.woodDark, [-X - 0.12, hf, Z], [X + 0.12, hf, Z]), pole(0.05, C.woodDark, [-X - 0.12, hb, -Z], [X + 0.12, hb, -Z]));
   for (const y of [0.32, 0.64, 0.94]) s.add(1, box(2 * X, 0.1, 0.04, C.plankDark, 0, y, -Z - 0.04));
@@ -501,9 +525,6 @@ const STEPS: Partial<Record<MakeId, (s: Stages, P: Protos, shape: Shape) => void
   stone_hearth: (s, _P, shape) => stoneHearth(s, shape),
   woodshed: (s, _P, shape) => woodshed(s, shape),
 };
-
-/** Whether `id` is drawn here (one of the camp's nine steps or the chest). */
-export const drawn = (id: string): id is MakeId => Object.hasOwn(STEPS, id);
 
 /** `id` (a step built at the camp, data/building.ts SHAPES `shape`) at `stage` (0 footings .. CARPENTRY.stages built),
  *  part by part, in its own frame. */
@@ -545,7 +566,7 @@ export function markerModel(shape: Shape, chalk = false): { parts: THREE.Object3
  *  down from his hands (at y -0.42 and -0.5) to a round wooden head across it at `at`, `len` long, its striking face
  *  (`face`) towards the pick's tip, so the Mine swing brings the face down CARPENTRY.reach in front of him, onto the
  *  face of what he builds (tests/arms.test.ts measures it on the real clip). */
-export const MALLET = { top: -0.38, at: -0.74, len: 0.26, r: 0.075, handle: 0.024, wood: '#8a6440', head: '#a87c4c', band: '#5b4130' };
+const MALLET = { top: -0.38, at: -0.74, len: 0.26, r: 0.075, handle: 0.024, wood: '#8a6440', head: '#a87c4c', band: '#5b4130' };
 
 export function malletModel(): { model: THREE.Group; face: THREE.Object3D } {
   const M = MALLET, parts = new THREE.Group();

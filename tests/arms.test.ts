@@ -265,14 +265,21 @@ describe('his mallet while he builds (the camp build: D11, T2.11)', () => {
     expect(held(), 'building, whatever is in the chest').toBe('mallet');
   });
 
-  it('swings it once for each knock of the work, landing on the knock, standing ready between', () => {
+  it('swings it over and over while he builds, as chopping and mining do, never standing still between swings (review OW-mallet-cadence)', () => {
     const { impact, cycle } = SWINGS.mining;
-    for (let k = 1; k <= 5; k++) expect(malletSwing(k * CARPENTRY.knock)).toBeCloseTo(impact, 9);
-    expect(malletSwing(CARPENTRY.knock - impact)).toBeCloseTo(0, 9);            // the swing begins
-    expect(malletSwing(CARPENTRY.knock - impact + cycle + 0.01)).toBeNull();   // and is over: he stands ready
-    let swinging = 0;
-    for (let t = 0; t < 30; t += 0.01) if (malletSwing(t) !== null) swinging += 0.01;
-    expect(swinging / 30).toBeCloseTo(cycle / CARPENTRY.knock, 1);
+    for (let k = 0; k <= 5; k++) expect(malletSwing(k * cycle)).toBeCloseTo(impact, 9);   // each lands a whole swing on
+    expect(malletSwing(cycle - impact)).toBeCloseTo(0, 9);                                // the next one begins
+    // always somewhere in a swing, and on with the work: back to the top only where one swing ends and the next begins
+    let last = malletSwing(0), wraps = 0;
+    for (let t = 0.01; t < 30; t += 0.01) {
+      const at = malletSwing(t);
+      expect(at).toBeGreaterThanOrEqual(0); expect(at).toBeLessThan(cycle);
+      if (at < last) { wraps++; expect(last - at).toBeGreaterThan(cycle - 0.02); }
+      last = at;
+    }
+    expect(wraps).toBe(Math.floor((30 + impact) / cycle));
+    // the knock (its Carpentry XP) needn't fall on a swing: it is the work's, not the clip's
+    expect(CARPENTRY.knock % cycle).not.toBeCloseTo(0, 2);
   });
 
   it('lands its face on what he builds: CARPENTRY.reach in front of him at the strike, coming down a little beyond it', async () => {
@@ -290,10 +297,12 @@ describe('his mallet while he builds (the camp build: D11, T2.11)', () => {
     let deepest = 0;
     for (let t = 0; t <= SWINGS.mining.cycle; t += 0.01) { const f = faceAt(t); if (f.y < 1.5) deepest = Math.max(deepest, f.x); }
     expect(deepest, 'the furthest the face reaches on the way down, coming down onto the face').toBeLessThan(CARPENTRY.reach + 0.2);
-    // leaning down to something low (CARPENTRY.low, footings), it lands on top of it, a little further out and low down
-    expect(malletLean(null)).toBe(0); expect(malletLean(0)).toBe(0);
-    expect(malletLean(SWINGS.mining.impact)).toBeCloseTo(LOW_KNOCK.lean, 9);
-    miner.rotation.z = -malletLean(SWINGS.mining.impact);
+    // leaning down to something low (SHAPES' lean: footings, a campfire's stones), it lands on top of it, a little
+    // further out and low down; most as it lands, none at the top of the swing, none for something as high as his swing
+    expect(malletLean(0, 0.45)).toBe(0); expect(malletLean(LOW_KNOCK.from, 0.45)).toBe(0);
+    expect(malletLean(SWINGS.mining.impact, 0)).toBe(0);
+    expect(malletLean(SWINGS.mining.impact, 0.45)).toBeCloseTo(0.45, 9);
+    miner.rotation.z = -malletLean(SWINGS.mining.impact, 0.45);
     const low = faceAt(SWINGS.mining.impact);
     expect(low.y, 'leaning down').toBeLessThan(0.35); expect(low.y).toBeGreaterThan(0.1);
     expect(low.x).toBeGreaterThan(CARPENTRY.reach); expect(low.x).toBeLessThan(1.0);

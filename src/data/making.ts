@@ -1,12 +1,11 @@
-// Things he makes (game 0.0.15), as tables only: what each needs, where it is made, how long he works at it and what
-// it gives. The campfire came first, then the stone axe (0.0.16), then the shelter at the tent's spot and the stone
+// Things he makes (game 0.0.15), as tables only: what each needs, where it is made, how long he works at it and what it
+// gives. The campfire came first, then the stone axe (0.0.16), then the shelter at the tent's spot and the stone
 // pickaxe (0.0.18), then the storage chest (0.0.19; since the camp build furniture in the shelter, by its door), the
-// camp's storage like the village's bank,
-// and the firewood pile beside the fire (0.0.21), stacked with logs he stokes the fire from at night. Chapter 2 (0.0.22):
-// the training dummy beside the camp, the stone club, his first weapon, which he wears (gear: data/combat.ts), and the
-// fishing rod, made where he stands. systems/making.ts does the work for what is made where he stands; since the camp
-// build (13 Oct 2026) everything built at the camp's spots goes up in stages over its `time` instead, training Carpentry
-// (data/building.ts STAGED, systems/building.ts).
+// camp's storage like the village's bank, and the firewood pile beside the fire (0.0.21), stacked with logs he stokes
+// the fire from at night. Chapter 2 (0.0.22): the training dummy beside the camp, the stone club, his first weapon,
+// which he wears (gear: data/combat.ts), and the fishing rod, made where he stands. systems/making.ts does the work for
+// what is made where he stands; since the camp build (13 Oct 2026) everything built at the camp's spots goes up in
+// stages over its `time` instead, training Carpentry (data/building.ts STAGED, systems/building.ts).
 import type { ToolId } from './skills';
 import type { GearId } from './combat';
 
