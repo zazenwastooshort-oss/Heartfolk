@@ -19,6 +19,7 @@ import { Intro } from './ui/intro';
 import { BackpackWindow } from './ui/backpack';
 import { Book } from './ui/book';
 import { Windows } from './ui/windows';
+import { Rail } from './ui/rail';
 import { SkillsWindow } from './ui/skills';
 import { Settings } from './ui/settings';
 import { AwayNote } from './ui/away';
@@ -74,6 +75,7 @@ function start(data: HotData): void {
     return;
   }
   const windows = new Windows();                                    // the windows the row of buttons opens: backpack, skills, book, settings
+  new Rail(windows);                                                // the row's icons, and its More button for the buttons that don't fit
   const hud = new Hud(view, events, layout, queue, windows);        // the goal card's Build button sends a command
   const combat = new CombatHud(state, view, events, layout, queue, hud);   // his health, what he trains, hits over the dummy
   const rats = new RatsHud(state, view, events, layout, hud);       // (chapter 2) bars and numbers over the rats and goblins, and over him
