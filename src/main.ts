@@ -32,6 +32,7 @@ import { playTime } from './systems/sleep';
 import { SleepHud, sleepNotices } from './ui/sleep';
 import { ThoughtBubble } from './ui/thoughts';
 import { BuildWindow } from './ui/build';
+import { CampMenu } from './ui/campmenu';
 import { NeedsHud } from './ui/needs';
 import { BedtimeSetting } from './ui/bedtime';
 
@@ -89,9 +90,11 @@ function start(data: HotData): void {
   events.on(e => { if (e.type === 'strike') view.strike(e.nodeId); });     // chips fly where the tool lands
   events.on(e => { if (e.type === 'hit') view.hit(e.target, e.damage); }); // the training dummy wobbles when struck
   const build = new BuildWindow(windows, events, layout, queue, hud);   // the Build window: what can be built, and how far along
-  bindInput(view, layout, queue, label => hud.hover(label));
-  showModels(view, layout);                                         // dev only: ?models in the address shows chapter 2's models
   const pack = new BackpackWindow(windows, queue, layout);           // what's in the backpack, to eat and drop things
+  const lookIn = () => pack.showChest();                            // Look in the chest: the Backpack window at the chest
+  const menu = new CampMenu(state, layout, queue, hud, windows, lookIn);   // a right click or long press on a camp building
+  bindInput(view, layout, queue, state, { hover: label => hud.hover(label), openChest: lookIn, menu });
+  showModels(view, layout);                                         // dev only: ?models in the address shows chapter 2's models
   const skills = new SkillsWindow(windows, events);                 // each skill's level, and what he trains
   const book = new Book(state, events, layout, windows);            // his book: a page per goal, opened from its button or the goal card
   const news = new News(!newGame);                                  // a returning player sees what changed since
@@ -152,6 +155,7 @@ function start(data: HotData): void {
       pack.update(state);
       skills.update(state);
       build.update(state);
+      menu.update();
       book.update();
       awayNote.update();
       sinceSave += dt; if (sinceSave > 10 && !startingOver) { sinceSave = 0; save(browserStorage, state, clock.playedTo); }

@@ -48,10 +48,11 @@ describe('sleeping in the shelter', () => {
     const s = camp(14);
     const pos = { ...s.state.player.pos };
     send(s, { type: 'sleep' });
-    expect(of(s, 'cantSleep')).toHaveLength(1);
+    expect(of(s, 'cantSleep')).toEqual([{ type: 'cantSleep', shelter: 'shelter' }]);
     expect(s.state.player.pending).toBeNull();
     expect(s.state.player.pos).toEqual(pos);
-    expect(SLEEP_TEXT.cantSleep).toContain('once night falls');
+    // (the camp build) the notice names the shelter he would sleep in
+    expect(SLEEP_TEXT.cantSleep('tent')).toBe("He isn't tired yet. He can sleep in the tent once night falls.");
   });
 
   it('at night a tap sends him to bed early: out of sight for 6 hours, then up well rested until nightfall', () => {

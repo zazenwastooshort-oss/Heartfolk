@@ -170,11 +170,13 @@ export class Hud {
     });
   }
 
+  /** The words under the mouse: "Chop|Birch tree" shows as "Chop **Birch tree**"; a thing alone ("Tent": nothing to do
+   *  there now but walk over) just its name. */
   hover(label: string | null): void {
     const el = $('hover');
     if (!label) { el.textContent = 'Walk here'; return; }
-    const [verb, thing] = label.split('|');
-    el.innerHTML = ''; el.append(`${verb} `);
+    const [verb, thing] = label.includes('|') ? label.split('|') : ['', label];
+    el.innerHTML = ''; if (verb) el.append(`${verb} `);
     const b = document.createElement('b'); b.textContent = thing ?? ''; el.append(b);
   }
 

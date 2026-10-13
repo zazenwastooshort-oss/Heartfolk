@@ -72,7 +72,7 @@ html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: non
 [hidden] { display: none !important; }
 body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--body); -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 .stage { position: fixed; inset: 0; background: var(--scene); }
-.stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.stage canvas { display: block; width: 100%; height: 100%; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 /* the icons on the buttons, drawn in code: cream lines */
 .icon { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -434,10 +434,13 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 
 .msg { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; text-align: center; color: var(--chip-text); }
 
-/* the Build window (src/ui/build.ts): what he can build now, each a card with what it needs (what's short in amber), the
-   Carpentry level and how long it takes, or how far along something begun is, and its button */
+/* the Build window (src/ui/build.ts), the camp's overview: sections (under way, build now, upgrades), each thing a card
+   with what it needs (what's short in amber, how many the goal keeps), how long it takes, or how far along something
+   begun is, and its button, with why it can't be pressed now over it */
 .build-lead { margin: 0 0 10px; color: var(--muted); font-size: 0.8125rem; line-height: 1.4; }
 .build-none { margin: 6px 0 0; color: var(--muted); font-size: 0.875rem; }
+.bsec + .bsec { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--stitch); }
+.bsec > h3 { margin: 0 0 8px; font: 600 0.75rem/1.3 var(--body); color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
 .brow { display: grid; gap: 6px; padding: 10px 10px 10px; border-radius: 6px; background: rgba(241, 232, 212, .05); border: 1px dashed rgba(241, 232, 212, .18); }
 .brow + .brow { margin-top: 8px; }
 .brow.begun { border-color: rgba(232, 166, 94, .7); }
@@ -451,11 +454,39 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .brow-needs li { display: flex; align-items: center; gap: 4px; font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
 .brow-needs .item-pic { width: 22px; height: 22px; flex: none; }
 .brow-needs li.short span { color: var(--accent); font-weight: 600; }
+.brow-goal { color: var(--muted); font-size: 0.75rem; }
 .brow-prog { display: grid; gap: 4px; font-size: 0.8125rem; }
 .brow-prog .bar i { background: var(--accent); }
 .brow-go { min-height: 44px; padding: 8px 14px; font: 700 0.875rem/1 var(--body); }
 .brow-go:disabled { opacity: .45; cursor: default; }
 .brow-go:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* the camp's menu (src/ui/campmenu.ts): a right click or a long press on a building at the camp opens a small wooden
+   board beside it, its name on a parchment tag and what can be done there as planks to press, each at least 44 px tall:
+   the one a plain tap does in amber, one that can't be done now bare wood, faded, saying why. Over the windows */
+.camp-menu { position: absolute; z-index: 5; box-sizing: border-box; width: min(256px, calc(100% - 2 * var(--edge))); display: flex; flex-direction: column;
+  gap: 5px; padding: 6px; color: var(--ink); background: var(--tex-grain), linear-gradient(#3b2817, #2a1b0e); border: 1px solid var(--wood-dark); border-radius: 7px;
+  box-shadow: inset 0 0 0 1px rgba(255, 228, 190, .06), 0 6px 18px rgba(0, 0, 0, .5); }
+.camp-menu:focus { outline: none; }
+.cm-title { align-self: flex-start; max-width: 100%; box-sizing: border-box; padding: 3px 10px 4px; border-radius: 2px; background: var(--m-paper); color: var(--paper-ink);
+  font: 700 0.875rem/1.2 var(--display); box-shadow: inset 0 0 0 1px rgba(110, 74, 36, .3), 0 1px 2px rgba(0, 0, 0, .35); }
+.cm-list { display: flex; flex-direction: column; gap: 4px; }
+.cm-item { display: grid; align-content: center; gap: 2px; min-height: 48px; padding: 7px 14px 8px; border: 0; border-radius: 4px; text-align: left; cursor: pointer;
+  background: var(--nails), var(--m-plank); color: var(--ink); box-shadow: var(--lift); text-shadow: 0 1px 0 rgba(0, 0, 0, .4); font: 700 0.875rem/1.25 var(--body); }
+.cm-note { font: 500 0.75rem/1.3 var(--body); opacity: .85; }
+.cm-item.tap { background: var(--nails), var(--m-amber); color: var(--button-ink); text-shadow: 0 1px 0 rgba(255, 236, 200, .35); }
+.cm-item.off { background: var(--nails), var(--m-wood); color: var(--muted); box-shadow: none; text-shadow: none; cursor: default; }
+.cm-item.off .cm-note { color: var(--accent); opacity: 1; }
+.cm-item:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* a finger held on a building: a ring round it fills until the menu opens (src/ui/input.ts) */
+.hold-cue { position: absolute; z-index: 4; width: 64px; height: 64px; margin: -32px 0 0 -32px; pointer-events: none; }
+.hold-cue svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+.hold-cue circle { fill: none; stroke-width: 4; }
+.hold-cue .track { stroke: rgba(30, 52, 27, .45); }
+.hold-cue .fill { stroke: var(--paper); stroke-linecap: round; stroke-dasharray: 125.66; stroke-dashoffset: 125.66; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .5)); }
+/* Look in the chest: its section lights up a moment (src/ui/backpack.ts) */
+@keyframes lit { from { background: rgba(232, 166, 94, .16); box-shadow: 0 0 0 2px rgba(232, 166, 94, .85); } to { background: transparent; box-shadow: 0 0 0 2px rgba(232, 166, 94, 0); } }
+.pack-sec.lit { border-radius: 6px; animation: lit 1.6s ease-out; }
 
 /* a phone held upright: the buttons along the bottom, the strip just above them, and one window at a time between the
    goal card and the strip, so the card's Build button stays in sight (src/ui/windows.ts sets --below-card and
@@ -476,6 +507,7 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
    somewhere else, and look chosen. A press shows on every screen (:active) */
 @media (hover: hover) {
   .goal-open:hover { background: rgba(241, 232, 212, .05); }
+  .cm-item:not(.off):hover { filter: brightness(1.12); }
   /* wood lightens a little under the mouse */
   .btn:hover:not(:disabled), .goal-build:hover, .set-btn:hover, .brow-go:hover:not(:disabled), .book-turn button:hover:not(:disabled), .pick-do button:hover,
   .win-ok:hover, .seg button:hover, .train button:hover, .book-tabs button:hover, .rail-btn:hover, .win-x:hover::before,
@@ -487,12 +519,13 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .win-ok:active, .seg button:active, .train button:active, .book-tabs button:active, .rail-btn:active { box-shadow: var(--sunk); }
 .win-x:active::before { box-shadow: var(--sunk), 0 0 0 1px var(--wood-dark); }
 .pack-slot:active:not(:disabled) { filter: brightness(1.2); }
+.cm-item:not(.off):active { box-shadow: var(--sunk); }
 @media (prefers-reduced-motion: no-preference) {
   .btn:active:not(:disabled), .goal-build:active, .set-btn:active, .brow-go:active:not(:disabled), .book-turn button:active:not(:disabled), .pick-do button:active,
   .win-ok:active, .seg button:active, .train button:active, .book-tabs button:active, .rail-btn:active,
   .win-x:active .icon, .ver:active { transform: translateY(1px); }
 }
-@media (prefers-reduced-motion: reduce) { .bar i, .goal-bar i, .hint, .notice, .thought { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .bar i, .goal-bar i, .hint, .notice, .thought { transition: none; } .pack-sec.lit { animation: none; } }
 </style>
 </head>
 <body>
@@ -559,7 +592,7 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
         </div>
         <div class="pack-sec" id="armourRow" hidden><h3>Wearing</h3><div class="worn" id="armour" role="group"></div><p class="worn-bonus" id="bonus"></p></div>
         <div class="pack-sec" id="bankRow" hidden><h3 id="bankName">Chest</h3><div class="stored" id="bank"></div><button type="button" class="btn store-all" id="storeAll" hidden>Store everything</button></div>
-        <div class="pack-sec" id="pileRow" hidden><h3>Firewood pile</h3><div class="stored" id="pile"></div></div>
+        <div class="pack-sec" id="pileRow" hidden><h3 id="pileName">Firewood pile</h3><div class="stored" id="pile"></div></div>
       </div>
     </section>
     <section class="win" id="skillsWin" data-win="skills" data-width="340" role="dialog" aria-labelledby="skillsTitle" hidden>
@@ -618,6 +651,8 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
     </section>
   </div>
   <div class="notice" id="notice" role="status"></div>
+  <div class="camp-menu" id="campMenu" role="menu" aria-labelledby="campMenuTitle" hidden><div class="cm-title" id="campMenuTitle"></div><div class="cm-list" id="campMenuList" role="presentation"></div></div>
+  <div class="hold-cue" id="holdCue" aria-hidden="true" hidden><svg viewBox="0 0 48 48"><circle class="track" cx="24" cy="24" r="20"/><circle class="fill" cx="24" cy="24" r="20"/></svg></div>
   <div class="win note" id="intro" role="dialog" aria-labelledby="introTitle" hidden>
     <div class="win-bar"><h2 class="win-title" id="introTitle">Welcome to Hearthfolk</h2><button class="win-x" type="button" data-close="introOk" aria-label="Close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
     <div class="win-body">

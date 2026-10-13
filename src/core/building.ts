@@ -3,8 +3,8 @@
 // with everything he has built and begun at the camp's spots, each step by its own shape (world/steps.ts); which step
 // of a spot is drawn there, which shelter stands and how well he rests in it; what can be built now (the camp's first
 // five from their goals on, with the marker showing where while nothing of it is begun; the upgrades once the chest
-// stands), what the Build list has and what each still needs; and what is under way, read back from a save. Headless;
-// changes nothing (systems/building.ts does the work).
+// stands), what the Build list has and what each still needs, and why one can't be pressed now; and what is under
+// way, read back from a save. Headless; changes nothing (systems/building.ts does the work).
 import { allGoalsDone, currentGoal, goalFirst, goalPaid, owned, type GameState } from './state';
 import type { Layout } from '../world/layout';
 import { navFor, type NavGrid } from '../world/nav';
@@ -64,6 +64,12 @@ export const lineOf = (id: string): LineId | null => (Object.keys(LINES) as Line
  *  step is that far along, the one before it still stands inside its stakes and frame. Null while nothing there is. */
 export function stepShown(state: GameState, line: LineId): MakeId | null {
   return [...LINES[line]].reverse().find(id => state.built.includes(id) || stageOf(state, id) >= CARPENTRY.shown) ?? null;
+}
+
+/** The last step of a spot's line that is built: what stands there to be used (the campfire until the stone hearth is
+ *  built, D6), and what it is called. Null while nothing there is built. */
+export function builtStep(state: GameState, line: LineId): MakeId | null {
+  return [...LINES[line]].reverse().find(id => state.built.includes(id)) ?? null;
 }
 
 /** The best shelter that stands (the tent, the wall tent, the log cabin), or null. It is the one he sleeps in: a new one
@@ -154,6 +160,25 @@ export function buildRows(state: GameState, layout: Layout): BuildRow[] {
     const def = MAKES[id], staged = STAGED[id]!, begun = state.underway[id] !== undefined;
     return { id, def, staged, begun, progress: progressOf(state, id), stage: stageOf(state, id), missing: begun ? {} : lacking(state, def) };
   }).sort((a, b) => Number(b.begun) - Number(a.begun));
+}
+
+/** Why something can't be begun or carried on with now, as the build command would say (systems/building.ts
+ *  startBuild), for the Build list's buttons and the camp's menu: he is knocked out ('down'), he is building it right
+ *  now ('at'), something else is under way ('busy', D8), or he lacks what it needs ('missing', as `lacking` counts). */
+export type BuildWhy =
+  | { kind: 'down' } | { kind: 'at' } | { kind: 'busy'; other: MakeId } | { kind: 'missing'; items: Record<string, number> };
+
+/** Why `id` (something the Build list has: it can be built here now, or is begun) can't be begun or carried on with
+ *  now, or null when it can: the build command's own refusals in its own order. Asleep it can (the command is kept
+ *  until he wakes). */
+export function buildWhy(state: GameState, id: MakeId): BuildWhy | null {
+  const task = state.player.task;
+  if (task.kind === 'knockedOut') return { kind: 'down' };
+  if (state.underway[id] !== undefined) return task.kind === 'raise' && task.id === id ? { kind: 'at' } : null;
+  const other = begunIds(state)[0];
+  if (other) return { kind: 'busy', other };
+  const missing = lacking(state, MAKES[id]);
+  return Object.keys(missing).length ? { kind: 'missing', items: missing } : null;
 }
 
 /** Whether the Build button shows: at a camp, once anything can be built (or has been begun or built). */

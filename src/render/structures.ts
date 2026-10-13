@@ -12,21 +12,19 @@
 // the spot, the campfire's and then the stone hearth's: they flare up while he stokes it and burn low on a night there
 // were no logs (FIRE_LOOK in data/fire.ts). The firewood pile and the woodshed show as many logs as the pile holds;
 // the hearth's own fish on its spit are put aside while his cook there (render/cooking.ts); the training dummy wobbles
-// when struck. Each spot has one invisible tap area round what stands there, growing with each step (core/camp.ts
-// tapBoxOf); what a tap on it does is tagged for ui/input.ts as before the camp build's stage 5 gives each spot its own
-// menu (build or carry on, stack logs, cook, practise, store in the chest by day, to bed at night). Made once
-// village.glb is loaded (the campfire and the tent are its models). Reads state; never changes it.
+// when struck. Each spot has one invisible tap area round what shows there, growing with each step (core/camp.ts
+// tapBoxOf), tagged with its spot for ui/input.ts: what a tap there does and its menu are core/camp.ts's (campTap,
+// campActions). Made once village.glb is loaded (the campfire and the tent are its models). Reads state; never changes
+// it.
 import * as THREE from 'three';
-import { canSleep, owned, type GameState } from '../core/state';
+import type { GameState } from '../core/state';
 import type { Layout, Vec2 } from '../world/layout';
 import { reachOf, shapeOf, stepPlace } from '../world/steps';
 import { LINES, MARKER, type LineId } from '../data/building';
 import type { MakeId } from '../data/making';
 import { FIRE_LOOK } from '../data/fire';
-import { COOK } from '../data/cooking';
 import { markerShown, progressOf, stageOf, stepShown } from '../core/building';
-import { chestHere, chestPlace, tapBoxOf } from '../core/camp';
-import { isNight } from '../core/clock';
+import { chestPlace, tapBoxOf } from '../core/camp';
 import { markerModel, stageParts, type Protos } from './campmodels';
 import { counted, mergeByMaterial, type Counted } from './parts';
 
@@ -76,29 +74,6 @@ const sparkleTexture = () => canvasTexture(64, g => {
 /** How the training dummy wobbles when struck: the most it leans (radians) for a hit that did damage and for a miss,
  *  how quickly it sways back and forth (a second), how fast it settles, and when it is still again (seconds). */
 const WOBBLE = { hit: 0.11, miss: 0.05, rate: 2.2, decay: 3.2, last: 1.6 };
-
-/** What a tap on a spot's tap area does, tagged as ui/input.ts reads it (a stopgap until the camp build's stage 5 gives
- *  each spot its menu and its default tap, core/camp.ts): the marker, or the first step begun, builds it or carries
- *  on with it; an upgrade under way carries on with it; at the shelter by day the storage chest (being built, or built:
- *  store in it) comes first, and at night bed; a built fire cooks (once he owns a rod or has raw fish), a built
- *  firewood pile stacks his logs on it, a built training dummy is for practice. Null: nothing to do there (a tap walks
- *  him beside it). */
-function tapTag(state: GameState, layout: Layout, line: LineId, dark: boolean): Record<string, MakeId> | null {
-  const first = LINES[line][0]!, under = LINES[line].find(id => state.underway[id] !== undefined);
-  const sleep = canSleep(state, layout);
-  if (line === 'tent' && dark && sleep) return { sleepId: 'shelter' };
-  if (markerShown(state, layout, first) || under === first) return { makeId: first };
-  if (line === 'tent' && !dark) {
-    if (markerShown(state, layout, 'chest') || state.underway.chest !== undefined) return { makeId: 'chest' };
-    if (chestHere(state, layout)) return { storeId: 'chest' };
-  }
-  if (under) return { raiseId: under };
-  if (!state.built.includes(first)) return null;
-  if (line === 'tent') return sleep ? { sleepId: 'shelter' } : null;
-  if (line === 'hearth') return state.tools.rod || owned(state, COOK.raw) > 0 ? { cookId: first } : null;
-  if (line === 'woodpile') return { storeId: first };
-  return { fightId: first };
-}
 
 export class CampView {
   readonly pickables: THREE.Object3D[] = [];
@@ -277,7 +252,7 @@ export class CampView {
 
   /** t: seconds; night: 0 by day .. 1 at night. */
   update(state: GameState, t: number, dt: number, night: number): void {
-    const task = state.player.task, dark = isNight(state.time);
+    const task = state.player.task;
     for (const spot of this.spots) {
       const shown = stepShown(state, spot.line), order = LINES[spot.line], from = shown ? order.indexOf(shown) : 0;
       for (const [i, v] of spot.steps.entries()) {
@@ -298,14 +273,10 @@ export class CampView {
       }
       const under = order.find(id => state.underway[id] !== undefined);
       this.ring(state, spot.rings, under, spot.steps.find(v => v.id === under)?.root ?? spot.steps[0]!.root);
-      // its tap area, round what stands there now
-      const box = tapBoxOf(state, this.layout, spot.line), tag = box ? tapTag(state, this.layout, spot.line, dark) : null;
-      spot.tap.visible = !!tag;
-      if (box && tag) {
-        spot.tap.position.set(box.pos.x, box.tall / 2, box.pos.z); spot.tap.scale.set(box.radius, box.tall, box.radius);
-        const key = Object.keys(tag)[0]!;
-        if (spot.tap.userData[key] !== tag[key]) spot.tap.userData = { campSpot: spot.line, ...tag };
-      }
+      // its tap area, round what shows there now (what a tap on it does, and its menu: core/camp.ts campTap, campActions)
+      const box = tapBoxOf(state, this.layout, spot.line);
+      spot.tap.visible = !!box;
+      if (box) { spot.tap.position.set(box.pos.x, box.tall / 2, box.pos.z); spot.tap.scale.set(box.radius, box.tall, box.radius); }
     }
     this.updateChest(state, t, dt);
     this.updateFire(state, t, dt, night);

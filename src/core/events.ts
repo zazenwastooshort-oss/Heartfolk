@@ -53,8 +53,8 @@ export type GameEvent =
   | { type: 'stoked'; logs: number }
   /** nightfall, and no logs in the pile, the chest or the backpack: the fire burns low until it is next stoked */
   | { type: 'fireLow' }
-  /** asked to sleep by day: he isn't tired yet (systems/sleep.ts) */
-  | { type: 'cantSleep' }
+  /** asked to sleep by day: he isn't tired yet; `shelter` is the one he would sleep in (systems/commands.ts) */
+  | { type: 'cantSleep'; shelter: MakeId }
   /** asked to sleep while off to stoke the fire: he stokes it first, then goes to bed */
   | { type: 'bedLater' }
   /** he lay down in the shelter for the night, to sleep until `until` (in-game seconds: his waking hour) */
@@ -115,10 +115,10 @@ export type GameEvent =
   /** what he builds went up a stage (1: its frame is up, 2: half built; STAGE_NAMES) */
   | { type: 'buildStage'; make: MakeId; stage: number }
   /** he can't begin `make`, or go back to it: it isn't to be built yet ('locked': the step before it, or the storage
-   *  chest, or for the chest the shelter, doesn't stand yet), he is knocked out ('down'), or something else is under way
-   *  (`busy`, with `other`: one thing at a time, D8; he finishes that first). Carpentry is just another skill: no level
-   *  is ever needed (the owner, 13 Oct 2026) */
-  | { type: 'cantBuild'; make: MakeId; reason: 'locked' | 'down' }
+   *  chest, doesn't stand yet), it stands in the shelter and no shelter stands ('noShelter': the chest), he is knocked
+   *  out ('down'), or something else is under way (`busy`, with `other`: one thing at a time, D8; he finishes that
+   *  first). Carpentry is just another skill: no level is ever needed (the owner, 13 Oct 2026) */
+  | { type: 'cantBuild'; make: MakeId; reason: 'locked' | 'noShelter' | 'down' }
   | { type: 'cantBuild'; make: MakeId; reason: 'busy'; other: MakeId }
   /** chopping birch, he peeled a strip of bark off the log too (it went into his backpack: itemGained) */
   | { type: 'barkPeeled' }

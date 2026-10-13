@@ -19,8 +19,9 @@ export const SECTIONS: { id: Section; tab: string; name: string }[] = [
 ];
 
 /** What unsticks a page: the first time he has an item (carried or stored), comes near a place, has built something
- *  (data/making.ts, a structure that stands), or reaches a goal (data/goals.ts: it is the one he is on, or done). */
-export type Found = { item: string } | { near: Place } | { built: MakeId } | { goal: string };
+ *  (data/making.ts, a structure that stands), reaches a goal (data/goals.ts: it is the one he is on, or done), or can
+ *  first build one of the camp's upgrades (data/building.ts). */
+export type Found = { item: string } | { near: Place } | { built: MakeId } | { goal: string } | { upgrade: true };
 
 /** One page. by: a goal (by id) by which a player surely knows it: an old save from before the book that reached that
  *  goal has the page already (the thing may have been used up since). */
@@ -68,6 +69,9 @@ export const SURVIVAL: SurvivalDef[] = [
     text: 'He sleeps at his bedtime (Settings), or early if you tap the shelter. He wakes rested, and gathers quicker until dusk.' },
   { id: 'tip:chest', section: 'tips', title: 'A full backpack', found: { built: 'chest' },
     text: 'A full backpack goes into the chest by itself, and his tools are kept there. He fetches the one he needs.' },
+  // (the camp build, D18) a long press can't be seen, so the book tells of it once there is something to upgrade
+  { id: 'tip:hold', section: 'tips', title: 'Your camp', found: { upgrade: true },
+    text: 'Hold a finger on a building, or right-click it, to see what you can do there: upgrade it, store things, sleep.' },
   { id: 'tip:styles', section: 'tips', title: 'Fighting', found: { goal: 'practice' },
     text: 'Each way of fighting trains its own skill. He moves on to the next by himself.' },
   { id: 'tip:food', section: 'tips', title: 'Food in a fight', found: { goal: 'rats' },

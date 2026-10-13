@@ -310,28 +310,21 @@ describe('tap areas and rings follow each step (T11.3, In 11)', () => {
     }
   });
 
-  it('what a tap there does for now (until stage 5): build or carry on, stack, cook, practise; the chest by day, bed at night', () => {
-    const tagOf = (state: GameState, line: LineId) => { const v = view(state), t = v.pickables.find(o => o.userData.campSpot === line)!; return t.visible ? { ...t.userData, campSpot: undefined } : null; };
-    // the first five while their marker shows or they are under way
+  it('is tagged with its spot alone, shown whenever something shows there (what a tap does: core/camp.ts campTap, stage 5)', () => {
+    const tagOf = (state: GameState, line: LineId) => { const t = view(state).pickables.find(o => o.userData.campSpot === line)!; return t.visible ? { ...t.userData } : null; };
+    // the campfire's marker
     const fresh = createState(CAMP, 3);
     fresh.goalsDone = GOALS.slice(0, GOALS.findIndex(g => g.makes === 'campfire')).map(g => g.id);
-    expect(tagOf(fresh, 'hearth')).toEqual({ makeId: 'campfire', campSpot: undefined });
-    // a set-up camp by day
-    const day = camp(BASE);
-    expect(tagOf(day, 'tent')).toMatchObject({ storeId: 'chest' });
-    expect(tagOf(day, 'woodpile')).toMatchObject({ storeId: 'woodpile' });
-    expect(tagOf(day, 'hearth')).toMatchObject({ cookId: 'campfire' });
-    expect(tagOf(day, 'dummy')).toMatchObject({ fightId: 'dummy' });
-    // with an upgrade under way: carry on with it, but the chest comes first at the shelter by day, and bed at night
-    for (const [line, id] of [['woodpile', 'woodshed'], ['hearth', 'stone_hearth'], ['tent', 'wall_tent']] as [LineId, MakeId][]) {
-      const s = camp(BASE); s.underway[id] = 5;
-      expect(tagOf(s, line), id).toMatchObject(line === 'tent' ? { storeId: 'chest' } : { raiseId: id });
-      const night = camp(BASE, 22); night.underway[id] = 5;
-      expect(tagOf(night, line), id).toMatchObject(line === 'tent' ? { sleepId: 'shelter' } : { raiseId: id });
+    expect(tagOf(fresh, 'hearth')).toEqual({ campSpot: 'hearth' });
+    for (const line of ['tent', 'woodpile', 'dummy'] as LineId[]) expect(tagOf(fresh, line), line).toBeNull();
+    // a set-up camp, by day and at night, with and without an upgrade under way: every spot's tap area shows, the same
+    // with no rod and no fish (a tap on the fire walks him beside it now, rather than to the ground under it)
+    for (const hour of [10, 22]) {
+      const s = camp(BASE, hour);
+      for (const line of Object.keys(LINES) as LineId[]) expect(tagOf(s, line), `${line} at ${hour}`).toEqual({ campSpot: line });
+      s.underway.wall_tent = 5; s.tools = { axe: true, pick: true, rod: false };
+      for (const line of Object.keys(LINES) as LineId[]) expect(tagOf(s, line), `${line} at ${hour}`).toEqual({ campSpot: line });
     }
-    // a built fire with no cooking to do yet: nothing (a tap walks him beside it)
-    const noRod = camp(BASE); noRod.tools = { axe: true, pick: true, rod: false };
-    expect(tagOf(noRod, 'hearth')).toBeNull();
   });
 });
 

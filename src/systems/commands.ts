@@ -19,7 +19,7 @@ import { canCook, fishToCook, goCook } from './cooking';
 import { canSleep, goToBed } from './sleep';
 import { nextCommands } from './nextstep';
 import { startBuild } from './building';
-import { stagedDef } from '../core/building';
+import { bestShelter, stagedDef } from '../core/building';
 import { goWorkWith } from './tools';
 import { sleepsThrough, type Later } from '../core/needs';
 import { SLEEP } from '../data/sleep';
@@ -125,7 +125,7 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     } else if (c.type === 'sleep') {
       const p = state.player;
       if (!canSleep(state, layout) || p.task.kind === 'sleep') continue;
-      if (!isNight(state.time)) { events.emit({ type: 'cantSleep' }); continue; }
+      if (!isNight(state.time)) { events.emit({ type: 'cantSleep', shelter: bestShelter(state) ?? 'shelter' }); continue; }
       // off to stoke the fire: he finishes that, then goes to bed (systems/fire.ts goes back to { sleep })
       if (p.stoke) { p.stoke.back = { sleep: true }; events.emit({ type: 'bedLater' }); continue; }
       ok = goToBed(state, layout);

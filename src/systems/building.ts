@@ -19,7 +19,7 @@ import type { Layout } from '../world/layout';
 import { begunIds, buildRows, buildSpeed, hasPlaceFor, lacking, stageAt, stagedDef, unlocked } from '../core/building';
 import { goBuild } from '../actors/player';
 import { MAKES, makeDef, type MakeId } from '../data/making';
-import { BARK, CARPENTRY, RESUME } from '../data/building';
+import { BARK, CARPENTRY, LINES, RESUME } from '../data/building';
 import { WOODPILE } from '../data/fire';
 import { addXp } from './skills';
 import { addToBackpack, backpackFull, useUp } from './backpack';
@@ -39,11 +39,15 @@ function goBack(state: GameState, layout: Layout, id: MakeId, events: EventBus, 
   return false;
 }
 
+/** Whether `id` stands in something built at a spot (StagedDef.inside: the storage chest, in the shelter) and nothing
+ *  stands there yet. */
+const noShelter = (state: GameState, id: MakeId) => { const inside = stagedDef(id)?.inside; return !!inside && !LINES[inside].some(s => state.built.includes(s)); };
+
 /** The build command (systems/commands.ts): begin `id` or carry on with it. Returns whether he set off, or null when
  *  he doesn't (he was told why, or there is nothing to do: built already, or nothing of it here, the village). In
  *  order: knocked out, he can't; begun already, he goes back to it (unless he is at it); something else under way, he
  *  finishes that first (D8); a goal before the one that makes it still to finish, it waits (the campfire waits for the
- *  wreck); not to be built yet (the step before it, or the storage chest, or for the chest a shelter, doesn't stand);
+ *  wreck); not to be built yet (the step before it, or the storage chest, doesn't stand; for the chest, no shelter);
  *  without everything it needs (what the current goal counts left alone, except for its own thing), he says what's
  *  missing. Otherwise what it needs is taken now, it is begun (its footings out), and he walks to it. */
 export function startBuild(state: GameState, layout: Layout, c: { id: MakeId }, events: EventBus): boolean | null {
@@ -56,7 +60,7 @@ export function startBuild(state: GameState, layout: Layout, c: { id: MakeId }, 
   if (other) { events.emit({ type: 'cantBuild', make: def.id, reason: 'busy', other }); return null; }
   const first = goalFirst(state, def.id);
   if (first) { events.emit({ type: 'goalFirst', make: def.id, goal: first.id }); return null; }
-  if (!unlocked(state, layout, def.id)) { events.emit({ type: 'cantBuild', make: def.id, reason: 'locked' }); return null; }
+  if (!unlocked(state, layout, def.id)) { events.emit({ type: 'cantBuild', make: def.id, reason: noShelter(state, def.id) ? 'noShelter' : 'locked' }); return null; }
   const missing = lacking(state, def);
   if (Object.keys(missing).length) { events.emit({ type: 'missing', make: def.id, items: missing }); return null; }
   useUp(state, def.needs);
