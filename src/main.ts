@@ -139,7 +139,9 @@ function start(data: HotData): void {
     behind.add(openFor(playTime(state, real)).game, real);         // quicker while he sleeps: the night is seen to pass
     if (behind.play <= 0.25) { loop.advance(behind.next()); return; }
     applyCommands(state, layout, queue, events);
-    sound.hushed = true;                                            // a catch-up makes no sound
+    // a catch-up makes no sound; the night going quicker while he sleeps is caught up this way too, and his waking is
+    // heard (the sounds keep quiet while he sleeps by themselves)
+    sound.hushed = state.player.task.kind !== 'sleep';
     try { catchUp(state, behind.next(), ctx); } finally { sound.hushed = false; }
   }
   /** The real time the game has been played up to, for a save: the last frame's, less what is still to catch up. */

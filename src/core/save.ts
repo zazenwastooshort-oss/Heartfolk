@@ -629,6 +629,8 @@ export function readSave(raw: string, layout: Layout): Loaded {
   // them (0.0.22 to 0.0.27) has him full, to bed at the usual hour (asleep, until then), and carrying his tools
   state.needs = savedNeeds(data.needs, state, layout, b => savedBack(b, state, layout));
   if (p.task.kind === 'sleep' && !state.needs.bed) p.task = { kind: 'idle' };
+  // on his way to bed sent early by a tap (before 0.0.34): no bed now, so he isn't on his way there either
+  if (!state.needs.bed && p.pending?.kind === 'visit' && p.pending.id === 'shelter') { p.pending = null; p.path = []; if (p.task.kind === 'walk') p.task = { kind: 'idle' }; }
   state.toolsInChest = savedToolsInChest(data.toolsInChest, state, layout);
   return { state, savedAt, closedAt };
 }

@@ -537,6 +537,18 @@ describe('bedtime', () => {
     expect(of(between, 'bedtime')).toHaveLength(1);
   });
 
+  it('waiting beside a bush that has not come back yet is no action: he goes at his bedtime, and back to it once up', () => {
+    const s = campAt(AFTER_FOOD, { hour: 0.9 });
+    for (const b of (CAMP.pickups ?? []).filter(x => x.id.startsWith('bush'))) s.state.taken[b.id] = s.state.time + 100;
+    send(s, { type: 'pickup', id: 'bush1' });
+    runUntil(s, () => s.state.player.task.kind === 'pickup', 60);
+    expect(s.state.player.task).toMatchObject({ kind: 'pickup', id: 'bush1' });   // beside it, waiting
+    runUntil(s, () => of(s, 'bedtime').length > 0, 60);
+    expect(of(s, 'bedtime')).toHaveLength(1);
+    expect(hourOf(s.state.time)).toBeLessThan(1.05);
+    expect(s.state.needs.bed!.back).toEqual({ pickupId: 'bush1' });
+  });
+
   it('a Build start tapped while he sleeps is kept (in a save too), and he sets about it when he wakes', () => {
     // (the camp build: the woodshed in place of the log bench there was; nothing is placed, so a kept build is its id)
     const s = campAt(AFTER_FOOD, { hour: 0.99 });

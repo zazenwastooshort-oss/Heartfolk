@@ -99,7 +99,8 @@ const midSwing = (progress: number, lands: number) => progress > 0 && progress <
 /** Whether he is in the middle of an action, which he finishes before he goes to bed (the owner, 13 Oct 2026: "if he
  *  ends a fight he should head back, never leave mid fight, always finish the action before sending to bed"): a fight
  *  with a creature still up (midFight); a swing at a tree or a rock, a cast for a fish, or a blow at the training
- *  dummy, until it lands; a knock of his mallet on what he builds; a fish over the fire; picking something up. Making
+ *  dummy, until it lands; a knock of his mallet on what he builds; a fish over the fire; picking up something lying
+ *  there (not waiting beside a bush or a stone that hasn't come back: he goes back to it when he wakes). Making
  *  something, stoking the fire and a meal are waited for as well (systems/needs.ts). `dt`: this step's length, so a
  *  knock that landed or a fish put over the fire in it counts as done, not begun. */
 export function midAction(state: GameState, layout: Layout, dt: number): boolean {
@@ -112,7 +113,8 @@ export function midAction(state: GameState, layout: Layout, dt: number): boolean
     }
     case 'raise': return (state.underway[task.id] ?? 0) % CARPENTRY.knock > dt * buildSpeed(state) + 1e-9;
     case 'cook': return state.time > task.doneAt - COOK.time + 1e-9;
-    case 'pickup': return true;
+    // picking up something lying there (a moment); waiting beside one that isn't back yet is no action
+    case 'pickup': return !(task.id in state.taken);
     default: return false;
   }
 }

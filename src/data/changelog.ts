@@ -6,6 +6,12 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.36', date: '13 Oct 2026', notes: [
+      'Waiting beside a berry bush (or a stone) that has not grown back no longer keeps him up past his bedtime.',
+      'You hear him wake up in the morning.',
+    ],
+  },
+  {
     version: '0.0.35', date: '13 Oct 2026', notes: [
       'Sound! The river and the falls, a soft wind, birds by day, crickets at night and the campfire crackling.',
       'His work sounds too: chopping, the clink of the pick, a fish biting, the hammer as he builds, blows in a fight, eating and cooking, and a chime for each level and goal.',

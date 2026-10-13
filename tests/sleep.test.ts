@@ -130,7 +130,7 @@ describe('sleeping in the shelter', () => {
     expect(s.state.needs.later).toBeNull();
   });
 
-  it('a save from before 0.0.34 on his way to bed sent early by a tap loads with no bed: he gets there, stays up, and goes at his bedtime', () => {
+  it('a save from before 0.0.34 on his way to bed sent early by a tap loads with no bed and no walk there: he stays up, and goes at his bedtime', () => {
     const s = camp(21);
     expect(goToBed(s.state, s.layout)).toBe(true);
     run(s, 0.5);
@@ -138,6 +138,8 @@ describe('sleeping in the shelter', () => {
     raw.needs.bed.until = null;                                       // sent early: set once he lay down
     s.state = deserialize(JSON.stringify(raw), CAMP);
     expect(s.state.needs.bed).toBeNull();
+    expect(s.state.player.pending).toBeNull();                       // nor on his way there
+    expect(s.state.player.path).toEqual([]);
     runUntil(s, () => s.state.player.pending === null, 60);
     run(s, 5);
     expect(s.state.player.task.kind).not.toBe('sleep');
