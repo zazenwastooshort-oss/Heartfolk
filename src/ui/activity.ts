@@ -121,7 +121,8 @@ export class ActivityTag {
   update(state: GameState): void {
     const a = this.shown ? activityOf(state, this.layout) : null;
     if (!a || document.querySelector('.win.note:not([hidden])') || document.querySelector('.thought.show:not([hidden])')) { this.el.hidden = true; return; }
-    const p = state.player.pos, b = this.view.renderer.domElement.getBoundingClientRect();
+    // over him where he is drawn (smoothed, as the camera follows him), so it doesn't shake as he walks
+    const p = this.view.minerPos(), b = this.view.renderer.domElement.getBoundingClientRect();
     const v = this.at.set(p.x, ABOVE, p.z).project(this.view.cam.camera);
     const x = (v.x + 1) / 2 * b.width, y = (1 - v.y) / 2 * b.height;
     if (v.z > 1 || this.covered(b.left + x, b.top + y - 10)) { this.el.hidden = true; return; }

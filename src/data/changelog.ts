@@ -6,6 +6,11 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.37', date: '13 Oct 2026', notes: [
+      'His thought bubble and the tag over his head no longer shake as he walks.',
+    ],
+  },
+  {
     version: '0.0.36', date: '13 Oct 2026', notes: [
       'Waiting beside a berry bush (or a stone) that has not grown back no longer keeps him up past his bedtime.',
       'You hear him wake up in the morning.',

@@ -69,7 +69,9 @@ export class ThoughtBubble {
       void this.el.offsetWidth;          // start the fade in from nothing
     }
     if (this.left <= 0) return;
-    const p = state.player.pos, b = this.view.renderer.domElement.getBoundingClientRect();
+    // over him where he is drawn (smoothed between the game's steps, as the camera follows him), not where the game has
+    // him: the steps would make the bubble shake as he walks
+    const p = this.view.minerPos(), b = this.view.renderer.domElement.getBoundingClientRect();
     const v = this.at.set(p.x, ABOVE, p.z).project(this.view.cam.camera);
     const tipX = (v.x + 1) / 2 * b.width, tipY = (1 - v.y) / 2 * b.height;
     // a note over the game, or a window over the spot above his head: the bubble waits until it is closed
