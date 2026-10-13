@@ -1,6 +1,5 @@
 // In-game time of day. One in-game day lasts DAY_SECONDS of real time while the game is open.
 import { STOKE } from '../data/fire';
-import { SLEEP } from '../data/sleep';
 
 export const DAY_SECONDS = 12 * 60;
 
@@ -23,7 +22,3 @@ export function isNight(time: number): boolean {
   const f = dayFraction(time);
   return f >= STOKE.at || f < STOKE.until;
 }
-
-/** Whether, once in bed, he sleeps on at `time`: at night, and in the morning until he gets up (SLEEP.wake, 07:00),
- *  after the light has turned to dawn. He goes to bed only at night (isNight). */
-export const sleepsOn = (time: number) => isNight(time) || dayFraction(time) < SLEEP.wake;

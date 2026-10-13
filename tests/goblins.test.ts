@@ -295,6 +295,7 @@ describe('fighting the goblins', () => {
 
   it('its swing lands as often as its attack roll against his defence (with his armour) says', () => {
     const s = ready(11);
+    s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
     s.state.player.backpack = { cooked_fish: 28 };
     s.state.skills.vitality = XP_TABLE[60]!; s.state.health = maxHealth(s.state);
     engage(s, 'goblin1');
@@ -568,6 +569,7 @@ describe('food, the chest and the fire, as with the rats', () => {
   it('at nightfall he leaves the goblins (or the chief) to stoke the fire, then goes back to them by himself', () => {
     for (const chief of [false, true]) {
       const s = ready();
+      s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
       s.state.player.backpack = { cooked_fish: 6 };
       s.state.woodpile = 6;
       if (chief) chiefOutNow(s);
@@ -821,7 +823,9 @@ describe('the long run at the goblin camp', () => {
       const { s } = fightItOut(seed, 4, 3600);
       expect(s.state.goblinCamp.cleared, `seed ${seed}`).toBe(false);
       expect(of(s, 'wokeUp'), `seed ${seed}`).toHaveLength(1);
-      expect(s.state.player.task).toEqual({ kind: 'idle' });
+      // he stands at the camp; or, woken in his hours in bed (his bedtime came in the long fight), off to bed from there
+      if (s.state.needs.bed) expect(s.state.player.pending, `seed ${seed}`).toEqual({ kind: 'visit', id: 'shelter' });
+      else expect(s.state.player.task, `seed ${seed}`).toEqual({ kind: 'idle' });
       expect(s.state.health).toBeGreaterThan(0);
       expect(s.state.equipment.shield).toBe('hide_shield');
       expect(s.state.goblinCamp.chiefOut).toBe(false);

@@ -58,12 +58,10 @@ export type GameEvent =
   | { type: 'cantSleep' }
   /** asked to sleep while off to stoke the fire: he stokes it first, then goes to bed */
   | { type: 'bedLater' }
-  /** he lay down in the shelter for the night */
-  | { type: 'fellAsleep' }
+  /** he lay down in the shelter for the night, to sleep until `until` (in-game seconds: his waking hour) */
+  | { type: 'fellAsleep'; until: number }
   /** dawn: he got up after a full night's sleep, well rested */
   | { type: 'awake' }
-  /** a tap on the goal card or his thought while he sleeps: he sleeps on (a tap in the world still wakes him) */
-  | { type: 'stillAsleep' }
   /** he ate one `item` from his backpack (chapter 2, 0.0.22): it healed `healed`, and his health is now `health` */
   | { type: 'ate'; item: string; healed: number; health: number }
   /** asked to eat `item`: it isn't food ('notFood'), he carries none ('none'), or his health is full ('full') */
@@ -122,6 +120,23 @@ export type GameEvent =
   | { type: 'cantBuild'; make: MakeId; reason: 'locked' | 'level' | 'fit'; need?: number; misfit?: Misfit }
   /** chopping birch, he peeled a strip of bark off the log too (it went into his backpack: itemGained) */
   | { type: 'barkPeeled' }
+  /** (systems/needs.ts) hungry, he ate `items` (from his backpack, or at the chest from the chest), and is `fullness`
+   *  full now; `took`: at the chest, the food he took along besides */
+  | { type: 'meal'; items: Record<string, number>; fullness: number; took?: Record<string, number> }
+  /** hungry with no food on him, he sets off to the chest for some */
+  | { type: 'mealOff' }
+  /** he got hungry with nothing to eat anywhere: he works a little slower until he eats. `keeps`: food he has that the
+   *  current goal counts, all of it (he leaves it alone), when he has any */
+  | { type: 'hungry'; keeps?: string }
+  /** (systems/needs.ts) his bedtime (Settings): he leaves what he does and goes to bed in the shelter */
+  | { type: 'bedtime' }
+  /** a tap while he sleeps (or is on his way to bed at bedtime): he sleeps on, and sees to it when he wakes at `at`
+   *  (in-game seconds; the last thing tapped is the one done) */
+  | { type: 'whenAwake'; at: number }
+  /** (systems/tools.ts) sent to work something whose tool is in the storage chest: he fetches it from there first */
+  | { type: 'fetchTool'; tool: ToolId }
+  /** (systems/tools.ts) the first time he leaves tools in the storage chest: from now on they are kept there */
+  | { type: 'toolsKept' }
   | { type: 'arrived' };
 
 type Handler = (e: GameEvent) => void;

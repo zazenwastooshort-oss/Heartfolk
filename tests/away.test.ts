@@ -49,6 +49,7 @@ function campSet(seed = 5): Setup {
 /** That camp at `hour` o'clock with a few logs in the chest for the fire, him at work on `nodeId`. */
 function working(nodeId = 'camp_birch1', hour = 9): Setup {
   const s = campSet();
+  s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
   s.state.bank = { birch_logs: 6 };
   s.state.time = at(0, hour);
   send(s, { type: 'work', nodeId });

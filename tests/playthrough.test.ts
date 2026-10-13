@@ -37,6 +37,7 @@ import { SKILLS, type SkillId } from '../src/data/skills';
 import { SWINGS } from '../src/data/animation';
 import { BACKPACK_SLOTS } from '../src/data/hauling';
 import { AWAY } from '../src/data/away';
+import { SLEEP } from '../src/data/sleep';
 import { levelFor, XP_TABLE } from '../src/data/xp';
 import { Bot, type Visits } from './bot';
 
@@ -99,6 +100,9 @@ interface Run {
   /** levels at the end of each chapter (or where the run stopped, for the chapter it stopped in) */
   levels: (Record<SkillId, number> | null)[];
   taps: number[]; knockouts: number[]; eaten: number[];
+  /** (needs, 13 Oct 2026) seconds of play he slept in the shelter, nights he went to bed, and meals he ate when hungry,
+   *  per chapter */
+  asleep: number[]; nights: number[]; meals: number[];
   /** taps the game refused (he stayed idle) */
   refused: number;
   /** fight taps on something with no tap area when it was sent (a beaten rat or goblin, the chief in his tent): a
@@ -183,6 +187,7 @@ function play(seed: number): Run {
   const run: Run = {
     seed, done: {}, chapterEnd: CHAPTER_ENDS.map(() => null), levels: CHAPTER_ENDS.map(() => null),
     taps: CHAPTER_ENDS.map(() => 0), knockouts: CHAPTER_ENDS.map(() => 0), eaten: CHAPTER_ENDS.map(() => 0), refused: 0, untappable: [], ate: {},
+    asleep: CHAPTER_ENDS.map(() => 0), nights: CHAPTER_ENDS.map(() => 0), meals: CHAPTER_ENDS.map(() => 0),
     end: 'time', stuck: null, still: { for: 0, goal: '' }, problems: [], saves: [], played: 0, ms: 0,
   };
   const start = g.state.time, played = () => g.state.time - start, min = (s: number) => (s / 60).toFixed(1);
@@ -195,6 +200,8 @@ function play(seed: number): Run {
     if (e.type === 'goalDone') { run.done[e.goal] = played(); goalDone = true; }
     if (e.type === 'knockedOut') run.knockouts[chapter]!++;
     if (e.type === 'ate') { run.eaten[chapter]!++; run.ate[e.item] = (run.ate[e.item] ?? 0) + 1; }
+    if (e.type === 'fellAsleep') run.nights[chapter]!++;
+    if (e.type === 'meal') { run.meals[chapter]!++; for (const [item, n] of Object.entries(e.items)) { run.eaten[chapter]! += n; run.ate[item] = (run.ate[item] ?? 0) + n; } }
     if (!(QUIET as GameEvent['type'][]).includes(e.type)) {
       recent.push(line(JSON.stringify(e)));
       if (recent.length > 12) recent.shift();
@@ -217,6 +224,7 @@ function play(seed: number): Run {
     }
     step(g.state, STEP, ctx);
     const t = played(), state = g.state;
+    if (state.player.task.kind === 'sleep' && chapter < CHAPTER_ENDS.length) run.asleep[chapter]! += STEP;
     // the goal card moving on: a goal finished, or more of what the goal on it counts
     const card = cardAt(state);
     if (card.goals > best.goals || card.things > best.things || card.xp > best.xp) {
@@ -459,6 +467,11 @@ afterAll(() => {
     lines.push(`  ${'taps'.padEnd(34)}${spread(done.map(r => r.taps[c]!), count)}`);
     lines.push(`  ${'knock-outs'.padEnd(34)}${spread(done.map(r => r.knockouts[c]!), count)}`);
     lines.push(`  ${'food eaten'.padEnd(34)}${spread(done.map(r => r.eaten[c]!), count)}`);
+    lines.push(`  ${'meals when hungry'.padEnd(34)}${spread(done.map(r => r.meals[c]!), count)}`);
+    lines.push(`  ${'nights in the shelter'.padEnd(34)}${spread(done.map(r => r.nights[c]!), count)}`);
+    lines.push(`  ${'asleep in the shelter'.padEnd(34)}${spread(done.map(r => r.asleep[c]!))}`);
+    // nights in the shelter go SLEEP.speed times quicker while the game is open and watched (main.ts, playSpeed)
+    lines.push(`  ${'real time, watching'.padEnd(34)}${spread(done.map(r => took(r, c) - r.asleep[c]! * (1 - 1 / SLEEP.speed)))}`);
     const lv = done.flatMap(r => r.levels[c] ? [r.levels[c]!] : []);
     if (lv.length) lines.push(`  levels at ${upTo ? 'the goblin camp' : 'its end'} (range over the seeds): ${Object.keys(SKILLS).map(s => `${SKILLS[s as SkillId].name} ${range(lv.map(l => l[s as SkillId]))}`).join(', ')}`);
     lines.push('');

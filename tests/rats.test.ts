@@ -158,6 +158,7 @@ describe('the nest downriver', () => {
 describe('the rats potter about', () => {
   it('near the nest, a short scurry at a time, on open ground and apart from the nest, and never go for him', () => {
     const s = ready(), moved: Record<string, number> = {}, last = Object.fromEntries(RATS.map(id => [id, { ...s.state.rats[id]!.pos }]));
+    s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he stays beside them through the night, not to bed)
     const nav = navFor(CAMP, s.state.built);
     let scurrying = 0, samples = 0;
     for (let t = 0; t < 600; t += 0.5) {
@@ -268,6 +269,7 @@ describe('fighting the rats', () => {
 
   it("then he goes on to the next rat that's up; with none up he waits by the nest; a rat back, he fights it: on and on", () => {
     const s = ready(3);
+    s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
     s.state.player.backpack = { cooked_fish: 20 };
     engage(s, 'rat1');
     runUntil(s, () => of(s, 'beaten').length > 0, 120);
@@ -353,6 +355,7 @@ describe("a rat's bite, as in OSRS", () => {
    *  share that hurt him. */
   const bitten = (style: 'attack' | 'defence', defence: number, wear: Partial<GameState['equipment']> = {}) => {
     const s = ready(11);
+    s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
     s.state.player.backpack = { cooked_fish: 28 };
     s.state.combatStyle = style;
     Object.assign(s.state.equipment, wear);
@@ -494,6 +497,7 @@ describe('food in a fight', () => {
   it('nightfall on his way to the chest for food: he takes the logs there but keeps what he carries, then fetches food', () => {
     const go = (tapChest: boolean) => {
       const s = ready();
+      s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
       s.state.woodpile = 0;                                   // the logs come from the chest
       s.state.bank = { birch_logs: 6, cooked_fish: 4 };
       s.state.player.backpack = { copper_ore: 2, rat_hide: 2 };
@@ -663,6 +667,7 @@ describe('knocked out', () => {
 describe('stoking the fire at nightfall in the middle of a fight', () => {
   it('he leaves the rats, stokes the fire, then goes back to them by himself', () => {
     const s = ready();
+    s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
     s.state.player.backpack = { cooked_fish: 4 };
     s.state.woodpile = 6;
     s.state.time = clock(0, NIGHTFALL) - 15;
@@ -914,6 +919,7 @@ describe("the rats' goal", () => {
 
   it('fighting the rats finishes it in a few minutes, the hides carried or in the chest', () => {
     const s = ready(12);
+    s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
     s.state.player.backpack = { cooked_fish: 10 };
     engage(s, 'rat1');
     const took = runUntil(s, () => s.state.goalsDone.includes('rats'), 1800);

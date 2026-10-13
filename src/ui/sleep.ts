@@ -5,6 +5,7 @@
 import type { EventBus } from '../core/events';
 import type { GameState } from '../core/state';
 import { dayFraction } from '../core/clock';
+import { wakeLabel } from './needs';
 import { siteOf, type Layout } from '../world/layout';
 import { STOKE } from '../data/fire';
 import type { Hud } from './hud';
@@ -13,8 +14,7 @@ import type { Hud } from './hud';
 export const SLEEP_TEXT = {
   cantSleep: "He isn't tired yet. He can sleep in the shelter once night falls.",
   bedLater: "He'll stoke the fire first, then go to bed.",
-  fellAsleep: 'Goodnight. He sleeps until dawn.',
-  stillAsleep: "He's asleep until morning. Tap anything around the camp to wake him.",
+  fellAsleep: (until: number) => `Goodnight. He sleeps until ${wakeLabel(until)}.`,
   awake: 'He wakes up well rested: gathering goes faster until nightfall.',
 } as const;
 
@@ -39,7 +39,8 @@ export function dialSvg(): string {
 /** The notices that go with sleeping. */
 export function sleepNotices(events: EventBus, hud: Hud): void {
   events.on(e => {
-    if (e.type === 'cantSleep' || e.type === 'bedLater' || e.type === 'fellAsleep' || e.type === 'awake' || e.type === 'stillAsleep') hud.notice(SLEEP_TEXT[e.type]);
+    if (e.type === 'cantSleep' || e.type === 'bedLater' || e.type === 'awake') hud.notice(SLEEP_TEXT[e.type]);
+    else if (e.type === 'fellAsleep') hud.notice(SLEEP_TEXT.fellAsleep(e.until));
   });
 }
 

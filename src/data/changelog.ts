@@ -6,6 +6,14 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.30', date: '13 Oct 2026', notes: [
+      'Once berries are part of his story he gets hungry about once a day. He eats from his pack or the chest, then gets back to work, and never touches food your goal is counting.',
+      'Every night he goes to bed in the shelter at his bedtime, sleeps 6 hours and wakes rested. Pick the hour in Settings, from 22:00 to 01:00.',
+      'Tap something while he sleeps and he will do it when he wakes up.',
+      'Once the chest is built his tools live in it, and he fetches the one he needs.',
+    ],
+  },
+  {
     version: '0.0.29', date: '13 Oct 2026', notes: [
       'The camp has a new look: canvas windows in wooden frames, wooden buttons, and parchment for his book, notes and thoughts.',
       'The buttons at the edge are a strip of planks with hand-drawn icons. If they ever don\'t all fit, the last ones tuck into a More button.',

@@ -17,6 +17,9 @@ import { addToBackpack, backpackFull } from './backpack';
 import { restedFactor } from './sleep';
 import { peelBark } from './building';
 import { cookForGoal } from './cooking';
+import { hungerFactor } from '../core/needs';
+import { carries } from '../core/tools';
+import { fetchFirst, goWorkWith } from './tools';
 
 // He pauses RESOURCES[...].moveOnAfter seconds after a node runs out (a tree is seen to land), then looks for another.
 export const MOVE_ON_EVERY = 0.5;     // then look again this often while still waiting; cheap when time is caught up
@@ -40,7 +43,9 @@ export function updateGathering(state: GameState, layout: Layout, dt: number, rn
   if (!node || !spot) { state.player.task = { kind: 'idle' }; return; }
   const res = RESOURCES[spot.resource]!;
   const tool = SWINGS[res.skill].tool;
-  if (!state.tools[tool]) {
+  if (!carries(state, tool)) {
+    // (13 Oct 2026) its tool is in the storage chest: off to fetch it, then back here (systems/tools.ts)
+    if (fetchFirst(state, layout, node.id)) { state.player.task = { kind: 'idle' }; if (goWorkWith(state, layout, node.id, events)) return; }
     // can't happen in play (commands refuse a node without its tool); a hand-edited save, or a tool lost one day
     state.player.task = { kind: 'idle' };
     events.emit({ type: 'needTool', tool, skill: res.skill });
@@ -71,7 +76,7 @@ export function updateGathering(state: GameState, layout: Layout, dt: number, rn
   const crossed = before < impact ? task.progress >= impact || task.progress < before : task.progress < before && task.progress >= impact;
   if (!crossed) return;
   events.emit({ type: 'strike', nodeId: node.id });
-  if (rng.next() < Math.min(0.95, yieldChance(res.id, levelOf(state, res.skill)) * restedFactor(state))) {
+  if (rng.next() < Math.min(0.95, yieldChance(res.id, levelOf(state, res.skill)) * restedFactor(state) * hungerFactor(state))) {
     addToBackpack(state, res.item);
     events.emit({ type: 'itemGained', item: res.item, count: 1 });
     addXp(state, res.skill, res.xp, events);
