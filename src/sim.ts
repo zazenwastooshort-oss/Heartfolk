@@ -19,12 +19,15 @@ import { updateGoblins } from './systems/goblins';
 import { updateCooking } from './systems/cooking';
 import { updateSleep } from './systems/sleep';
 import { updateThoughts } from './systems/thoughts';
+import { updateNeeds } from './systems/needs';
+import { updateJobs } from './systems/jobs';
 import { closedFor, emptySummary, openFor, tally, type Away, type AwaySummary } from './systems/away';
 
 export interface SimContext { layout: Layout; rng: Rng; events: EventBus }
 
 export function step(state: GameState, dt: number, ctx: SimContext): void {
   state.time += dt;
+  const down = state.player.task.kind === 'sleep' || state.player.task.kind === 'knockedOut';   // (the idle core) for needs
   const visited = updatePlayer(state, ctx.layout, dt, ctx.events);
   updateGathering(state, ctx.layout, dt, ctx.rng, ctx.events);
   updateCombat(state, ctx.layout, dt, ctx.rng, ctx.events);     // fighting (the training dummy), and health coming back
@@ -42,8 +45,12 @@ export function step(state: GameState, dt: number, ctx: SimContext): void {
   const cooking = ctx.layout.camp ? updateCooking(state, ctx.layout, stoking ? null : visited, ctx.rng, ctx.events) : false;
   // to bed in the shelter at night, and up at dawn, well rested
   if (ctx.layout.camp) updateSleep(state, ctx.layout, visited, ctx.events);
+  // (the idle core) his needs at the camp (hunger, to bed by himself at night), then his job, back to it when he has
+  // nothing to do: reaching the chest for a meal, or to fetch his tools, is theirs to see to, as for stoking
+  const seen = stoking || cooking ? null : visited, fed = updateNeeds(state, ctx.layout, dt, seen, ctx.events, down);
+  const fetched = updateJobs(state, ctx.layout, fed ? null : seen, ctx.events);
   // after gathering, so the item that fills the backpack sends him to the bank (the chest) in the same step
-  updateHauling(state, ctx.layout, stoking || cooking ? null : visited, ctx.events);
+  updateHauling(state, ctx.layout, fed || fetched ? null : seen, ctx.events);
   // his thoughts and the pages of his book coming unstuck, once everything else has moved on
   if (ctx.layout.camp) updateThoughts(state, ctx.layout, dt);
 }

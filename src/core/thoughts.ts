@@ -5,6 +5,7 @@
 // an old save from before the book already knows. Headless.
 import { allGoalsDone, currentGoal, made, owned, type GameState } from './state';
 import { isNight, nightOf } from './clock';
+import { isHungry, nothingToEat } from './needs';
 import { GOALS, type Goal } from '../data/goals';
 import { MAKES, makeDef, type MakeDef } from '../data/making';
 import { THOUGHT, THOUGHTS, thoughtDef, type Cue, type Place, type ThoughtDef } from '../data/thoughts';
@@ -77,6 +78,8 @@ export function cued(state: GameState, layout: Layout, cue: Cue): boolean {
   if ('item' in cue) return owned(state, cue.item) > 0;
   if ('near' in cue) return sees(state, layout, cue.near);
   if ('night' in cue) return isNight(state.time);
+  // (the idle core) hungry with nothing to eat: none on him, none in the chest
+  if ('hungry' in cue) return isHungry(state) && nothingToEat(state, layout);
   return state.player.task.kind === 'knockedOut';
 }
 

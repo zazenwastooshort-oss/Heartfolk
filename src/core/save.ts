@@ -16,6 +16,8 @@ import { savedGoblins } from './goblins';
 import { KNOCKED_OUT } from '../data/rats';
 import { CHIEF } from '../data/goblins';
 import { savedThoughts } from './thoughts';
+import { savedJob } from './jobs';
+import { savedNeeds } from './needs';
 
 export interface Storage { get(key: string): string | null; set(key: string, value: string): void }
 
@@ -247,8 +249,9 @@ export function readSave(raw: string, layout: Layout): Loaded {
   state.goblinCamp = { chiefOut: !!layout.goblinCamp && !cleared && camp.chiefOut === true, cleared };
   state.goblins = savedGoblins(data.goblins, state, layout);
   // his health: a number above 0 up to his most; anything else (none saved, from before 0.0.22, or damaged) is full
-  // well rested: a finite time, never more than a full day's rest from now
-  state.restedUntil = typeof data.restedUntil === 'number' && Number.isFinite(data.restedUntil) && data.restedUntil > state.time
+  // well rested: a finite time, never more than a full day's rest from now (one gone by is kept as it was: it reads back
+  // exactly, and means not rested all the same)
+  state.restedUntil = typeof data.restedUntil === 'number' && Number.isFinite(data.restedUntil) && data.restedUntil > 0
     ? Math.min(data.restedUntil, state.time + SLEEP.rested) : 0;
   const max = maxHealth(state);
   state.health = typeof data.health === 'number' && Number.isFinite(data.health) && data.health > 0 ? Math.min(data.health, max) : max;
@@ -317,6 +320,10 @@ export function readSave(raw: string, layout: Layout): Loaded {
   p.cook = cook && (p.task.kind === 'cook' ? !cook.fetch && Number.isFinite(p.task.doneAt) : goingTo === (cook.fetch ? 'chest' : 'campfire')) ? cook : null;
   if (p.task.kind === 'cook' && !p.cook) p.task = { kind: 'idle' };
   if (p.cook) p.trip = null;
+  // (the idle core) his job and his needs, checked (core/jobs.ts, core/needs.ts): a save from before them (0.0.22 to
+  // 0.0.26) has no job, and he is full
+  state.job = savedJob(data.job, state, layout);
+  state.needs = savedNeeds(data.needs, state, layout, b => savedBack(b, state, layout));
   return { state, savedAt, closedAt };
 }
 

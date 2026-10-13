@@ -15,8 +15,8 @@ export type Place = 'wreck' | 'bushes' | 'fishing' | 'copper' | 'nest' | 'goblin
 
 /** What brings a thought on: a goal (data/goals.ts, by id) becoming the one he is on; the first time he has an item
  *  (carried or stored; BOOK for his book); the first time he comes near a place; the first nightfall; the first time
- *  something knocks him out. */
-export type Cue = { goal: string } | { item: string } | { near: Place } | { night: true } | { knockedOut: true };
+ *  something knocks him out; (the idle core) the first time he is hungry with nothing to eat. */
+export type Cue = { goal: string } | { item: string } | { near: Place } | { night: true } | { knockedOut: true } | { hungry: true };
 
 /** id: a name for the line, saved in his journal (keep it when the words change). story: a moment in his story, said
  *  before a passing thought waiting with it, and never dropped for waiting (THOUGHT.wait). */
@@ -61,6 +61,7 @@ export const THOUGHTS: ThoughtDef[] = [
   { id: 'first:hide', cue: { item: 'rat_hide' }, text: "Tough hide. It'll stitch into something useful." },
   { id: 'first:goblins', cue: { near: 'goblins' }, text: 'Smoke and a fence of stakes. Goblins, by the look.' },
   { id: 'first:knockedOut', cue: { knockedOut: true }, text: 'That went badly. I need to be more careful.' },
+  { id: 'first:hungry', cue: { hungry: true }, text: "My stomach's growling. Those berries looked good." },
 ];
 
 /** The rules for when a thought is said (systems/thoughts.ts), in seconds of play unless said otherwise.

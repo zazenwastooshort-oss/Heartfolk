@@ -30,6 +30,8 @@ import { AWAY } from './data/away';
 import { playSpeed } from './systems/sleep';
 import { SleepHud, sleepNotices } from './ui/sleep';
 import { ThoughtBubble } from './ui/thoughts';
+import { JobsWindow } from './ui/jobs';
+import { NeedsHud } from './ui/needs';
 
 // An artifact viewer can swap in a new version of the page while it is open and hand the game's snapshot
 // to the new version, so play carries on. Everywhere else `hot` is absent, hence the optional chaining.
@@ -80,6 +82,8 @@ function start(data: HotData): void {
   sleepNotices(events, hud);                                        // to bed in the shelter, and up well rested
   const sleepHud = new SleepHud(layout, hud);                       // the day and night dial, Rested, the z over the tent
   const bubble = new ThoughtBubble(state, view, queue);             // his thoughts over his head; a tap sends him off to do the goal
+  const jobs = new JobsWindow(windows, queue, layout, events, hud);   // (the idle core) his job, picked from a list
+  const needs = new NeedsHud(layout, events, hud);                  // (the idle core) Hungry in the strip, meals and bedtime
   events.on(e => { if (e.type === 'strike') view.strike(e.nodeId); });     // chips fly where the tool lands
   events.on(e => { if (e.type === 'hit') view.hit(e.target, e.damage); }); // the training dummy wobbles when struck
   bindInput(view, layout, queue, label => hud.hover(label));
@@ -137,6 +141,8 @@ function start(data: HotData): void {
       combat.update(dt);
       sleepHud.update(state, dt);
       bubble.update(state, dt);
+      jobs.update(state);
+      needs.update(state);
       rats.update(dt);
       showArmour(state);                                            // what he wears, in the Backpack window
       pack.update(state);

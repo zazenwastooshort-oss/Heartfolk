@@ -46,6 +46,9 @@ export function awayText(spans: Away[], s: AwaySummary): { lead: string; lines: 
   if (s.goblins) lines.push(`He beat ${s.goblins === 1 ? 'a goblin' : `${s.goblins.toLocaleString()} goblins`}.`);
   if (s.cleared) lines.push('He beat the goblin chief, and the goblins ran off for good. He found a torn map.');
   for (const id of s.made) lines.push(`He finished the ${MAKES[id].name.toLowerCase()}.`);
+  // (the idle core) his meals and his nights in the shelter
+  if (s.meals) lines.push(s.meals === 1 ? 'He ate a meal.' : `He ate ${s.meals.toLocaleString()} meals.`);
+  if (s.nights) lines.push(s.nights === 1 ? 'He slept a night in the shelter.' : `He slept ${s.nights.toLocaleString()} nights in the shelter.`);
   if (s.full) lines.push('Then his backpack was full, with nowhere to store it.');
   // (0.0.22) he stopped at the training dummy's level limit
   if (s.taught) lines.push(`Then the ${makeDef(s.taught.target)?.name.toLowerCase() ?? 'training dummy'} couldn't teach him any more ${SKILLS[s.taught.skill].name}, so he stopped.`);

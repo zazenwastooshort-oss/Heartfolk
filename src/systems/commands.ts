@@ -18,6 +18,8 @@ import type { CombatStyle } from '../data/combat';
 import { canCook, fishToCook, goCook } from './cooking';
 import { canSleep, goToBed } from './sleep';
 import { nextCommands } from './nextstep';
+import { pickJob, sent, stopJob } from './jobs';
+import type { JobId } from '../data/jobs';
 
 export type Command =
   | { type: 'walk'; to: Vec2 }
@@ -51,7 +53,11 @@ export type Command =
   /** go do it (the survival book): a tap on the goal card or on his thought sends him off on the current goal's next
    *  step (systems/nextstep.ts), as tapping the right thing in the world would; already on it, or with nothing to do
    *  yet, he says so */
-  | { type: 'next' };
+  | { type: 'next' }
+  /** (the idle core) make `job` his job (picked in ui/jobs.ts; systems/jobs.ts): refused, saying why, when he can't do it yet */
+  | { type: 'job'; job: JobId }
+  /** (the idle core) no job any more (the Stop button in ui/jobs.ts) */
+  | { type: 'stopJob' };
 
 export const isClaimed = (state: GameState, parcelId: string | undefined) => !parcelId || !!state.parcels[parcelId]?.claimed;
 
@@ -60,14 +66,18 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     // dropping something doesn't send him anywhere: whatever he is doing carries on, a trip to the bank (the chest)
     // or stoking the fire included
     if (c.type === 'drop') { drop(state, c.item, c.count, events); continue; }
-    // knocked out (chapter 2's rats): nothing but choosing what he trains until he wakes, a moment later
-    if (state.player.task.kind === 'knockedOut' && c.type !== 'style') continue;
+    if (c.type === 'stopJob') { stopJob(state, events); continue; }
+    // knocked out (chapter 2's rats): nothing but choosing what he trains (or his job, to start once he wakes) until he
+    // wakes, a moment later
+    if (state.player.task.kind === 'knockedOut' && c.type !== 'style' && c.type !== 'job') continue;
     if (c.type === 'eat') { eat(state, c.item, events); continue; }
     if (c.type === 'style') { setStyle(state, c.style); continue; }
     // go do it: the goal's next step, applied as the commands a tap in the world would send
     if (c.type === 'next') { const next = nextCommands(state, layout, events); if (next.length) applyCommands(state, layout, next, events); continue; }
     let ok = true;
-    if (c.type === 'walk') ok = walkTo(state, layout, c.to);
+    // (the idle core) a job: refused, or to start later (he is asleep, say), or he set off on it
+    if (c.type === 'job') { if (!pickJob(state, layout, c.job, events)) continue; }
+    else if (c.type === 'walk') ok = walkTo(state, layout, c.to);
     else if (c.type === 'visit') ok = goVisit(state, layout, c.id, c.at);
     else if (c.type === 'pickup') {
       // lying there (or a berry bush picked bare: he goes to wait beside it)
@@ -126,11 +136,13 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     // sets off again once he has nothing to do, the same night. A tap on the pile or the chest while he is on his way
     // there for the logs sends him where he was going: at the chest he empties the backpack too, and stokes on.
     const toStore = c.type === 'visit' && isStore(state, layout, c.id), stoke = state.player.stoke;
-    if (!toStore && c.type !== 'fight') state.player.trip = null;
+    if (!toStore && c.type !== 'fight' && c.type !== 'job') state.player.trip = null;
     // (chapter 2) a tap on the chest while he is on his way there for food to fight with: he stores what he carries too
     if (toStore && state.player.trip && 'fight' in state.player.trip) state.player.trip.store = true;
-    if (c.type !== 'cook') state.player.cook = null;      // any other command stops cooking (chapter 2)
+    if (c.type !== 'cook' && c.type !== 'job') state.player.cook = null;      // any other command stops cooking (chapter 2; a job: systems/jobs.ts)
     if (stoke && stoke.logs === 0 && c.type === 'visit' && c.id === stoke.from) { if (c.id === 'chest') stoke.empty = true; }
     else if (stoke) { stopStoking(state); if (isNight(state.time)) state.stokeAgain = true; }
+    // (the idle core) he was sent somewhere: his job waits until that's done, and so do a meal and bed (systems/jobs.ts)
+    sent(state, c.type === 'job');
   }
 }

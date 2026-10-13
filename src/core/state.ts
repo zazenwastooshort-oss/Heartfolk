@@ -12,6 +12,9 @@ import { freshRats } from './rats';
 import { freshGoblins } from './goblins';
 import { CHIEF } from '../data/goblins';
 import type { Thoughts } from './thoughts';
+import type { Job } from './jobs';
+import { freshNeeds, type Needs } from './needs';
+import { jobDef, jobItem } from '../data/jobs';
 
 /** The save format. 10 since 0.0.22: his health, and the combat and food skills. 11 since 0.0.25: "Ready for the
  *  goblins" came in before the goblin camp. */
@@ -158,6 +161,11 @@ export interface GameState {
   /** (chapter 2, the survival book) his thoughts so far, the journal in his book, and the book's pages come unstuck
    *  (core/thoughts.ts, systems/thoughts.ts); none in the village */
   thoughts: Thoughts;
+  /** (the idle core) his job (data/jobs.ts, core/jobs.ts, systems/jobs.ts), or null for none */
+  job: Job | null;
+  /** (the idle core) his needs: how full he is, a meal or bed by himself under way, when he was last sent somewhere
+   *  (core/needs.ts, systems/needs.ts) */
+  needs: Needs;
 }
 
 /** Whether there is a shelter to sleep in (systems/sleep.ts): built at this layout's tent spot (never in the village). */
@@ -206,6 +214,9 @@ export const allGoalsDone = (state: GameState) => GOALS.every(g => goalFinished(
  *  for the same thing (chapter 2: berries, fish), so the one just finished by what he gathered still counts. */
 export function goalHasEnough(state: GameState, layout: Layout, item: string): Goal | null {
   if (!layout.camp || allGoalsDone(state)) return null;
+  // (the idle core) his job brings this in: a job goes on past any goal's "enough", until it is stopped
+  const job = state.job && !state.job.paused ? jobDef(state.job.id) : undefined;
+  if (job && jobItem(job) === item) return null;
   const goal = GOALS.find(g => !state.goalsDone.includes(g.id)) ?? currentGoal(state), need = goal.needs[item];
   return need !== undefined && owned(state, item) >= need ? goal : null;
 }
@@ -251,5 +262,7 @@ export function createState(layout: Layout, seed = 1): GameState {
     goblinCamp: { chiefOut: false, cleared: false },
     restedUntil: 0,
     thoughts: { journal: [], known: [], last: null, saidAt: null, passingAt: null },
+    job: null,
+    needs: freshNeeds(),
   };
 }

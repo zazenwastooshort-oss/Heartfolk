@@ -469,6 +469,7 @@ describe('his health', () => {
 describe('stoking the fire at nightfall in the middle of practice', () => {
   it('he leaves the dummy, stokes the fire, then goes back to practising by himself', () => {
     const s = ready();
+    s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
     s.state.woodpile = 6;
     s.state.time = clock(0, NIGHTFALL) - 20;
     practise(s);

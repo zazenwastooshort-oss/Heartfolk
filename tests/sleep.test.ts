@@ -79,11 +79,24 @@ describe('sleeping in the shelter', () => {
     s.state.stokedNight = Math.floor(s.state.time / DAY_SECONDS - STOKE.at);
     send(s, { type: 'sleep' });
     runUntil(s, () => s.state.player.task.kind === 'sleep', 60);
-    send(s, { type: 'walk', to: { x: 2, z: 0 } });
+    // sent to mine copper: he gets up and mines through the night (an idle activity, so he is never idle to go back
+    // to bed by himself: systems/needs.ts), so no rest at dawn
+    send(s, { type: 'work', nodeId: 'camp_copper1' });
     expect(s.state.player.task.kind).toBe('walk');
     run(s, DAY_SECONDS / 2);
     expect(of(s, 'awake')).toHaveLength(0);
     expect(isRested(s.state)).toBe(false);
+    // (the idle core) sent on a walk instead, he goes back to bed by himself once he gets there and has nothing to do
+    const t = camp(23);
+    t.state.stokedNight = Math.floor(t.state.time / DAY_SECONDS - STOKE.at);
+    send(t, { type: 'sleep' });
+    runUntil(t, () => t.state.player.task.kind === 'sleep', 60);
+    send(t, { type: 'walk', to: { x: 2, z: 0 } });
+    expect(t.state.player.task.kind).toBe('walk');
+    runUntil(t, () => of(t, 'bedtime').length > 0, 30);
+    expect(of(t, 'bedtime')).toHaveLength(1);
+    runUntil(t, () => t.state.player.task.kind === 'sleep', 30);
+    expect(t.state.player.task.kind).toBe('sleep');
   });
 
   it('off to stoke the fire at nightfall, a tap on the shelter waits: he stokes first, then goes to bed', () => {

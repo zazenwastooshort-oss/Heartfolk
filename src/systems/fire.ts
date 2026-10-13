@@ -38,7 +38,7 @@ function logsFrom(state: GameState, layout: Layout): 'woodpile' | 'chest' | null
  *  what the trip goes back to; working or on the way to work; gathering or picking something up; on the way to make
  *  something; walking to a spot; (0.0.22) practising on the training dummy or on the way to it. Null for nothing (he
  *  stays by the fire). */
-function backOf(state: GameState): Back | null {
+export function backOf(state: GameState): Back | null {
   const p = state.player, task = p.task, pending = p.pending;
   if (p.cook) return { cook: true };
   if (p.trip) return 'nodeId' in p.trip ? { nodeId: p.trip.nodeId } : 'pickupId' in p.trip ? { pickupId: p.trip.pickupId } : { fight: p.trip.fight };

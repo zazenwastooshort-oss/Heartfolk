@@ -237,6 +237,28 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .pack-chip { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 0.8125rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
 .pack-chip .item-pic { flex: none; width: 26px; height: 26px; }
 
+/* the Jobs window (src/ui/jobs.ts): his job now with what he is up to and Stop, then a row for each job he can do here,
+   with the picture of what it brings in and a line on what he does (or why not yet, muted) */
+.job-now { display: grid; gap: 3px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.job-now > h3 { margin: 0 0 3px; font: 600 0.75rem/1.3 var(--body); color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
+.job-now > b { font: 700 1.05rem/1.25 var(--display); }
+.job-now > p { margin: 0; font-size: 0.8125rem; line-height: 1.35; color: var(--muted); }
+.job-now .set-btn { margin-top: 6px; }
+.jobs { display: grid; gap: 6px; }
+.job { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 52px; padding: 6px 10px;
+  border: 1px solid rgba(241, 232, 212, .14); border-radius: 10px; background: rgba(8, 18, 8, .28); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.job .item-pic { width: 36px; height: 36px; }
+.job-words { display: grid; gap: 2px; min-width: 0; }
+.job-words b { font-size: 0.9375rem; font-weight: 700; line-height: 1.25; }
+.job-words small { font-size: 0.75rem; line-height: 1.35; color: var(--muted); }
+.job.on { background: var(--raised); border-color: rgba(241, 232, 212, .55); }
+.job.on .job-words small { color: var(--ink); }
+.job.blocked .job-pic { opacity: .45; filter: grayscale(.6); }
+.job.blocked .job-words b { color: var(--muted); }
+.job:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* his hunger in the strip (src/ui/needs.ts): a warm amber bar of how full he is */
+.hunger .bar i { background: var(--accent); }
+
 /* the Skills window (src/ui/skills.ts): what he trains when he fights (its buttons from src/ui/combat.ts, after the
    heading and the line on what the one picked does, which shows under them), then each skill with its icon in the
    skill's colour, its level, a thin bar and the XP to the next level; his total level at the foot */
@@ -347,6 +369,7 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
   .goal-open:hover { background: rgba(241, 232, 212, .05); }
   .goal-build:hover, .pick-do button:hover, .set-btn:hover, .book-turn button:hover:not(:disabled) { background: var(--raised-hover); }
   .rail-btn:not(.on):hover, .train button:not(.on):hover { background: rgba(241, 232, 212, .08); }
+  .job:not(.on):hover { background: rgba(241, 232, 212, .08); }
   .win-x:hover, .pack-slot:hover:not(:disabled) { background: rgba(241, 232, 212, .1); }
 }
 .goal-open:active { background: rgba(241, 232, 212, .08); }
@@ -383,12 +406,17 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
   </div>
   <div class="strip" id="strip">
     <div class="pill hp" id="healthRow" hidden><span class="name">Health</span><small id="healthText">10 / 10</small><span class="bar"><i id="healthBar"></i></span></div>
+    <div class="pill hunger" id="hungerRow" title="Hungry: gathering goes slower until he eats" hidden><span class="name">Hungry</span><span class="bar"><i id="hungerBar"></i></span></div>
     <div class="pill xp" id="xpRow" hidden><span class="name" id="xpName">Woodcutting</span><b id="xpLvl">1</b><span class="bar"><i id="xpBar"></i></span></div>
   </div>
   <nav class="rail" id="rail" aria-label="Windows">
     <button class="rail-btn" type="button" data-opens="backpack" aria-controls="backpackWin" aria-expanded="false">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5V5.2a3 3 0 0 1 6 0v1.3"/><path d="M5.5 10a3.5 3.5 0 0 1 3.5-3.5h6a3.5 3.5 0 0 1 3.5 3.5v9a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19z"/><path d="M5.5 12.5h13"/><path d="M10 12.5V15h4v-2.5"/></svg>
       <span>Backpack</span><b class="badge" id="packBadge" hidden></b>
+    </button>
+    <button class="rail-btn" type="button" data-opens="jobs" aria-controls="jobsWin" aria-expanded="false">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20L16 9"/><path d="M14 7l2.5-2.5c1.6 1.2 2.8 2.4 4 4L18 11"/><path d="M19 20L8 9"/><path d="M4.5 12.5Q5.5 6.5 11.5 5.5"/></svg>
+      <span>Jobs</span>
     </button>
     <button class="rail-btn" type="button" data-opens="skills" aria-controls="skillsWin" aria-expanded="false">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="13" width="4" height="7" rx="1"/><rect x="10" y="8.5" width="4" height="11.5" rx="1"/><rect x="16" y="4" width="4" height="16" rx="1"/></svg>
@@ -417,6 +445,13 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
         <div class="pack-sec" id="armourRow" hidden><h3>Wearing</h3><div class="worn" id="armour" role="group"></div><p class="worn-bonus" id="bonus"></p></div>
         <div class="pack-sec" id="bankRow" hidden><h3 id="bankName">Chest</h3><div class="stored" id="bank"></div></div>
         <div class="pack-sec" id="pileRow" hidden><h3>Firewood pile</h3><div class="stored" id="pile"></div></div>
+      </div>
+    </section>
+    <section class="win" id="jobsWin" data-win="jobs" data-width="340" role="dialog" aria-labelledby="jobsTitle" hidden>
+      <div class="win-bar"><h2 class="win-title" id="jobsTitle">Jobs</h2><button class="win-x" type="button" aria-label="Close the jobs"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
+      <div class="win-body">
+        <div class="job-now"><h3>His job</h3><b id="jobNowName">No job</b><p id="jobNowText" aria-live="polite"></p><button type="button" class="set-btn reset" id="jobStop" hidden>Stop</button></div>
+        <div class="jobs" id="jobsList" role="group" aria-label="Jobs he can do"></div>
       </div>
     </section>
     <section class="win" id="skillsWin" data-win="skills" data-width="340" role="dialog" aria-labelledby="skillsTitle" hidden>
@@ -470,7 +505,7 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
       <ul>
         <li>Tap a plank and you pick up every plank, the two in the smashed crate too. Tap the torn tarp and your book to pick them up.</li>
         <li>Tap a stone or a branch and you keep gathering them until your backpack is full.</li>
-        <li>The goal at the top shows what's next. Tap it and he sets off to do it. The buttons at the edge open your backpack, your skills and the settings.</li>
+        <li>The goal at the top shows what's next. Tap it and he sets off to do it. The buttons at the edge open your backpack, his jobs, your skills and the settings.</li>
       </ul>
     </div>
     <div class="win-foot"><button type="button" class="win-ok" id="introOk">Get up</button></div>

@@ -4,6 +4,8 @@ import type { SkillId, ToolId } from '../data/skills';
 import type { GatherId, PickupKind } from '../data/pickups';
 import type { MakeId } from '../data/making';
 import type { CombatStyle } from '../data/combat';
+import type { JobId } from '../data/jobs';
+import type { JobBlock } from './jobs';
 
 export type GameEvent =
   | { type: 'strike'; nodeId: string }
@@ -110,6 +112,25 @@ export type GameEvent =
   /** a tap on the goal card or his thought: there is nothing to do for the goal just now; `item` is what he waits for
    *  (stones and branches not back yet), or null */
   | { type: 'nothingYet'; item: string | null }
+  /** (the idle core, systems/jobs.ts) `job` is his job now: `fetch`, he fetches his tools at the chest first; `later`, he
+   *  is asleep, knocked out, stoking the fire, or on his way to eat or to bed, and starts once that's done */
+  | { type: 'jobSet'; job: JobId; fetch: boolean; later: boolean }
+  /** picking `job` was refused, and `block` says why (core/jobs.ts): no tool for it, too low a level, ... */
+  | { type: 'jobRefused'; job: JobId; block: JobBlock }
+  /** his job stopped: the player stopped it, it can't go on (`block` says why), his backpack is full with nowhere to
+   *  store it, there is no way there, or there is nothing left to do (cooking: every raw fish cooked) */
+  | { type: 'jobStopped'; job: JobId; why: 'player' | 'blocked' | 'full' | 'noPath' | 'done'; block?: JobBlock }
+  /** what the player sent him to do meanwhile is done: he goes back to his job */
+  | { type: 'jobResumed'; job: JobId }
+  /** (systems/needs.ts) hungry, he ate `items` (from his backpack, or at the chest from the chest), and is `fullness`
+   *  full now; `took`: at the chest, the food he took along besides */
+  | { type: 'meal'; items: Record<string, number>; fullness: number; took?: Record<string, number> }
+  /** hungry with no food on him, he sets off to the chest for some */
+  | { type: 'mealOff' }
+  /** he got hungry with nothing to eat anywhere: he works a little slower until he eats */
+  | { type: 'hungry' }
+  /** night, with the fire seen to: he goes to bed in the shelter by himself */
+  | { type: 'bedtime' }
   | { type: 'arrived' };
 
 type Handler = (e: GameEvent) => void;
