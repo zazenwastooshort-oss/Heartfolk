@@ -1,5 +1,6 @@
-// The Build window (data/building.ts; the owner, 12 and 13 Oct 2026): opened from the Build button in the row once the
-// camp is set up, it lists what he can build now, each with a line on what it is, what it needs (and how many of each
+// The Build window (data/building.ts; the owner, 12 and 13 Oct 2026): opened from the Build button in the row (from the
+// campfire's goal on), it lists what he can build now (the camp's first five as their goals come up, the upgrades once
+// the storage chest stands), each with a line on what it is, what it needs (and how many of each
 // he has, what's short standing out, with where a material comes from) and how long the work takes; something begun
 // shows how far along it is, with Carry on. Pressing a row sends the build command: he walks to its spot and gets to
 // work (the spots are fixed: nothing is placed). Also the notices of building (a stage up, refusals) and the bark
@@ -11,7 +12,7 @@ import type { Command } from '../systems/commands';
 import type { Layout } from '../world/layout';
 import type { Windows } from './windows';
 import type { Hud } from './hud';
-import { buildOpen, buildRows, forGoal, spare, type BuildRow } from '../core/building';
+import { buildOpen, buildRows, buildTime, forGoal, haveFor, spare, type BuildRow } from '../core/building';
 import { SOURCES, STAGE_NAMES } from '../data/building';
 import { MAKES, type MakeId } from '../data/making';
 import { itemName } from './hud';
@@ -48,7 +49,8 @@ export class BuildWindow {
       const name = (id: MakeId) => MAKES[id].name.toLowerCase();
       if (e.type === 'begun') hud.notice(`He sets out the footings for the ${name(e.make)} and gets to work.`);
       else if (e.type === 'buildStage') hud.notice(e.stage === 1 ? `The ${name(e.make)}'s frame is up.` : `The ${name(e.make)} is ${STAGE_NAMES[e.stage]!.toLowerCase()}.`);
-      else if (e.type === 'cantBuild') hud.notice(`The ${name(e.make)} can't be built yet.`);
+      else if (e.type === 'cantBuild') hud.notice(e.reason === 'busy' ? `Finish the ${name(e.other)} first.`
+        : e.reason === 'down' ? "He can't build anything while he's knocked out." : `The ${name(e.make)} can't be built yet.`);
       else if (e.type === 'barkPeeled' && this.state) hud.drift(`+1 ${itemName('bark', 1)}`, this.state.player.pos);
     });
   }
@@ -65,7 +67,7 @@ export class BuildWindow {
     this.windows.setAvailable('build', buildOpen(state, this.layout));
     if (!this.windows.isOpen('build')) { this.shown = ''; return; }
     const rows = buildRows(state, this.layout);
-    const key = JSON.stringify(rows.map(r => [r.id, r.begun, r.stage, Math.round(r.progress * 50), r.missing, Object.keys(r.def.needs).map(i => [owned(state, i), spare(state, i)])]));
+    const key = JSON.stringify(rows.map(r => [r.id, r.begun, r.stage, Math.round(r.progress * 50), Math.round(buildTime(state, r.id)), r.missing, Object.keys(r.def.needs).map(i => [owned(state, i), spare(state, i)])]));
     if (key === this.shown) return;
     this.shown = key;
     const list = $('buildList');
@@ -76,7 +78,7 @@ export class BuildWindow {
   private rowEl(state: GameState, r: BuildRow): HTMLElement {
     const row = el('div', 'brow' + (r.begun ? ' begun' : ''));
     const head = el('div', 'brow-head');
-    head.append(el('b', '', r.def.name), el('small', '', workTime(r.def.time)));
+    head.append(el('b', '', r.def.name), el('small', '', workTime(buildTime(state, r.id))));
     row.append(head, el('p', 'brow-blurb', r.staged.blurb));
     if (r.begun) {
       const prog = el('div', 'brow-prog'), bar = el('div', 'bar'), fill = el('i', '');
@@ -86,8 +88,9 @@ export class BuildWindow {
     } else {
       const needs = el('ul', 'brow-needs');
       for (const [id, n] of Object.entries(r.def.needs)) {
-        // only what he can spare counts: what the current goal needs stays for the goal (core/building.ts spare)
-        const have = Math.min(n, spare(state, id)), li = el('li', have < n ? 'short' : '');
+        // only what he can spare counts: what the current goal needs stays for the goal (core/building.ts spare), but
+        // the goal's own thing has the goal's own count (haveFor)
+        const have = Math.min(n, haveFor(state, r.def, id)), li = el('li', have < n ? 'short' : '');
         li.innerHTML = picture(id, 'item-pic');
         li.append(el('span', '', `${have} / ${n} ${itemName(id, n)}`));
         if (have < n && forGoal(state, id) > 0 && owned(state, id) > have) li.append(el('small', 'brow-goal', ' (the rest are for your goal)'));

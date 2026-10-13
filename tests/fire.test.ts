@@ -129,8 +129,8 @@ describe('the storage chest stores things, like the bank', () => {
     s.state.player.backpack = { birch_logs: 4 };
     const chest = GOALS.find(g => g.id === 'chest')!;
     expect(goalLines(s.state, chest)).toEqual([{ id: 'birch_logs', need: 10, got: 10, done: true }, { id: 'copper_ore', need: 3, got: 3, done: true }]);
-    send(s, { type: 'make', id: 'chest' });
-    runUntil(s, () => s.state.built.includes('chest'), 60);
+    send(s, { type: 'build', id: 'chest' });
+    runUntil(s, () => s.state.built.includes('chest'), 90);
     expect(s.state.player.backpack).toEqual({});
     expect(s.state.bank).toEqual({});
   });
@@ -386,8 +386,8 @@ describe('stoking the fire at night', () => {
     s.state.time = at(0, NIGHTFALL + 1);
     run(s, 0.1);
     expect(s.state.stokedNight).toBe(0);
-    send(s, { type: 'make', id: 'chest' });
-    runUntil(s, () => s.state.built.includes('chest'), 60);
+    send(s, { type: 'build', id: 'chest' });
+    runUntil(s, () => s.state.built.includes('chest'), 90);
     s.state.bank = { birch_logs: 3 };
     runUntil(s, () => s.state.time >= at(1, 12), DAY_SECONDS);
     expect(count(s, 'stokeOff') + count(s, 'fireLow')).toBe(0);
@@ -488,6 +488,7 @@ describe('the village is unchanged', () => {
     s.state.player.backpack = { birch_logs: 10, copper_ore: 3 };
     const from = s.log.length;
     send(s, { type: 'make', id: 'chest' });
+    send(s, { type: 'build', id: 'chest' });
     expect(s.log.slice(from)).toEqual([]);
     send(s, { type: 'visit', id: 'chest' });
     expect(s.log.slice(from)).toEqual([{ type: 'noPath' }]);

@@ -215,6 +215,14 @@ export function made(state: GameState, id: string): boolean {
 export const goalFinished = (state: GameState, goal: Goal) =>
   state.goalsDone.includes(goal.id) || (goal.makes ? made(state, goal.makes) : goalMet(state, goal));
 
+/** Whether he has begun building `id` in stages and not finished it (data/building.ts): what it needed was taken. */
+export const begun = (state: GameState, id: string) => Object.hasOwn(state.underway, id) && state.underway[id as MakeId] !== undefined;
+
+/** Whether a goal is paid for (the camp build, 13 Oct 2026): finished, or the thing it makes begun (what it needed was
+ *  taken when he began it). Its lines stay ticked and nothing more is gathered for it, so the goal's count never goes
+ *  backwards while he builds (the goal card, his book, the next step, gathering stopping once a goal has enough). */
+export const goalPaid = (state: GameState, goal: Goal) => goalFinished(state, goal) || (!!goal.makes && begun(state, goal.makes));
+
 /** The goal the goal card shows: the first in GOALS not finished, or the last one once all are (the card then says
  *  the camp is set up: allGoalsDone). */
 export const currentGoal = (state: GameState): Goal => GOALS.find(g => !goalFinished(state, g)) ?? GOALS.at(-1)!;
@@ -223,7 +231,8 @@ export const currentGoal = (state: GameState): Goal => GOALS.find(g => !goalFini
 export const allGoalsDone = (state: GameState) => GOALS.every(g => goalFinished(state, g));
 
 /** The goal that has enough of `item` (0.0.21): at the camp, the current goal (until the camp is set up) asks for
- *  `item` and he has at least that many, carried or stored. Gathering it stops then, so the backpack doesn't fill up
+ *  `item` and he has at least that many, carried or stored, or (the camp build) is paid for: the thing it makes is
+ *  begun (goalPaid). Gathering it stops then, so the backpack doesn't fill up
  *  with more than the goal needs (the owner, 12 Oct 2026). Null when gathering goes on: the village, the camp set up,
  *  or a current goal that doesn't ask for it. The current goal here is the first not yet written down as finished
  *  (goalsDone, each step): a gathering goal is finished the moment it has enough, and the goal after it may not ask
@@ -231,7 +240,8 @@ export const allGoalsDone = (state: GameState) => GOALS.every(g => goalFinished(
 export function goalHasEnough(state: GameState, layout: Layout, item: string): Goal | null {
   if (!layout.camp || allGoalsDone(state)) return null;
   const goal = GOALS.find(g => !state.goalsDone.includes(g.id)) ?? currentGoal(state), need = goal.needs[item];
-  if (need !== undefined) return owned(state, item) >= need ? goal : null;
+  // (the camp build) a goal whose thing is begun has had what it needs: none more is gathered for it
+  if (need !== undefined) return owned(state, item) >= need || goalPaid(state, goal) ? goal : null;
   // a goal asking for cooked fish has enough raw fish once there are enough to cook what it still wants (13 Oct 2026:
   // before, fishing for the meal went on for ever); systems/gathering.ts then sends him to cook them
   const cooked = goal.needs[COOK.cooked];

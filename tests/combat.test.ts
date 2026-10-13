@@ -26,6 +26,7 @@ import {
 import { COMBAT, DUMMY, GEAR, HEALTH, SLOTS, STRIKE, STYLES, strikeEvery, type CombatStyle } from '../src/data/combat';
 import { CAMP_DONE, GOALS } from '../src/data/goals';
 import { BUILD_REACH, MAKES } from '../src/data/making';
+import { STAGED } from '../src/data/building';
 import { STOKE } from '../src/data/fire';
 import { XP_TABLE, levelFor } from '../src/data/xp';
 import { addSummary, emptySummary, tally } from '../src/systems/away';
@@ -149,11 +150,10 @@ describe('the dummy, the club and the goals (data)', () => {
     expect(CAMP_DONE.text).toMatch(/way along the river is open/);
   });
 
-  it('the dummy is a structure at its own camp spot, of logs and branches, a few seconds; the club is gear made where he stands', () => {
-    expect(MAKES.dummy).toMatchObject({ name: 'Training dummy', verb: 'Build', at: 'dummy', gives: { kind: 'structure' } });
+  it('the dummy is a structure at its own camp spot, of logs and branches, built in stages (40 seconds); the club is gear made where he stands', () => {
+    expect(MAKES.dummy).toMatchObject({ name: 'Training dummy', verb: 'Build', at: 'dummy', time: 40, gives: { kind: 'structure' } });
     expect(Object.keys(MAKES.dummy.needs).sort()).toEqual(['birch_logs', 'branch']);
-    expect(MAKES.dummy.time).toBeGreaterThan(1);
-    expect(MAKES.dummy.time).toBeLessThan(10);
+    expect(STAGED.dummy).toBeDefined();
     expect(MAKES.stone_club).toMatchObject({ name: 'Stone club', verb: 'Make', at: 'here', gives: { kind: 'gear', gear: 'stone_club' } });
     expect(MAKES.stone_club.time).toBeLessThan(10);
     // gear: every row has a slot, weapons a speed no quicker than the swing; armour has its slots ready
@@ -210,8 +210,9 @@ describe('building the training dummy and making the stone club', () => {
     expect(currentGoal(s.state).id).toBe('dummy');
     s.state.player.backpack = { ...MAKES.dummy.needs };
     s.state.player.pos = { x: SPOT.pos.x + 4, z: SPOT.pos.z };
-    send(s, { type: 'make', id: 'dummy' });
-    runUntil(s, () => s.state.player.task.kind === 'make', 30);
+    send(s, { type: 'build', id: 'dummy' });
+    expect(s.state.player.backpack).toEqual({});                   // begun: what it needs taken at once
+    runUntil(s, () => s.state.player.task.kind === 'raise', 30);
     expect(dist(s.state.player.pos, SPOT.pos)).toBeCloseTo(SPOT.radius + BUILD_REACH, 1);
     runUntil(s, () => made(s.state, 'dummy'), MAKES.dummy.time + 1);
     expect(s.state.built).toContain('dummy');
@@ -245,8 +246,9 @@ describe('building the training dummy and making the stone club', () => {
     const s = campSet();
     s.state.goalsDone = before('chest'); s.state.built = ['campfire', 'woodpile', 'shelter'];
     s.state.player.backpack = { ...MAKES.dummy.needs };
-    send(s, { type: 'make', id: 'dummy' });
+    send(s, { type: 'build', id: 'dummy' });
     expect(s.log.at(-1)).toEqual({ type: 'goalFirst', make: 'dummy', goal: 'chest' });
+    expect(s.state.underway).toEqual({});
     const t = campSet();
     t.state.player.backpack = { ...MAKES.stone_club.needs };
     send(t, { type: 'make', id: 'stone_club' });
@@ -585,7 +587,7 @@ describe('saving practice', () => {
     const loaded = { ...setup(), state: back };
     loaded.state.goalsDone = before('dummy');
     loaded.state.player.backpack = { ...MAKES.dummy.needs };
-    send(loaded, { type: 'make', id: 'dummy' });
+    send(loaded, { type: 'build', id: 'dummy' });
     runUntil(loaded, () => made(loaded.state, 'dummy'), 60);
     expect(loaded.state.built).toContain('dummy');
   });
@@ -606,6 +608,7 @@ describe('the village has no dummy', () => {
     s.state.player.backpack = { ...MAKES.dummy.needs };
     send(s, { type: 'fight', target: 'dummy' });
     send(s, { type: 'make', id: 'dummy' });
+    send(s, { type: 'build', id: 'dummy' });
     run(s, 3);
     expect(s.log).toEqual([]);
     expect(s.state.built).toEqual([]);

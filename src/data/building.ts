@@ -1,10 +1,12 @@
 // Building it yourself (the owner, 12 Oct 2026: "any skill and action should take time, because that's the grind:
-// seeing your village grow"; the camp build, 13 Oct 2026), as tables only. Some things in MAKES (data/making.ts) go up
-// in stages over time, training Carpentry as he works (systems/building.ts): the camp's upgrades, each built at its
-// fixed spot in place of the step before it, and bigger: the tent becomes a wall tent, then a log cabin; the campfire a
-// stone hearth; the firewood pile a woodshed (LINES). Each step has its own shape at its spot (SHAPES): where it stands,
-// what of it is in the way, where he works at it. Materials: birch logs, stones, fibre cut from the reeds along the
-// river bank and clay dug there (data/pickups.ts), and bark peeled now and then while chopping birch (BARK).
+// seeing your village grow"; the camp build, 13 Oct 2026), as tables only. Everything built at the camp's spots (MAKES
+// in data/making.ts) goes up in stages over time, training Carpentry as he works (systems/building.ts): the campfire,
+// the firewood pile, the tent, the storage chest and the training dummy, each when its goal comes up, and the camp's
+// upgrades, each built at its fixed spot in place of the step before it, and bigger: the tent becomes a wall tent, then
+// a log cabin; the campfire a stone hearth; the firewood pile a woodshed (LINES). Each step has its own shape at its
+// spot (SHAPES): where it stands, what of it is in the way, where he works at it. Materials: birch logs, stones, fibre
+// cut from the reeds along the river bank and clay dug there (data/pickups.ts), and bark peeled now and then while
+// chopping birch (BARK).
 import type { MakeId } from './making';
 
 /** How building in stages goes: every `knock` seconds of work is a knock of his mallet, worth `xp` Carpentry XP (so a
@@ -12,8 +14,9 @@ import type { MakeId } from './making';
  *  for the time; it goes up in `stages` stages (footings, frame, half built, then built), each seen at its spot. A new
  *  step is drawn in place of the one before it from stage `shown` on (half built; until then the old one stands inside
  *  the new one's stakes and frame), and the old one is used (slept in, stoked, stacked) until the new one is built.
- *  `speed`: each Carpentry level above 1 makes the work this much quicker (+1%), like the other skills. `reach`: how far
- *  from the face he builds he stands, so his mallet lands on it (his stands in SHAPES). */
+ *  `speed`: each Carpentry level above 1 makes the work this much quicker (+1%, D5), like the other skills: the same
+ *  knocks and XP in less time (a knock is `knock` seconds of the work at level 1). `reach`: how far from the face he
+ *  builds he stands, so his mallet lands on it (his stands in SHAPES). */
 export const CARPENTRY = { knock: 3, xp: 4, stages: 3, shown: 2, speed: 0.01, reach: 0.65 };
 
 /** What each stage looks like, for the Build list and the notices: the stage he has reached (0 to `stages`). */
@@ -22,16 +25,27 @@ export const STAGE_NAMES = ['Footings', 'Frame', 'Half built', 'Built'] as const
 /** A thing built in stages (data/making.ts has its needs, time and words):
  *  upgrades: the step before it in its line (LINES), which must stand before it can be begun, and which it takes the
  *  place of (the wall tent the tent, the log cabin the wall tent, the stone hearth the campfire, the woodshed the
- *  firewood pile).
+ *  firewood pile). One without (the camp's first five) can be begun once its goal comes up (data/goals.ts `makes`),
+ *  and until then nothing of it shows (the owner, 13 Oct 2026: "not visible until you put it down to build").
+ *  inside: (the storage chest) it stands in what is built at that spot (the shelter), so it can be begun only once
+ *  something stands there.
  *  rest: (a shelter) how much more often gathering yields after a night's sleep in it, instead of SLEEP.bonus.
  *  blurb: one plain line for the Build list. */
 export interface StagedDef {
   blurb: string;
   upgrades?: MakeId;
+  inside?: LineId;
   rest?: number;
 }
 
+/** Everything built in stages, in the Build list's order: the camp's first five in the order their goals come, then
+ *  the upgrades. */
 export const STAGED: Partial<Record<MakeId, StagedDef>> = {
+  campfire: { blurb: 'A ring of stones round planks leaned together. It lights up the camp at night.' },
+  woodpile: { blurb: 'Logs stacked on two bearers beside the fire, to stoke it from at night.' },
+  shelter: { blurb: 'The torn tarp over a frame of logs, with planks for a floor. Somewhere dry to sleep.' },
+  chest: { inside: 'tent', blurb: 'A box of split logs with copper straps, to keep everything he owns safe.' },
+  dummy: { blurb: 'A post and crossbar of logs with a stuffed sack. Somewhere safe to learn to fight.' },
   wall_tent: { upgrades: 'shelter', rest: 0.35, blurb: 'A squared timber frame round the old canvas, a plank floor and a porch. He sleeps better in it.' },
   log_cabin: { upgrades: 'wall_tent', rest: 0.5, blurb: 'Round logs notched at the corners, a loft and a stone chimney. He sleeps best of all here.' },
   stone_hearth: { upgrades: 'campfire', blurb: 'A raised ring of stones round the fire, a spit over it and logs to sit on.' },
@@ -131,8 +145,10 @@ export const SHAPES: Partial<Record<MakeId, Shape>> = {
  *  door keeps `slack` metres of open ground round it, so a re-tune can't squeeze it shut. */
 export const DOOR = { near: 0.5, slack: 0.25 };
 
-/** Going back to something half built by himself (the camp build's stage 2): `wait` seconds after a walk he was sent on
- *  ends, and, when there was no way there, he looks again `retry` seconds later. */
+/** Going back to something half built by himself (the owner, 13 Oct 2026: "player is committed to building it"; D9,
+ *  D19): once nothing else has him (stoking the fire, a meal, bed, a tap that ends by itself), he goes back to it at
+ *  once, or `wait` seconds after a walk he was sent on ends (a tap on the ground); when there was no way there, he
+ *  looks again `retry` seconds later. Work that doesn't end by itself (chopping, a fight) keeps him until it does. */
 export const RESUME = { wait: 5, retry: 10 };
 
 /** The marker a spot shows while its goal asks for what is built there (the camp build, D1; drawn in stage 4): stakes

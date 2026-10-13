@@ -3,7 +3,8 @@
 // he ever gets stuck. For several seeds it plays from createState(CAMP, seed) and checks: chapter 1 (the storage chest)
 // and chapter 2 (the torn map) finish within generous limits of play; he is never stuck (the goal card never stays
 // still for 20 minutes of play: no goal finished, nothing more of what it counts, no XP toward a level it asks); his
-// position stays a number, on ground he can stand on; the backpack never holds more than it can; and saves made at
+// position stays a number, on ground he can stand on (the walking grid with everything built and begun: walkGrid; the
+// first second after something is begun round him he is stepping out of it); the backpack never holds more than it can; and saves made at
 // random moments through the whole run (one every 30 to 120 seconds of play, serialized, read back and played on from
 // the loaded game, with fresh randomness as the page has after opening a save) read back exactly and change nothing
 // about finishing. Then the bot's own habits: a full backpack with nowhere to store it, a levels goal the training
@@ -27,7 +28,7 @@ import { DAY_SECONDS } from '../src/core/clock';
 import { deserialize, serialize } from '../src/core/save';
 import { step, type SimContext } from '../src/sim';
 import { CAMP } from '../src/world/camp';
-import { navFor, type NavGrid } from '../src/world/nav';
+import { walkGrid } from '../src/core/building';
 import { backpackCount } from '../src/systems/backpack';
 import { GOALS, type Goal } from '../src/data/goals';
 import { makeDef } from '../src/data/making';
@@ -211,7 +212,10 @@ function play(seed: number): Run {
   // saves at random moments through the whole run
   const pick = createRng(seed * 7919 + 13), gap = () => SAVE_GAP[0] + pick.next() * (SAVE_GAP[1] - SAVE_GAP[0]);
   let saveAt = gap();
-  let nav: NavGrid = navFor(CAMP, g.state.built), navBuilt = g.state.built.length;
+  // (the camp build) something begun is in the way from its footings on: begun round him, he has a second to step out
+  // of it (T2.14)
+  let begunAt = -Infinity;
+  events.on(e => { if (e.type === 'begun') begunAt = played(); });
   const limit = (c: number) => CHAPTER_LIMITS.slice(0, c + 1).reduce((a, n) => a + n, 0);
   for (;;) {
     const taps = bot.log.length;
@@ -249,11 +253,10 @@ function play(seed: number): Run {
       break;
     }
     if (t > limit(chapter)) { run.end = 'time'; run.stuck = `out of time in chapter ${chapter + 1} at ${min(t)} min (the goal card last moved on at ${min(moved)} min): ${where(state)}`; break; }
-    if (state.built.length !== navBuilt) { nav = navFor(CAMP, state.built); navBuilt = state.built.length; }
     const p = state.player.pos;
     if (run.problems.length < 5) {
       if (!Number.isFinite(p.x) || !Number.isFinite(p.z)) run.problems.push(`position not a number at ${t.toFixed(1)}s: ${where(state)}`);
-      else if (!nav.walkable(p)) run.problems.push(`off the ground he can stand on at ${t.toFixed(1)}s: ${where(state)}`);
+      else if (t - begunAt > 1 && !walkGrid(state, CAMP).walkable(p)) run.problems.push(`off the ground he can stand on at ${t.toFixed(1)}s: ${where(state)}`);
       if (backpackCount(state) > BACKPACK_SLOTS) run.problems.push(`backpack over ${BACKPACK_SLOTS} at ${t.toFixed(1)}s: ${where(state)}`);
       for (const [id, c] of [...Object.entries(state.rats), ...Object.entries(state.goblins)]) {
         if (!Number.isFinite(c.pos.x) || !Number.isFinite(c.pos.z)) run.problems.push(`${id}'s position not a number at ${t.toFixed(1)}s`);

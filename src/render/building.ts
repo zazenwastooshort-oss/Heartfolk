@@ -1,5 +1,7 @@
 // Things built in stages (data/building.ts), drawn at their spots (world/steps.ts): the camp's upgrades, the wall tent
-// and the log cabin at the tent's spot, the stone hearth round the fire and the woodshed over the firewood pile.
+// and the log cabin at the tent's spot, the stone hearth round the fire and the woodshed over the firewood pile. (The
+// camp's first five, built in stages too since the camp build's stage 2, are drawn by render/structures.ts until its
+// stage 4 draws every step.)
 // Nothing shows until one is begun; then each stage shows as he reaches it: footings (stakes and a string round where
 // it goes, its first logs lying ready), then, as placeholders until the camp build's stage 4 draws the chosen designs,
 // its footprint (SHAPES' blocks) as a see-through block rising a third of the way, two thirds, then all of it once
@@ -11,6 +13,9 @@ import * as THREE from 'three';
 import type { GameState } from '../core/state';
 import type { Layout } from '../world/layout';
 import { lineOf, progressOf, stageOf, stepShown, STAGED_IDS } from '../core/building';
+
+/** The upgrades: what this draws (render/structures.ts has the camp's first five for now). */
+const UPGRADE_IDS = STAGED_IDS.filter(id => !!STAGED[id]?.upgrades);
 import { shapeOf, stepPlace } from '../world/steps';
 import { isNight } from '../core/clock';
 import { CARPENTRY, LINES, STAGED, type Shape } from '../data/building';
@@ -118,7 +123,7 @@ export class BuildingView {
 
   update(state: GameState, dt: number): void {
     const night = isNight(state.time), task = state.player.task;
-    for (const id of STAGED_IDS) {
+    for (const id of UPGRADE_IDS) {
       const stage = stageOf(state, id);
       let item = this.items.get(id);
       if (stage < 0 && !item) continue;

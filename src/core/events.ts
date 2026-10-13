@@ -114,9 +114,12 @@ export type GameEvent =
   | { type: 'begun'; make: MakeId }
   /** what he builds went up a stage (1: its frame is up, 2: half built; STAGE_NAMES) */
   | { type: 'buildStage'; make: MakeId; stage: number }
-  /** he can't begin `make`: it isn't to be built yet ('locked': the step before it, or the storage chest, doesn't stand
-   *  yet). Carpentry is just another skill: no level is ever needed (the owner, 13 Oct 2026) */
-  | { type: 'cantBuild'; make: MakeId; reason: 'locked' }
+  /** he can't begin `make`, or go back to it: it isn't to be built yet ('locked': the step before it, or the storage
+   *  chest, or for the chest the shelter, doesn't stand yet), he is knocked out ('down'), or something else is under way
+   *  (`busy`, with `other`: one thing at a time, D8; he finishes that first). Carpentry is just another skill: no level
+   *  is ever needed (the owner, 13 Oct 2026) */
+  | { type: 'cantBuild'; make: MakeId; reason: 'locked' | 'down' }
+  | { type: 'cantBuild'; make: MakeId; reason: 'busy'; other: MakeId }
   /** chopping birch, he peeled a strip of bark off the log too (it went into his backpack: itemGained) */
   | { type: 'barkPeeled' }
   /** (systems/needs.ts) hungry, he ate `items` (from his backpack, or at the chest from the chest), and is `fullness`

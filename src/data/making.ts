@@ -3,7 +3,9 @@
 // pickaxe (0.0.18), then the storage chest beside the shelter (0.0.19), the camp's storage like the village's bank,
 // and the firewood pile beside the fire (0.0.21), stacked with logs he stokes the fire from at night. Chapter 2 (0.0.22):
 // the training dummy beside the camp, the stone club, his first weapon, which he wears (gear: data/combat.ts), and the
-// fishing rod, made where he stands. systems/making.ts does the work.
+// fishing rod, made where he stands. systems/making.ts does the work for what is made where he stands; since the camp
+// build (13 Oct 2026) everything built at the camp's spots goes up in stages over its `time` instead, training Carpentry
+// (data/building.ts STAGED, systems/building.ts).
 import type { ToolId } from './skills';
 import type { GearId } from './combat';
 
@@ -21,16 +23,20 @@ export type MakeId = 'campfire' | 'stone_axe' | 'woodpile' | 'shelter' | 'stone_
 
 /** name: what it is called ("Campfire"). verb: what making it is called, for the hover text over its site
  *  ("Build|Campfire") and the goal card's button ("Build the campfire", "Make the stone axe").
- *  needs: the items it uses up, taken from his backpack first, then the bank.
+ *  needs: the items it uses up, taken from his backpack first, then the bank (something built in stages: when he begins
+ *  it; something made where he stands: when it is made).
  *  at: the site where it will stand (he works beside it), or 'here': made wherever he stands (a tool). Every spot is
  *  fixed (the owner, 13 Oct 2026: "sure, fixed location").
- *  time: seconds he works at it.
+ *  time: seconds he works at it (something built in stages: at Carpentry level 1; a little less at higher levels, D5).
+ *  The brief's first proposal (13 Oct 2026, tunable): campfire 20 s, firewood pile 25, training dummy 40, storage chest
+ *  45, tent 60, wall tent 2 minutes, log cabin 4, stone hearth and woodshed 90 s each.
  *  gives: a structure, which stands at its site from then on (GameState.built) and is in the way like the village's
  *  hearth, or a tool he owns from then on (GameState.tools), or (0.0.22) gear he wears from then on (GameState.equipment;
  *  GEAR in data/combat.ts). Each is made once: a tool he already owns (the village's axe and pick, or an old camp
  *  save's), or gear he wears, isn't made again.
  *  done: the notice once it is made.
- *  pile: the item it needs isn't used up but stacked in it (the firewood pile's logs: GameState.woodpile). */
+ *  pile: the item it needs isn't used up but stacked in it once it stands (the firewood pile's logs: GameState.woodpile;
+ *  taken when he begins it, like anything built in stages, and stacked when it is built). */
 export interface MakeDef {
   id: MakeId; name: string; verb: string;
   needs: Record<string, number>;
@@ -43,7 +49,7 @@ export interface MakeDef {
 
 export const MAKES: Record<MakeId, MakeDef> = {
   campfire: {
-    id: 'campfire', name: 'Campfire', verb: 'Build', needs: { plank: 3, stone: 4 }, at: 'hearth', time: 4,
+    id: 'campfire', name: 'Campfire', verb: 'Build', needs: { plank: 3, stone: 4 }, at: 'hearth', time: 20,
     gives: { kind: 'structure' }, done: 'Your campfire is lit. It will light up the camp at night.',
   },
   // a branch for the handle, a stone knocked into a head, lashed together where he stands
@@ -54,14 +60,14 @@ export const MAKES: Record<MakeId, MakeDef> = {
   // logs stacked on two bearers beside the fire: at night he stokes the fire from it (systems/fire.ts), and a tap on it
   // stacks the logs he carries on it
   woodpile: {
-    id: 'woodpile', name: 'Firewood pile', verb: 'Stack', needs: { birch_logs: 10 }, at: 'woodpile', time: 4,
+    id: 'woodpile', name: 'Firewood pile', verb: 'Stack', needs: { birch_logs: 10 }, at: 'woodpile', time: 25,
     gives: { kind: 'structure' }, done: 'Your firewood pile is stacked by the fire. At nightfall he stokes the fire from it.',
     pile: 'birch_logs',
   },
   // the tarp over a frame of logs, the planks for a floor, at the tent's spot facing the fire: a tent, the first of the
   // camp's shelters (its goal is still "A shelter"; the wall tent and the log cabin come after it)
   shelter: {
-    id: 'shelter', name: 'Tent', verb: 'Build', needs: { tarp: 1, plank: 4, birch_logs: 10 }, at: 'tent', time: 6,
+    id: 'shelter', name: 'Tent', verb: 'Build', needs: { tarp: 1, plank: 4, birch_logs: 10 }, at: 'tent', time: 60,
     gives: { kind: 'structure' }, done: 'Your tent is up. Somewhere dry to sleep at last.',
   },
   // like the axe, with a heavier, pointed stone for breaking rock
@@ -72,13 +78,13 @@ export const MAKES: Record<MakeId, MakeDef> = {
   // a box of split logs with copper straps, beside the shelter: the camp's storage (systems/hauling: a full backpack is
   // emptied into it, as at the village's bank)
   chest: {
-    id: 'chest', name: 'Storage chest', verb: 'Build', needs: { birch_logs: 10, copper_ore: 3 }, at: 'chest', time: 5,
+    id: 'chest', name: 'Storage chest', verb: 'Build', needs: { birch_logs: 10, copper_ore: 3 }, at: 'chest', time: 45,
     gives: { kind: 'structure' }, done: 'Your storage chest is built. A full backpack is emptied into it now.',
   },
   // chapter 2 (0.0.22): a post and crossbar of logs with a stuffed sack for a body, beside the camp; once he has a
   // weapon, tapping it sends him to practise on it (systems/combat.ts)
   dummy: {
-    id: 'dummy', name: 'Training dummy', verb: 'Build', needs: { birch_logs: 6, branch: 4 }, at: 'dummy', time: 5,
+    id: 'dummy', name: 'Training dummy', verb: 'Build', needs: { birch_logs: 6, branch: 4 }, at: 'dummy', time: 40,
     gives: { kind: 'structure' }, done: 'Your training dummy stands ready. Make a weapon, then tap the dummy to practise.',
   },
   // his first weapon: a heavy branch with a round stone lashed on, made where he stands like the stone tools; he wears
@@ -109,8 +115,9 @@ export const MAKES: Record<MakeId, MakeDef> = {
     gives: { kind: 'gear', gear: 'hide_shield' }, done: 'You made a hide shield and strapped it to your arm. Your hide armour is all on.',
   },
   // the camp's upgrades (the camp build, 13 Oct 2026): built in stages over `time`, training Carpentry (data/building.ts,
-  // systems/building.ts), each in place of the step before it at that step's spot, bigger. What each needs is taken
-  // when he begins it. The Build list has them once the thing they upgrade and the storage chest stand.
+  // systems/building.ts), like the camp's first five above, each in place of the step before it at that step's spot,
+  // bigger. What each needs is taken when he begins it. The Build list has them once the thing they upgrade and the
+  // storage chest stand.
   // a squared timber frame round the old tent's canvas, a raised plank floor, a porch, guy ropes and a stovepipe
   wall_tent: {
     id: 'wall_tent', name: 'Wall tent', verb: 'Build', needs: { birch_logs: 12, fibre: 8 }, at: 'tent', time: 120,
@@ -133,8 +140,8 @@ export const MAKES: Record<MakeId, MakeDef> = {
   },
 };
 
-/** How far beyond the edge of a site he stands while he makes something there (the camp's first five, until they are
- *  built in stages too), or builds something whose shape has no stands (data/building.ts SHAPES). */
+/** How far beyond the ring of something built at a spot he stands while he builds it (data/building.ts SHAPES' reach;
+ *  until the camp build's stage 3 sends him to each step's own stands), or stands beside it to use it (the chest). */
 export const BUILD_REACH = 0.6;
 
 /** The row for `id`, or null for one that isn't in MAKES (yet). */

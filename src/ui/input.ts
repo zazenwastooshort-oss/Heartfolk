@@ -14,7 +14,8 @@ import { fightLabel } from '../core/targets';
 type Target =
   | { kind: 'node'; id: string; point: THREE.Vector3 }
   | { kind: 'pickup'; id: string; point: THREE.Vector3 }
-  /** where something is to be built (render/structures.ts), while it isn't built yet */
+  /** where something is to be built (render/structures.ts: its marker, or what of it is begun), while it isn't built
+   *  yet: a tap builds it, or carries on with it */
   | { kind: 'make'; id: MakeId; point: THREE.Vector3 }
   /** the storage chest once it is built: tapping it empties the backpack into it */
   | { kind: 'store'; id: MakeId; point: THREE.Vector3 }
@@ -132,7 +133,7 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
     const at = { x: t.point.x, z: t.point.z };
     if (t.kind === 'node') { view.showMarker(t.point, true); queue.push({ type: 'work', nodeId: t.id }); }
     else if (t.kind === 'pickup') { view.showMarker(t.point, true); queue.push({ type: 'pickup', id: t.id }); }
-    else if (t.kind === 'make') { view.showMarker(t.point, true); queue.push({ type: 'make', id: t.id }); }
+    else if (t.kind === 'make') { view.showMarker(t.point, true); queue.push({ type: 'build', id: t.id }); }
     else if (t.kind === 'store') { view.showMarker(t.point, true); queue.push({ type: 'visit', id: t.id }); }
     else if (t.kind === 'fight') { view.showMarker(t.point, true); queue.push({ type: 'fight', target: t.id }); }
     else if (t.kind === 'cook') { view.showMarker(t.point, true); queue.push({ type: 'cook' }); }

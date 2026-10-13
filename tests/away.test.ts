@@ -229,12 +229,13 @@ describe('opening the game after it was closed', () => {
     expect(awayText([r.away], r.summary).lines).toContain('One night there were no logs, so the fire burned low.');
   });
 
-  it('what he was making when the game closed gets finished, and the note says so', () => {
+  it('T2.13: what he was building when the game closed gets finished, and the note says so', () => {
     const s = campSet();
     s.state.built = ['campfire', 'shelter']; s.state.goalsDone = s.state.goalsDone.filter(g => g !== 'chest');
     s.state.player.backpack = { birch_logs: 10, copper_ore: 3 };
-    send(s, { type: 'make', id: 'chest' });
+    send(s, { type: 'build', id: 'chest' });
     run(s, 2);
+    expect(s.state.underway).toEqual({ chest: expect.any(Number) });
     expect(s.state.built).not.toContain('chest');
     const r = reopen(s.state, NOW - 10 * MIN);
     expect(r.state.built).toContain('chest');

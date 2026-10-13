@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { allGoalsDone, currentGoal, made, maxHealth, type GameState } from '../core/state';
 import { goalLines, type BookLine } from '../core/book';
+import { begunIds, progressOf, stagedDef } from '../core/building';
 import type { EventBus } from '../core/events';
 import type { Command } from '../systems/commands';
 import type { View } from '../render/view';
@@ -42,13 +43,23 @@ export const lineName = (line: BookLine) => line.level ? `${SKILLS[line.id as Sk
 const countOf = (line: BookLine) => line.level ? `${SKILLS[line.id as SkillId]?.name ?? line.id} ${line.got} / ${line.need}` : `${line.got} / ${line.need} ${itemName(line.id, line.need)}`;
 
 /** What the goal card shows: the goal's title; under it how many of each thing he has (carried or stored, as his book
- *  counts them), or that he is on his way to make the thing or working on it; how far along (0 to 1, the bar) and
- *  whether everything is there; the Build or Make button while he can make the thing (what it makes and its words);
- *  and the goal's how-to hint (its ready text once everything is there), which his book's page shows and a tap on
- *  the card says before he has the book. Once every goal is done, the camp is set up (CAMP_DONE). Since the survival
- *  book, `thought`: what he thinks about the goal, in his own words (data/thoughts.ts; the hint for a goal without one),
- *  shown under the title. */
-export interface GoalCard { title: string; line: string; progress: number; ready: boolean; build: { id: string; label: string } | null; hint: string; thought: string }
+ *  counts them), or that he is on his way to make the thing or working on it (something built in stages: how far along,
+ *  "Building the campfire... 40%"); how far along the goal is (0 to 1, the bar) and whether everything is there (a goal
+ *  whose thing is begun is paid for: all there); the Build or Make button while he can make the thing (what it makes,
+ *  its words, and the command it sends: `build` for something built at the camp's spots, `make` for something made
+ *  where he stands), which says "Carry on with the campfire" once that is begun and he isn't at it (and with something
+ *  else under way, built one at a time, "Carry on with" that first, how far along it is while he builds it); and the
+ *  goal's how-to hint (its ready text once everything is there), which his book's page shows and a tap on the card says
+ *  before he has the book. Once every goal is done, the camp is set up (CAMP_DONE). Since the survival book, `thought`:
+ *  what he thinks about the goal, in his own words (data/thoughts.ts; the hint for a goal without one), shown under the
+ *  title. */
+export interface GoalCard {
+  title: string; line: string; progress: number; ready: boolean; build: { id: string; label: string; send: 'build' | 'make' } | null;
+  hint: string; thought: string;
+}
+
+/** "Building", "Stacking": what doing `verb` is called. */
+const doing = (verb: string) => verb.toLowerCase() === 'make' ? 'Making' : `${verb}ing`;
 
 export function goalCard(state: GameState): GoalCard {
   if (allGoalsDone(state)) return { title: CAMP_DONE.title, line: CAMP_DONE.text, progress: 1, ready: true, build: null, hint: CAMP_DONE.text, thought: '' };
@@ -56,15 +67,20 @@ export function goalCard(state: GameState): GoalCard {
   // (a level line counts the levels gained past 1, so the bar starts empty)
   const got = parts.reduce((a, p) => a + p.got - (p.level ? 1 : 0), 0), need = parts.reduce((a, p) => a + p.need - (p.level ? 1 : 0), 0), ready = got >= need;
   const def = goal.makes ? makeDef(goal.makes) : null, task = state.player.task, pending = state.player.pending;
-  const building = !!def && task.kind === 'make' && task.id === def.id;
-  const going = !!def && pending?.kind === 'make' && pending.id === def.id;
-  const offer = !!def && ready && !building && !going && !made(state, def.id);
-  const name = def?.name.toLowerCase() ?? '';
+  // (the camp build) something built at the camp's spots goes up in stages: begun, it is carried on with
+  const staged = !!def && !!stagedDef(def.id), begun = !!def && state.underway[def.id] !== undefined;
+  // one thing built at a time (D8): with something else under way, that comes first
+  const other = staged && !begun ? begunIds(state)[0] ?? null : null, thing = def && other ? MAKES[other] : def;
+  const at = (kind: 'task' | 'pending') => { const t = kind === 'task' ? task : pending; return !!thing && !!t && (t.kind === 'make' || t.kind === 'raise') && t.id === thing.id; };
+  const building = at('task'), going = at('pending');
+  const offer = !!thing && (ready || begun) && !building && !going && !made(state, thing.id);
+  const name = thing?.name.toLowerCase() ?? '';
+  const working = thing && stagedDef(thing.id) ? `${doing(thing.verb)} the ${name}... ${Math.floor(progressOf(state, thing.id) * 100)}%` : `Working on the ${name}...`;
   return {
     title: goal.title,
-    line: building ? `Working on the ${name}...` : going ? `On the way to ${def!.verb.toLowerCase()} the ${name}...` : parts.map(countOf).join(', '),
+    line: building ? working : going ? `On the way to ${thing!.verb.toLowerCase()} the ${name}...` : parts.map(countOf).join(', '),
     progress: need ? got / need : 1, ready,
-    build: offer ? { id: def!.id, label: `${def!.verb} the ${name}` } : null,
+    build: offer ? { id: thing!.id, label: begun || other ? `Carry on with the ${name}` : `${thing!.verb} the ${name}`, send: stagedDef(thing!.id) ? 'build' : 'make' } : null,
     hint: ready ? goal.ready : goal.hint,
     thought: goalThought(goal.id)?.text ?? goal.hint,
   };
@@ -82,7 +98,8 @@ export class Hud {
   /** the skill that gained XP last, shown in the strip; none until one does */
   private active: SkillId | null = null;
 
-  private buildFor: string | null = null;     // what the goal card's Build button makes, while it shows
+  /** what the goal card's Build button builds or makes, while it shows */
+  private buildFor: { id: string; send: 'build' | 'make' } | null = null;
   private allDone = false;                    // every goal is done: a tap on the card opens his book
   private hasBank: boolean;
   /** his health at most, as of the last frame, for the notice when he eats (chapter 2) */
@@ -96,8 +113,8 @@ export class Hud {
     this.store = this.hasBank ? 'bank' : 'chest';
     $('goal').hidden = !layout.camp;
     $('goalBuild').addEventListener('click', () => {
-      const def = this.buildFor && makeDef(this.buildFor);
-      if (def) queue.push({ type: 'make', id: def.id });
+      const to = this.buildFor, def = to && makeDef(to.id);
+      if (to && def) queue.push(to.send === 'build' ? { type: 'build', id: def.id } : { type: 'make', id: def.id });
     });
     // tapping the card sends him off on the goal's next step (the survival book: systems/nextstep.ts); once every goal
     // is done it opens his book
@@ -173,7 +190,7 @@ export class Hud {
     $('goalCount').hidden = !!card.build;           // the button says it all
     $('goalBar').style.width = `${card.progress * 100}%`;
     $('goal').classList.toggle('ready', card.ready);
-    this.buildFor = card.build?.id ?? null;
+    this.buildFor = card.build ? { id: card.build.id, send: card.build.send } : null;
     this.allDone = allGoalsDone(state);
     const label = this.allDone ? `${card.title}. Opens your book.` : `${card.title}. ${card.thought} Tap to set off.`;
     if ($('goalOpen').getAttribute('aria-label') !== label) $('goalOpen').setAttribute('aria-label', label);

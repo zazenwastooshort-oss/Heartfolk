@@ -1,19 +1,20 @@
 // What he builds (data/making.ts), drawn at its site in the layout: the campfire, a ring of stones round three planks
-// leaned together, with flickering flames, a little smoke and a warm light that matters at night (the village's
-// hearth light, smaller); the shelter, the canvas Tent, its door facing the fire (0.0.18); the storage chest, a
-// wooden box with copper straps facing the fire (0.0.19, built here in code). Until one is built its site shows a
-// faint ring on the ground with a faint outline of it inside (the campfire's stones, the tent, the chest), and an
-// invisible, finger-sized hit area tagged with its id (userData.makeId) for the input; while he builds, the ring fills
-// up. Once the chest (or the firewood pile) stands, a hit area tagged userData.storeId lets a tap empty the backpack
-// into it (stack his logs on it). Since 0.0.19
-// the fire flares up while he stokes it and settles back after, and burns low (smaller flames, dimmer light) on a
-// night there were no logs, until it is stoked again (FIRE_LOOK in data/fire.ts). The firewood pile (0.0.21, built in
-// code) shows as many logs as it holds, and a tap on it stacks the logs he carries. The training dummy (0.0.22, built
-// in code): a post with crossbar arms and a stuffed sack body; once built, a hit area tagged userData.fightId sends him
-// to practise on it, and it wobbles a little each time he strikes it. Since chapter 2 a tap on the built campfire
-// (userData.cookId) cooks the raw fish he has, once he owns a rod or has some. Models from
-// assets/models/village.glb: CampfireCold's stones and ash, the wreck's Plank, the village Hearth's flames, the Tent.
-// Reads state; never changes it.
+// leaned together, with flickering flames, a little smoke and a warm light that matters at night (the village's hearth
+// light, smaller); the shelter, the canvas Tent, its door facing the fire (0.0.18); the storage chest, a wooden box
+// with copper straps facing the fire (0.0.19, built here in code). Nothing shows at a site until its goal comes up (the
+// camp build, 13 Oct 2026: markerShown in core/building.ts); then, until it is built, the site shows a faint ring on
+// the ground with a faint outline of it inside (the campfire's stones, the tent, the chest), and an invisible,
+// finger-sized hit area tagged with its id (userData.makeId) for the input, which builds it, or once begun carries on
+// with it; once begun, the ring fills up as it goes up in stages. (A stopgap until the camp build's stage 4 draws its
+// marker and its stages.) Once the chest (or the firewood pile) stands, a hit area tagged userData.storeId lets a tap
+// empty the backpack into it (stack his logs on it). Since 0.0.19 the fire flares up while he stokes it and settles
+// back after, and burns low (smaller flames, dimmer light) on a night there were no logs, until it is stoked again
+// (FIRE_LOOK in data/fire.ts). The firewood pile (0.0.21, built in code) shows as many logs as it holds, and a tap on
+// it stacks the logs he carries. The training dummy (0.0.22, built in code): a post with crossbar arms and a stuffed
+// sack body; once built, a hit area tagged userData.fightId sends him to practise on it, and it wobbles a little each
+// time he strikes it. Since chapter 2 a tap on the built campfire (userData.cookId) cooks the raw fish he has, once he
+// owns a rod or has some. Models from assets/models/village.glb: CampfireCold's stones and ash, the wreck's Plank, the
+// village Hearth's flames, the Tent. Reads state; never changes it.
 import * as THREE from 'three';
 import { owned, type GameState } from '../core/state';
 import type { Layout, Vec2 } from '../world/layout';
@@ -21,7 +22,7 @@ import { siteOf } from '../world/layout';
 import { MAKES, type MakeDef, type MakeId } from '../data/making';
 import { FIRE_LOOK, WOODPILE } from '../data/fire';
 import { COOK } from '../data/cooking';
-import { stepShown } from '../core/building';
+import { markerShown, progressOf, stepShown } from '../core/building';
 
 const RING = { width: 0.08, gap: 0.12, segments: 48, color: 0xf1e8d4 };   // the ring round a site not built yet
 const PLAN_OPACITY = 0.3;          // how faint the outline inside it is
@@ -61,7 +62,7 @@ export class StructuresView {
   readonly pickables: THREE.Object3D[] = [];
   private views: SiteView[] = [];
 
-  constructor(scene: THREE.Scene, layout: Layout, models: THREE.Object3D) {
+  constructor(scene: THREE.Scene, private layout: Layout, models: THREE.Object3D) {
     const proto = (name: string) => {
       const o = models.getObjectByName(name);
       if (!o) throw new Error(`village.glb has no ${name}`);
@@ -144,10 +145,12 @@ export class StructuresView {
   update(state: GameState, t: number, dt: number, night: number): void {
     const task = state.player.task;
     for (const v of this.views) {
-      const built = state.built.includes(v.def.id);
+      const built = state.built.includes(v.def.id), begun = state.underway[v.def.id] !== undefined;
+      // its spot shows only once its goal comes up (its marker), or once begun, until it is built
+      v.plan.visible = v.hit.visible = !built && (begun || markerShown(state, this.layout, v.def.id));
       if (built !== v.shown) {
         if (built && v.shown === false) v.pop = 0;               // just built: it settles in
-        v.plan.visible = v.hit.visible = !built; v.model.visible = built;
+        v.model.visible = built;
         if (v.storeHit) v.storeHit.visible = built;
         if (v.fightHit) v.fightHit.visible = built;
         if (v.sleepHit) v.sleepHit.visible = built;
@@ -162,12 +165,11 @@ export class StructuresView {
       // tap on the fire walks him beside it and the hover says nothing, as before there was cooking
       if (v.cook && v.storeHit) v.storeHit.visible = built && (state.tools.rod || owned(state, COOK.raw) > 0);
       if (!built) {
-        // while he builds it, the ring fills up
-        const working = task.kind === 'make' && task.id === v.def.id;
-        v.fill.visible = working;
-        if (working) {
-          const done = Math.min(1, Math.max(0, 1 - (task.doneAt - state.time) / v.def.time));
-          v.fill.geometry.setDrawRange(0, Math.ceil(done * RING.segments) * 6);
+        // begun, the ring fills up as it goes up (brighter while he works at it)
+        v.fill.visible = begun;
+        if (begun) {
+          v.fill.geometry.setDrawRange(0, Math.ceil(progressOf(state, v.def.id) * RING.segments) * 6);
+          (v.fill.material as THREE.MeshBasicMaterial).opacity = task.kind === 'raise' && task.id === v.def.id ? 0.95 : 0.6;
         }
         if (v.light) v.light.intensity = 0;
         continue;

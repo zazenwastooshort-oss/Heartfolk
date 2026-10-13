@@ -19,6 +19,7 @@ import { canCook, fishToCook, goCook } from './cooking';
 import { canSleep, goToBed } from './sleep';
 import { nextCommands } from './nextstep';
 import { startBuild } from './building';
+import { stagedDef } from '../core/building';
 import { goWorkWith } from './tools';
 import { sleepsThrough, type Later } from '../core/needs';
 import { SLEEP } from '../data/sleep';
@@ -34,8 +35,9 @@ export type Command =
   | { type: 'pickup'; id: string }
   /** drop `count` of an item from the backpack (all of it when `count` is more than he carries) */
   | { type: 'drop'; item: string; count: number }
-  /** make something (data/making.ts): the goal card's Build button, or a tap on its site. At the camp, a goal before
-   *  the one that makes it still to finish, or without everything it needs, he says so and stays put. */
+  /** make something (data/making.ts): the goal card's Make button, made where he stands. At the camp, a goal before
+   *  the one that makes it still to finish, or without everything it needs, he says so and stays put. Something built
+   *  at the camp's spots (built in stages since the camp build) is the build command's to begin. */
   | { type: 'make'; id: MakeId }
   /** eat one of an item from the backpack (chapter 2, 0.0.22): food heals him; nothing else stops */
   | { type: 'eat'; item: string }
@@ -56,9 +58,10 @@ export type Command =
    *  step (systems/nextstep.ts), as tapping the right thing in the world would; already on it, or with nothing to do
    *  yet, he says so */
   | { type: 'next' }
-  /** build something in stages at its spot (the Build list, data/building.ts): begin it (what it needs is taken then),
-   *  or carry on with it once begun (a tap on it). Not to be built yet, or without everything it needs, he says so and
-   *  stays */
+  /** build something in stages at its spot (the goal card's Build button, a tap on its marker, the Build list;
+   *  data/building.ts): begin it (what it needs is taken then), or carry on with it once begun (a tap on it). Knocked
+   *  out, with something else under way, its goal not up yet, not to be built yet, or without everything it needs, he
+   *  says so and stays */
   | { type: 'build'; id: MakeId }
   /** (13 Oct 2026) his bedtime, an hour of SLEEP.bedtimes (Settings); nothing else stops */
   | { type: 'bedtime'; hour: number };
@@ -70,7 +73,9 @@ const isLater = (c: Command): c is Command & Later => LATER.includes(c.type);
 export const isClaimed = (state: GameState, parcelId: string | undefined) => !parcelId || !!state.parcels[parcelId]?.claimed;
 
 export function applyCommands(state: GameState, layout: Layout, queue: Command[], events: EventBus): void {
-  for (const c of queue.splice(0)) {
+  for (const sent of queue.splice(0)) {
+    // (the camp build) making something built at the camp's spots begins it in stages: the build command
+    const c: Command = sent.type === 'make' && stagedDef(sent.id) ? { type: 'build', id: sent.id } : sent;
     // dropping something doesn't send him anywhere: whatever he is doing carries on, a trip to the bank (the chest)
     // or stoking the fire included
     if (c.type === 'drop') { drop(state, c.item, c.count, events); continue; }
@@ -81,8 +86,9 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     const wakes = sleepsThrough(state);
     if (wakes !== null && isLater(c)) { state.needs.later = { ...c }; events.emit({ type: 'whenAwake', at: wakes }); continue; }
     if (wakes !== null && c.type === 'sleep') continue;
-    // knocked out (chapter 2's rats): nothing but choosing what he trains until he wakes, a moment later
-    if (state.player.task.kind === 'knockedOut' && c.type !== 'style') continue;
+    // knocked out (chapter 2's rats): nothing but choosing what he trains until he wakes, a moment later (building says
+    // so: startBuild)
+    if (state.player.task.kind === 'knockedOut' && c.type !== 'style') { if (c.type === 'build') startBuild(state, layout, c, events); continue; }
     if (c.type === 'eat') { eat(state, c.item, events); continue; }
     if (c.type === 'style') { setStyle(state, c.style); continue; }
     // go do it: the goal's next step, applied as the commands a tap in the world would send
@@ -105,7 +111,7 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
       const def = makeDef(c.id), task = state.player.task;
       // not here, already made (built, or a tool he owns), or already at work on it: nothing to do
       if (!def || !canMake(state, layout, def) || (task.kind === 'make' && task.id === def.id)) continue;
-      // the camp's goals come in order: the campfire waits until the wreck is salvaged
+      // the camp's goals come in order: the stone axe waits until the campfire is built
       const first = layout.camp ? goalFirst(state, def.id) : null;
       if (first) { events.emit({ type: 'goalFirst', make: def.id, goal: first.id }); continue; }
       const missing = missingFor(state, def);

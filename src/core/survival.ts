@@ -4,7 +4,7 @@
 // is made), Food (with how much each heals), Materials and places, and Tips. Only pages that have come unstuck
 // (GameState.thoughts.known, systems/thoughts.ts) are in it; the rest are still stuck together from the river.
 import type { GameState } from './state';
-import { made, owned } from './state';
+import { begun, made, owned } from './state';
 import { DAY_SECONDS } from './clock';
 import type { BookLine } from './book';
 import { MAKES } from '../data/making';
@@ -20,7 +20,7 @@ export interface JournalLine { text: string; day: number | null }
  *  lines: what a Making page's thing needs, how many he has of each (carried or stored, never more than needed),
  *  ticked once there are enough (all ticked once it is made). where: where a Making page's thing is made. heals: how
  *  much a Food page's food heals (null for one that isn't food). journal: a Journal page's lines. done: a Making page's
- *  thing is made. */
+ *  thing is made. (A thing begun, being built in stages, has every line ticked, its `done` still false.) */
 export interface SurvivalPage {
   key: string; section: Section; title: string; text: string; lines: BookLine[]; where: string; heals: number | null;
   journal: JournalLine[]; done: boolean;
@@ -57,9 +57,10 @@ function journalPages(state: GameState): SurvivalPage[] {
 export function survivalPages(state: GameState): SurvivalPage[] {
   const known = new Set(state.thoughts.known);
   const making = Object.values(MAKES).filter(d => known.has(makeKey(d.id))).map(d => {
-    const done = made(state, d.id);
+    // (the camp build) begun, what it needed was taken: every line ticked while he builds it, as once it is made
+    const done = made(state, d.id), paid = done || begun(state, d.id);
     const lines = Object.entries(d.needs).map(([id, need]) => {
-      const got = done ? need : Math.min(need, owned(state, id));
+      const got = paid ? need : Math.min(need, owned(state, id));
       return { id, need, got, done: got >= need };
     });
     return page({ key: makeKey(d.id), section: 'making', title: d.name, text: MAKE_NOTES[d.id] ?? '', lines, where: MAKE_WHERE[d.id] ?? SITE_WHERE[d.at] ?? '', done });

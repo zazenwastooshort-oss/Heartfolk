@@ -5,7 +5,7 @@ import { ITEMS, SKILLS, TOOL_IDS, type SkillId, type ToolId } from '../data/skil
 import { PICKUPS } from '../data/pickups';
 import { BOOK, GOALS } from '../data/goals';
 import { MAKES, makeDef, type MakeId } from '../data/making';
-import { LOAD } from '../data/building';
+import { LOAD, RESUME } from '../data/building';
 import { STOKE, WOODPILE } from '../data/fire';
 import { SLOTS, STYLES, gearDef, type CombatStyle, type GearId, type Slot } from '../data/combat';
 import { targetOf } from './targets';
@@ -301,12 +301,13 @@ function savedCook(v: unknown, state: GameState, layout: Layout): Cook | null {
   return fetch && !has('chest', 'chest') ? null : { fetch };
 }
 
-/** Whether `id` can be made here at all (data/making.ts): it exists, its site is in this layout, and it isn't made
- *  yet (a structure built, a tool owned). */
-function makeable(state: GameState, layout: Layout, id: unknown): boolean {
+/** Whether `id` can be made at all (data/making.ts): it exists, it is made where he stands, and it isn't made yet (a
+ *  tool owned, gear worn). Since the camp build what is built at the camp's spots goes up in stages: an old save making
+ *  one (a `make` task, on his way to make it, or going back to it after stoking the fire) took nothing yet, so that is
+ *  just dropped, and he begins it again with the build command. */
+function makeable(state: GameState, _layout: Layout, id: unknown): boolean {
   const def = typeof id === 'string' ? makeDef(id) : null;
-  if (!def || (def.at !== 'here' && !siteOf(layout, def.at))) return false;
-  return !made(state, def.id);
+  return !!def && def.at === 'here' && !made(state, def.id);
 }
 
 /** A finite point, or null. */
@@ -440,9 +441,13 @@ export function readSave(raw: string, layout: Layout): Loaded {
     // what he wears and what fighting trains (0.0.22): anything unknown is as a new game has it
     equipment: savedEquipment(data.equipment, fresh.equipment),
     combatStyle: STYLES.includes(data.combatStyle) ? data.combatStyle as CombatStyle : fresh.combatStyle,
-    // (the camp build) going back by himself to something half built waits for nothing at first
+    // (the camp build) going back by himself to something half built: from when it was saved to wait (a moment after a
+    // walk, a while after finding no way), never longer than a wait could be; none (0) for anything else, or a save from
+    // before it
     resumeAt: 0,
   };
+  const wait = Math.max(RESUME.wait, RESUME.retry);
+  if (finite(data.resumeAt) && data.resumeAt > 0 && data.resumeAt <= state.time + wait) state.resumeAt = data.resumeAt;
   // building in stages: what he has begun (core/building.ts), at most one thing, the one he was at or on his way to; what
   // anything else begun took goes back into the chest. None in an older save
   const raising = [player.task, player.pending].find(t => isRecord(t) && t.kind === 'raise') as Record<string, unknown> | undefined;
