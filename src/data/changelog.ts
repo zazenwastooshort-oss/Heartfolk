@@ -6,6 +6,13 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.38', date: '13 Oct 2026', notes: [
+      'A slimmer bar at the foot: your goal is one line beside his state and the clock. On a phone it takes two rows instead of three.',
+      'Discovery replaces the book: a tree of everything you have found and what it leads to. Tap something in the world to discover it, then tap its node to see its recipe, where it comes from and what it is for.',
+      'The round "i" beside the clock opens Information: the story so far, his journal and tips. Tapping your goal\'s name opens the story too.',
+    ],
+  },
+  {
     version: '0.0.37', date: '13 Oct 2026', notes: [
       'His thought bubble and the tag over his head no longer shake as he walks.',
     ],
