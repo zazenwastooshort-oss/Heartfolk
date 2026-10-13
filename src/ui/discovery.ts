@@ -282,7 +282,7 @@ export class DiscoveryWindow {
   private inners = new Map<string, string>();    // what each node's button was last filled with
   private selected: string | null = null;        // the node whose card is open
   private cardKey = '';                          // what the card was drawn from, so it is drawn again only on a change
-  private lastOpened: string | null = null;      // the window opened last (Esc closes the card only while it is this one)
+  private openOrder: string[] = [];              // the windows open, the newest last (Esc closes the card while it is this one's)
   private drag: { id: number; x: number; y: number; left: number; top: number; moved: boolean } | null = null;
   private dragged = false;                       // a drag just panned the tree: the click that ends it does nothing
   private win = $('discoveryWin');
@@ -303,7 +303,7 @@ export class DiscoveryWindow {
     windows.setAvailable('discovery', this.camp);        // the camp's, like his thoughts (shown from a new game)
     if (!this.camp) return;
     windows.on((id, open) => {
-      if (open) this.lastOpened = id;
+      this.openOrder = [...this.openOrder.filter(o => o !== id), ...(open ? [id] : [])];
       if (id === 'discovery' && open) this.opened();
     });
     // Esc closes the card first, then (windows.ts) the window: only while focus is in it or it was opened last
@@ -386,7 +386,7 @@ export class DiscoveryWindow {
 
   private escape(): boolean {
     if (!this.selected || !this.windows.isOpen('discovery')) return false;
-    if (!this.win.contains(document.activeElement) && this.lastOpened !== 'discovery') return false;
+    if (!this.win.contains(document.activeElement) && this.openOrder.at(-1) !== 'discovery') return false;
     this.closeCard();
     return true;
   }
