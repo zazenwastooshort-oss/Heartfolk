@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { EDGE, GAP, closing, fitting, opening, type Opened } from '../src/ui/windows';
 import { goalLevelText, switchedText } from '../src/ui/combat';
 import { DUMMY } from '../src/data/combat';
-import { goalCard } from '../src/ui/hud';
+import { goalCard, skillWords, stateWords } from '../src/ui/hud';
 import { FIRST_SKILLS, STYLE_WORDS, VITALITY_WORDS, shownSkills, skillLine, totalLevel } from '../src/ui/skills';
 import { STYLES } from '../src/data/combat';
 import { TEXT_SIZES, textSizeOf } from '../src/ui/settings';
@@ -108,13 +108,34 @@ describe('the bar at the foot (index.html .dock; the owner, 13 Oct 2026: "a perm
   });
 
   it('his state shows an icon for each where room is short, its words kept for the tooltip and a screen reader', () => {
-    const strip = dock.slice(at('<div class="strip" id="strip">'), at('<!-- the goal line'));
+    const strip = dock.slice(at('<button class="strip" id="strip" type="button"'), at('<!-- the goal line'));
     for (const id of ['healthRow', 'hungerRow', 'xpRow', 'rested', 'fed']) {
       expect(strip, id).toMatch(new RegExp(`id="${id}"[^>]*><svg class="icon st-icon"`));
     }
     for (const id of ['hungerRow', 'rested', 'fed']) expect(strip, id).toMatch(new RegExp(`id="${id}" title="[^"]+"`));
     // the words hidden only from the eye (still read out), not taken away
     expect(html).toContain('.dock.compact .pill .name, .dock.compact .chip-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);');
+  });
+
+  it('a tap on his state says it in words, as a notice (a finger never sees a tooltip): 44 px to tap however little shows', () => {
+    const strip = dock.slice(at('<button class="strip" id="strip" type="button"'), at('<!-- the goal line'));
+    expect(strip).toMatch(/^<button class="strip" id="strip" type="button" aria-label="[^"]+">/);
+    expect(strip).not.toMatch(/<div\b/);                                     // (a button holds no blocks)
+    // its parts' words, as the tooltips have them and the notice says them
+    const title = (id: string) => strip.match(new RegExp(`id="${id}" title="([^"]+)"`))![1]!;
+    expect([title('hungerRow'), title('rested'), title('fed')]).toEqual([
+      'Hungry: gathering goes slower until he eats', 'Well rested: gathering goes faster until nightfall', 'Well fed: XP comes a little quicker for a while',
+    ]);
+    expect(stateWords(['Health 7 / 10', title('hungerRow')])).toBe('Health 7 / 10. Hungry: gathering goes slower until he eats.');
+    expect(stateWords([])).toBe('');
+    // the skill he trains, with its level and the XP to the next
+    expect(skillWords('woodcutting', 0)).toBe(`Woodcutting level 1: ${XP_TABLE[2]} XP to level 2`);
+    expect(skillWords('woodcutting', XP_TABLE[2]! + 10)).toBe(`Woodcutting level 2: ${XP_TABLE[3]! - XP_TABLE[2]! - 10} XP to level 3`);
+    expect(skillWords('woodcutting', MAX_XP)).toBe('Woodcutting level 99');
+    // the tap area: at least 44 px each way round it, its parts above it (a tap on one says that one)
+    expect(html).toContain(".strip::after { content: ''; position: absolute; inset: min(0px, calc(50% - 22px)); }");
+    expect(html).toContain('.strip > * { flex: none; z-index: 1; }');
+    expect(html).toMatch(/\.strip \{ position: relative;[^}]*cursor: pointer;/);
   });
 
   it('leaves the top to the world: only the name, and with a mouse the words for what is under it', () => {

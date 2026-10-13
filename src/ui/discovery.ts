@@ -15,14 +15,16 @@
 // on a phone it scrolls sideways), and opens centred on the current goal's node, else the newest thing found. Tapping a
 // node opens its card beside the tree (under it on a phone held upright): the book's words for it, its recipe with how
 // many he has of each ("?" for what he hasn't found), what it is made with, where, where it and its materials come from,
-// what it is used for (each a link to that node), and for food how much it heals. Keyboard: Tab goes through the nodes,
-// Enter opens a card, Left and Right follow the lines (to what it leads to, and back to what leads to it), Up and Down go
-// to the node above or below in the same column, Esc closes the card and then the window. While open it redraws only
-// when what shows changes (core/discovery.ts hands out the same tree object until then; the card when its words do).
+// what it is used for (each a link to that node), and for food how much it heals. Keyboard: the tree is one Tab stop
+// (the node last focused there, else the one it opened on; a roving tabindex), opened from the keys with focus on the
+// node it opens on; Enter opens a card, Left and Right follow the lines (to what it leads to, and back to what leads to
+// it), Up and Down go to the node above or below in the same column, Esc closes the card and then the window. While open
+// it redraws only when what shows changes (core/discovery.ts hands out the same tree object until then; the card when
+// its words do).
 // A dot on its button while something found hasn't been seen in the window yet (as the Book's dot did; what an opened
 // save had counts as seen), and a dot on each thing found since the window was last opened.
 import type { EventBus } from '../core/events';
-import type { Hud } from './hud';
+import { itemName, type Hud } from './hud';
 import type { Windows } from './windows';
 import type { Layout } from '../world/layout';
 import { allGoalsDone, currentGoal, type GameState } from '../core/state';
@@ -201,12 +203,13 @@ export const WITH_WORDS: Record<Exclude<JoinHow, 'needs'>, string> = {
 };
 
 /** One line of a card's recipe: its name ("?" for one not found yet), how many he has of how many ("18 / 30"; nothing
- *  for what isn't used up), and whether it is ticked: enough of it, or made, or the thing itself made or begun already
- *  (what it needed was taken: every line ticked, as the book did). */
+ *  for what isn't used up), and whether it is ticked: enough of it, or made. For a thing made or begun already (what
+ *  it needed was taken) every line is ticked and says what it took ("30 birch logs"), not what he has now. */
 export function inputLine(input: CardInput, paid: boolean): { name: string; count: string; done: boolean } {
   const name = input.name ?? '?';
   if (input.need === null) return { name, count: '', done: paid || input.have > 0 };
-  return { name, count: `${input.have} / ${input.need}`, done: paid || input.have >= input.need };
+  if (paid) return { name: input.name === null ? name : `${input.need.toLocaleString()} ${itemName(input.id, input.need)}`, count: '', done: true };
+  return { name, count: `${input.have} / ${input.need}`, done: input.have >= input.need };
 }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -281,6 +284,8 @@ export class DiscoveryWindow {
   private nodes = new Map<string, HTMLButtonElement>();
   private inners = new Map<string, string>();    // what each node's button was last filled with
   private selected: string | null = null;        // the node whose card is open
+  private rove: string | null = null;            // the tree's one Tab stop: the node last focused, else the opening one
+  private byKeys = false;                        // the last thing the player did was a key (not a pointer)
   private cardKey = '';                          // what the card was drawn from, so it is drawn again only on a change
   private openOrder: string[] = [];              // the windows open, the newest last (Esc closes the card while it is this one's)
   private drag: { id: number; x: number; y: number; left: number; top: number; moved: boolean } | null = null;
@@ -314,6 +319,14 @@ export class DiscoveryWindow {
       const b = (e.target as Element).closest<HTMLButtonElement>('.dn');
       if (b?.dataset.id) this.select(b.dataset.id);
     });
+    // the node focused is the tree's Tab stop from now on
+    this.map.addEventListener('focusin', e => {
+      const id = (e.target as Element).closest<HTMLButtonElement>('.dn')?.dataset.id;
+      if (id) this.roveTo(id);
+    });
+    // opened from the keys (Enter on its button), focus goes to the node it opens on rather than its x
+    window.addEventListener('keydown', () => { this.byKeys = true; }, true);
+    window.addEventListener('pointerdown', () => { this.byKeys = false; }, true);
     this.card.addEventListener('click', e => {
       const t = e.target as Element;
       if (t.closest('.dc-x')) { this.closeCard(); return; }
@@ -373,15 +386,28 @@ export class DiscoveryWindow {
     }, { passive: false });
   }
 
-  /** The window opened: no card, everything found so far seen, centred on the goal's node (or the newest found). */
+  /** The window opened: no card, everything found so far seen, centred on the goal's node (or the newest found), which
+   *  is the tree's Tab stop, and focused when it was opened from the keys (the page itself never scrolls). */
   private opened(): void {
     this.counts.open(this.state.discovered.length);
     this.closeCard();
     this.tree = null;
-    this.drawTree(discoveryTree(this.state, this.layout), false);
-    const at = this.tree ? openingNode(this.state, this.tree) : null;
+    const tree = discoveryTree(this.state, this.layout);
+    this.rove = openingNode(this.state, tree);
+    this.drawTree(tree, false);
+    const at = this.rove;
     if (at) this.reveal(at, true, true);
+    if (at && this.byKeys) this.nodes.get(at)?.focus({ preventScroll: true });
     this.markDot();
+  }
+
+  /** Node `id` the tree's one Tab stop. */
+  private roveTo(id: string): void {
+    if (id === this.rove || !this.nodes.has(id)) return;
+    const was = this.rove ? this.nodes.get(this.rove) : undefined;
+    if (was) was.tabIndex = -1;
+    this.rove = id;
+    this.nodes.get(id)!.tabIndex = 0;
   }
 
   private escape(): boolean {
@@ -455,7 +481,7 @@ export class DiscoveryWindow {
     this.bandsEl.innerHTML = plan.bands.map(b =>
       `<div class="disc-band ${b.band}" style="top:${b.top}px;height:${b.height}px"><span class="disc-band-name">${BAND_NAMES[b.band]}</span></div>`).join('');
 
-    // the nodes: each kept from one drawing to the next (so keyboard focus stays on it), in reading order (Tab)
+    // the nodes: each kept from one drawing to the next (so keyboard focus stays on it), in reading order
     const order = [...tree.nodes].sort((a, b) => a.col - b.col || a.row - b.row);
     const gone = new Set(this.nodes.keys());
     order.forEach((n, i) => {
@@ -477,6 +503,9 @@ export class DiscoveryWindow {
       if (this.map.children[i + 2] !== b) this.map.insertBefore(b, this.map.children[i + 2] ?? null);   // after the bands and the lines
     });
     for (const id of gone) { this.nodes.get(id)!.remove(); this.nodes.delete(id); this.inners.delete(id); }
+    // one Tab stop for the tree: the node last focused, or (that one gone) the one it opens on
+    if (!this.rove || !this.nodes.has(this.rove)) this.rove = openingNode(this.state, tree);
+    for (const [id, b] of this.nodes) b.tabIndex = id === this.rove ? 0 : -1;
     this.drawLines();
     if (focused && document.activeElement === document.body) this.nodes.get(focused)?.focus({ preventScroll: true });
 

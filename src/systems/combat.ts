@@ -14,7 +14,7 @@ import { allGoalsDone, currentGoal, goalMet, maxHealth, type GameState } from '.
 import type { EventBus } from '../core/events';
 import type { Rng } from '../core/rng';
 import type { Layout } from '../world/layout';
-import { foeOf, targetOf, type Target } from '../core/targets';
+import { foeKind, foeOf, targetOf, type Target } from '../core/targets';
 import { goNear } from '../actors/player';
 import { COMBAT, GEAR, HEALTH, SLOTS, STRIKE, STYLES, strikeEvery, type CombatStyle, type GearDef, type GearId } from '../data/combat';
 import { addXp, levelOf } from './skills';
@@ -108,7 +108,8 @@ function switchIfTaught(state: GameState, layout: Layout, target: Target, events
  *  no weapon, or when it has nothing more to teach of the style he trains. */
 export function mayFight(state: GameState, layout: Layout, id: string, events: EventBus): boolean {
   const target = targetOf(state, layout, id), p = state.player;
-  if (!target) return false;
+  // the goblin chief in his tent (a tap on it): he comes out once his three goblins are down at once
+  if (!target) { if (foeKind(layout, id) === 'chief' && !state.goblinCamp.cleared) events.emit({ type: 'chiefIn' }); return false; }
   if ((p.task.kind === 'fight' && p.task.target === id) || (p.pending?.kind === 'fight' && p.pending.id === id)) return false;
   switchIfTaught(state, layout, target, events);
   const why = cantFight(state, target);

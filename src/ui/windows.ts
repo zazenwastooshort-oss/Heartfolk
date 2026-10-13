@@ -127,7 +127,8 @@ export class Windows {
     this.show();
     for (const o of before) if (!this.isOpen(o.id)) this.tell(o.id, false);
     this.tell(id, true);
-    w.el.querySelector<HTMLElement>('.win-x')?.focus({ preventScroll: true });
+    // focus to its x, unless the window put it somewhere of its own as it opened (Discovery's tree, from the keys)
+    if (!w.el.contains(document.activeElement)) w.el.querySelector<HTMLElement>('.win-x')?.focus({ preventScroll: true });
   }
 
   close(id: string): void {

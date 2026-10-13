@@ -8,23 +8,25 @@
 // gone a moment later, until it pops up again in the camp. The chief is bigger, his tunic dyed red, a feather on his
 // head; he is unseen in his tent until he comes out of its door. When the camp is cleared the chief topples and the
 // goblins still up run off out of the gate. Each one up has an invisible tap area tagged userData.fightId (its id) for
-// the input. Reads state; never changes it.
+// the input, and while the chief keeps to his tent the tent is his (0.0.38: a tap on it discovers what he gives, and
+// says he is in there). Reads state; never changes it.
 import * as THREE from 'three';
 import type { GameState } from '../core/state';
 import type { GoblinCampSpot, Layout } from '../world/layout';
 import { gateOf, palisadeOf } from '../world/goblincamp';
-import { goblinsOf } from '../core/goblins';
+import { CHIEF_ID, goblinsOf } from '../core/goblins';
 import { GOBLIN as GOBLIN_DATA, MILL } from '../data/goblins';
 import { goblinModel, GOBLIN, type GoblinModel, type GoblinPose } from './creatures';
 import { hideTentModel, palisadeModel, totemModel } from './props';
 import { flat } from './parts';
 
 /** How long a beaten goblin lies knocked over before it goes (seconds), how long it takes to go and to pop up again,
- *  how quickly a drawn goblin catches up with where the simulation has it, its tap area (metres); the chief's size
- *  next to a goblin's and his colours; the goblin tent's size next to the shelter's; how far the gate swings open
- *  (radians) and how long it takes; how long goblins run off for once the camp is cleared, and how fast. */
+ *  how quickly a drawn goblin catches up with where the simulation has it, its tap area and the tent's height as the
+ *  chief's while he is in it (metres); the chief's size next to a goblin's and his colours; the goblin tent's size next
+ *  to the shelter's; how far the gate swings open (radians) and how long it takes; how long goblins run off for once the
+ *  camp is cleared, and how fast. */
 const LOOK = {
-  downFor: 2.6, fade: 0.45, pop: 0.4, follow: 12, tap: { radius: 0.5, height: 1.5 },
+  downFor: 2.6, fade: 0.45, pop: 0.4, follow: 12, tap: { radius: 0.5, height: 1.5, tent: 1.6 },
   chief: { size: 1.16, tunic: '#8c3b2b', tunicDark: '#6a2c22', skin: '#7a9640', feather: '#c8462f', quill: '#efe6cf' },
   tent: 0.9, gate: { open: 1.75, time: 1.4 }, flee: { time: 1.6, speed: 2.6 },
   ground: { earth: 0.6, track: 7 },
@@ -94,6 +96,7 @@ function chiefModel(miner: { scene: THREE.Object3D; animations: THREE.AnimationC
 export class GoblinsView {
   readonly pickables: THREE.Object3D[] = [];
   private goblins: GoblinView[] = [];
+  private tentHit: THREE.Mesh | null = null;     // the tent's tap area, the chief's while he keeps to it
   private gate: THREE.Object3D | null = null;
   private opened: number | null = null;          // how far the gate is open (0..1); null before the first frame
   private clock = 0;
@@ -114,6 +117,11 @@ export class GoblinsView {
       const hit = new THREE.Mesh(tap, unseen); hit.userData.fightId = spot.id; hit.visible = false;
       scene.add(hit); this.pickables.push(hit);
       this.goblins.push({ id: spot.id, chief: spot.chief, model, hit, pos: new THREE.Vector3(spot.home.x, 0, spot.home.z), heading: 0, up: null, pop: 1, leaving: null, goingIn: null });
+      if (!spot.chief) continue;
+      const t = camp.tent, box = new THREE.Mesh(new THREE.BoxGeometry(t.w, LOOK.tap.tent, t.d), unseen);
+      box.position.set(t.pos.x, LOOK.tap.tent / 2, t.pos.z); box.rotation.y = t.rot;
+      box.userData.fightId = spot.id; box.visible = false;
+      scene.add(box); this.pickables.push(box); this.tentHit = box;
     }
   }
 
@@ -171,6 +179,7 @@ export class GoblinsView {
     if (!camp) return;
     this.clock += dt;
     const cleared = state.goblinCamp.cleared;
+    if (this.tentHit) this.tentHit.visible = !cleared && !state.goblinCamp.chiefOut && !!state.goblins[CHIEF_ID];
     // the gate: shut, then swinging open once the camp is cleared (open at once in a game loaded that way)
     const open = this.opened === null ? (cleared ? 1 : 0) : Math.min(1, this.opened + (cleared ? dt / LOOK.gate.time : 0));
     this.opened = cleared ? open : 0;

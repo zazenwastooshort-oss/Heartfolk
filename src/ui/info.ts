@@ -2,13 +2,14 @@
 // "i" beside the clock, "Yupp beside the clock"): a window (ui/windows.ts, index.html's #infoWin) opened by the round
 // "i" beside the clock, with three tabs: Story (the goal pages, one per goal in order up to the one he is on, as his
 // first book had them: core/book.ts), Journal (his thoughts so far, a few to a page by day) and Tips (a page each, as
-// they come unstuck); the pages come from core/survival.ts's informationPages, drawn on the book's muted paper. The goal
-// line's name opens it at Story, on the current goal's page (D6); the "i" opens it where it was last, or there the
-// first time (D7). A tab opens at its own place (tabHome): Story at the current goal, Journal at its newest page, Tips
-// at the first not read yet. Previous and Next (or the left and right arrow keys while it is open) turn the pages
-// within a tab; its x, the "i" again or Esc closes it. A dot on the "i", and on a tab, while a journal entry or a tip
-// has come that hasn't been seen (infoNews; whatever a game had when it was opened counts as seen). It doesn't wait for
-// his book (D8). Reads state; never changes the game.
+// they come unstuck); the pages come from core/survival.ts's informationPages, drawn on the book's muted paper. The
+// goal line's name opens it at Story, on the current goal's page (D6); the "i" opens it on the tab with something new
+// (the Journal before Tips), else where it was last, or there the first time (D7). A tab opens at its own place
+// (tabHome): Story at the current goal, Journal at its newest page, Tips at the first not read yet. Previous and Next
+// (or the left and right arrow keys while it is open) turn the pages within a tab; its x, the "i" again or Esc closes
+// it. A dot on the "i", and on a tab, while a journal entry or a tip has come that hasn't been seen (infoNews; whatever
+// a game had when it was opened counts as seen). It doesn't wait for his book (D8). Reads state; never changes the
+// game.
 import type { GameState } from '../core/state';
 import type { Layout } from '../world/layout';
 import type { Windows } from './windows';
@@ -35,10 +36,16 @@ export function tabHome(pages: InformationPages, tab: InfoTab, readTips: Readonl
 /** Where it was last: a tab, and the page shown in it (its key). */
 export interface InfoPlace { tab: InfoTab; key: string | null }
 
-/** Where Information opens: from the goal line's name (`goal`), Story at the current goal's page; from the "i", where
- *  it was last (`last`: the same page, found by its key, or its tab's own place if that page is gone), or Story at the
- *  current goal the first time. */
-export function openAt(from: 'goal' | 'button', last: InfoPlace | null, pages: InformationPages, readTips: ReadonlySet<string>): { tab: InfoTab; at: number } {
+/** Where Information opens: from the goal line's name (`goal`), Story at the current goal's page; from the "i", the
+ *  tab with something new (`news`, the dot it shows: the Journal at its newest page before Tips at the first not read),
+ *  else where it was last (`last`: the same page, found by its key, or its tab's own place if that page is gone), or
+ *  Story at the current goal the first time. */
+export function openAt(from: 'goal' | 'button', last: InfoPlace | null, pages: InformationPages, readTips: ReadonlySet<string>,
+  news: Record<InfoTab, boolean> = { story: false, journal: false, tips: false }): { tab: InfoTab; at: number } {
+  if (from === 'button') {
+    const tab = INFO_TABS.find(t => news[t]);
+    if (tab) return { tab, at: tabHome(pages, tab, readTips) };
+  }
   if (from === 'goal' || !last) return { tab: 'story', at: tabHome(pages, 'story', readTips) };
   const at = last.key === null ? -1 : keysOf(pages, last.tab).indexOf(last.key);
   return { tab: last.tab, at: at >= 0 ? at : tabHome(pages, last.tab, readTips) };
@@ -98,7 +105,8 @@ export class Information {
     // opened (by the "i", or by the goal line's name through showGoal): at the place openAt says
     windows.on((id, open) => {
       if (id !== 'info' || !open) return;
-      const pages = informationPages(this.state), place = openAt(this.from, this.last, pages, this.readTips);
+      const pages = informationPages(this.state), news = infoNews(this.state, pages, { journal: this.seenJournal, tips: this.readTips });
+      const place = openAt(this.from, this.last, pages, this.readTips, news);
       this.from = 'button';
       this.go(place.tab, place.at, pages);
     });

@@ -27,11 +27,12 @@ export function discover(state: GameState, id: string, events: EventBus): void {
 
 /** What a tap's command names (D1): working a node, what it gives (a birch tree: birch logs; a copper rock: copper ore;
  *  the ripples: raw fish); picking something up, what it gives (a plank or the smashed crate: planks; a berry bush:
- *  berries; the book: nothing here); fighting something there to fight, the training dummy itself, a rat its hide, a
- *  goblin or the goblin chief the torn map their camp is beaten for; visiting or building one of the camp's things,
- *  that thing (the chest, the firewood pile, a marker's thing); cooking at the fire, the fire that stands and cooked
- *  fish. Nothing for the rest (a walk, eating, the goal's next step itself: the commands it sends name their own
- *  things). */
+ *  berries; the book: nothing here); fighting, the training dummy itself while it is there to practise on, and a
+ *  creature what it gives whether or not it can be fought just now: a rat its hide, a goblin or the goblin chief (out,
+ *  or in his tent: a tap on the tent is a tap on him) the torn map their camp is beaten for; visiting or building one
+ *  of the camp's things, that thing (the chest, the firewood pile, a marker's thing); cooking at the fire, the fire
+ *  that stands and cooked fish. Nothing for the rest (a walk, eating, the goal's next step itself: the commands it
+ *  sends name their own things). */
 export function tappedThings(state: GameState, layout: Layout, c: Command): string[] {
   switch (c.type) {
     case 'work': {
@@ -43,8 +44,7 @@ export function tappedThings(state: GameState, layout: Layout, c: Command): stri
       return gives && gives !== 'book' ? [gives.item] : [];
     }
     case 'fight': {
-      if (!targetOf(state, layout, c.target)) return [];
-      if (c.target === 'dummy') return ['dummy'];
+      if (c.target === 'dummy') return targetOf(state, layout, c.target) ? ['dummy'] : [];
       const kind = foeKind(layout, c.target);
       return kind ? [FOE_GIVES[kind]] : [];
     }

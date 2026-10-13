@@ -65,7 +65,9 @@ describe("Information's pages (informationPages)", () => {
     const pages = informationPages(s.state);
     expect(pages.story.map(p => p.goal)).toEqual(['salvage']);
     expect(pages.journal[0]!.journal).toEqual([{ text: THOUGHTS[0]!.text, day: 1 }]);
-    expect(pages.tips.map(p => p.key)).toEqual(['tip:tap']);
+    expect(pages.tips.map(p => p.key)).toEqual(['tip:tap', 'tip:discovery']);
+    // (tapping things discovers them, and Discovery shows what they make: the owner's idea, told from the start)
+    expect(pages.tips[1]!.text).toMatch(/^Tap anything you come across.*you discover it.*Discovery/);
   });
 
   it('every page has a key of its own in its tab, which stays the same as the tab grows', () => {
@@ -95,6 +97,18 @@ describe('where Information opens (openAt, tabHome)', () => {
     expect(openAt('button', { tab: 'tips', key: pages.tips[2]!.key }, pages, none)).toEqual({ tab: 'tips', at: 2 });
     // a page no longer there (an old journal page's key in a new game): its tab's own place
     expect(openAt('button', { tab: 'journal', key: 'journal:9' }, pages, none)).toEqual({ tab: 'journal', at: pages.journal.length - 1 });
+  });
+
+  it('from the "i", with its dot: the tab with something new, the Journal (its newest page) before Tips (the first not read)', () => {
+    const was = { tab: 'story' as const, key: 'goal:campfire' };
+    const news = (journal: boolean, tips: boolean) => ({ story: false, journal, tips });
+    expect(openAt('button', was, pages, none, news(true, true))).toEqual({ tab: 'journal', at: pages.journal.length - 1 });
+    expect(openAt('button', null, pages, none, news(true, false))).toEqual({ tab: 'journal', at: pages.journal.length - 1 });
+    const read = new Set([pages.tips[0]!.key]);
+    expect(openAt('button', was, pages, read, news(false, true))).toEqual({ tab: 'tips', at: 1 });
+    expect(openAt('button', was, pages, none, news(false, false))).toEqual({ tab: 'story', at: 1 });       // nothing new: as before
+    // the goal line's name keeps to Story at the current goal
+    expect(openAt('goal', was, pages, none, news(true, true))).toEqual({ tab: 'story', at: current });
   });
 
   it('a tab opens at its own place: Story at the current goal, Journal at its newest page, Tips at the first not read', () => {
@@ -182,6 +196,10 @@ describe('words in the game point to Information, not his book', () => {
     expect(intro).toContain('The goal at the foot shows what\'s next. Tap its arrow and he sets off to do it.');
     expect(intro).toMatch(/Tap the goal's name, or the "i" by the clock, to read his story, his journal and a few tips\./);
     expect(intro).not.toContain('goal at the top');
+    // every button along the foot from the first moment (Build comes later), and the owner's idea: tapping things
+    // discovers them, and Discovery shows what they make
+    expect(intro).toContain('The buttons along the foot open your backpack, your skills, Discovery and the settings.');
+    expect(intro).toMatch(/<li>Tap anything you come across, [^<]*you discover it\. Discovery shows what it makes\.<\/li>/);
     const tip = SURVIVAL.find(p => p.id === 'tip:tap')!;
     expect(tip.text).toContain("goal's arrow at the foot");
     expect(tip.text).not.toContain('at the top');

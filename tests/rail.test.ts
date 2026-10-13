@@ -224,7 +224,7 @@ describe("his state beside the goal: compact where room is short (stripCompact, 
   });
 
   it('index.html gives each part of his state its icon and its words, the words hidden only from the eye when compact', () => {
-    const strip = html.slice(html.indexOf('<div class="strip" id="strip">'), html.indexOf('<!-- the goal line'));
+    const strip = html.slice(html.indexOf('<button class="strip" id="strip" type="button"'), html.indexOf('<!-- the goal line'));
     expect([...strip.matchAll(/data-icon="(\w+)"/g)].map(m => m[1])).toEqual(['health', 'hungry', 'rested', 'fed']);
     expect(strip).toContain('<svg class="icon st-icon" id="xpIcon"');        // the skill's own icon (SKILL_ICONS)
     expect(html).toMatch(/\.dock\.compact \.st-icon \{ display: block;/);

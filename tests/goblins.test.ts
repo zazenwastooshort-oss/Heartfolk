@@ -260,10 +260,12 @@ describe('fighting the goblins', () => {
     expect(fightLabel(CAMP, CHIEF_ID)).toBe('Fight|Goblin chief');
     expect(foeName(CAMP, 'rat1')).toBe('Rat');
     expect(fightLabel(VILLAGE, 'goblin1')).toBeNull();
-    // the chief in his tent can't be fought: a tap does nothing
+    // the chief in his tent can't be fought: a tap (on the tent, render/goblins.ts) sends him nowhere, says why, and
+    // (0.0.38) discovers what the chief gives, if it wasn't found yet
     send(s, { type: 'fight', target: CHIEF_ID });
     expect(s.state.player.pending).toBeNull();
-    expect(s.log).toEqual([]);
+    expect(s.log.filter(e => e.type !== 'discovered')).toEqual([{ type: 'chiefIn' }]);
+    expect(GOBLIN_TEXT.chiefIn).toBe('The goblin chief keeps to his tent. Beat his three goblins and he comes out.');
     // a goblin down is where it fell: he faces it there, and waits in the camp
     knockDown(s, 'goblin2');
     expect(targetOf(s.state, CAMP, 'goblin2')).toMatchObject({ pos: s.state.goblins.goblin2!.pos, radius: GOBLIN.radius, foe: { down: true, health: 0 } });

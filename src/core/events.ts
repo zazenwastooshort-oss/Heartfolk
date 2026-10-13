@@ -92,6 +92,8 @@ export type GameEvent =
   | { type: 'goblinBack'; id: string }
   /** all three goblins were down at once: the goblin chief comes out of his tent */
   | { type: 'chiefOut' }
+  /** (0.0.38) the goblin chief was tapped (his tent) while he keeps to it: nothing to fight yet */
+  | { type: 'chiefIn' }
   /** the goblin chief is beaten: the goblins are gone for good, and the camp's gate stands open */
   | { type: 'campCleared' }
   /** `by` (a rat; a goblin or the chief, `foe`) took his health to 0: he slumps, then wakes up back at camp (wokeUp) */

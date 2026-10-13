@@ -12,6 +12,7 @@ import { createRng } from '../src/core/rng';
 import { readSave } from '../src/core/save';
 import { discoveryTree, nodeCard, obtainable, type DiscoveryTree } from '../src/core/discovery';
 import { CAMP } from '../src/world/camp';
+import { itemName } from '../src/ui/hud';
 import { NODES, NODE_IDS, goalThings } from '../src/data/discovery';
 import { GOALS } from '../src/data/goals';
 import { BUILDING_PICTURES, BUNDLE, RAIL_ICONS } from '../src/ui/pictures';
@@ -299,9 +300,16 @@ describe('the cards (cardHtml)', () => {
         expect(out, n.id).toContain(`>${esc(card.name)}</h3>`);
         for (const w of card.words) expect(out, n.id).toContain(esc(w.text));
         for (const i of card.needs) {
+          if (card.paid) {
+            // made or begun: what it took, ticked, not what he has now (the Log cabin's "30 birch logs", not "18 / 30")
+            expect(out, `${n.id}: ${i.id}`).toContain(`>${i.need} ${itemName(i.id, i.need!)}</span>`);
+            expect(out, `${n.id}: ${i.id}`).not.toContain(`${i.have} / ${i.need}`);
+            continue;
+          }
           expect(out, `${n.id}: ${i.id}`).toContain(i.name === null ? 'Not found yet' : `>${esc(i.name)}</span>`);
           expect(out, `${n.id}: ${i.id}`).toContain(`${i.have} / ${i.need}`);
         }
+        if (card.paid) expect(out, n.id).not.toContain('<span class="tick" aria-hidden="true">');   // every line ticked
         for (const how of new Set(card.with.map(i => i.how))) expect(out, `${n.id}: ${how}`).toContain(WITH_WORDS[how as keyof typeof WITH_WORDS]);
         if (card.where) expect(out, n.id).toContain(esc(card.where));
         for (const f of card.from) expect(out, n.id).toContain(esc(f));
@@ -314,11 +322,13 @@ describe('the cards (cardHtml)', () => {
     });
   }
 
-  it('a recipe line: have / need, ticked once there are enough, or made, or the thing made or begun already', () => {
+  it('a recipe line: have / need, ticked once there are enough, or made; the thing made or begun already, what it took', () => {
     const line = (have: number, need: number | null, name: string | null = 'Stones') => ({ id: 'stone', name, how: 'needs' as const, need, have, found: true });
     expect(inputLine(line(2, 4), false)).toEqual({ name: 'Stones', count: '2 / 4', done: false });
     expect(inputLine(line(5, 4), false)).toEqual({ name: 'Stones', count: '5 / 4', done: true });
-    expect(inputLine(line(0, 4), true).done).toBe(true);
+    expect(inputLine(line(0, 4), true)).toEqual({ name: '4 stones', count: '', done: true });
+    expect(inputLine({ ...line(18, 30, 'Birch logs'), id: 'birch_logs' }, true)).toEqual({ name: '30 birch logs', count: '', done: true });
+    expect(inputLine({ ...line(0, 1, 'Tarp'), id: 'tarp' }, true).name).toBe('1 tarp');
     expect(inputLine(line(0, 4, null), false).name).toBe('?');
     expect(inputLine(line(1, null, 'Stone axe'), false)).toEqual({ name: 'Stone axe', count: '', done: true });
     expect(inputLine(line(0, null, 'Stone axe'), false).done).toBe(false);

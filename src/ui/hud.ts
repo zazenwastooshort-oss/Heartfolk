@@ -50,6 +50,17 @@ export const lineName = (line: BookLine) => line.level ? `${SKILLS[line.id as Sk
 /** A goal's line as the goal line counts it: "2 / 4 rat hides", or a skill level, "Attack 2 / 3". */
 const countOf = (line: BookLine) => line.level ? `${SKILLS[line.id as SkillId]?.name ?? line.id} ${line.got} / ${line.need}` : `${line.got} / ${line.need} ${itemName(line.id, line.need)}`;
 
+/** What the strip says of the skill he trains, in its tooltip and when tapped: "Woodcutting level 5: 120 XP to level 6"
+ *  (at 99, the level alone). */
+export function skillWords(id: SkillId, xp: number): string {
+  const lvl = levelFor(xp), next = levelBounds(lvl)[1];
+  return lvl >= 99 ? `${SKILLS[id].name} level ${lvl}` : `${SKILLS[id].name} level ${lvl}: ${Math.max(1, Math.ceil(next - xp)).toLocaleString()} XP to level ${lvl + 1}`;
+}
+
+/** His state in words, from what each part of the strip says (its tooltip): "Health 7 / 10. Hungry: gathering goes
+ *  slower until he eats." */
+export const stateWords = (said: string[]) => said.filter(Boolean).map(w => `${w.replace(/[.]+$/, '')}.`).join(' ');
+
 /** What is said when logs are stacked, or can't be: on the firewood pile, or (once it stands) in the woodshed. */
 export function stackedText(e: Extract<GameEvent, { type: 'stacked' }>): string {
   const shed = e.at === 'woodshed', where = shed ? 'in the woodshed' : 'on the firewood pile';
@@ -152,6 +163,13 @@ export class Hud {
     // opens the goal's page
     $('goalGo').addEventListener('click', () => queue.push({ type: 'next' }));
     $('goalOpen').addEventListener('click', () => this.goalName());
+    // a tap on his state says it in words (where it shows compactly they are icons, and a finger never sees a
+    // tooltip): the part tapped, or (a tap beside them, or the keyboard) everything it shows
+    $('strip').addEventListener('click', e => {
+      const part = (e.target as Element).closest<HTMLElement>('#strip > *');
+      const text = stateWords((part ? [part] : this.stripParts()).map(el => el.title));
+      if (text) this.notice(text);
+    });
     // his state's icons, for where it shows compactly (index.html's .dock.compact)
     for (const el of document.querySelectorAll<SVGElement>('.st-icon[data-icon]')) el.innerHTML = STATE_ICONS[el.dataset.icon!] ?? '';
     // a window opened: the how-to-play hint would peek out behind it, and the player is finding their way by now
@@ -243,19 +261,25 @@ export class Hud {
     for (const text of counts) { el.textContent = text; if (el.scrollWidth <= el.clientWidth + 1) break; }
   }
 
+  /** The parts of his state showing now, in the strip's order. */
+  private stripParts(): HTMLElement[] { return [...$('strip').children].filter((el): el is HTMLElement => el instanceof HTMLElement && !el.hidden); }
+
   /** The strip's skill: the one that gained XP last, its level and a thin bar in its colour, once one has (its icon in
-   *  its colour where his state shows compactly; its name and level in its tooltip). */
+   *  its colour where his state shows compactly; its name, level and the XP to the next in its tooltip); and the
+   *  strip's words for a screen reader, everything it shows. */
   private updateStrip(state: GameState): void {
     const id = this.active;
     $('xpRow').hidden = !id;
-    if (!id) return;
-    const xp = state.skills[id], lvl = levelFor(xp), [lo, hi] = levelBounds(lvl), bar = $('xpBar'), icon = $('xpIcon');
-    if (icon.dataset.skill !== id) { icon.dataset.skill = id; icon.innerHTML = SKILL_ICONS[id] ?? ''; icon.style.color = SKILLS[id].color; }
-    setText($('xpName'), SKILLS[id].name);
-    setText($('xpLvl'), String(lvl));
-    setAttr($('xpRow'), 'title', `${SKILLS[id].name} level ${lvl}`);
-    bar.style.width = `${lvl >= 99 ? 100 : (xp - lo) / (hi - lo) * 100}%`;
-    bar.style.background = SKILLS[id].color;
+    if (id) {
+      const xp = state.skills[id], lvl = levelFor(xp), [lo, hi] = levelBounds(lvl), bar = $('xpBar'), icon = $('xpIcon');
+      if (icon.dataset.skill !== id) { icon.dataset.skill = id; icon.innerHTML = SKILL_ICONS[id] ?? ''; icon.style.color = SKILLS[id].color; }
+      setText($('xpName'), SKILLS[id].name);
+      setText($('xpLvl'), String(lvl));
+      setAttr($('xpRow'), 'title', skillWords(id, xp));
+      bar.style.width = `${lvl >= 99 ? 100 : (xp - lo) / (hi - lo) * 100}%`;
+      bar.style.background = SKILLS[id].color;
+    }
+    setAttr($('strip'), 'aria-label', `His state: ${stateWords(this.stripParts().map(el => el.title))}`);
   }
 
   /** What a building or a piece of land says when the miner arrives, while it has no use yet. The bank has one: its

@@ -330,6 +330,25 @@ describe('discovering (In 3, D1)', () => {
     expect(found(s)).toEqual(['copper_ore']);
   });
 
+  it('a tap on the goblin chief discovers what he gives, though he keeps to his tent and there is no way to him yet', () => {
+    const s = setup();
+    s.state.player.pos = { x: 0, z: 0 };                                     // far off, outside the goblin camp
+    send(s, { type: 'fight', target: CHIEF_ID });
+    expect(found(s)).toEqual(['old_map']);
+    // he says why nothing more comes of it, and sets off nowhere
+    expect(s.log.map(e => e.type)).toEqual(['discovered', 'chiefIn']);
+    expect(s.state.player.task.kind).toBe('idle');
+    // the tent is his tap area while he is in it (render/goblins.ts), and gone once he is out or the camp is cleared
+    const goblins = readFileSync(new URL('../src/render/goblins.ts', import.meta.url), 'utf8');
+    expect(goblins).toMatch(/box.userData.fightId = spot.id/);
+    expect(goblins).toContain('this.tentHit.visible = !cleared && !state.goblinCamp.chiefOut && !!state.goblins[CHIEF_ID];');
+    // a goblin, the same with no club: what it gives, then why he can't fight it
+    const g = setup();
+    send(g, { type: 'fight', target: goblinsOf(CAMP).find(o => !o.chief)!.id });
+    expect(g.log.map(e => e.type)).toEqual(['discovered', 'cantFight']);
+    expect(found(g)).toEqual(['old_map']);
+  });
+
   it('each kind of tap: trees, rocks, ripples, things on the ground, the book, creatures, the camp\'s buildings and the fire', () => {
     const tap = (c: Command, prep?: (st: GameState) => void) => { const s = setup(); prep?.(s.state); send(s, c); return found(s); };
     expect(tap({ type: 'work', nodeId: nodeOf('birch_tree') })).toEqual(['birch_logs']);
@@ -346,7 +365,7 @@ describe('discovering (In 3, D1)', () => {
     expect(tap({ type: 'fight', target: ratsOf(CAMP)[0]!.id })).toEqual(['rat_hide']);          // even with no weapon yet
     expect(tap({ type: 'fight', target: goblinsOf(CAMP).find(g => !g.chief)!.id })).toEqual(['old_map']);
     expect(tap({ type: 'fight', target: CHIEF_ID }, st => { st.goblinCamp.chiefOut = true; })).toEqual(['old_map']);
-    expect(tap({ type: 'fight', target: CHIEF_ID })).toEqual([]);                                // in his tent: nothing to tap
+    expect(tap({ type: 'fight', target: CHIEF_ID })).toEqual(['old_map']);                       // in his tent (a tap on it): him too
     expect(tap({ type: 'fight', target: 'dummy' })).toEqual([]);                                 // not built: nothing there
     expect(tap({ type: 'fight', target: 'dummy' }, st => { st.built = ['dummy']; st.discovered = ['dummy']; })).toEqual([]);
     expect(tap({ type: 'build', id: 'campfire' })).toEqual(['campfire']);                        // its marker (refused or not)

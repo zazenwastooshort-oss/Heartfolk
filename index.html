@@ -201,10 +201,15 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 
 /* his state at the left of the bar at the foot: his health (src/ui/combat.ts, once he has a weapon or is hurt), hunger
    (src/ui/needs.ts), Rested and Well fed (src/ui/sleep.ts) and the skill gaining XP, its level and a thin bar
-   (src/ui/hud.ts), side by side; none showing, it takes no room. Each says what it is in a tooltip */
-.strip { flex: none; display: flex; align-items: center; gap: 6px; }
+   (src/ui/hud.ts), side by side; none showing, it takes no room. Each says what it is in a tooltip, and a tap on it in
+   a notice (a finger never sees a tooltip) */
+.strip { position: relative; flex: none; display: flex; align-items: center; gap: 6px; margin: 0; padding: 0; border: 0; background: none; color: inherit;
+  font: inherit; text-align: left; cursor: pointer; }
 .strip:not(:has(> :not([hidden]))) { display: none; }
-.strip > * { flex: none; }
+/* at least 44 px to tap, however little shows (a tap beside its parts says them all) */
+.strip::after { content: ''; position: absolute; inset: min(0px, calc(50% - 22px)); }
+.strip:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 7px; }
+.strip > * { flex: none; z-index: 1; }
 .st-icon { display: none; }
 .pill { position: relative; box-sizing: border-box; min-width: 92px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
   padding: 5px 10px 13px; background: var(--m-canvas); color: var(--ink); border: 2px solid var(--frame); border-radius: 7px;
@@ -708,13 +713,13 @@ button.dc-row:active, .dc-link:active { background: rgba(90, 60, 30, .2); }
   <!-- the bar at the foot (13 Oct 2026, the owner: "a permanent bar on the bottom which keeps all of these stuff together"):
        his state, the goal, the row of buttons that open the windows, and the clock -->
   <div class="dock" id="dock">
-    <div class="strip" id="strip">
-      <div class="pill hp" id="healthRow" title="Health" hidden><svg class="icon st-icon" data-icon="health" viewBox="0 0 24 24" aria-hidden="true"></svg><span class="name">Health</span><small><span id="healthText">10</span><span class="of" id="healthMax"> / 10</span></small><span class="bar"><i id="healthBar"></i></span></div>
-      <div class="pill hunger" id="hungerRow" title="Hungry: gathering goes slower until he eats" hidden><svg class="icon st-icon" data-icon="hungry" viewBox="0 0 24 24" aria-hidden="true"></svg><span class="name">Hungry</span><span class="bar"><i id="hungerBar"></i></span></div>
-      <div class="pill xp" id="xpRow" hidden><svg class="icon st-icon" id="xpIcon" viewBox="0 0 24 24" aria-hidden="true"></svg><span class="name" id="xpName">Woodcutting</span><b id="xpLvl">1</b><span class="bar"><i id="xpBar"></i></span></div>
+    <button class="strip" id="strip" type="button" aria-label="His state">
+      <span class="pill hp" id="healthRow" title="Health" hidden><svg class="icon st-icon" data-icon="health" viewBox="0 0 24 24" aria-hidden="true"></svg><span class="name">Health</span><small><span id="healthText">10</span><span class="of" id="healthMax"> / 10</span></small><span class="bar"><i id="healthBar"></i></span></span>
+      <span class="pill hunger" id="hungerRow" title="Hungry: gathering goes slower until he eats" hidden><svg class="icon st-icon" data-icon="hungry" viewBox="0 0 24 24" aria-hidden="true"></svg><span class="name">Hungry</span><span class="bar"><i id="hungerBar"></i></span></span>
+      <span class="pill xp" id="xpRow" hidden><svg class="icon st-icon" id="xpIcon" viewBox="0 0 24 24" aria-hidden="true"></svg><span class="name" id="xpName">Woodcutting</span><b id="xpLvl">1</b><span class="bar"><i id="xpBar"></i></span></span>
       <span class="rested" id="rested" title="Well rested: gathering goes faster until nightfall" hidden><svg class="icon st-icon" data-icon="rested" viewBox="0 0 24 24" aria-hidden="true"></svg><span class="chip-word">Rested</span></span>
       <span class="rested" id="fed" title="Well fed: XP comes a little quicker for a while" hidden><svg class="icon st-icon" data-icon="fed" viewBox="0 0 24 24" aria-hidden="true"></svg><span class="chip-word">Well fed</span></span>
-    </div>
+    </button>
     <!-- the goal line (0.0.38): its name and count open its page in Information, the arrow sends him off -->
     <div class="goal" id="goal" hidden>
       <button class="goal-open" id="goalOpen" type="button">
@@ -855,7 +860,8 @@ button.dc-row:active, .dc-link:active { background: rgba(90, 60, 30, .2); }
       <ul>
         <li>Tap a plank and you pick up every plank, the two in the smashed crate too. Tap the torn tarp and your book to pick them up.</li>
         <li>Tap a stone or a branch and you keep gathering them until your backpack is full.</li>
-        <li>The goal at the foot shows what's next. Tap its arrow and he sets off to do it. The buttons along the foot open your backpack, your skills and the settings.</li>
+        <li>The goal at the foot shows what's next. Tap its arrow and he sets off to do it. The buttons along the foot open your backpack, your skills, Discovery and the settings.</li>
+        <li>Tap anything you come across, a tree, a rock, the ripples in the water, and you discover it. Discovery shows what it makes.</li>
         <li>Tap the goal's name, or the "i" by the clock, to read his story, his journal and a few tips.</li>
       </ul>
     </div>

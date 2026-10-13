@@ -63,6 +63,9 @@ export const SURVIVAL: SurvivalDef[] = [
   // practical tips
   { id: 'tip:tap', section: 'tips', title: 'Finding your way', found: { goal: 'salvage' },
     text: "Tap the goal's arrow at the foot, or his thought, and he sets off to do it. Or tap anything you like." },
+  // (0.0.38, Discovery: the owner's "as u click an object thats when u discover it")
+  { id: 'tip:discovery', section: 'tips', title: 'Discovering things', found: { goal: 'salvage' },
+    text: 'Tap anything you come across, a tree, a rock, a rat, and you discover it. Open Discovery at the foot to see what it makes.' },
   { id: 'tip:night', section: 'tips', title: 'The fire at night', found: { built: 'woodpile' },
     text: 'At nightfall he feeds the fire from the firewood pile by himself. Keep it stacked.' },
   { id: 'tip:sleep', section: 'tips', title: 'Sleep', found: { built: 'shelter' },
