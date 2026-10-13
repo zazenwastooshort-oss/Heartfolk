@@ -87,6 +87,10 @@ export type Block = { box: readonly [x0: number, x1: number, z0: number, z1: num
  *  reach: how far round its middle its ring (and its tap area) reaches. tall: how high its tap area goes.
  *  stands: where he stands to build it and use it (CARPENTRY.reach in front of a face), on walkable ground; a
  *  shelter's is its door, where he goes in and out, sleeps, and uses the chest in it (core/camp.ts shelterDoor).
+ *  builds: where he stands to build it instead, where at its stands his mallet would come down on nothing of it, or on
+ *  what stands inside it (the woodshed's open front, the old firewood pile in it; the log cabin's porch, with the wall
+ *  tent's porch and its chest on it): on walkable ground, each facing its middle, his strike landing on a part of it
+ *  that is there at every stage (tests/campmodels.test.ts).
  *  chest: (a shelter) where the middle of the storage chest sits in it, by the door (it faces out of the door, as the
  *  shelter does): just inside the tent's open front, on the wall tent's and the log cabin's porches, its front at the
  *  front of the floor, so he reaches it from the door (the tent's, where it is built, by CARPENTRY.reach; the cabin's
@@ -105,6 +109,7 @@ export interface Shape {
   reach: number;
   tall: number;
   stands?: readonly StepPoint[];
+  builds?: readonly StepPoint[];
   chest?: StepPoint;
   floor?: number;
   spit?: { posts: readonly [StepPoint, StepPoint]; height: number };
@@ -134,9 +139,9 @@ export const SHAPES: Partial<Record<MakeId, Shape>> = {
       { ring: [-0.33, 1.48, 0.3] }, { ring: [-0.14, 1.55, 0.3] }, { ring: [0.05, 1.61, 0.3] },
       { ring: [1.24, -0.76, 0.3] },
     ],
-    reach: 2.05, tall: 1.0, lean: [0.45, 0.45, 0.45],
+    reach: 2.05, tall: 1.0, lean: [0.5, 0.5, 0.45],
     stands: [[-1.8, 0], [1.8, 0.25]],
-    spit: { posts: [[-0.95, 0], [0.95, 0]], height: 0.86 },
+    spit: { posts: [[0, 0.95], [0, -0.95]], height: 0.86 },
   },
   // the tent's spot: the tent (the tarp over a log frame, its door to the fire); the wall tent round it, its guy-rope
   // stakes out to the sides and its porch to the front; the log cabin round that, with its chimney up the left side
@@ -144,25 +149,25 @@ export const SHAPES: Partial<Record<MakeId, Shape>> = {
   wall_tent: {
     at: -0.7,
     blocks: [{ box: [-1.75, 1.75, -1.6, 1.5] }, { box: [-1.3, 1.3, 1.5, 2.4] }],
-    reach: 2.75, tall: 2.9, stands: [[0, 3.05]], chest: [-0.72, 2.09], floor: 0.16, lean: [0.45, 0, 0],
+    reach: 2.75, tall: 2.9, stands: [[0, 3.05]], chest: [-0.72, 2.09], floor: 0.16, lean: [0, 0, 0],
   },
   log_cabin: {
     at: -1.0,
     blocks: [{ box: [-2.02, 2.02, -1.8, 1.65] }, { box: [-2.8, -1.84, -1.05, -0.05] }, { box: [-1.85, 1.85, 1.65, 2.7] }],
-    reach: 3.3, tall: 4.2, stands: [[0.5, 3.35]], chest: [0.95, 2.25], floor: 0.18, lean: [0.45, 0.2, 0],
+    reach: 3.3, tall: 4.2, stands: [[0.5, 3.35]], builds: [[2.85, 0.47]], chest: [0.95, 2.25], floor: 0.18, lean: [0.25, 0.25, 0.25],
   },
   // beside the fire: logs on two bearers; then a woodshed over them, its chopping block at its right
   woodpile: { blocks: [{ box: [-0.6, 0.6, -0.3, 0.3] }], reach: 0.75, tall: 0.9, stands: [[0, 0.95]], lean: [0.55, 0.55, 0.5] },
   woodshed: {
     blocks: [{ box: [-0.9, 0.9, -0.67, 0.7] }, { ring: [1.18, 0.3, 0.25] }],
-    reach: 1.5, tall: 1.7, stands: [[0, 1.35], [-1.55, 0]], lean: [0.45, 0.4, 0],
+    reach: 1.5, tall: 1.7, stands: [[0, 1.35], [-1.55, 0]], builds: [[1.52, 0.94]], lean: [0.3, 0.2, 0.2],
   },
   dummy: { blocks: [{ ring: [0, 0, 0.5] }], reach: 0.5, tall: 1.7, lean: [0.6, 0.2, 0] },
   // the storage chest: furniture in the shelter, by its door (the owner, 13 Oct 2026: "maybe chest is just furniture in
   // the tent or house"), at each shelter's `chest`; a box of logs 0.9 m across and 0.56 deep, in the way of nothing
   // (built from the shelter's door, all but upright: leaning further in, his head would go into the tent; his strikes
-  // aimed at its right end, so his mallet comes down beside the tent's front pole, which stands in the middle of the
-  // doorway)
+  // aimed at its right end, where the tent's side comes down low enough for his head to stay above and outside it; the
+  // tent's open end is rolled back clear of his swing, render/campmodels.ts TENT_OPEN)
   chest: { furniture: true, blocks: [{ box: [-0.45, 0.45, -0.28, 0.28] }], reach: 0.6, tall: 0.9, lean: [0.2, 0.2, 0.2], aim: [0.4, 0] },
 };
 

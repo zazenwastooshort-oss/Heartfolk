@@ -24,6 +24,7 @@ import {
   begunIds, bestShelter, buildOpen, buildRows, buildSpeed, buildTime, lacking, markerShown, progressOf, restBonus, savedBuilding, stageOf,
   STAGED_IDS, stepShown, unlocked, walkGrid,
 } from '../src/core/building';
+import { useSpot } from '../src/core/camp';
 import { catchUpAway, step } from '../src/sim';
 import { CAMP } from '../src/world/camp';
 import { VILLAGE, type Layout, type Vec2 } from '../src/world/layout';
@@ -31,7 +32,7 @@ import { navFor } from '../src/world/nav';
 import { outsideOf, stepPlace, toGround } from '../src/world/steps';
 import { waterOf } from '../src/world/water';
 import { applyCommands, type Command } from '../src/systems/commands';
-import { restedFactor } from '../src/systems/sleep';
+import { restedFactor, updateSleep } from '../src/systems/sleep';
 import { canMake } from '../src/systems/making';
 import { wantsBark } from '../src/systems/building';
 import { nextStep } from '../src/systems/nextstep';
@@ -695,7 +696,7 @@ function readyFor(id: MakeId, hour = 10): Setup {
   return c;
 }
 
-/** (review T2.5-blind) Nothing stale: standing about he is on his way nowhere; asleep, he is on his way nowhere and
+/** Nothing stale: standing about he is on his way nowhere; asleep, he is on his way nowhere and
  *  stoking nothing. */
 const stale = (s: Setup, why: string) => {
   const p = s.state.player;
@@ -1124,7 +1125,7 @@ describe('committed: he goes back to what is half built (In 2, D9)', () => {
     expect(c.state.time - there).toBeLessThan(RESUME.wait + 2 * STEP);
   });
 
-  it('T2.6: stoking stopped by a tap, then Sleep: he lies down with no walk or stoke left over, wakes, goes back to the build and stokes the next night (review SIM-sleep-frozen)', () => {
+  it('T2.6: stoking stopped by a tap, then Sleep: he lies down with no walk or stoke left over, wakes, goes back to the build and stokes the next night', () => {
     const c = camp(19.9);
     c.state.woodpile = 10;
     send(c, { type: 'build', id: 'wall_tent' });
@@ -1135,6 +1136,7 @@ describe('committed: he goes back to what is half built (In 2, D9)', () => {
     expect(c.state.stokeAgain).toBe(true);
     run(c, 2);
     send(c, { type: 'sleep' });
+    expect(c.state.stokeAgain).toBe(false);                         // the Sleep command's own doing, before he lies down
     runUntil(c, () => c.state.player.task.kind === 'sleep', 60);
     const p = c.state.player;
     expect(p.task.kind).toBe('sleep');
@@ -1162,6 +1164,23 @@ describe('committed: he goes back to what is half built (In 2, D9)', () => {
     const offs = of(c, 'stokeOff').length;
     runUntil(c, () => of(c, 'stokeOff').length > offs, DAY_SECONDS);
     expect(of(c, 'stokeOff').length).toBe(offs + 1);
+  });
+
+  it('T2.6: lying down he leaves nothing on the go, whatever had him: no walk, no way, no stoke (its logs back on the pile) and no stoking taken up again tonight', () => {
+    const c = camp(22);
+    c.state.woodpile = 10;
+    const p = c.state.player, door = useSpot(c.state, CAMP, 'shelter')!.stands[0]!;
+    p.pos = { ...door };
+    p.stoke = { back: null, logs: 3, empty: false, from: 'woodpile' };
+    p.pending = { kind: 'visit', id: 'campfire' }; p.path = [{ x: 2, z: 2 }];
+    c.state.stokeAgain = true;
+    updateSleep(c.state, CAMP, 'shelter', c.events);
+    expect(p.task).toEqual({ kind: 'sleep' });
+    expect(p.pending).toBeNull();
+    expect(p.path).toEqual([]);
+    expect(p.stoke).toBeNull();
+    expect(c.state.stokeAgain).toBe(false);
+    expect(c.state.woodpile).toBe(13);
   });
 
   it('T2.6: fighting a rat, he doesn\'t go back while the fight goes on', () => {
@@ -1212,7 +1231,7 @@ describe('committed: he goes back to what is half built (In 2, D9)', () => {
     }
     expect(tries).toBeGreaterThanOrEqual(3);                        // a look every RESUME.retry seconds, no more often
     expect(of(c, 'noPath')).toHaveLength(1);                        // ...and nothing more said
-    // (review ARCH-hidden-sim-state) whether he said so is the game's own: saved and opened again, nothing more said
+    // whether he said so is the game's own: saved and opened again, nothing more said
     c.state = deserialize(serialize(c.state), ringed);
     expect(c.state.lostWay).toBe(true);
     run(c, RESUME.retry * 2 + 1);
@@ -1253,6 +1272,42 @@ describe('committed: he goes back to what is half built (In 2, D9)', () => {
     }
   });
 
+  it("T2.14: begun with him on open ground it closes in (between the stone hearth's ring and its seats), he still gets out and builds it", () => {
+    const c = camp(), fire = CAMP.hearth.pos, pocket = { x: fire.x + 0.3, z: fire.z - 1.3 };
+    c.state.player.pos = { ...pocket };
+    expect(walkGrid(c.state, CAMP).walkable(pocket)).toBe(true);
+    send(c, { type: 'build', id: 'stone_hearth' });
+    runUntil(c, () => c.state.player.task.kind === 'raise', 20);
+    expect(c.state.player.task).toEqual({ kind: 'raise', id: 'stone_hearth' });
+    expect(of(c, 'noPath')).toEqual([]);
+  });
+
+  it('T2.14: saved at any moment on his way out of what was just begun round him, he reads back exactly where he was, on the same way, and goes on to build it', () => {
+    const fire = CAMP.hearth.pos, tent = stepPlace(CAMP, 'shelter')!;
+    const cases: [MakeId, Vec2][] = [
+      ['stone_hearth', { x: 2.4, z: 1.78 }], ['stone_hearth', { x: fire.x - 0.7, z: fire.z - 1 }], ['stone_hearth', { x: fire.x + 0.9, z: fire.z + 0.6 }],
+      ['wall_tent', toGround(tent, SHAPES.shelter!.stands![0]!)],
+    ];
+    for (const [id, from] of cases) {
+      const c = camp();
+      c.state.player.pos = { ...from };
+      send(c, { type: 'build', id });
+      expect(walkGrid(c.state, CAMP).walkable(c.state.player.pos), `${id}: he starts inside it`).toBe(false);
+      let saves = 0;
+      for (let k = 0; k < 90 && !walkGrid(c.state, CAMP).walkable(c.state.player.pos); k++, saves++) {
+        const back = deserialize(serialize(c.state), CAMP), where = `${id} from ${from.x},${from.z}, step ${k}`;
+        expect(back.player.pos, where).toEqual(c.state.player.pos);
+        expect(back.player.path, where).toEqual(c.state.player.path);
+        expect(back.player.task, where).toEqual(c.state.player.task);
+        const b = { ...c, state: back, ctx: { ...c.ctx, rng: createRng(1) } };
+        runUntil(b, () => back.player.task.kind === 'raise', 10);
+        expect(back.player.task, where).toEqual({ kind: 'raise', id });
+        step(c.state, STEP, c.ctx);
+      }
+      expect(saves, id).toBeGreaterThan(0);
+    }
+  });
+
   it('T2.5: committed, whatever he is sent to do: 200 seeded runs of taps by day, at night and at bedtime, never two under way, never less done, nothing given back, never left standing, never on his way somewhere standing about or asleep; then left alone, it gets built', { timeout: 180_000 }, () => {
     const kinds: ((s: Setup, r: () => number) => Command | null)[] = [
       (_, r) => ({ type: 'walk', to: { x: -8 + r() * 16, z: -4 + r() * 14 } }),
@@ -1267,7 +1322,7 @@ describe('committed: he goes back to what is half built (In 2, D9)', () => {
     const limit = RESUME.wait + RESUME.retry + 1;
     for (let run = 0; run < 200; run++) {
       const rng = createRng(1000 + run), r = () => rng.next();
-      // (review T2.5-blind) from 08:00 round to 04:00, so nightfall, stoking and bedtime come in many runs
+      // from 08:00 round to 04:00, so nightfall, stoking and bedtime come in many runs
       const id = STAGED_IDS[run % STAGED_IDS.length]!, s = readyFor(id, 8 + r() * 20);
       s.ctx.rng = createRng(run);
       s.state.equipment.weapon = 'stone_club'; s.state.tools.rod = true;

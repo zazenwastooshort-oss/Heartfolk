@@ -207,9 +207,11 @@ describe('every spot of the whole camp can be tapped, by day and at night', () =
     }
     // the words under the mouse, as the owner reads them
     const hovers = Object.fromEntries(SPOTS.map(l => [l, campTap(state, CAMP, l)!.hover]));
+    // (no logs on him: the woodshed's words are just its name, as the hearth's are with no rod or fish; a tap there only
+    // says why)
     expect(hovers).toEqual(hour === 10
-      ? { hearth: 'Stone hearth', tent: 'Look in|Chest', woodpile: 'Stack logs on|Woodshed', dummy: 'Practise on|Training dummy' }
-      : { hearth: 'Stone hearth', tent: 'Sleep in|Log cabin', woodpile: 'Stack logs on|Woodshed', dummy: 'Practise on|Training dummy' });
+      ? { hearth: 'Stone hearth', tent: 'Look in|Chest', woodpile: 'Woodshed', dummy: 'Practise on|Training dummy' }
+      : { hearth: 'Stone hearth', tent: 'Sleep in|Log cabin', woodpile: 'Woodshed', dummy: 'Practise on|Training dummy' });
   });
 });
 

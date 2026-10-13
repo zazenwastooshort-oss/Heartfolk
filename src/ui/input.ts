@@ -96,8 +96,8 @@ export function firstHit(ray: THREE.Raycaster, pickables: readonly THREE.Object3
 
 /** Which of the camp's spots a press that opens the menu is for, or null for none: a long press, the one the finger
  *  went down on (`held`), where the ring filled; the camera follows him as he walks, so by the time the press is long
- *  enough what is under the finger now may have slid away from it, or a neighbour slid under it (review
- *  IU-hold-repick). A right click: what is under the mouse as it is clicked (`now`). */
+ *  enough what is under the finger now may have slid away from it, or a neighbour slid under it. A right click: what
+ *  is under the mouse as it is clicked (`now`). */
 export function menuTarget(by: 'click' | 'hold', held: Target, now: () => Target): LineId | null {
   const t = by === 'hold' ? held : now();
   return t?.kind === 'camp' ? t.spot : null;
@@ -197,7 +197,7 @@ export function bindInput(view: View, layout: Layout, queue: Command[], state: G
       else if (g.type === 'tap') { if (!dismissed) act(pick({ clientX: g.x, clientY: g.y })); }
       else {
         const spot = menuTarget(g.by, held, () => pick({ clientX: g.x, clientY: g.y }));
-        if (spot) hooks.menu.open(spot, { x: g.x, y: g.y });
+        if (spot) hooks.menu.open(spot, { x: g.x, y: g.y }, g.by === 'hold');
       }
     }
   }

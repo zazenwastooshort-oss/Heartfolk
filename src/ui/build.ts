@@ -89,6 +89,13 @@ export function rowButton(state: GameState, row: BuildRow): { label: string; rea
 /** What pressing a row sends (the same as a tap on its marker, or its entry in the camp's menu: T1.6). */
 export const rowCommand = (row: BuildRow): Command => ({ type: 'build', id: row.id });
 
+/** How far along something begun is, in whole percent, rounded down as the camp's menu and the goal card show it (so
+ *  it says 100% only once it is built). */
+export const percentDone = (progress: number): number => Math.floor(progress * 100);
+
+/** The line under a row begun: "Half built: 96% done". */
+export const progressLine = (row: BuildRow): string => `${STAGE_NAMES[Math.max(0, row.stage)]}: ${percentDone(row.progress)}% done`;
+
 export class BuildWindow {
   private state: GameState | null = null;
   private shown = '';
@@ -125,7 +132,7 @@ export class BuildWindow {
     this.windows.setAvailable('build', buildOpen(state, this.layout));
     if (!this.windows.isOpen('build')) { this.shown = ''; return; }
     const rows = buildRows(state, this.layout), empty = buildEmpty(state, this.layout);
-    const key = JSON.stringify([empty, rows.map(r => [r.id, r.begun, r.stage, Math.round(r.progress * 50), Math.round(buildTime(state, r.id)), needLines(state, r), rowButton(state, r)])]);
+    const key = JSON.stringify([empty, rows.map(r => [r.id, r.begun, r.stage, percentDone(r.progress), Math.round(buildTime(state, r.id)), needLines(state, r), rowButton(state, r)])]);
     if (key === this.shown) return;
     this.shown = key;
     const focused = (document.activeElement as HTMLElement | null)?.dataset?.build;
@@ -148,8 +155,8 @@ export class BuildWindow {
     row.append(head, el('p', 'brow-blurb', r.staged.blurb));
     if (r.begun) {
       const prog = el('div', 'brow-prog'), bar = el('div', 'bar'), fill = el('i', '');
-      fill.style.width = `${Math.round(r.progress * 100)}%`; bar.append(fill);
-      prog.append(el('small', '', `${STAGE_NAMES[Math.max(0, r.stage)]}: ${Math.round(r.progress * 100)}% done`), bar);
+      fill.style.width = `${percentDone(r.progress)}%`; bar.append(fill);
+      prog.append(el('small', '', progressLine(r)), bar);
       row.append(prog);
     } else {
       const needs = el('ul', 'brow-needs');

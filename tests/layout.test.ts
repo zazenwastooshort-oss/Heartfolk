@@ -10,7 +10,7 @@ import { inArea, siteOf, VILLAGE, type BuildingSpot, type Layout, type PropSpot,
 import { landOf, NavGrid, navFor } from '../src/world/nav';
 import { waterOf } from '../src/world/water';
 import { APRON, footOf, wallFootZ } from '../src/world/falls';
-import { blocksOf, outsideOf, shapeOf, standsOf, stepPlace, toGround } from '../src/world/steps';
+import { blocksOf, buildStandsOf, outsideOf, shapeOf, standsOf, stepPlace, toGround } from '../src/world/steps';
 import { createState } from '../src/core/state';
 import { walkGrid } from '../src/core/building';
 import { goPickup, goWork } from '../src/actors/player';
@@ -132,7 +132,8 @@ describe('the layout', () => {
     for (const line of SPOTS) LINES[line].forEach((id, k) => {
       const built = [...SPOTS.filter(l => l !== line).flatMap(l => LINES[l]), ...LINES[line].slice(0, k + 1), 'chest' as MakeId];
       const nav = navFor(CAMP, built);
-      for (const p of standsOf(CAMP, id)) {
+      // (and those he builds it from, where it has its own: SHAPES' builds)
+      for (const p of [...standsOf(CAMP, id), ...buildStandsOf(CAMP, id)]) {
         expect(nav.walkable(p), `${id} stand ${p.x.toFixed(2)},${p.z.toFixed(2)}`).toBe(true);
         expect(nav.findPath(CAMP.start, p), `${id} stand reached`).not.toBeNull();
       }
@@ -154,7 +155,7 @@ describe('the layout', () => {
     expect(walkGrid(state, CAMP).findPath(CAMP.start, wake)).not.toBeNull();
   });
 
-  it('each set of steps built or begun is put on the bare grid in a moment, and comes out cell for cell as the grid made from scratch with them (review PERF-navstamp)', { timeout: 30_000 }, () => {
+  it('each set of steps built or begun is put on the bare grid in a moment, and comes out cell for cell as the grid made from scratch with them', { timeout: 30_000 }, () => {
     const area = landOf(CAMP).reduce((a, b) => ({ minX: Math.min(a.minX, b.minX), maxX: Math.max(a.maxX, b.maxX), minZ: Math.min(a.minZ, b.minZ), maxZ: Math.max(a.maxZ, b.maxZ) }));
     // every way each spot can be (nothing, or its line up to each step, the last of them begun or built), with the
     // other spots bare or at their largest
@@ -164,21 +165,49 @@ describe('the layout', () => {
       sets.push(lines.flatMap(l => l === line ? way : others ? LINES[l] : []));
     }
     expect(sets.length).toBe(2 * (3 + 4 + 3 + 2));
-    navFor(CAMP);                                                   // (the bare grid, made once)
+    // (each timed on layouts of its own, so none of the sets comes from the grids kept for the camp's: every one is put
+    // on the bare grid then and there, twice, on two such layouts)
+    const own = [{ ...CAMP }, { ...CAMP }];
+    for (const L of own) navFor(L);                                 // (the bare grid, made once for each)
     const took: number[] = [];
     for (const ids of sets) {
       const begun = ids.length % 2 ? ids.slice(-1) : [], built = ids.slice(0, ids.length - begun.length);
-      const started = performance.now(), stamped = navFor(CAMP, [...built, 'chest'], begun);
-      took.push(performance.now() - started);
-      const scratch = new NavGrid(area, CAMP, built, begun), differ: string[] = [];
+      const times = own.map(L => { const started = performance.now(); navFor(L, [...built, 'chest'], begun); return performance.now() - started; });
+      took.push(Math.min(...times));
+      const stamped = navFor(own[0]!, [...built, 'chest'], begun), scratch = new NavGrid(area, CAMP, built, begun), differ: string[] = [];
       for (let x = area.minX + 0.2; x < area.maxX; x += 0.4) for (let z = area.minZ + 0.2; z < area.maxZ; z += 0.4) {
         if (stamped.walkable({ x, z }) !== scratch.walkable({ x, z })) differ.push(`${x.toFixed(1)},${z.toFixed(1)}`);
       }
       expect(differ, ids.join('+')).toEqual([]);
     }
-    // (a whole grid is about 45 ms on a desktop; a set of steps put on the bare one, a millisecond or two: the middle
-    // of them, so a pause of the machine's own doesn't count)
-    expect([...took].sort((a, b) => a - b)[took.length >> 1]!).toBeLessThan(10);
+    // (a whole grid is about 45 ms on a desktop; a set of steps put on the bare one, well under a millisecond: every one
+    // of them, the better of its two tries, so a pause of the machine's own doesn't count)
+    expect(Math.max(...took)).toBeLessThan(10);
+  });
+
+  it("no open ground round the camp's spots is closed in by what is built or begun there: with each spot at each step and the others bare or at their largest, every open cell within 4 m of a spot is reached from where a new game starts (between the stone hearth's ring and its seats, for one)", () => {
+    const area = landOf(CAMP).reduce((a, b) => ({ minX: Math.min(a.minX, b.minX), maxX: Math.max(a.maxX, b.maxX), minZ: Math.min(a.minZ, b.minZ), maxZ: Math.max(a.maxZ, b.maxZ) }));
+    const nx = Math.ceil((area.maxX - area.minX) / 0.4), nz = Math.ceil((area.maxZ - area.minZ) / 0.4);
+    const mid = (ix: number, iz: number): Vec2 => ({ x: area.minX + (ix + 0.5) * 0.4, z: area.minZ + (iz + 0.5) * 0.4 });
+    const spots = SPOTS.map(l => siteOf(CAMP, l)!.pos);
+    for (const line of SPOTS) for (let k = 0; k < LINES[line].length; k++) for (const others of [false, true]) {
+      const ids = SPOTS.flatMap(l => l === line ? LINES[l].slice(0, k + 1) : others ? LINES[l] : []), nav = navFor(CAMP, ids);
+      // every open cell reached from the start, side to side (a step across a corner needs both cells beside it open)
+      const reached = new Uint8Array(nx * nz), todo: [number, number][] = [];
+      const go = (ix: number, iz: number) => {
+        if (ix < 0 || iz < 0 || ix >= nx || iz >= nz || reached[iz * nx + ix] || !nav.walkable(mid(ix, iz))) return;
+        reached[iz * nx + ix] = 1; todo.push([ix, iz]);
+      };
+      const start = nav.nearestWalkable(CAMP.start);
+      go(Math.floor((start.x - area.minX) / 0.4), Math.floor((start.z - area.minZ) / 0.4));
+      while (todo.length) { const [ix, iz] = todo.pop()!; go(ix + 1, iz); go(ix - 1, iz); go(ix, iz + 1); go(ix, iz - 1); }
+      const shut: string[] = [];
+      for (let iz = 0; iz < nz; iz++) for (let ix = 0; ix < nx; ix++) {
+        const p = mid(ix, iz);
+        if (nav.walkable(p) && !reached[iz * nx + ix] && spots.some(o => dist(o, p) <= 4)) shut.push(`${p.x.toFixed(1)},${p.z.toFixed(1)}`);
+      }
+      expect(shut, ids.join('+')).toEqual([]);
+    }
   });
 
   it('T11.8: the campfire, the firewood pile, the tent and the dummy are in the way exactly as their spots were before', () => {

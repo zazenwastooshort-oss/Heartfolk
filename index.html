@@ -143,7 +143,8 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 
 /* the how-to-play hint for a new player, and notices: just under the goal card, in the middle of the room the windows
    leave (src/ui/windows.ts sets --below-card on the stage to the card's foot, and --free-width to how much of the
-   screen's width is left of the open windows); on a phone held upright, with a window open, a notice shows below it */
+   screen's width is left of the open windows); on a phone held upright, with a window too tall to leave room above
+   it, a notice shows below it */
 .hint, .notice { position: absolute; left: calc(var(--free-width, 100%) / 2); top: var(--below-card, calc(110px + env(safe-area-inset-top, 0px)));
   transform: translateX(-50%); width: max-content; max-width: calc(var(--free-width, 100%) - 2 * var(--edge)); box-sizing: border-box; padding: 8px 12px; border-radius: 6px;
   background: var(--m-canvas); font-size: 0.8125rem; text-align: center; pointer-events: none; }
@@ -505,9 +506,10 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
   .wins { top: var(--below-card, calc(110px + env(safe-area-inset-top, 0px))); bottom: var(--above-bottom, calc(84px + env(safe-area-inset-bottom, 0px)));
     left: var(--edge); right: var(--edge); align-items: flex-end; }
   .wins > .win { flex: 1 1 auto; width: auto; }
-  /* with a window open, a notice goes below it, over the strip just above the buttons, clear of the window's title and
-     its x (src/ui/windows.ts marks the stage) */
-  .wins-open .notice { top: auto; bottom: calc(10px + env(safe-area-inset-bottom, 0px) + 62px + 8px); }
+  /* with a window open, a notice shows above it, under the goal card as ever, where the window leaves room there; a
+     window too tall for that, and the notice goes below it, over the strip just above the buttons, clear of the
+     window's title and its x (src/ui/windows.ts noticeGoesLow marks the stage) */
+  .notice-low .notice { top: auto; bottom: calc(10px + env(safe-area-inset-bottom, 0px) + 62px + 8px); }
 }
 /* hover looks only with a mouse: on a touch screen a tapped button would keep its hover look until the next tap
    somewhere else, and look chosen. A press shows on every screen (:active) */

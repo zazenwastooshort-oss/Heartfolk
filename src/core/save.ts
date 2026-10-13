@@ -15,7 +15,7 @@ import { KNOCKED_OUT } from '../data/rats';
 import { CHIEF } from '../data/goblins';
 import { savedThoughts } from './thoughts';
 import { lineOf, savedBuilding, walkGrid } from './building';
-import type { NavGrid } from '../world/nav';
+import { NavGrid } from '../world/nav';
 import { restedTill, savedNeeds } from './needs';
 import { savedToolsInChest } from './tools';
 import { AT_SPOT, atSpot, buildSpot, canCook, chestHere, spotEnds, useSpot } from './camp';
@@ -150,7 +150,8 @@ export function campBuildSave(s: any): any {
       underway[to] = typeof worked === 'number' && Number.isFinite(worked) ? worked / OLD_TIME[id]! * MAKES[to].time : worked;
     } else underway[id] = worked;
   }
-  out.built = built; out.underway = underway; out.bank = bank;
+  // (no list at all, a damaged save: left for readSave, which goes by the goals finished)
+  out.built = Array.isArray(s.built) ? built : s.built; out.underway = underway; out.bank = bank;
   delete out.placed;
   if (isRecord(s.player)) {
     const p: Record<string, unknown> = { ...s.player };
@@ -241,12 +242,17 @@ function savedTaken(v: unknown, layout: Layout): Record<string, number | null> {
 }
 
 /** What stands built: things in MAKES that give a structure and whose site this layout has, each once. */
-function savedBuilt(v: unknown, layout: Layout): MakeId[] {
-  if (!Array.isArray(v)) return [];
+function savedBuilt(v: unknown, layout: Layout, goalsDone: readonly string[]): MakeId[] {
   const ok = (id: unknown) => {
     const def = typeof id === 'string' ? makeDef(id) : null;
     return !!def && def.gives.kind === 'structure' && def.at !== 'here' && siteOf(layout, def.at) !== null;
   };
+  // no list at all (a damaged save): what the goals finished say stands, each goal's thing (the chest in the shelter),
+  // so the camp, and the logs on its firewood pile, aren't lost with it
+  if (!Array.isArray(v)) {
+    const made = GOALS.filter(g => g.makes && goalsDone.includes(g.id)).map(g => g.makes as string);
+    return [...new Set([...made, ...(made.includes('chest') ? ['shelter'] : [])].filter(ok))] as MakeId[];
+  }
   return [...new Set(v.filter(ok))] as MakeId[];
 }
 
@@ -367,11 +373,14 @@ function wayClear(nav: NavGrid, from: Vec2, path: Vec2[]): boolean {
 }
 
 /** Where he stands, read back (readSave), and the way he was walking: a broken position, or one more than LOAD.nudge
- *  from open ground, starts him again where a new game starts, doing nothing; one where something now stands (a bigger
- *  step than when the save was made) moves him out to the nearest open ground, and he carries on with what he was
- *  doing (asleep, building, knocked out). A way he was walking that something now stands across is walked again round
- *  it, to where it went (or, now under something, the nearest open ground to there within LOAD.nudge); with no way
- *  there, he stops where he is. */
+ *  from open ground, starts him again where a new game starts, doing nothing. One where something now stands: saved on
+ *  his way out of something just begun round him (the first point of his way open ground within a step out of him, as
+ *  NavGrid.route walks him), he walks on out as he was, so it reads back exactly; otherwise (a bigger step than when the
+ *  save was made) he is moved out to the nearest open ground within LOAD.nudge that leads where he was going, or, going
+ *  nowhere or nowhere he can get to, from which he can get back to where a new game starts (never a pocket closed in by
+ *  what stands round it), and carries on with what he was doing (asleep, building, knocked out). A way he was walking
+ *  that something now stands across is walked again round it, to where it went (or, now under something, the nearest
+ *  open ground to there within LOAD.nudge); with no way there, he stops where he is. */
 function savedWhere(state: GameState, layout: Layout): void {
   const p = state.player, nav = walkGrid(state, layout);
   const stop = () => { p.path = []; p.pending = null; if (p.task.kind === 'walk') p.task = { kind: 'idle' }; };
@@ -380,16 +389,37 @@ function savedWhere(state: GameState, layout: Layout): void {
     const n = nav.nearestWalkable(q);
     return nav.walkable(n) && Math.hypot(n.x - q.x, n.z - q.z) <= LOAD.nudge ? n : null;
   };
-  const at = pointOf(p.pos) && near(p.pos);
-  if (!at) {
-    p.pos = { ...layout.start }; p.path = []; p.task = { kind: 'idle' }; p.pending = null; p.trip = null;
+  const restart = () => { p.pos = { ...layout.start }; p.path = []; p.task = { kind: 'idle' }; p.pending = null; p.trip = null; };
+  const at = pointOf(p.pos);
+  if (!at) { restart(); return; }
+  p.pos = at;
+  const end = p.path.length ? near(p.path.at(-1)!) : null;
+  if (nav.walkable(at)) {
+    if (!p.path.length || wayClear(nav, at, p.path)) return;
+    const way = end && nav.findPath(at, end);
+    if (way) p.path = way; else stop();
     return;
   }
-  const moved = at !== p.pos;
-  p.pos = { ...at };
-  if (!p.path.length || (!moved && wayClear(nav, p.pos, p.path))) return;
-  const end = near(p.path.at(-1)!), way = end && nav.findPath(p.pos, end);
-  if (way) p.path = way; else stop();
+  // on his way out of something begun round him: on out as he was (the way on from there found again if something
+  // now stands across it)
+  const out = p.path[0];
+  if (p.task.kind === 'walk' && out && nav.walkable(out) && Math.hypot(out.x - at.x, out.z - at.z) <= NavGrid.stepOutReach + 0.01) {
+    if (wayClear(nav, out, p.path.slice(1))) return;
+    const way = end && nav.findPath(out, end);
+    if (way) { p.path = [out, ...way]; return; }
+  }
+  // moved out, nearest first: to where he was going, or else (with no way there from anywhere he can get back to the
+  // start from) to where he can get back to the start from, and stops
+  const home = nav.nearestWalkable(layout.start);
+  for (const o of nav.outsFrom(at, LOAD.nudge)) {
+    const way = end && nav.findPath(o, end);
+    if (way) { p.pos = { ...o }; p.path = way; return; }
+    if (!nav.findPath(o, home)) continue;
+    p.pos = { ...o };
+    if (p.path.length) stop();
+    return;
+  }
+  restart();
 }
 
 /** Whether a visit to `id` is to something at the camp: the storage chest, the shelter, or something built at the
@@ -461,7 +491,7 @@ export function readSave(raw: string, layout: Layout): Loaded {
     tools: savedTools(data.tools, fresh.tools),
     hasBook: data.hasBook === true,
     taken: savedTaken(data.taken, layout),
-    built: savedBuilt(data.built, layout),
+    built: savedBuilt(data.built, layout, savedGoals(data.goalsDone)),
     goalsDone: savedGoals(data.goalsDone),
     stokedNight: Number.isSafeInteger(data.stokedNight) ? data.stokedNight : -1,
     fireLow: data.fireLow === true,
@@ -572,11 +602,14 @@ export function readSave(raw: string, layout: Layout): Loaded {
   const stoke = savedStoke(p.stoke, state, layout);
   const goingTo = p.pending?.kind === 'visit' ? p.pending.id : null;
   const onTrack = !!stoke && (p.task.kind === 'stoke' ? stoke.logs > 0 && Number.isFinite(p.task.doneAt) : goingTo === (stoke.logs ? 'campfire' : stoke.from));
+  // logs he carried for one that stops go back where they came from; one that can't be read back at all (the fire or
+  // where its logs came from gone, in a damaged save), into his backpack
+  const was = p.stoke as unknown, carried = stoke ? stoke.logs : isRecord(was) && Number.isSafeInteger(was.logs) && (was.logs as number) > 0 ? Math.min(was.logs as number, STOKE.logs) : 0;
   p.stoke = onTrack ? stoke : null;
-  if (stoke && !onTrack && stoke.logs > 0) {
-    if (stoke.from === 'woodpile') state.woodpile = Math.min(WOODPILE.max, state.woodpile + stoke.logs);
-    else if (stoke.from === 'chest') state.bank[STOKE.item] = (state.bank[STOKE.item] ?? 0) + stoke.logs;
-    else p.backpack[STOKE.item] = (p.backpack[STOKE.item] ?? 0) + stoke.logs;
+  if (!onTrack && carried > 0) {
+    if (stoke?.from === 'woodpile') state.woodpile = Math.min(WOODPILE.max, state.woodpile + carried);
+    else if (stoke?.from === 'chest') state.bank[STOKE.item] = (state.bank[STOKE.item] ?? 0) + carried;
+    else p.backpack[STOKE.item] = (p.backpack[STOKE.item] ?? 0) + carried;
   }
   if (p.task.kind === 'stoke' && !p.stoke) p.task = { kind: 'idle' };
   if (p.stoke) p.trip = null;
@@ -613,6 +646,26 @@ function keep(storage: Storage, key: string, raw: string): boolean {
   try { if (storage.get(key)) return false; storage.set(key, raw); return true; } catch { return false; }
 }
 
+/** Keeps `raw` under BEFORE_KEY when it is a save from before this format and nothing is kept there yet; whether it was
+ *  kept. */
+export function keepBefore(storage: Storage, raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  try {
+    const version = (JSON.parse(raw) as { version?: unknown } | null)?.version;
+    return typeof version === 'number' && version < SAVE_VERSION && keep(storage, BEFORE_KEY, raw);
+  } catch { return false; }
+}
+
+/** The running game the artifact viewer hands over when it swaps in a new version of the page (main.ts), read as any
+ *  save is (it throws as readSave does). Opening it never goes through load(), so the save from before this format is
+ *  kept under BEFORE_KEY here, as load() would keep it: the one this browser has stored (as it was saved, with when),
+ *  or else the one handed over. */
+export function handedOverGame(storage: Storage, raw: string, layout: Layout): GameState {
+  const state = deserialize(raw, layout);
+  if (!keepBefore(storage, storage.get(SAVE_KEY))) keepBefore(storage, raw);
+  return state;
+}
+
 /** The saved game and when it was saved, or null when there is none (or it can't be read: then it is kept under
  *  UNREAD_KEY first, as a new game is about to save over it). A save from before this format is kept under BEFORE_KEY
  *  as it was, as it is read. */
@@ -622,7 +675,7 @@ export function load(storage: Storage, layout: Layout): Loaded | null {
     raw = storage.get(SAVE_KEY);
     if (!raw) return null;
     const loaded = readSave(raw, layout);
-    if ((JSON.parse(raw) as { version: number }).version < SAVE_VERSION) keep(storage, BEFORE_KEY, raw);
+    keepBefore(storage, raw);
     return loaded;
   } catch {
     if (raw && !keep(storage, UNREAD_KEY, raw)) {

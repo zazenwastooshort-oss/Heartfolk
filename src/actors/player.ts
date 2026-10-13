@@ -11,7 +11,6 @@ import type { EventBus } from '../core/events';
 import { targetOf } from '../core/targets';
 import type { Layout, NodeSpot, Vec2 } from '../world/layout';
 import { doorOf, siteOf } from '../world/layout';
-import type { NavGrid } from '../world/nav';
 import { GAIT, SWINGS } from '../data/animation';
 import { RESOURCES } from '../data/skills';
 import { pauseFor } from '../data/pickups';
@@ -34,26 +33,10 @@ function setPath(state: GameState, path: Vec2[] | null, pending: GameState['play
   return true;
 }
 
-/** How far round (metres) and in how many directions he looks for open ground to step out to, standing where he can't. */
-const STEP_OUT = { reach: [0.4, 0.8, 1.2, 1.6, 2, 2.5, 3], ways: 16 };
-
-/** The way from `from` to `to` on `nav` (null for none). Standing where he can't (something just begun round him,
- *  T2.14), he steps out first, to the nearest open ground that leads there (the very nearest may be a pocket closed in
- *  by what was begun, between a stone hearth's ring and its seats), so he steps straight out rather than across it. */
-function route(nav: NavGrid, from: Vec2, to: Vec2): Vec2[] | null {
-  if (nav.walkable(from)) return nav.findPath(from, to);
-  const outs = [nav.nearestWalkable(from), ...STEP_OUT.reach.flatMap(r => Array.from({ length: STEP_OUT.ways }, (_, i) => {
-    const a = i / STEP_OUT.ways * Math.PI * 2;
-    return { x: from.x + Math.cos(a) * r, z: from.z + Math.sin(a) * r };
-  }))].filter(o => nav.walkable(o)).sort((a, b) => len(sub(a, from)) - len(sub(b, from)));
-  for (const out of outs) { const path = nav.findPath(out, to); if (path) return [out, ...path]; }
-  return null;
-}
-
 /** Walk to the walkable spot nearest the tapped point. */
 export function walkTo(state: GameState, layout: Layout, target: Vec2): boolean {
   const nav = walkGrid(state, layout);
-  return setPath(state, route(nav, state.player.pos, nav.nearestWalkable(target)), null);
+  return setPath(state, nav.route(state.player.pos, nav.nearestWalkable(target)), null);
 }
 
 /** How far from a node's centre to stand so the tool lands on it: the swing's reach, further back from bigger nodes. */
@@ -74,7 +57,7 @@ export function goWork(state: GameState, layout: Layout, nodeId: string): boolea
     const a = base + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 9);
     const stand = { x: node.pos.x + Math.cos(a) * reach, z: node.pos.z + Math.sin(a) * reach };
     if (!nav.walkable(stand)) continue;
-    if (setPath(state, route(nav, p.pos, stand), { kind: 'node', id: nodeId })) return true;
+    if (setPath(state, nav.route(p.pos, stand), { kind: 'node', id: nodeId })) return true;
   }
   return false;
 }
@@ -96,7 +79,7 @@ export function goNear(state: GameState, layout: Layout, at: Vec2, reach: number
     const a = base + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 9);
     const stand = { x: at.x + Math.cos(a) * reach, z: at.z + Math.sin(a) * reach };
     if (!nav.walkable(stand)) continue;
-    if (setPath(state, route(nav, p.pos, stand), pending)) return true;
+    if (setPath(state, nav.route(p.pos, stand), pending)) return true;
   }
   return false;
 }
@@ -120,7 +103,7 @@ export function goPickup(state: GameState, layout: Layout, id: string): boolean 
       const a = base + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 9);
       const stand = { x: spot.pos.x + Math.cos(a) * reach, z: spot.pos.z + Math.sin(a) * reach };
       if (!nav.walkable(stand)) continue;
-      if (setPath(state, route(nav, p.pos, stand), { kind: 'pickup', id })) return true;
+      if (setPath(state, nav.route(p.pos, stand), { kind: 'pickup', id })) return true;
     }
   }
   return false;
@@ -135,7 +118,7 @@ function goSpot(state: GameState, layout: Layout, spot: UseSpot, pending: GameSt
   for (const end of spotEnds(spot, p.pos)) {
     const at = nav.walkable(end) || !spot.stands.length ? end : nav.nearestWalkable(end);
     if (!nav.walkable(at) || len(sub(at, end)) > AT_SPOT.slip) continue;
-    if (setPath(state, route(nav, p.pos, at), pending)) return true;
+    if (setPath(state, nav.route(p.pos, at), pending)) return true;
   }
   return false;
 }
@@ -150,7 +133,7 @@ export function goMake(state: GameState, layout: Layout, id: MakeId): boolean {
 /** Walk to where he builds something built in stages (systems/building.ts: everything built at the camp's spots, each
  *  at its spot; core/camp.ts buildSpot): one of its stands, or round it for something round, and the storage chest
  *  from the shelter's door. Already there, he stays. It is in the way from when it is begun: standing inside it then, he
- *  steps out first (route). */
+ *  steps out first (world/nav.ts NavGrid.route). */
 export function goBuild(state: GameState, layout: Layout, id: MakeId): boolean {
   const spot = buildSpot(state, layout, id);
   return !!spot && goSpot(state, layout, spot, { kind: 'raise', id });
@@ -167,7 +150,7 @@ export function goVisit(state: GameState, layout: Layout, id: string, at?: Vec2)
   if (spot) return goSpot(state, layout, spot, { kind: 'visit', id });
   const target = b ? doorOf(b) : at ? nav.nearestWalkable(at) : null;
   if (!target) return false;
-  return setPath(state, route(nav, state.player.pos, target), { kind: 'visit', id });
+  return setPath(state, nav.route(state.player.pos, target), { kind: 'visit', id });
 }
 
 /** What he faces once he is where he was going to visit `id`: a building, or what he built (the shelter, from its door;

@@ -16,7 +16,8 @@ import { step } from '../src/sim';
 import { applyCommands, type Command } from '../src/systems/commands';
 import { CAMP } from '../src/world/camp';
 import { VILLAGE } from '../src/world/layout';
-import { buildEmpty, buildSections, needLines, rowButton, rowCommand, workTime } from '../src/ui/build';
+import { buildEmpty, buildSections, needLines, percentDone, progressLine, rowButton, rowCommand, workTime } from '../src/ui/build';
+import { noteOf } from '../src/ui/campmenu';
 import { goalCard } from '../src/ui/hud';
 import { MAKES, type MakeId } from '../src/data/making';
 import { GOALS } from '../src/data/goals';
@@ -82,7 +83,7 @@ describe('what the Build window lists (T5.1)', () => {
     expect(row(b, 'log_cabin')).toMatchObject({ begun: true, progress: 0.5, stage: 1, missing: {} });
   });
 
-  it("each row's button: Build (the firewood pile's too, not Stack: review IU-build-tab-labels), Upgrade, Carry on; and why it can't be pressed now", () => {
+  it("each row's button: Build (the firewood pile's too, not Stack), Upgrade, Carry on; and why it can't be pressed now", () => {
     const s = camp(['campfire'], 'firewood');
     expect(rowButton(s.state, row(s, 'woodpile'))).toEqual({ label: 'Build', ready: false, why: 'Still needs 10 birch logs.' });
     s.state.player.backpack = { birch_logs: 10 };
@@ -148,6 +149,18 @@ describe('the goal card beside it (T5.7)', () => {
     s.state.player.pending = null; s.state.player.path = []; s.state.player.task = { kind: 'idle' };
     expect(goalCard(s.state).build).toEqual({ id: 'campfire', label: 'Carry on with the campfire', send: 'build' });
     expect(rowButton(s.state, row(s, 'campfire')).label).toBe('Carry on');
+  });
+});
+
+describe('how far along, as the menu says it', () => {
+  it('in whole percent rounded down, so it never says 100% while it is still going up; the same as the camp menu says', () => {
+    for (const [worked, words] of [[MAKES.wall_tent.time * 0.995, 'Half built: 99% done'], [MAKES.wall_tent.time * 0.039, 'Footings: 3% done'], [0, 'Footings: 0% done']] as const) {
+      const s = camp(BASE, null, { wall_tent: worked });
+      expect(progressLine(row(s, 'wall_tent'))).toBe(words);
+      expect(noteOf(s.state, { kind: 'build', id: 'wall_tent', how: 'carry' })).toBe(words.replace(':', ','));
+    }
+    expect(percentDone(0.999)).toBe(99);
+    expect(percentDone(1)).toBe(100);
   });
 });
 

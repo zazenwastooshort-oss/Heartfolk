@@ -650,7 +650,7 @@ describe('away time while practising', () => {
     const a = reopen(), b = reopen();
     expect(a.state).toEqual(b.state);
     expect(a.r.summary).toEqual(b.r.summary);
-    // (review PERF-speedcheck) quick against the same catch-up of the whole camp left be, timed here alongside it, so a
+    // quick against the same catch-up of the whole camp left be, timed here alongside it, so a
     // busy machine slows both alike: practising may cost a little more a step than the camp's own round, never 3 times
     // as much (about 0.3 s alone, either of them). The better of two tries of each, so one slow moment doesn't count
     const whole = readFileSync(new URL('./fixtures/camp/whole-camp.json', import.meta.url), 'utf8');

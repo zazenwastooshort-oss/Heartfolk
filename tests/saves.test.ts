@@ -11,7 +11,7 @@
 // he stands for it now: the chest is in the shelter, used at its door (the camp build's stage 3).
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import { BEFORE_KEY, campBuildSave, load, readSave, SAVE_KEY, serialize, UNREAD_KEY, UNREAD_LAST_KEY, type Storage } from '../src/core/save';
+import { BEFORE_KEY, campBuildSave, handedOverGame, keepBefore, load, readSave, SAVE_KEY, serialize, UNREAD_KEY, UNREAD_LAST_KEY, type Storage } from '../src/core/save';
 import { createState, currentGoal, SAVE_VERSION, type GameState } from '../src/core/state';
 import { begunIds, markerShown, walkGrid } from '../src/core/building';
 import { atSpot, buildSpot, chestPlace, useSpot } from '../src/core/camp';
@@ -38,6 +38,8 @@ const rawOf = (file: string) => readFileSync(new URL(file, DIR), 'utf8');
  *  errands at the chest (a stoke from it, going and carrying the logs; a trip with a full backpack; a tap on it; a
  *  cooking fetch). */
 const BASE = ['built-none', 'built-campfire', 'built-campfire-woodpile', 'built-to-shelter', 'built-to-chest', 'built-all'];
+/** The camp's first five, each a goal's thing. */
+const BASE_FIVE: string[] = ['campfire', 'woodpile', 'shelter', 'chest', 'dummy'];
 const AT_CHEST = ['stoke-from-chest', 'stoke-carrying-logs', 'chest-trip', 'chest-tapped', 'cook-fetch'];
 /** Format 11 (0.0.27, 0.0.29, 0.0.30): what the camp build removes or turns into the wall tent and the log cabin, begun
  *  (at work at it), built, on his way to it, and waiting while he stokes the fire; errands at the chest; asleep behind
@@ -288,6 +290,28 @@ describe('damaged and unreadable saves (T12.3)', () => {
     expect(failed).toEqual([]);
   });
 
+  it("a save whose list of what stands is lost keeps the camp its finished goals say stands, and the firewood on its pile; logs he carried to stoke a fire that isn't there any more go into his backpack", () => {
+    for (const file of ['0.0.22-built-all.json', '0.0.24-built-all.json', '0.0.29-lean_to-built.json', '0.0.30-meal-back-raise.json']) {
+      const saved = JSON.parse(rawOf(file)) as Saved, whole = readSave(rawOf(file), CAMP).state;
+      for (const broken of [undefined, 'x', 5, { campfire: true }]) {
+        const raw = { ...saved, built: broken } as Record<string, unknown>;
+        if (broken === undefined) delete raw.built;
+        const { state } = readSave(JSON.stringify(raw), CAMP);
+        // the camp's first five as the goals say (an upgrade isn't a goal's: it is lost with the list)
+        expect([...state.built].sort(), `${file}, built ${JSON.stringify(broken)}`).toEqual(whole.built.filter(id => BASE_FIVE.includes(id)).sort());
+        expect(ownedIn(state, STOKE.item), file).toBe(ownedIn(whole, STOKE.item));
+      }
+    }
+    // the campfire gone from the list (the fire he was stoking): his 3 logs into his backpack, none lost
+    const saved = JSON.parse(rawOf('0.0.22-stoke-carrying-logs.json')) as Saved & { built: string[] };
+    expect(saved.player.stoke?.logs).toBe(3);
+    const raw = { ...saved, built: saved.built.filter(id => id !== 'campfire') };
+    const { state } = readSave(JSON.stringify(raw), CAMP);
+    expect(state.player.stoke).toBeNull();
+    expect(ownedIn(state, STOKE.item)).toBe(ownedIn(saved, STOKE.item));
+    expect(state.player.backpack[STOKE.item]).toBe((saved.player.backpack?.[STOKE.item] ?? 0) + 3);
+  });
+
   it('a save of the right version with every part broken loads as a new game would have it, where he starts', () => {
     const broken = { version: SAVE_VERSION, time: 'x', seed: 'y', player: 'z', bank: 5, built: 5, underway: 5, needs: 5, thoughts: 5, nodes: 5, rats: 5, goblins: 5 };
     const { state } = readSave(JSON.stringify(broken), CAMP);
@@ -312,7 +336,7 @@ describe('damaged and unreadable saves (T12.3)', () => {
     // the same one again: nothing more kept
     expect(load(store, CAMP)).toBeNull();
     expect(data.has(UNREAD_LAST_KEY)).toBe(false);
-    // another later doesn't write over it, but is kept beside it (review SAVE-unread-first-only): the latest such, so a
+    // another later doesn't write over it, but is kept beside it: the latest such, so a
     // whole camp from a newer game opened in a page too old to read it isn't lost either
     data.set(SAVE_KEY, 'not even json');
     expect(load(store, CAMP)).toBeNull();
@@ -331,7 +355,7 @@ describe('damaged and unreadable saves (T12.3)', () => {
     expect(load(blocked, CAMP)).toBeNull();
   });
 
-  it('a save from before format 12 is kept as it was the first time it is opened, before the new format writes over it (review SAVE-premigration-copy)', () => {
+  it('a save from before format 12 is kept as it was the first time it is opened, before the new format writes over it', () => {
     expect(BEFORE_KEY).toBe('hearthfolk_camp.before12');
     for (const file of ['0.0.30-meal-back-raise.json', '0.0.22-built-all.json']) {
       const data = new Map<string, string>();
@@ -356,7 +380,35 @@ describe('damaged and unreadable saves (T12.3)', () => {
     expect(load(shy, CAMP)).not.toBeNull();
   });
 
-  it("a bench or workbench only begun is given back too, and the What's new note says so (review NOTE-bench-begun)", () => {
+  it("a save from before format 12 is kept as it was when the artifact viewer swaps in the new version with the game open, too: the one stored in this browser, or else the one handed over", () => {
+    const old = rawOf('0.0.30-meal-back-raise.json'), handed = serialize(readSave(old, CAMP).state);
+    const shelf = () => { const data = new Map<string, string>(); return { data, store: { get: (k: string) => data.get(k) ?? null, set: (k: string, v: string) => { data.set(k, v); } } as Storage }; };
+    // the 0.0.30 page saved it, then handed its running game over (in its own format) to the new version
+    const a = shelf(), oldHanded = JSON.stringify({ ...JSON.parse(old), savedAt: undefined });
+    a.data.set(SAVE_KEY, old);
+    const state = handedOverGame(a.store, oldHanded, CAMP);
+    expect(state.version).toBe(SAVE_VERSION);
+    expect(a.data.get(BEFORE_KEY)).toBe(old);                       // the stored one, with when it was saved
+    // the new version saves over it in its own format: the original stays
+    a.data.set(SAVE_KEY, serialize(state, Date.now()));
+    handedOverGame(a.store, a.data.get(SAVE_KEY)!, CAMP);
+    expect(a.data.get(BEFORE_KEY)).toBe(old);
+    // nothing stored (storage was blocked then, say): the one handed over is kept
+    const b = shelf();
+    handedOverGame(b.store, oldHanded, CAMP);
+    expect(b.data.get(BEFORE_KEY)).toBe(oldHanded);
+    // a game already in this format, handed over again: nothing kept aside
+    const c = shelf();
+    c.data.set(SAVE_KEY, handed);
+    handedOverGame(c.store, handed, CAMP);
+    expect(c.data.has(BEFORE_KEY)).toBe(false);
+    // one that can't be read throws, as readSave does (main.ts then opens this browser's save instead), keeping nothing
+    expect(() => handedOverGame(c.store, 'not a save', CAMP)).toThrow();
+    expect(c.data.has(BEFORE_KEY)).toBe(false);
+    expect(keepBefore(c.store, null)).toBe(false);
+  });
+
+  it("a bench or workbench only begun is given back too, and the What's new note says so", () => {
     const raw = JSON.parse(rawOf('0.0.30-log_bench-begun.json'));
     expect(Object.keys(raw.underway)).toEqual(['log_bench']);
     const { state } = readSave(JSON.stringify(raw), CAMP);
@@ -398,6 +450,35 @@ describe('an old sleeper behind the tent (T12.4)', () => {
       expect(state.player.task, v).toEqual({ kind: 'sleep' });
       expect(state.player.pos, v).toEqual(saved.player.pos);
     }
+  });
+});
+
+describe('standing where something now stands, read back (T12.4)', () => {
+  it("inside the stone hearth's ring, or anywhere under what stands at the whole camp, he reads back on open ground he can get anywhere from: the shelter's door, and where a new game starts", () => {
+    const whole = readSave(readFileSync(new URL('./fixtures/camp/whole-camp.json', import.meta.url), 'utf8'), CAMP).state;
+    const read = (pos: { x: number; z: number }) => {
+      const s = structuredClone(whole);
+      s.player.pos = pos; s.player.task = { kind: 'idle' }; s.player.pending = null; s.player.path = []; s.player.trip = null;
+      return readSave(serialize(s), CAMP).state;
+    };
+    const nav = walkGrid(whole, CAMP), home = nav.nearestWalkable(CAMP.start), door = useSpot(whole, CAMP, 'shelter')!.stands[0]!;
+    // between the hearth's middle and its seats
+    const fire = CAMP.hearth.pos, inRing = read({ x: fire.x + 0.2, z: fire.z - 0.8 });
+    expect(nav.walkable(inRing.player.pos)).toBe(true);
+    expect(nav.findPath(inRing.player.pos, door)).not.toBeNull();
+    // and everywhere under what stands
+    const cut: string[] = [];
+    for (const id of whole.built) {
+      const place = stepPlace(CAMP, id);
+      if (!place) continue;
+      for (let dx = -3.5; dx <= 3.5; dx += 0.5) for (let dz = -3.5; dz <= 3.5; dz += 0.5) {
+        const p = { x: place.pos.x + dx, z: place.pos.z + dz };
+        if (outsideOf(CAMP, id, p) >= 0) continue;
+        const at = read(p).player.pos;
+        if (!nav.walkable(at) || !nav.findPath(at, home)) cut.push(`${id} ${p.x.toFixed(1)},${p.z.toFixed(1)} -> ${at.x.toFixed(2)},${at.z.toFixed(2)}`);
+      }
+    }
+    expect(cut).toEqual([]);
   });
 });
 

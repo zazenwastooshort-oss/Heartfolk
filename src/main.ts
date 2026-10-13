@@ -6,10 +6,10 @@ import { createState, type GameState } from './core/state';
 import { EventBus } from './core/events';
 import { createRng } from './core/rng';
 import { FixedLoop } from './core/loop';
-import { load, save, serialize, deserialize, browserStorage, clearSave } from './core/save';
+import { load, save, serialize, browserStorage, clearSave, handedOverGame } from './core/save';
 import { awayOnOpening, catchUp, step } from './sim';
 import { applyCommands, type Command } from './systems/commands';
-import { FrameClock, openFor, tellAway, type Away, type AwaySummary, type Told } from './systems/away';
+import { Behind, FrameClock, openFor, tellAway, type Away, type AwaySummary, type Told } from './systems/away';
 import { View } from './render/view';
 import { showModels } from './render/showcase';
 import { Hud } from './ui/hud';
@@ -27,7 +27,6 @@ import { CombatHud } from './ui/combat';
 import { RatsHud } from './ui/rats';
 import { goblinNotices } from './ui/goblins';
 import { showArmour } from './ui/armour';
-import { AWAY } from './data/away';
 import { playTime } from './systems/sleep';
 import { SleepHud, sleepNotices } from './ui/sleep';
 import { ThoughtBubble } from './ui/thoughts';
@@ -46,9 +45,10 @@ function start(data: HotData): void {
   const stage = document.getElementById('stage')!;
   const layout = CAMP;                // a new game starts at the camp below the falls; the village comes much later
   // a hot swap hands over the running game; otherwise the page was opened or reloaded and the game is this browser's save
+  // (a game from before the save format of this version handed over is kept as it was, as opening it would keep it)
   const handedOver = typeof data?.save === 'string';
   let restored: GameState | null = null;
-  if (handedOver) { try { restored = deserialize(data.save!, layout); } catch { restored = null; } }
+  if (handedOver) { try { restored = handedOverGame(browserStorage, data.save!, layout); } catch { restored = null; } }
   const loaded = restored ? null : load(browserStorage, layout);
   const saved = restored ?? loaded?.state ?? null;
   const newGame = saved === null;
@@ -113,7 +113,8 @@ function start(data: HotData): void {
 
   // The real time between frames (FrameClock in systems/away.ts), from when away time was counted to, so the first
   // frame catches up the moment that took and the models loading, as open time. `clock.playedTo`, the real time the
-  // game has been played up to, is what each save records and away time is counted from.
+  // game has been played up to (less any play still to catch up: playedTo below), is what each save records and away
+  // time is counted from.
   const clock = new FrameClock(opened, openedAt, document.hidden);
   // For checking a running game from the browser console: hearthfolk.state, hearthfolk.view, hearthfolk.clock, and
   // hearthfolk.away (the away time caught up on opening, what he did and how many milliseconds it took)
@@ -127,22 +128,23 @@ function start(data: HotData): void {
   // the simulation catches up on the real time that passed, at full speed, all of it (openFor in systems/away.ts; a
   // phone's time asleep comes from the wall clock: FrameClock). That is just play, so no note (0.0.21: the note is for
   // coming back after the game was closed). A long catch-up is spread over frames (AWAY.chunk), so the page never
-  // freezes: what is left waits in `behind`.
-  let behind = 0;
-  function simulate(seconds: number): void {
-    behind += openFor(seconds).game;
-    if (behind <= 0.25) { loop.advance(behind); behind = 0; return; }
+  // freezes: what is left waits in `behind`, with the real time it stands for, which saves leave out (playedTo), so
+  // a page hidden or closed before it is caught up loses none of it.
+  const behind = new Behind();
+  function simulate(real: number): void {
+    behind.add(openFor(playTime(state, real)).game, real);         // quicker while he sleeps: the night is seen to pass
+    if (behind.play <= 0.25) { loop.advance(behind.next()); return; }
     applyCommands(state, layout, queue, events);
-    const now = Math.min(behind, AWAY.chunk);
-    behind -= now;
-    catchUp(state, now, ctx);
+    catchUp(state, behind.next(), ctx);
   }
+  /** The real time the game has been played up to, for a save: the last frame's, less what is still to catch up. */
+  const playedTo = () => clock.playedTo - behind.owedMs;
 
-  let sinceSave = 0;
+  let sinceSave = 0, closed = false;
   view.ready.then(() => {
     view.renderer.setAnimationLoop(() => {
       const real = clock.frame(performance.now(), Date.now()), dt = Math.min(0.1, real);
-      simulate(playTime(state, real));                             // quicker while he sleeps: the night is seen to pass
+      simulate(real);
       view.draw(state, dt);
       hud.update(state, dt);
       combat.update(dt);
@@ -158,7 +160,7 @@ function start(data: HotData): void {
       menu.update();
       book.update();
       awayNote.update();
-      sinceSave += dt; if (sinceSave > 10 && !startingOver) { sinceSave = 0; save(browserStorage, state, clock.playedTo); }
+      sinceSave += dt; if (sinceSave > 10 && !startingOver && !closed) { sinceSave = 0; save(browserStorage, state, playedTo()); }
     });
   }).catch(err => {
     console.error(err);
@@ -167,9 +169,12 @@ function start(data: HotData): void {
   // Hidden (another tab, the screen off) or closed: frames stop and the device may sleep, so the next frame goes by the
   // wall clock if that says more time passed; the save says the game was played up to the last frame, so if the page
   // is closed now, the time since counts as closed time when it is opened again.
-  document.addEventListener('visibilitychange', () => { if (document.hidden && !startingOver) { clock.hide(); save(browserStorage, state, clock.playedTo); } });
-  // closed (or reloaded): the time hidden before this still counted as open, so the save says when it closed
-  window.addEventListener('pagehide', () => { if (!startingOver) { clock.hide(); save(browserStorage, state, clock.playedTo, Date.now()); } });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && !startingOver && !closed) { clock.hide(); save(browserStorage, state, playedTo()); } });
+  // closed (or reloaded): the time hidden before this still counted as open, so the save says when it closed, and
+  // nothing saves over that while the page goes (a frame still drawn as a reload loads the page again would write a
+  // save without it, and the time since would count as closed); kept in the browser and shown again, it saves as ever
+  window.addEventListener('pagehide', () => { if (!startingOver) { clock.hide(); save(browserStorage, state, playedTo(), Date.now()); closed = true; } });
+  window.addEventListener('pageshow', e => { if (e.persisted) closed = false; });
 }
 
 if (hot?.ready) hot.ready(start); else start(hot?.data ?? {});

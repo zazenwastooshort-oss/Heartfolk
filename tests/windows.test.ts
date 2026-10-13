@@ -6,7 +6,7 @@
 // button's count (ui/backpack.ts).
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { EDGE, GAP, GOAL_ROOM, MIN_BESIDE, MIN_UNDER, closing, fitting, opening, windowSpot, type Opened, type Room } from '../src/ui/windows';
+import { EDGE, GAP, GOAL_ROOM, MIN_BESIDE, MIN_UNDER, closing, fitting, noticeGoesLow, opening, windowSpot, type Opened, type Room } from '../src/ui/windows';
 import { goalLevelText, switchedText } from '../src/ui/combat';
 import { DUMMY } from '../src/data/combat';
 import { goalCard } from '../src/ui/hud';
@@ -128,14 +128,21 @@ describe('windows make way for the goal card, so its Build button stays one tap 
     expect(wins).toContain(`right: calc(var(--edge) + var(--rail) + ${GAP}px)`);
   });
 
-  it('on a phone held upright, with a window open, a notice goes below it, over the strip, clear of its title and its x (review IU-notice-over-window)', () => {
+  it('on a phone held upright, with a window open, a notice shows above it where it leaves room, under the goal card as ever; with a tall one, below it, over the strip, clear of its title and its x', () => {
     const upright = html.slice(html.indexOf('@media (max-width: 600px)'));
-    const rule = upright.match(/\.wins-open \.notice \{[^}]*\}/)?.[0] ?? '';
+    const rule = upright.match(/\.notice-low \.notice \{[^}]*\}/)?.[0] ?? '';
     const strip = upright.match(/\.strip \{ bottom: ([^;]*);/)?.[1];
     expect(rule).toContain('top: auto');
     expect(strip).toBeDefined();
     expect(rule).toContain(`bottom: ${strip}`);
-    expect(readFileSync(new URL('../src/ui/windows.ts', import.meta.url), 'utf8')).toMatch(/classList\.toggle\('wins-open', this\.opened\.length > 0\)/);
+    expect(readFileSync(new URL('../src/ui/windows.ts', import.meta.url), 'utf8')).toMatch(/classList\.toggle\('notice-low', low\)/);
+    // at 375 x 812, the card's foot at 150: the Build window with one line ([581, 732]) leaves room above it for a
+    // notice two lines high (52 px), so it shows under the card, clear of the window; the Backpack, nearly all the
+    // height, doesn't, and the notice goes low
+    expect(noticeGoesLow({ cardFoot: 150, windowTop: 581, notice: 52 })).toBe(false);
+    expect(noticeGoesLow({ cardFoot: 150, windowTop: 166, notice: 52 })).toBe(true);
+    expect(noticeGoesLow({ cardFoot: 150, windowTop: 150 + 2 * GAP + 52, notice: 52 })).toBe(false);
+    expect(noticeGoesLow({ cardFoot: 150, windowTop: 150 + 2 * GAP + 51, notice: 52 })).toBe(true);
   });
 });
 

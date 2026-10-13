@@ -18,9 +18,9 @@ import { buildTime, progressOf, stageOf, stepShown } from '../core/building';
 import { STAGE_NAMES, type LineId } from '../data/building';
 import { MAKES } from '../data/making';
 import { MENU } from '../data/input';
-import { itemList } from './hud';
+import { itemList, stackedText } from './hud';
 import { EDGE, GAP } from './windows';
-import { buildWhyText, workTime } from './build';
+import { buildWhyText, percentDone, workTime } from './build';
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -60,8 +60,8 @@ export function whyText(why: CampWhy): string {
     case 'asleep': return "He's asleep.";
     case 'empty': return 'Nothing on him to store.';
     case 'noFish': return 'No raw fish to cook.';
-    case 'noLogs': return 'No logs on him to stack.';
-    case 'full': return 'The pile is full.';
+    // (as the stacking itself says it: "You have no logs to stack in the woodshed.", "The firewood pile is full.")
+    case 'noLogs': case 'full': return stackedText({ type: 'stacked', logs: 0, pile: 0, at: why.at, reason: why.kind === 'full' ? 'full' : 'none' });
     default: return buildWhyText(why);
   }
 }
@@ -70,7 +70,7 @@ export function whyText(why: CampWhy): string {
 export function noteOf(state: GameState, action: CampAction): string | null {
   if (action.kind !== 'build') return null;
   const id = action.id;
-  if (action.how === 'carry') return `${STAGE_NAMES[Math.max(0, stageOf(state, id))]}, ${Math.floor(progressOf(state, id) * 100)}% done`;
+  if (action.how === 'carry') return `${STAGE_NAMES[Math.max(0, stageOf(state, id))]}, ${percentDone(progressOf(state, id))}% done`;
   return `${workTime(buildTime(state, id))}: ${itemList(MAKES[id].needs, ' and ')}`;
 }
 
@@ -101,25 +101,28 @@ const overlap = (a: Box, b: Box) => Math.max(0, Math.min(a.right, b.right) - Mat
  *  press, MENU.offset to its right and below it (else to its left, or above it), inside the screen's edge, clear of
  *  each of `avoid` (the goal card, the row of buttons) and not under the finger: of the places tried (round the press,
  *  and round each box to keep clear of), the one that covers least of them, then not over the press, then the first of
- *  those round the press, then the nearest it. On a narrow phone with the finger in the middle there may be no room
- *  beside it: then it opens over the finger (the press that opened it can't choose an entry: CampMenu). */
-export function menuSpot(at: { x: number; y: number }, size: { w: number; h: number }, screen: { w: number; h: number }, avoid: readonly Box[]): { left: number; top: number } {
-  const off = MENU.offset, maxX = Math.max(EDGE, screen.w - EDGE - size.w), maxY = Math.max(EDGE, screen.h - EDGE - size.h);
+ *  those round the press, then the nearest it. A finger's long press (`touch`): MENU.finger.offset from it, above it
+ *  first (the hand comes from below), and within MENU.finger.r of it (the fingertip) counts as under the finger. On a narrow phone with the
+ *  finger in the middle there may be no room beside it: then it opens over the finger (the press that opened it can't
+ *  choose an entry: CampMenu). */
+export function menuSpot(at: { x: number; y: number }, size: { w: number; h: number }, screen: { w: number; h: number }, avoid: readonly Box[], touch = false): { left: number; top: number } {
+  const off = touch ? MENU.finger.offset : MENU.offset, maxX = Math.max(EDGE, screen.w - EDGE - size.w), maxY = Math.max(EDGE, screen.h - EDGE - size.h);
   const right = at.x + off, left = at.x - off - size.w, below = at.y + off, above = at.y - off - size.h;
-  const tried: [number, number][] = [[right, below], [left, below], [right, above], [left, above]];
+  const tried: [number, number][] = touch ? [[right, above], [left, above], [right, below], [left, below]] : [[right, below], [left, below], [right, above], [left, above]];
   for (const b of avoid) {
     tried.push([right, b.bottom + GAP], [left, b.bottom + GAP], [right, b.top - GAP - size.h], [left, b.top - GAP - size.h],
       [b.right + GAP, below], [b.right + GAP, above], [b.left - GAP - size.w, below], [b.left - GAP - size.w, above]);
   }
+  const covers = (d: number) => touch ? d <= MENU.finger.r : d < off;
   let best: { left: number; top: number } | null = null, bestCost: number[] = [];
   for (const t of tried) {
     const [x, y] = t;
     const spot = { left: Math.min(Math.max(x, EDGE), maxX), top: Math.min(Math.max(y, EDGE), maxY) };
     const box = { left: spot.left, top: spot.top, right: spot.left + size.w, bottom: spot.top + size.h };
-    // how far the press is outside it: nearer than MENU.offset, the fingertip covers it
+    // how far the press is outside it: nearer than that, the fingertip covers it
     const dx = Math.max(box.left - at.x, 0, at.x - box.right), dy = Math.max(box.top - at.y, 0, at.y - box.bottom);
     const rank = tried.indexOf(t);
-    const cost = [avoid.reduce((a, b) => a + overlap(box, b), 0), Math.hypot(dx, dy) < off ? 1 : 0, rank < 4 ? rank : 4 + Math.hypot(dx, dy)];
+    const cost = [avoid.reduce((a, b) => a + overlap(box, b), 0), covers(Math.hypot(dx, dy)) ? 1 : 0, rank < 4 ? rank : 4 + Math.hypot(dx, dy)];
     const first = cost.findIndex((c, i) => c !== bestCost[i]);
     if (!best || (first >= 0 && cost[first]! < bestCost[first]!)) { best = spot; bestCost = cost; }
   }
@@ -166,8 +169,9 @@ export class CampMenu {
 
   get isOpen(): boolean { return this.spot !== null; }
 
-  /** Open the menu for `line`'s spot beside a press at `at` (px, on the page); nothing to do there, nothing opens. */
-  open(line: LineId, at: { x: number; y: number }): void {
+  /** Open the menu for `line`'s spot beside a press at `at` (px, on the page), by a finger's long press (`touch`) or the
+   *  mouse; nothing to do there, nothing opens. */
+  open(line: LineId, at: { x: number; y: number }, touch = false): void {
     if (!campActions(this.state, this.layout, line).length) { this.close(); return; }
     this.spot = line; this.drawn = ''; this.armed = false;
     this.draw();
@@ -175,7 +179,7 @@ export class CampMenu {
     el.hidden = false; el.style.visibility = 'hidden'; el.style.left = '0px'; el.style.top = '0px';
     const rel = (r: DOMRect): Box => ({ left: r.left - stage.left, top: r.top - stage.top, right: r.right - stage.left, bottom: r.bottom - stage.top });
     const avoid = ['goal', 'rail'].map(id => $(id)).filter(e => !e.hidden && e.getClientRects().length).map(e => rel(e.getBoundingClientRect()));
-    const spot = menuSpot({ x: at.x - stage.left, y: at.y - stage.top }, { w: el.offsetWidth, h: el.offsetHeight }, { w: stage.width, h: stage.height }, avoid);
+    const spot = menuSpot({ x: at.x - stage.left, y: at.y - stage.top }, { w: el.offsetWidth, h: el.offsetHeight }, { w: stage.width, h: stage.height }, avoid, touch);
     el.style.left = `${Math.round(spot.left)}px`; el.style.top = `${Math.round(spot.top)}px`; el.style.visibility = '';
     // keyboard focus on the board itself (the arrow keys go into its entries), so a mouse or a finger sees no focus ring
     el.focus({ preventScroll: true });

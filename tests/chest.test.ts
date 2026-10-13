@@ -22,7 +22,7 @@ import { step } from '../src/sim';
 import { CAMP } from '../src/world/camp';
 import { VILLAGE, type Vec2 } from '../src/world/layout';
 import { navFor } from '../src/world/nav';
-import { blocksOf, outsideOf, shapeOf, standsOf, stepPlace, toGround, toStep } from '../src/world/steps';
+import { blocksOf, buildStandsOf, outsideOf, shapeOf, standsOf, stepPlace, toGround, toStep } from '../src/world/steps';
 import { headingOf } from '../src/actors/player';
 import { applyCommands, type Command } from '../src/systems/commands';
 import { besideChest } from '../src/systems/tools';
@@ -118,7 +118,7 @@ describe('the chest has no spot of its own (T8.1)', () => {
       }
       expect(differ, sh.name).toEqual([]);
     }
-    // (review PERF-navkey) one grid for the same things in the way: the chest makes none of its own, and the one made as
+    // one grid for the same things in the way: the chest makes none of its own, and the one made as
     // something is begun is the one used once it stands
     const base = ['campfire', 'woodpile', 'shelter'];
     expect(navFor(CAMP, [...base, 'chest'])).toBe(navFor(CAMP, base));
@@ -132,7 +132,7 @@ describe('the chest has no spot of its own (T8.1)', () => {
 
   it('it is there only in a shelter that stands: built, with the tent, the wall tent or the log cabin standing', () => {
     const state = createState(CAMP);
-    // (review ARCH-chestPlace-doc) nowhere for it to stand in a new game, nothing at the tent's spot
+    // nowhere for it to stand in a new game, nothing at the tent's spot
     expect(chestPlace(state, CAMP)).toBeNull();
     state.built = ['campfire', 'chest'];
     expect(chestHere(state, CAMP)).toBe(false);                    // (a hand-edited save: no shelter)
@@ -345,14 +345,14 @@ describe('building the chest from the door (D3, T8.6)', () => {
     send(s, { type: 'build', id: 'chest' });
     expect(s.state.underway).toEqual({ chest: 0 });
     runUntil(s, () => s.state.player.task.kind === 'raise', 60);
-    // facing the point on it his strikes are aimed at (its right end, beside the tent's front pole: SHAPES' aim)
+    // facing the point on it his strikes are aimed at (its right end, where his head stays outside the tent: SHAPES' aim)
     const door = standsOf(CAMP, 'shelter')[0]!, place = chestPlace(s.state, CAMP)!, chest = toGround(place, SHAPES.chest!.aim!), p = s.state.player;
     expect(dist(chest, place.pos)).toBeLessThan(0.45);
     expect(dist(p.pos, door)).toBeLessThan(0.1);
     expect(buildSpot(s.state, CAMP, 'chest')).toMatchObject({ stands: [door], face: chest });
     run(s, 1);
     expect(turn(p.heading, headingOf({ x: chest.x - p.pos.x, z: chest.z - p.pos.z }))).toBeLessThan(0.02);
-    // (a little back from the tent's open front, clear of its front pole: his swing, coming down a little beyond his
+    // (a little back from the tent's open front, under its rolled-back end: his swing, coming down a little beyond his
     // reach, lands on its lid all the same, tests/campmodels.test.ts)
     expect(doorToChest(SHELTERED[0]!)).toBeLessThanOrEqual(CARPENTRY.reach + 0.1);
     runUntil(s, () => s.state.built.includes('chest'), MAKES.chest.time + 5);
@@ -545,7 +545,7 @@ describe('the stone hearth and the woodshed (T7.1 to T7.3)', () => {
     send(s, { type: 'visit', id: 'woodpile' });
     runUntil(s, () => of(s, 'stacked').length > 1, 60);
     expect(of(s, 'stacked')[1]).toEqual({ type: 'stacked', logs: 0, pile: WOODPILE.max, at: 'woodshed', reason: 'full' });
-    // (review IU-pile-words) told as the woodshed, which stands there now
+    // told as the woodshed, which stands there now
     expect(stackedText(of(s, 'stacked')[0]!)).toBe(`Stacked ${WOODPILE.max - 12} birch logs in the woodshed (${WOODPILE.max} there now).`);
     expect(stackedText(of(s, 'stacked')[1]!)).toBe('The woodshed is full.');
     expect(stackedText({ type: 'stacked', logs: 0, pile: 3, at: 'woodshed', reason: 'none' })).toBe('You have no logs to stack in the woodshed.');
@@ -598,7 +598,7 @@ describe('the stone hearth and the woodshed (T7.1 to T7.3)', () => {
 });
 
 describe('he builds everything from its own stands (work points at bigger buildings)', () => {
-  it('each thing built at the camp\'s spots: at one of its stands, or round it for something round, on open ground, facing it', () => {
+  it("each thing built at the camp's spots: at one of the stands he builds it from (its own, SHAPES' builds, where at its stands his mallet would land on nothing of it: the woodshed, the log cabin), or round it for something round, on open ground, facing it", () => {
     const ids = Object.values(LINES).flat();
     for (const id of ids) {
       const s = camp(SHELTERED[0]!, 9, []);
@@ -612,7 +612,7 @@ describe('he builds everything from its own stands (work points at bigger buildi
       expect(s.state.player.task, id).toEqual({ kind: 'raise', id });
       const spot = buildSpot(s.state, CAMP, id)!, p = s.state.player.pos;
       expect(atSpot(spot, p), `${id} at ${p.x.toFixed(2)},${p.z.toFixed(2)}`).toBe(true);
-      if (shapeOf(id)!.stands) expect(standsOf(CAMP, id).some(q => dist(q, p) < 0.1), id).toBe(true);
+      if (shapeOf(id)!.stands) expect(buildStandsOf(CAMP, id).some(q => dist(q, p) < 0.1), id).toBe(true);
       expect(walkGrid(s.state, CAMP).walkable(p), id).toBe(true);
       run(s, 1);
       const middle = stepPlace(CAMP, id)!.pos;

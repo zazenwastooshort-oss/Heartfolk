@@ -172,12 +172,12 @@ describe("the camp's menu (campActions, T5.4)", () => {
     expect(keys(campActions(s.state, CAMP, 'woodpile'))).toEqual(['stack:woodpile', 'build:woodshed:upgrade']);
     expect(keys(campActions(s.state, CAMP, 'dummy'))).toEqual(['practise']);              // no upgrade for the dummy
     expect(entryOf(s.state, 'hearth', 'cook:campfire')!.why).toEqual({ kind: 'noFish' });
-    expect(entryOf(s.state, 'woodpile', 'stack:woodpile')!.why).toEqual({ kind: 'noLogs' });
+    expect(entryOf(s.state, 'woodpile', 'stack:woodpile')!.why).toEqual({ kind: 'noLogs', at: 'woodpile' });
     s.state.player.backpack = { raw_fish: 2, birch_logs: 4 };
     expect(entryOf(s.state, 'hearth', 'cook:campfire')!.why).toBeNull();
     expect(entryOf(s.state, 'woodpile', 'stack:woodpile')!.why).toBeNull();
     s.state.woodpile = WOODPILE.max;
-    expect(entryOf(s.state, 'woodpile', 'stack:woodpile')!.why).toEqual({ kind: 'full' });
+    expect(entryOf(s.state, 'woodpile', 'stack:woodpile')!.why).toEqual({ kind: 'full', at: 'woodpile' });
     s.state.player.backpack = {}; s.state.bank = { [COOK.raw]: 1 };                       // fish in the chest counts
     expect(entryOf(s.state, 'hearth', 'cook:campfire')!.why).toBeNull();
     // the wall tent under way: the hearth's upgrade waits for it, saying so
@@ -256,7 +256,7 @@ describe("the camp's menu (campActions, T5.4)", () => {
   });
 });
 
-describe('the menu headed and worded by what is drawn (review IU-shelter-words-midupgrade)', () => {
+describe('the menu headed and worded by what is drawn', () => {
   it('headed by the tent while the wall tent goes up round it to its frame, then by the wall tent; its Sleep the tent\'s, then the shelter\'s', () => {
     const footings = camp(BASE, { underway: { wall_tent: 9 }, hour: 22 }), half = camp(BASE, { underway: { wall_tent: MAKES.wall_tent.time * 0.7 }, hour: 22 });
     expect(titleOf(footings.state, CAMP, 'tent')).toBe('Tent');
@@ -270,16 +270,20 @@ describe('the menu headed and worded by what is drawn (review IU-shelter-words-m
   });
 });
 
-describe('a tap that can do nothing now says why, as the menu does, and walks him nowhere (review IU-pile-tap-disagrees)', () => {
-  it('the firewood pile or the woodshed with no logs on him, or full; anything else goes ahead', () => {
-    for (const built of [BASE, [...BASE, 'woodshed'] as MakeId[]]) {
-      const s = camp(built);
-      expect(tapRefused(s.state, CAMP, 'woodpile')).toEqual({ kind: 'noLogs' });
-      expect(whyText(tapRefused(s.state, CAMP, 'woodpile')!)).toBe('No logs on him to stack.');
+describe('a tap that can do nothing now says why, as the menu does, and walks him nowhere', () => {
+  it('the firewood pile or the woodshed with no logs on him, or full, in the words the stacking itself says; anything else goes ahead', () => {
+    const words = { woodpile: ['You have no logs to stack on the firewood pile.', 'The firewood pile is full.'], woodshed: ['You have no logs to stack in the woodshed.', 'The woodshed is full.'] };
+    for (const [at, built] of [['woodpile', BASE], ['woodshed', [...BASE, 'woodshed']]] as const) {
+      const s = camp([...built]);
+      expect(tapRefused(s.state, CAMP, 'woodpile')).toEqual({ kind: 'noLogs', at });
+      expect(whyText(tapRefused(s.state, CAMP, 'woodpile')!)).toBe(words[at][0]);
+      expect(whyText(entryOf(s.state, 'woodpile', `stack:${at}`)!.why!)).toBe(words[at][0]);      // the menu's faded entry
       s.state.player.backpack = { birch_logs: 4 };
       expect(tapRefused(s.state, CAMP, 'woodpile')).toBeNull();
       s.state.woodpile = WOODPILE.max;
-      expect(tapRefused(s.state, CAMP, 'woodpile')).toEqual({ kind: 'full' });
+      expect(tapRefused(s.state, CAMP, 'woodpile')).toEqual({ kind: 'full', at });
+      expect(whyText(tapRefused(s.state, CAMP, 'woodpile')!)).toBe(words[at][1]);
+      expect(whyText(entryOf(s.state, 'woodpile', `stack:${at}`)!.why!)).toBe(words[at][1]);
     }
     // the other spots: the tap's own command says why itself, without walking him (or goes ahead)
     const s = camp(BASE);
@@ -287,9 +291,21 @@ describe('a tap that can do nothing now says why, as the menu does, and walks hi
     // while the woodshed goes up, a tap carries on with it
     expect(tapRefused(camp(BASE, { underway: { woodshed: 9 } }).state, CAMP, 'woodpile')).toBeNull();
   });
+
+  it(`the shelter at night with him asleep in it already: "He's asleep.", as the menu says, and its words just its name`, () => {
+    for (const [built, name] of [[BASE, 'Tent'], [[...BASE, 'wall_tent'], 'Wall tent']] as const) {
+      const s = camp([...built], { hour: 22 });
+      expect(tapRefused(s.state, CAMP, 'tent')).toBeNull();                                   // awake: to bed
+      s.state.player.task = { kind: 'sleep' };
+      expect(tapRefused(s.state, CAMP, 'tent')).toEqual({ kind: 'asleep' });
+      expect(whyText(tapRefused(s.state, CAMP, 'tent')!)).toBe("He's asleep.");
+      expect(campActions(s.state, CAMP, 'tent').find(e => e.action.kind === 'sleep')!.why).toEqual({ kind: 'asleep' });
+      expect(campTap(s.state, CAMP, 'tent')!.hover).toBe(name);
+    }
+  });
 });
 
-describe('the menu by the keyboard (review IU-menu-arrows)', () => {
+describe('the menu by the keyboard', () => {
   it('Up and Left go back, Down and Right go on, round the ends; Home and End; any other key is left to the page', () => {
     expect(menuKey('ArrowDown', -1, 3)).toBe(0); expect(menuKey('ArrowRight', -1, 3)).toBe(0);
     expect(menuKey('ArrowUp', -1, 3)).toBe(2); expect(menuKey('ArrowLeft', -1, 3)).toBe(2);
@@ -304,6 +320,9 @@ describe('the menu by the keyboard (review IU-menu-arrows)', () => {
 describe('what a plain tap does, and its words under the mouse (campTap, D10, D15)', () => {
   /** The words over `line` in this camp. */
   const hover = (s: Setup, line: LineId) => campTap(s.state, CAMP, line)?.hover ?? null;
+  /** That camp with logs on him, or its pile full. */
+  const logs = (s: Setup) => { s.state.player.backpack = { birch_logs: 5 }; return s; };
+  const full = (s: Setup) => { s.state.woodpile = WOODPILE.max; return s; };
   const tapKey = (s: Setup, line: LineId) => { const t = campTap(s.state, CAMP, line); return t ? actionKey(t.action) : null; };
 
   it('the table of words', () => {
@@ -320,7 +339,7 @@ describe('what a plain tap does, and its words under the mouse (campTap, D10, D1
       ['the chest built, by day', camp(BASE), 'tent', 'Look in|Chest'],
       ['a wall tent under way, by day', camp(BASE, { underway: { wall_tent: 9 } }), 'tent', 'Look in|Chest'],
       ['a wall tent under way, at night', camp(BASE, { underway: { wall_tent: 9 }, hour: 22 }), 'tent', 'Sleep in|Tent'],
-      // (review IU-shelter-words-midupgrade) half built, the wall tent is drawn there, not the tent he still sleeps in
+      // half built, the wall tent is drawn there, not the tent he still sleeps in
       ['a wall tent half built, at night', camp(BASE, { underway: { wall_tent: MAKES.wall_tent.time * 0.7 }, hour: 22 }), 'tent', 'Sleep in|Shelter'],
       ['a log cabin half built, at night', camp([...BASE, 'wall_tent'], { underway: { log_cabin: MAKES.log_cabin.time * 0.7 }, hour: 22 }), 'tent', 'Sleep in|Shelter'],
       ['a log cabin at its frame, at night', camp([...BASE, 'wall_tent'], { underway: { log_cabin: MAKES.log_cabin.time * 0.4 }, hour: 22 }), 'tent', 'Sleep in|Wall tent'],
@@ -329,8 +348,11 @@ describe('what a plain tap does, and its words under the mouse (campTap, D10, D1
       ['the campfire, with a rod', camp(BASE), 'hearth', 'Cook at|Campfire'],
       ['the stone hearth', camp([...BASE, 'stone_hearth']), 'hearth', 'Cook at|Stone hearth'],
       ['the stone hearth under way', camp(BASE, { underway: { stone_hearth: 9 } }), 'hearth', 'Carry on|Stone hearth'],
-      ['the firewood pile', camp(BASE), 'woodpile', 'Stack logs on|Firewood pile'],
-      ['the woodshed', camp([...BASE, 'woodshed']), 'woodpile', 'Stack logs on|Woodshed'],
+      ['the firewood pile, logs on him', logs(camp(BASE)), 'woodpile', 'Stack logs on|Firewood pile'],
+      ['the woodshed, logs on him', logs(camp([...BASE, 'woodshed'])), 'woodpile', 'Stack logs on|Woodshed'],
+      // no logs on him, or full: just its name (a tap only says why)
+      ['the firewood pile, no logs on him', camp(BASE), 'woodpile', 'Firewood pile'],
+      ['the woodshed full', full(logs(camp([...BASE, 'woodshed']))), 'woodpile', 'Woodshed'],
       ['the woodshed under way', camp(BASE, { underway: { woodshed: 9 } }), 'woodpile', 'Carry on|Woodshed'],
       ['the training dummy', camp(BASE), 'dummy', 'Practise on|Training dummy'],
     ];
@@ -381,7 +403,7 @@ describe('what a plain tap does, and its words under the mouse (campTap, D10, D1
 describe('the press classifier (ui/gesture.ts, T5.5)', () => {
   const p = (id: number, kind: PointerAt['kind'], x: number, y: number, t: number, button = 0): PointerAt => ({ id, kind, button, x, y, t });
 
-  it('a long press opens the menu for what the finger went down on, though the camera, following him, has moved it from under the finger since; a right click, for what is under the mouse then (review IU-hold-repick)', () => {
+  it('a long press opens the menu for what the finger went down on, though the camera, following him, has moved it from under the finger since; a right click, for what is under the mouse then', () => {
     // what is under the finger's point: the woodshed while the camera is where it was, the grass (or a neighbour) once
     // it has followed him a little way
     const point = { x: 0, y: 0, z: 0 } as unknown as Extract<Target, { point: unknown }>['point'];
@@ -501,18 +523,23 @@ describe('where the menu goes (menuSpot, T5.6)', () => {
   /** The menu's size: 256 px wide (index.html), its title and up to four entries with a line under each. */
   const MENU_SIZE = { w: 256, h: 34 + 4 * 62 + 12 };
 
-  it('fits inside the screen at every size, clear of the goal card and the buttons, and not under the finger wherever there is room beside it', () => {
+  it('fits inside the screen at every size, clear of the goal card and the buttons, and not under the finger (a mouse, or a fingertip 44 px across) wherever there is room beside it', () => {
+    for (const touch of [false, true]) {
     let covered = 0, presses = 0;
-    // under the finger: the press nearer the menu than MENU.offset (a fingertip is wider than the point it presses)
-    const under = (box: Box, x: number, y: number) => Math.hypot(Math.max(box.left - x, 0, x - box.right), Math.max(box.top - y, 0, y - box.bottom)) < MENU.offset;
+    // under the finger: the press nearer the menu than MENU.offset (a fingertip is wider than the point it presses),
+    // for a finger's long press within the fingertip, MENU.finger.r
+    const under = (box: Box, x: number, y: number) => {
+      const d = Math.hypot(Math.max(box.left - x, 0, x - box.right), Math.max(box.top - y, 0, y - box.bottom));
+      return touch ? d <= MENU.finger.r : d < MENU.offset;
+    };
     const grown = (b: Box): Box => ({ left: b.left - GAP, top: b.top - GAP, right: b.right + GAP, bottom: b.bottom + GAP });
     const boxAt = (left: number, top: number): Box => ({ left, top, right: left + MENU_SIZE.w, bottom: top + MENU_SIZE.h });
     for (const [w, h] of SIZES) {
       const avoid = [card(w), rail(w, h)];
       for (let x = 4; x < w; x += 37) for (let y = 4; y < h; y += 37) {
         if (avoid.some(b => x >= b.left && x <= b.right && y >= b.top && y <= b.bottom)) continue;   // a press there is on them, not the scene
-        const at = menuSpot({ x, y }, MENU_SIZE, { w, h }, avoid), box = boxAt(at.left, at.top);
-        const where = `${w}x${h} at ${x},${y}`;
+        const at = menuSpot({ x, y }, MENU_SIZE, { w, h }, avoid, touch), box = boxAt(at.left, at.top);
+        const where = `${touch ? 'a finger' : 'the mouse'}, ${w}x${h} at ${x},${y}`;
         presses++;
         expect(box.left, where).toBeGreaterThanOrEqual(EDGE);
         expect(box.top, where).toBeGreaterThanOrEqual(EDGE);
@@ -528,7 +555,8 @@ describe('where the menu goes (menuSpot, T5.6)', () => {
         }
       }
     }
-    expect(covered / presses).toBeLessThan(0.1);
+    expect(covered / presses, touch ? 'a finger' : 'the mouse').toBeLessThan(0.1);
+    }
   });
 
   it(`opens beside the press, ${MENU.offset} px to its side and below it, where there is room`, () => {
@@ -537,6 +565,19 @@ describe('where the menu goes (menuSpot, T5.6)', () => {
     expect(menuSpot({ x: 1200, y: 300 }, MENU_SIZE, { w: 1280, h: 800 }, [])).toEqual({ left: 1280 - EDGE - MENU_SIZE.w, top: 300 + MENU.offset });
     // near the bottom: still to its right, kept on the screen
     expect(menuSpot({ x: 600, y: 700 }, MENU_SIZE, { w: 1280, h: 800 }, [])).toEqual({ left: 600 + MENU.offset, top: 800 - EDGE - MENU_SIZE.h });
+  });
+
+  it('for a finger, opens above it first (the hand comes from below), clear of the fingertip', () => {
+    // a phone held upright, the menu too wide to go beside the press: above it where there is room, not 14 px below it
+    // under the finger and the hand (the menus a review measured: 90 and 193 px tall)
+    for (const [w, h, x, y, tall] of [[360, 740, 330, 388, 90], [375, 812, 150, 520, 193], [390, 844, 200, 600, 260]] as const) {
+      const avoid = [card(w), rail(w, h)], at = menuSpot({ x, y }, { w: MENU_SIZE.w, h: tall }, { w, h }, avoid, true);
+      expect(at.top + tall, `${w}x${h} at ${x},${y}`).toBeLessThanOrEqual(y - MENU.finger.offset);
+    }
+    // where there is room, beside it and above it
+    expect(menuSpot({ x: 600, y: 600 }, MENU_SIZE, { w: 1280, h: 800 }, [], true)).toEqual({ left: 600 + MENU.finger.offset, top: 600 - MENU.finger.offset - MENU_SIZE.h });
+    // with a mouse, beside it and below it, as before
+    expect(menuSpot({ x: 600, y: 300 }, MENU_SIZE, { w: 1280, h: 800 }, [])).toEqual({ left: 600 + MENU.offset, top: 300 + MENU.offset });
   });
 });
 

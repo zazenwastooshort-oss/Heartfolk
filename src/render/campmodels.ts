@@ -237,10 +237,24 @@ function woodpile(s: Stages, shape: Shape): void {
   s.put(CARPENTRY.stages, CARPENTRY.stages, 'logs', pileLogs());
 }
 
+/** `mesh` (its own place baked in) shortened along z: what spanned z0 to z1 spans z0 to `to`. */
+function cutBack(mesh: THREE.Mesh, z0: number, z1: number, to: number): THREE.Mesh {
+  mesh.updateMatrix();
+  const g = mesh.geometry.clone().applyMatrix4(mesh.matrix);
+  g.translate(0, 0, -z0).scale(1, 1, (to - z0) / (z1 - z0)).translate(0, 0, z0);
+  return new THREE.Mesh(g, mesh.material);
+}
+
+/** The tent's open front once it is built (z, in its own frame; the canvas came to 1.2): rolled back far enough that the
+ *  storage chest just inside it (SHAPES' chest) shows from the side as well as from the door, and his mallet clears the
+ *  canvas as he builds the chest from the door. */
+const TENT_OPEN = 0.72;
+
 /** The tent (the shelter): pegs and the floor's planks stacked ready at the front, then the poles and ridge with the
  *  planks laid for a floor, then the tarp thrown over one side, then village.glb's Tent pegged out whole, its front
- *  open (In 8: the chest is seen just inside it): the canvas's front and its door flap left out, the flaps rolled up
- *  and tied at the sides instead. The pegs go once the wall tent is begun round it (D6). */
+ *  open (In 8: the chest is seen just inside it): the canvas's front and its door flap left out, its open end rolled
+ *  back to TENT_OPEN and the flaps rolled up and tied at the sides there, the front pole taken out of the doorway and
+ *  the ridge carried by two poles crossed under it instead. The pegs go once the wall tent is begun round it (D6). */
 function shelter(s: Stages, P: Protos, shape: Shape): void {
   footings(s, shape);
   const tent = copy(P, 'Tent'), part = (re: RegExp) => tent.children.filter(o => re.test(o.name));
@@ -250,21 +264,29 @@ function shelter(s: Stages, P: Protos, shape: Shape): void {
     const plank = copy(P, 'Plank'); plank.position.set(-0.04 + (i % 2) * 0.05, 0.016 + i * 0.066, 0.97 - (i % 2) * 0.03); plank.rotation.y = (i - 1) * 0.06;
     s.only(0, 0, plank);
   }
-  s.add(1, ...part(/^(pole|ridge)/i).map(o => o.clone(true)));
+  // the poles and the ridge (his mallet comes down on the front pole as he raises them); built, the front pole is taken
+  // out of the doorway, and the ridge, cut back with the canvas, rests where two poles cross under it along the rolled
+  // flaps, so the doorway is clear for the chest in it (In 8) and for his swing as he builds it
+  const front = TENT_OPEN + 0.03;
+  s.add(1, ...part(/^pole001$/i).map(o => o.clone(true)));
+  s.only(1, 2, ...part(/^(pole|ridge)$/i).map(o => o.clone(true)));
+  for (const ridge of part(/^ridge$/i) as THREE.Mesh[]) s.add(3, cutBack(ridge, -1.36, 1.36, front + 0.12));
+  for (const sx of [-1, 1]) { const leg = pole(0.03, C.woodDark, [sx * 0.94, 0, front], [-sx * 0.06, 1.58, front], 6); leg.name = `pole_crossed${sx}`; s.add(3, leg); }
   // the planks for a floor, along its length (the chest stands on them, SHAPES' floor)
   for (let i = 0; i < 4; i++) {
     const plank = copy(P, 'Plank'); plank.rotation.y = Math.PI / 2; plank.scale.set(2.05, 1, 1); plank.position.set(-0.57 + i * 0.38, 0, 0.1);
     s.add(1, plank);
   }
-  // the canvas without its front (the triangle across the door, z 1.2): over one side, then all of it
+  // the canvas without its front (the triangle across the door, z 1.2), cut back to its open end: over one side,
+  // then all of it
   const back = (z: number) => z < 1.1;
   for (const canvas of part(/^canvas/i) as THREE.Mesh[]) {
-    s.only(2, 2, trimmed(canvas, (x, _y, z) => x < 0.02 && back(z)));
-    s.add(3, trimmed(canvas, (_x, _y, z) => back(z)));
+    s.only(2, 2, cutBack(trimmed(canvas, (x, _y, z) => x < 0.02 && back(z)), -1.2, 1.2, TENT_OPEN));
+    s.add(3, cutBack(trimmed(canvas, (_x, _y, z) => back(z)), -1.2, 1.2, TENT_OPEN));
   }
   // the front's flaps rolled up along its edges and tied, either side of the doorway
   for (const sx of [-1, 1]) {
-    const foot: V3 = [sx * 0.9, 0.04, 1.23], top: V3 = [sx * 0.07, 1.36, 1.23];
+    const foot: V3 = [sx * 0.9, 0.04, front], top: V3 = [sx * 0.07, 1.36, front];
     const at = (k: number): V3 => [foot[0] + (top[0] - foot[0]) * k, foot[1] + (top[1] - foot[1]) * k, foot[2]];
     s.add(3, pole(0.05, C.tarpDark, foot, top, 6));
     for (const k of [0.3, 0.62]) s.add(3, pole(0.058, C.rope, at(k - 0.02), at(k + 0.02), 6));
@@ -337,7 +359,10 @@ function wallTent(s: Stages, shape: Shape): void {
   // beam, the porch's rafters
   for (const z of [zb - 0.05, zf + 0.05, zp]) for (const sx of [-1, 1]) s.add(1, box(0.1, eave, 0.1, C.timber, sx * (X + 0.06), eave / 2, z));
   for (const sx of [-1, 1]) s.add(1, box(0.1, 0.1, zp - zb + 0.2, C.timber, sx * (X + 0.06), eave + 0.02, (zb + zp) / 2));
-  for (const z of [zb - 0.1, zp]) s.add(1, box(0.1, ridge + 0.02, 0.1, C.timber, 0, (ridge + 0.02) / 2, z));
+  // (the front ridge post is raised first, with the footings: his mallet comes down on it from the door, in front of
+  // the old tent)
+  s.add(0, box(0.1, ridge + 0.02, 0.1, C.timber, 0, (ridge + 0.02) / 2, zp));
+  s.add(1, box(0.1, ridge + 0.02, 0.1, C.timber, 0, (ridge + 0.02) / 2, zb - 0.1));
   s.add(1, box(0.11, 0.11, zp - zb + 0.3, C.timber, 0, ridge + 0.04, (zb + zp) / 2));
   for (const sx of [-1, 1]) s.add(1, beam(0.08, C.timber, [sx * (X + 0.06), eave + 0.04, zp], [0, ridge + 0.02, zp]));
   // half built: the plank floor, the canvas walls at the sides and the back, one side of the roof
@@ -381,6 +406,10 @@ function logCabin(s: Stages, shape: Shape): void {
   const doorGap: [number, number, number, number][] = [[-doorW, doorW, 0, doorTop]];
   const winGap: [number, number, number, number][] = [[0.3, 1.0, 0.7, 1.45]];
   for (const [x, z] of [[-X, -Z], [X, -Z], [X, Z], [-X, Z]] as const) s.add(0, rock(0.2, C.stone, x, 0.02, z, 0.55, x + z));
+  // the right-hand wall's first log laid ready on skids beside where it goes, where his mallet comes down from where he
+  // builds it (SHAPES' builds), clear of the wall tent standing inside; from the frame on he knocks on that wall itself
+  s.only(0, 0, pole(r, C.logLight, [X + 0.3, 0.09 + r, -0.7], [X + 0.3, 0.09 + r, 1.3], 7));
+  for (const z of [-0.4, 1.0]) s.only(0, 0, box(0.4, 0.09, 0.12, C.woodDark, X + 0.3, 0.045, z));
   for (let i = 0; i < courses; i++) {
     const yf = r + i * step, ys = yf + step / 2, c = i % 2 ? C.log : C.logLight, c2 = i % 2 ? C.logLight : C.log;
     const sides: THREE.Object3D[] = [], ends: THREE.Object3D[] = [];
@@ -446,14 +475,18 @@ function stoneHearth(s: Stages, shape: Shape): void {
   footings(s, shape);
   const tones = [C.stone, C.stoneLight, C.stoneDark];
   for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; s.add(0, rock(0.19, tones[i % 3]!, Math.cos(a) * 0.66, 0.1, Math.sin(a) * 0.66, 0.72, i * 1.3)); }
-  // the spit: two forked posts across the fire, a pole, a crank at one end
+  // the spit: two forked posts across the fire, a pole, a crank at one end; front to back (SHAPES' spit), so his swing
+  // from the stands at its sides (SHAPES' stands) comes down on the stones clear of it
+  const across = (...parts: THREE.Object3D[]) => { const g = new THREE.Group(); g.rotation.y = Math.PI / 2; g.add(...parts); return g; };
+  const spit: THREE.Object3D[] = [];
   for (const sx of [-1, 1]) {
     const x = sx * 0.95;
-    s.add(0, pole(0.035, C.woodDark, [x, 0, 0], [x, 0.82, 0]));
-    s.add(0, pole(0.025, C.woodDark, [x, 0.74, 0], [x - sx * 0.05, 0.98, 0.1]), pole(0.025, C.woodDark, [x, 0.74, 0], [x + sx * 0.03, 0.98, -0.1]));
+    spit.push(pole(0.035, C.woodDark, [x, 0, 0], [x, 0.82, 0]));
+    spit.push(pole(0.025, C.woodDark, [x, 0.74, 0], [x - sx * 0.05, 0.98, 0.1]), pole(0.025, C.woodDark, [x, 0.74, 0], [x + sx * 0.03, 0.98, -0.1]));
   }
-  s.add(0, pole(0.022, C.wood, [-1.12, 0.86, 0], [1.12, 0.86, 0]), pole(0.02, C.wood, [1.12, 0.86, 0], [1.12, 0.66, 0.04]));
-  s.put(3, 3, 'fish', [fishModel(C.roast, -0.18, 0.86, 0, 0), fishModel(C.roast, 0.2, 0.86, 0, Math.PI)]);
+  spit.push(pole(0.022, C.wood, [-1.12, 0.86, 0], [1.12, 0.86, 0]), pole(0.02, C.wood, [1.12, 0.86, 0], [1.12, 0.66, 0.04]));
+  s.add(0, across(...spit));
+  s.put(3, 3, 'fish', [across(fishModel(C.roast, -0.18, 0.86, 0, 0), fishModel(C.roast, 0.2, 0.86, 0, Math.PI))]);
   // the ash bed, a few logs over it, the second course of stones
   s.add(2, pole(0.5, C.ash, [0, 0, 0], [0, 0.05, 0], 9));
   for (let i = 0; i < 9; i++) { const a = (i + 0.5) / 9 * Math.PI * 2; s.add(2, rock(0.13, tones[(i + 1) % 3]!, Math.cos(a) * 0.6, 0.27, Math.sin(a) * 0.6, 0.75, i * 2.1)); }
@@ -499,9 +532,14 @@ function shedLogs(): THREE.Object3D[] {
  *  a chopping block. Footings: the chopping block and a few split pieces; frame: the posts, beams, back slats and
  *  bearers, round the old pile; half built: the logs moved in from the pile and half the roof; built: the whole roof. */
 function woodshed(s: Stages, shape: Shape): void {
-  footings(s, shape);
+  // (the stakes and string round the shed itself, not round its chopping block too: clear of where he stands to build
+  // it, at its front right-hand corner)
+  footings(s, { ...shape, blocks: shape.blocks.filter(b => 'box' in b) });
   const X = 0.68, Z = 0.42, hf = 1.38, hb = 1.08;
   s.add(0, pole(0.21, C.wood, [X + 0.5, 0, 0.3], [X + 0.5, 0.42, 0.3], 7), box(0.3, 0.02, 0.3, C.logEnd, X + 0.5, 0.425, 0.3));
+  // a stake where each post goes (his mallet knocks in the front right-hand one from the corner he builds it from,
+  // SHAPES' builds, and comes down on that post once it stands)
+  for (const x of [-X, X]) for (const z of [-Z, Z]) s.only(0, 0, box(0.05, 0.36, 0.05, C.stake, x, 0.18, z));
   // (the split pieces clear of the chopping block and of the stake at its corner)
   for (const [x, z, t] of [[X + 0.35, 0.72, 0.4], [X + 0.68, 0.62, 0.72]] as const) s.add(0, box(0.4, 0.08, 0.1, C.logEnd, x, 0.04, z, t));
   for (const x of [-X, X]) s.add(1, pole(0.055, C.wood, [x, 0, Z], [x, hf, Z]), pole(0.055, C.wood, [x, 0, -Z], [x, hb, -Z]));

@@ -8,6 +8,8 @@
  *  coming (D24). */
 export const LONG_PRESS = { ms: 500, slop: 8, cue: 150 };
 
-/** Where the camp's menu opens: `offset` pixels to the side of and below the press (so it never sits under the finger),
- *  kept on the screen and clear of the goal card and the row of buttons. */
-export const MENU = { offset: 14 };
+/** Where the camp's menu opens: `offset` pixels to the side of and below the mouse's press, kept on the screen and clear
+ *  of the goal card and the row of buttons; for a finger's long press, `finger.offset` pixels to its side and above it
+ *  first (the hand comes from below), the fingertip a disc `finger.r` pixels round the press (about 44 px across), so
+ *  it never sits under the finger or the hand. */
+export const MENU = { offset: 14, finger: { offset: 30, r: 22 } };

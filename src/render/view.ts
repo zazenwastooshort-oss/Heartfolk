@@ -12,7 +12,8 @@
 // into a strike at a rat, standing ready while he waits for them, and toppling over when one knocks him out. Since the
 // goblin camp: its palisade, tent, totem and fire ring and the goblins in it (render/goblins.ts, from a load of
 // miner.glb of their own). Since the camp build (13 Oct 2026) he builds with a mallet (render/campmodels.ts), drawn on
-// the pick's bone in place of the pick, swung with the Mine clip once for each knock of the work, landing on the knock.
+// the pick's bone in place of the pick, swung with the Mine clip over and over as he works (render/arms.ts
+// malletSwing), leaning down as it lands on something low (SHAPES' lean).
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import minerUrl from '../../assets/models/miner.glb?url';

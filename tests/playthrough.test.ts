@@ -133,8 +133,9 @@ interface Run {
   problems: string[];
   /** each save: when (seconds of play), and where the game read back differed from the game saved, if it did */
   saves: { at: number; diff?: string }[];
-  /** seconds of play in the run, and the real milliseconds it took */
-  played: number; ms: number;
+  /** seconds of play in the run, the real milliseconds it took, and the processor time (ms) this test's own process
+   *  spent on it (other work on the machine doesn't count) */
+  played: number; ms: number; cpu: number;
   /** (a player who builds every upgrade along the way) the upgrades built, and what was handed in for them */
   upgraded: string[]; handed: Record<string, number>;
 }
@@ -210,12 +211,12 @@ function handIn(state: GameState, run: Run): void {
  *  it is the goal), he is stuck, or a chapter runs out of time. `upgrades`: a player who also builds every upgrade along
  *  the way (handIn). */
 function play(seed: number, upgrades = false): Run {
-  const t0 = performance.now(), g = newGame(seed, VISITS, upgrades), { events, ctx, bot } = g;
+  const t0 = performance.now(), c0 = process.cpuUsage(), g = newGame(seed, VISITS, upgrades), { events, ctx, bot } = g;
   const run: Run = {
     seed, done: {}, chapterEnd: CHAPTER_ENDS.map(() => null), levels: CHAPTER_ENDS.map(() => null),
     taps: CHAPTER_ENDS.map(() => 0), knockouts: CHAPTER_ENDS.map(() => 0), eaten: CHAPTER_ENDS.map(() => 0), refused: 0, untappable: [], ate: {},
     asleep: CHAPTER_ENDS.map(() => 0), nights: CHAPTER_ENDS.map(() => 0), meals: CHAPTER_ENDS.map(() => 0), sleptAt: {},
-    end: 'time', stuck: null, still: { for: 0, goal: '' }, problems: [], saves: [], played: 0, ms: 0, upgraded: [], handed: {},
+    end: 'time', stuck: null, still: { for: 0, goal: '' }, problems: [], saves: [], played: 0, ms: 0, cpu: 0, upgraded: [], handed: {},
   };
   if (upgrades) events.on(e => { if (e.type === 'made' && stagedUpgrade(e.make)) run.upgraded.push(e.make); });
   const start = g.state.time, played = () => g.state.time - start, min = (s: number) => (s / 60).toFixed(1);
@@ -305,6 +306,7 @@ function play(seed: number, upgrades = false): Run {
   run.played = played();
   if (run.played - moved > run.still.for) run.still = { for: run.played - moved, goal: currentGoal(g.state).id };
   run.ms = performance.now() - t0;
+  const cpu = process.cpuUsage(c0); run.cpu = (cpu.user + cpu.system) / 1000;
   if (trace) process.stdout.write(`${[...trace, line(`ended "${run.end}": ${where(g.state)}`), ''].join('\n')}\n`);
   return run;
 }
@@ -376,7 +378,9 @@ describe('the playthrough bot', { timeout: 60_000 }, () => {
       // (a bot tapping again what he is already doing would tap every second)
       expect(r.taps.reduce((a, n) => a + n, 0), about(r)).toBeLessThan(r.played / 30);
     }
-    expect(SEEDS.reduce((a, s) => a + runOf(s).ms, 0)).toBeLessThan(SEEDS.length * 5_000);
+    // (about a second of processor time a run alone on a desktop: this test's own process's, so the rest of the suite
+    // and other work on a busy machine don't count, as the real time would)
+    expect(SEEDS.reduce((a, s) => a + runOf(s).cpu, 0)).toBeLessThan(SEEDS.length * 5_000);
   });
 });
 

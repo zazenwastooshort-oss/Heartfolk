@@ -103,7 +103,7 @@ describe('the storage chest stores things, like the bank', () => {
     expect(count(s, 'noStorage')).toBe(1);
     expect(count(s, 'backpackFull')).toBe(0);
     expect(backpackCount(s.state)).toBe(BACKPACK_SLOTS);
-    // (review TEST-stale-comment) a visit to the chest before it is built finds no way there and stores nothing
+    // a visit to the chest before it is built finds no way there and stores nothing
     send(s, { type: 'visit', id: 'chest' });
     expect(s.log.at(-1)).toEqual({ type: 'noPath' });
     expect(s.state.bank).toEqual({});

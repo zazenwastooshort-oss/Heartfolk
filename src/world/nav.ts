@@ -17,6 +17,12 @@ import { blocksOf, shapeOf } from './steps';
 
 const CELL = 0.4;
 const MARGIN = 0.35;                 // keep this far from walls, so the character doesn't clip them
+/** How far round (metres) and in how many directions he looks for open ground to step out to, standing where he can't
+ *  (NavGrid.route). */
+const STEP_OUT = { reach: [0.4, 0.8, 1.2, 1.6, 2, 2.5, 3], ways: 16 };
+/** How far round what he has built or begun (metres) open ground is looked at for pockets closed in by it
+ *  (NavGrid.closePockets). */
+const POCKET_ROOM = 1.2;
 
 /** Distance from p to the nearest point of a polyline. */
 export function distToLine(p: Vec2, line: Vec2[]): number {
@@ -109,6 +115,36 @@ export class NavGrid {
       if (!block && water.edge(p) <= waterClear) block = true;   // where the land reaches the water
       if (block) this.blocked[iz * this.nx + ix] = 1;
     }
+    this.closePockets(layout, steps);
+  }
+
+  /** Open ground closed in on every side by what is built or begun (`steps`: between the stone hearth's ring and its
+   *  seats, for one) is in the way too: no way leads in or out of it, so no walk may end there (a tap on
+   *  it, a save read back with him moved out of something to the nearest open ground) and nobody can be left in it with
+   *  something begun round him. Only the ground round the steps, POCKET_ROOM beyond them, is looked at: any of it that
+   *  can't be reached from the edge of that ground, or from where a new game starts, is closed. */
+  private closePockets(layout: Layout, steps: { rects: Rect[]; circles: [Vec2, number][] }): void {
+    const spans = [...steps.rects.map(b => [b.pos, Math.hypot(b.hw, b.hd)] as const), ...steps.circles.map(([c, r]) => [c, r + MARGIN] as const)];
+    if (!spans.length) return;
+    const room = (r: number) => r + POCKET_ROOM;
+    const [x0, z0] = this.cellOf({ x: Math.min(...spans.map(([c, r]) => c.x - room(r))), z: Math.min(...spans.map(([c, r]) => c.z - room(r))) });
+    const [x1, z1] = this.cellOf({ x: Math.max(...spans.map(([c, r]) => c.x + room(r))), z: Math.max(...spans.map(([c, r]) => c.z + room(r))) });
+    const ix0 = Math.max(0, x0), iz0 = Math.max(0, z0), ix1 = Math.min(this.nx - 1, x1), iz1 = Math.min(this.nz - 1, z1);
+    if (ix0 > ix1 || iz0 > iz1) return;
+    const w = ix1 - ix0 + 1, reached = new Uint8Array(w * (iz1 - iz0 + 1)), todo: number[] = [];
+    const reach = (ix: number, iz: number) => {
+      if (ix < ix0 || ix > ix1 || iz < iz0 || iz > iz1 || !this.open(ix, iz)) return;
+      const k = (iz - iz0) * w + (ix - ix0);
+      if (!reached[k]) { reached[k] = 1; todo.push(ix, iz); }
+    };
+    for (let ix = ix0; ix <= ix1; ix++) { reach(ix, iz0); reach(ix, iz1); }
+    for (let iz = iz0; iz <= iz1; iz++) { reach(ix0, iz); reach(ix1, iz); }
+    reach(...this.cellOf(layout.start));
+    // (side to side only: a step across a corner needs both cells beside it open, findPath, so it is never the only way)
+    while (todo.length) { const iz = todo.pop()!, ix = todo.pop()!; reach(ix + 1, iz); reach(ix - 1, iz); reach(ix, iz + 1); reach(ix, iz - 1); }
+    for (let iz = iz0; iz <= iz1; iz++) for (let ix = ix0; ix <= ix1; ix++) {
+      if (this.open(ix, iz) && !reached[(iz - iz0) * w + (ix - ix0)]) this.blocked[iz * this.nx + ix] = 1;
+    }
   }
 
   /** This grid (one with nothing built or begun at the camp's spots) with the steps `ids` put in the way as well: the
@@ -126,6 +162,7 @@ export class NavGrid {
     };
     for (const b of rects) mark(b.pos, Math.hypot(b.hw, b.hd), p => inRect(p, b));
     for (const c of circles) mark(c[0], c[1] + MARGIN, p => inCircle(p, c));
+    out.closePockets(layout, { rects, circles });
     return out;
   }
 
@@ -186,6 +223,30 @@ export class NavGrid {
       if (!this.open(ix, iz)) return false;
     }
     return true;
+  }
+
+  /** Open ground to step out to from `from`, where he can't stand (something just begun round him, or, in a save read
+   *  back, something bigger than when it was made), nearest first and no further than `upTo` metres: the nearest open
+   *  ground, then points on rings round him out to STEP_OUT's furthest. */
+  outsFrom(from: Vec2, upTo = Infinity): Vec2[] {
+    const d = (o: Vec2) => Math.hypot(o.x - from.x, o.z - from.z);
+    return [this.nearestWalkable(from), ...STEP_OUT.reach.flatMap(r => Array.from({ length: STEP_OUT.ways }, (_, i) => {
+      const a = i / STEP_OUT.ways * Math.PI * 2;
+      return { x: from.x + Math.cos(a) * r, z: from.z + Math.sin(a) * r };
+    }))].filter(o => this.walkable(o) && d(o) <= upTo).sort((a, b) => d(a) - d(b));
+  }
+
+  /** How far out of something he may step on his way (route): the furthest of STEP_OUT's rings. */
+  static readonly stepOutReach = Math.max(...STEP_OUT.reach);
+
+  /** The way from `from` to `to` (null for none). Standing where he can't (something just begun round him, T2.14), he
+   *  steps out first, to the nearest open ground that leads there (outsFrom), so he steps straight out rather than across
+   *  it; the first point of the way is that ground. (actors/player.ts walks him by it; core/save.ts reads a save made
+   *  on the way out back by it.) */
+  route(from: Vec2, to: Vec2): Vec2[] | null {
+    if (this.walkable(from)) return this.findPath(from, to);
+    for (const out of this.outsFrom(from)) { const path = this.findPath(out, to); if (path) return [out, ...path]; }
+    return null;
   }
 
   /** Waypoints from `from` to `to` (excluding `from`), or null when there is no way through. */

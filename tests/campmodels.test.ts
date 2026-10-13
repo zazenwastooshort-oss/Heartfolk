@@ -110,7 +110,7 @@ describe('every step at every stage (T6.5)', () => {
     expect(seen.size).toBe(CARPENTRY.stages + 1);
   });
 
-  it('the stakes at the corners of each footprint stand clear of everything else of its footings and frame (review V3-woodshed-stake)', () => {
+  it('the stakes at the corners of each footprint stand clear of everything else of its footings and frame', () => {
     const through: string[] = [];
     for (const id of STEPS.filter(x => x !== 'chest')) {    // (the chest has a chalked square, no stakes)
       const [x0, x1, z0, z1] = boundsOf(SHAPES[id]!), corners = [[x0, z0], [x1, z0], [x1, z1], [x0, z1]] as const;
@@ -297,7 +297,29 @@ describe('the camp drawn (render/structures.ts)', () => {
     expect(view(state).markerAt('chest')).toBe(true);
   });
 
-  it('the chest is seen just inside the tent\'s open front (In 8): nothing of the tent between it and the door, and clear of the tent\'s front pole (review V1-tent-chest)', () => {
+  it("the chest, its build and its chalk square are seen from the camera as a game starts (looking north, the tent side on): the tent's open end is rolled back, so most of the chest's front and top show at every stage", () => {
+    const ray = new THREE.Raycaster();
+    for (const stage of [0, 1, 2, 3]) {
+      const state = camp(['campfire', 'woodpile', 'shelter', 'dummy']);
+      if (stage === CARPENTRY.stages) state.built.push('chest'); else state.underway = { chest: MAKES.chest.time * (stage + 0.5) / CARPENTRY.stages };
+      const v = view(state), tent = v.drawnOf('shelter')!.root, chest = v.drawnOf('chest')!.root, place = chestPlace(state, CAMP)!;
+      tent.updateWorldMatrix(true, true); chest.updateWorldMatrix(true, true);
+      // him by the fire, the camera where it starts round him
+      const cam = new OrbitCamera(); cam.resize(1280 / 800); cam.follow(new THREE.Vector3(2.4, 0, 1.8), 1); cam.camera.updateMatrixWorld(true);
+      expect(cam.yaw).toBeCloseTo(Math.PI / 2, 9);
+      let seen = 0, looked = 0;
+      for (const x of [-0.35, 0, 0.35]) for (const [z, y] of [[0.28, 0.25], [0.2, 0.45], [0, 0.45], [-0.2, 0.45]] as const) {
+        const g = toGround(place, [x, z]), p = new THREE.Vector3(g.x, place.floor + y, g.z), from = cam.camera.position.clone();
+        ray.set(from, p.clone().sub(from).normalize());
+        let o: THREE.Object3D | null = ray.intersectObjects([tent, chest], true)[0]?.object ?? null;
+        while (o && o !== chest && o !== tent) o = o.parent;
+        looked++; if (o === chest) seen++;
+      }
+      expect(seen, `stage ${stage}: ${seen} of ${looked} points seen`).toBeGreaterThanOrEqual(looked / 2);
+    }
+  });
+
+  it("the chest is seen just inside the tent's open front (In 8): nothing of the tent between it and the door, and clear of the tent's poles", () => {
     const state = camp([...BASE.slice(0, 4)]), v = view(state), tent = v.drawnOf('shelter')!, chest = v.drawnOf('chest')!;
     expect(tent.stage).toBe(3); expect(chest.stage).toBe(3);
     tent.root.updateWorldMatrix(true, true); chest.root.updateWorldMatrix(true, true);
@@ -316,14 +338,24 @@ describe('the camp drawn (render/structures.ts)', () => {
     // in the tent's own frame: the chest's parts keep clear of the tent's poles, and sit inside its canvas
     const place = SHAPES.shelter!.chest!, floor = SHAPES.shelter!.floor!;
     const tentParts = stageParts('shelter', 3, P, SHAPES.shelter!), chestParts = all(stageParts('chest', 3, P, SHAPES.chest!));
-    const poles = boxesOfParts(tentParts.fixed.filter(o => /^pole/i.test(o.name)), [0, 0]);
+    const poles = tentParts.fixed.filter(o => /^pole/i.test(o.name)) as THREE.Mesh[];
     const box = boxesOfParts(chestParts, [place[0], place[1]], floor);
-    expect(poles.length).toBe(2);
-    for (const c of box) for (const p of poles) expect(c.intersectsBox(p), 'the chest and the front pole').toBe(false);
+    expect(poles.length).toBe(3);                                    // the back pole, and the two crossed at its open front
+    // (triangle by triangle: the crossed poles lean, so the box round each is no measure)
+    const tri = new THREE.Triangle();
+    for (const pole of poles) {
+      pole.updateMatrixWorld(true);
+      const pos = pole.geometry.getAttribute('position'), index = pole.geometry.index, n = index ? index.count : pos.count;
+      const at = (i: number) => new THREE.Vector3().fromBufferAttribute(pos, index ? index.getX(i) : i).applyMatrix4(pole.matrixWorld);
+      for (let i = 0; i < n; i += 3) {
+        tri.set(at(i), at(i + 1), at(i + 2));
+        for (const c of box) expect(c.intersectsTriangle(tri), `the chest and ${pole.name}`).toBe(false);
+      }
+    }
     for (const c of box) expect(Math.max(Math.abs(c.min.x), Math.abs(c.max.x)), 'inside the canvas').toBeLessThan(0.95 * (1 - c.max.y / 1.45));
   });
 
-  it("on the wall tent's and the log cabin's porches the chest keeps clear of their posts and walls, and of most of the wall tent's doorway (review V4-walltent-chest-door)", () => {
+  it("on the wall tent's and the log cabin's porches the chest keeps clear of their posts and walls, and of most of the wall tent's doorway", () => {
     const chestParts = all(stageParts('chest', 3, P, SHAPES.chest!));
     for (const id of ['wall_tent', 'log_cabin'] as MakeId[]) {
       const shape = SHAPES[id]!, at = shape.chest!, built = parts(id, 3);
@@ -360,60 +392,111 @@ function boxesOfParts(list: THREE.Object3D[], [x, z]: readonly [number, number],
   return out;
 }
 
-describe('his mallet lands on what he builds (review V2-swing-short, OW-mallet-cadence)', () => {
+describe('his mallet lands on what he builds', () => {
   /** The steps before `id` that stand when it is built (its line's, and for the upgrades the camp set up). */
   const before = (id: MakeId): MakeId[] => {
     if (id === 'chest') return ['shelter'];
     const line = Object.values(LINES).find(l => l.includes(id))!, out = line.slice(0, line.indexOf(id));
     return out.length ? [...new Set([...out, ...BASE.slice(0, 4)])] : out;
   };
+  /** A triangle of what is drawn, and whether it is of the step he builds. */
+  type Tri = { t: THREE.Triangle; box: THREE.Box3; own: boolean };
+  /** Everything drawn at the camp (not the rings on the grass, the tap areas or the fire's flames), triangle by
+   *  triangle, only as much of each as is drawn (a geometry's draw range: the firewood pile's and the woodshed's logs). */
+  function drawn(scene: THREE.Scene, own: THREE.Object3D): Tri[] {
+    const out: Tri[] = [];
+    scene.traverse(o => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      let mine = false;
+      for (let p: THREE.Object3D | null = o; p; p = p.parent) { if (!p.visible || p.userData.noTap) return; if (p === own) mine = true; }
+      const look = m.material as THREE.Material & { toneMapped?: boolean };
+      if (!look.visible || look.toneMapped === false) return;
+      const g = m.geometry, pos = g.getAttribute('position'), index = g.index, n = index ? index.count : pos.count;
+      const from = g.drawRange.start, to = Math.min(n, from + g.drawRange.count);
+      for (let i = from; i + 2 < to; i += 3) {
+        const [a, b, c] = [0, 1, 2].map(k => new THREE.Vector3().fromBufferAttribute(pos, index ? index.getX(i + k) : i + k).applyMatrix4(m.matrixWorld)) as [THREE.Vector3, THREE.Vector3, THREE.Vector3];
+        out.push({ t: new THREE.Triangle(a, b, c), box: new THREE.Box3().setFromPoints([a, b, c]), own: mine });
+      }
+    });
+    return out;
+  }
+  /** Whether the segment from p to q passes through the triangle (Moller and Trumbore). */
+  const e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), h = new THREE.Vector3(), w = new THREE.Vector3(), r = new THREE.Vector3(), d = new THREE.Vector3();
+  function through(p: THREE.Vector3, q: THREE.Vector3, { t }: Tri): boolean {
+    d.subVectors(q, p); e1.subVectors(t.b, t.a); e2.subVectors(t.c, t.a); h.crossVectors(d, e2);
+    const det = e1.dot(h);
+    if (Math.abs(det) < 1e-12) return false;
+    w.subVectors(p, t.a); const u = w.dot(h) / det;
+    if (u < 0 || u > 1) return false;
+    r.crossVectors(w, e1); const v = d.dot(r) / det;
+    if (v < 0 || u + v > 1) return false;
+    const s = e2.dot(r) / det;
+    return s >= 0 && s <= 1;
+  }
+  /** His head's parts. */
+  const HEAD = new Set(['face', 'hair', 'eye', 'eye001', 'ear', 'ear001', 'nose', 'brow', 'brow001']);
 
-  it('at every stage he builds, from every stand (all round something round), its head comes down within 5 cm of what is drawn there', () => {
+  it('at every stage he builds, from every stand (all round something round), with the firewood none, some and full, its head comes down within 5 cm of the step he builds; through the whole swing his head goes through nothing, and his mallet and body through nothing else (the old step, the chest, the tent round it)', () => {
     const rig = miner.scene.getObjectByName('Miner')!, mallet = malletModel();
     rig.getObjectByName('pick_head')!.parent!.add(mallet.model);
+    for (const name of ['axe_blade', 'axe_head', 'pick_collar', 'pick_handle', 'pick_head']) rig.getObjectByName(name)!.visible = false;
     const mixer = new THREE.AnimationMixer(rig), swing = mixer.clipAction(miner.animations.find(c => c.name === SWINGS.mining.clip)!);
     swing.play(); swing.timeScale = 0;
-    const tri = new THREE.Triangle(), q = new THREE.Vector3(), short: string[] = [];
+    const malletMeshes: THREE.Mesh[] = [], body: THREE.Mesh[] = [];
+    mallet.model.traverse(o => { if ((o as THREE.Mesh).isMesh) malletMeshes.push(o as THREE.Mesh); });
+    rig.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh && m.visible && !malletMeshes.includes(m)) body.push(m); });
+    const { impact, cycle } = SWINGS.mining, q = new THREE.Vector3(), bad: string[] = [];
     // the swing at its impact, as the view plays it while he builds (render/view.ts)
-    expect(malletSwing(0)).toBeCloseTo(SWINGS.mining.impact, 9);
-    for (const id of STAGED_IDS) for (let stage = 0; stage < CARPENTRY.stages; stage++) {
+    expect(malletSwing(0)).toBeCloseTo(impact, 9);
+    for (const id of STAGED_IDS) for (let stage = 0; stage < CARPENTRY.stages; stage++) for (const pile of LINES.woodpile.includes(id) ? [0, 10, WOODPILE.max] : [10]) {
       const state = camp(before(id));
-      state.underway = { [id]: MAKES[id].time * (stage + 0.5) / CARPENTRY.stages }; state.woodpile = 10;
+      state.underway = { [id]: MAKES[id].time * (stage + 0.5) / CARPENTRY.stages }; state.woodpile = pile;
       expect(stageOf(state, id)).toBe(stage);
       const scene = new THREE.Scene(), v = new CampView(scene, CAMP, models);
       v.update(state, 1, 1, 0); v.update(state, 2, 1, 0); scene.updateMatrixWorld(true);
-      // everything drawn there (not the rings on the grass, the tap areas or the fire's flames), triangle by triangle
-      const tris: THREE.Vector3[][] = [];
-      scene.traverse(o => {
-        const m = o as THREE.Mesh;
-        if (!m.isMesh) return;
-        for (let p: THREE.Object3D | null = o; p; p = p.parent) if (!p.visible || p.userData.noTap) return;
-        const look = m.material as THREE.Material & { toneMapped?: boolean };
-        if (!look.visible || look.toneMapped === false) return;
-        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry, pos = g.getAttribute('position');
-        for (let i = 0; i < pos.count; i += 3) tris.push([0, 1, 2].map(k => new THREE.Vector3().fromBufferAttribute(pos, i + k).applyMatrix4(m.matrixWorld)));
-      });
+      const tris = drawn(scene, v.drawnOf(id)!.root);
       const spot = buildSpot(state, CAMP, id)!;
       const ends = spot.stands.length ? spot.stands : spotEnds(spot, { x: spot.face.x + 5, z: spot.face.z }).filter((_, k) => k % 3 === 0);
-      const lean = malletLean(SWINGS.mining.impact, SHAPES[id]!.lean?.[stage] ?? 0);
       for (const at of ends) {
-        rig.position.set(at.x, 0, at.z); rig.rotation.set(0, headingOf({ x: spot.face.x - at.x, z: spot.face.z - at.z }), -lean);
-        swing.time = SWINGS.mining.impact; mixer.update(0); rig.updateMatrixWorld(true);
+        const where = `${id} stage ${stage}, ${pile} logs, from (${at.x.toFixed(2)}, ${at.z.toFixed(2)})`;
+        const pose = (t: number) => {
+          rig.position.set(at.x, 0, at.z);
+          rig.rotation.set(0, headingOf({ x: spot.face.x - at.x, z: spot.face.z - at.z }), -malletLean(t, SHAPES[id]!.lean?.[stage] ?? 0));
+          swing.time = t; mixer.update(0); rig.updateMatrixWorld(true);
+        };
+        // at the impact: how far its head is from the step he builds
+        pose(impact);
         let gap = Infinity;
-        mallet.model.traverse(o => {
-          const m = o as THREE.Mesh;
-          if (!m.isMesh) return;
+        for (const m of malletMeshes) {
           const pos = m.geometry.getAttribute('position');
           for (let i = 0; i < pos.count; i++) {
             const p = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
-            for (const t of tris) { tri.set(t[0]!, t[1]!, t[2]!); tri.closestPointToPoint(p, q); const d = q.distanceTo(p); if (d < gap) gap = d; }
+            for (const x of tris) if (x.own) { x.t.closestPointToPoint(p, q); gap = Math.min(gap, q.distanceTo(p)); }
           }
-        });
-        if (!(gap <= 0.05)) short.push(`${id} stage ${stage} from (${at.x.toFixed(2)}, ${at.z.toFixed(2)}): ${gap.toFixed(2)} m short`);
+        }
+        if (!(gap <= 0.05)) bad.push(`${where}: ${gap.toFixed(2)} m short`);
+        // the whole swing, every 0.05 s: each edge of his head, his body and his mallet against what is drawn near it
+        for (let t = 0; t < cycle; t += 0.05) {
+          pose(t);
+          for (const m of [...body, ...malletMeshes]) {
+            const head = HEAD.has(m.name), isMallet = malletMeshes.includes(m), around = new THREE.Box3().setFromObject(m);
+            const check = tris.filter(x => (head || !x.own) && x.box.intersectsBox(around));
+            if (!check.length) continue;
+            const g = m.geometry, pos = g.getAttribute('position'), index = g.index, n = index ? index.count : pos.count;
+            const pts = Array.from({ length: pos.count }, (_, k) => new THREE.Vector3().fromBufferAttribute(pos, k).applyMatrix4(m.matrixWorld));
+            const vert = (i: number) => pts[index ? index.getX(i) : i]!;
+            const hit = check.find(x => {
+              for (let i = 0; i < n; i += 3) for (const [a, b] of [[0, 1], [1, 2], [2, 0]] as const) if (through(vert(i + a), vert(i + b), x)) return true;
+              return false;
+            });
+            if (hit) bad.push(`${where}: at ${t.toFixed(2)} s his ${isMallet ? 'mallet' : m.name} goes through ${hit.own ? 'what he builds' : 'something else'}`);
+          }
+        }
       }
     }
-    expect(short).toEqual([]);
-  }, 60_000);
+    expect(bad).toEqual([]);
+  }, 180_000);
 });
 
 describe('tap areas and rings follow each step (T11.3, In 11)', () => {

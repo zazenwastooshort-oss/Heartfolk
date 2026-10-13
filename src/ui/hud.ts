@@ -42,6 +42,13 @@ export const lineName = (line: BookLine) => line.level ? `${SKILLS[line.id as Sk
 /** A goal's line as the card counts it: "2 / 4 rat hides", or a skill level, "Attack 2 / 3". */
 const countOf = (line: BookLine) => line.level ? `${SKILLS[line.id as SkillId]?.name ?? line.id} ${line.got} / ${line.need}` : `${line.got} / ${line.need} ${itemName(line.id, line.need)}`;
 
+/** What is said when logs are stacked, or can't be: on the firewood pile, or (once it stands) in the woodshed. */
+export function stackedText(e: Extract<GameEvent, { type: 'stacked' }>): string {
+  const shed = e.at === 'woodshed', where = shed ? 'in the woodshed' : 'on the firewood pile';
+  if (e.logs > 0) return `Stacked ${itemList({ birch_logs: e.logs })} ${where} (${e.pile} there now).`;
+  return e.reason === 'full' ? `The ${shed ? 'woodshed' : 'firewood pile'} is full.` : `You have no logs to stack ${where}.`;
+}
+
 /** What the goal card shows: the goal's title; under it how many of each thing he has (carried or stored, as his book
  *  counts them), or that he is on his way to make the thing or working on it (something built in stages: how far along,
  *  "Building the campfire... 40%"); how far along the goal is (0 to 1, the bar) and whether everything is there (a goal
@@ -53,13 +60,6 @@ const countOf = (line: BookLine) => line.level ? `${SKILLS[line.id as SkillId]?.
  *  before he has the book. Once every goal is done, the camp is set up (CAMP_DONE). Since the survival book, `thought`:
  *  what he thinks about the goal, in his own words (data/thoughts.ts; the hint for a goal without one), shown under the
  *  title. */
-/** What is said when logs are stacked, or can't be: on the firewood pile, or (once it stands) in the woodshed. */
-export function stackedText(e: Extract<GameEvent, { type: 'stacked' }>): string {
-  const shed = e.at === 'woodshed', where = shed ? 'in the woodshed' : 'on the firewood pile';
-  if (e.logs > 0) return `Stacked ${itemList({ birch_logs: e.logs })} ${where} (${e.pile} there now).`;
-  return e.reason === 'full' ? `The ${shed ? 'woodshed' : 'firewood pile'} is full.` : `You have no logs to stack ${where}.`;
-}
-
 export interface GoalCard {
   title: string; line: string; progress: number; ready: boolean; build: { id: string; label: string; send: 'build' | 'make' } | null;
   hint: string; thought: string;

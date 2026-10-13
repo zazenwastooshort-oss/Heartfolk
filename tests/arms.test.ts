@@ -265,7 +265,7 @@ describe('his mallet while he builds (the camp build: D11, T2.11)', () => {
     expect(held(), 'building, whatever is in the chest').toBe('mallet');
   });
 
-  it('swings it over and over while he builds, as chopping and mining do, never standing still between swings (review OW-mallet-cadence)', () => {
+  it('swings it over and over while he builds, as chopping and mining do, never standing still between swings', () => {
     const { impact, cycle } = SWINGS.mining;
     for (let k = 0; k <= 5; k++) expect(malletSwing(k * cycle)).toBeCloseTo(impact, 9);   // each lands a whole swing on
     expect(malletSwing(cycle - impact)).toBeCloseTo(0, 9);                                // the next one begins

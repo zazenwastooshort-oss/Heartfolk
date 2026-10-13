@@ -7,6 +7,7 @@
 // Other goals may sit between or after chapter 2's: a goal is made current by marking every goal before it done, never
 // by its position.
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { createState, currentGoal, goalFinished, maxHealth, owned, SAVE_VERSION, type GameState } from '../src/core/state';
 import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
@@ -852,9 +853,12 @@ describe('away time while fighting the rats', () => {
   const reopen = (saved: string, seed = 21) => {
     const t = setup(CAMP, seed), state = readSave(saved, CAMP).state, log: GameEvent[] = [];
     t.events.on(e => log.push(e));
-    const started = performance.now();
+    // how quick: the processor time this test's own process spent on it, so other work on the machine (the rest of the
+    // suite running beside it) doesn't count
+    const started = process.cpuUsage();
     const r = catchUpAway(state, NOW, NOW + 2 * 60 * 60 * 1000, { ...t.ctx, rng: createRng(99) });
-    return { state, r, ms: performance.now() - started, log };
+    const used = process.cpuUsage(started);
+    return { state, r, ms: (used.user + used.system) / 1000, log };
   };
 
   it('two hours closed (24 minutes of play) catch up the same every time, quickly; the note tells the rats and hides', () => {
@@ -866,7 +870,13 @@ describe('away time while fighting the rats', () => {
     const saved = serialize(s.state, NOW), a = reopen(saved), b = reopen(saved);
     expect(a.state).toEqual(b.state);
     expect(a.r.summary).toEqual(b.r.summary);
-    expect(a.ms).toBeLessThan(1000);
+    // quick against the same catch-up of the whole camp left be, timed here alongside it, so a busy machine slows both
+    // alike: fighting rats may cost a little more a step than the camp's own round, never 3 times as much (about 0.3 s
+    // alone, either of them). The better of two tries of each, so one slow moment doesn't count
+    const whole = readFileSync(new URL('./fixtures/camp/whole-camp.json', import.meta.url), 'utf8');
+    const camp = JSON.stringify({ ...JSON.parse(whole), savedAt: NOW });
+    const ref = Math.min(reopen(camp).ms, reopen(camp).ms);
+    expect(Math.min(a.ms, b.ms)).toBeLessThan(3 * ref);
     expect(a.r.away.game).toBeCloseTo(24 * 60, 0);
     const { beaten = 0, hides = 0 } = a.r.summary;
     expect(beaten).toBeGreaterThan(15);

@@ -11,7 +11,7 @@
 import { begun, canSleep, owned, type GameState } from './state';
 import type { Layout, Vec2 } from '../world/layout';
 import { doorOf, siteOf } from '../world/layout';
-import { reachOf, standsOf, stepPlace, toGround, type StepPlace } from '../world/steps';
+import { buildStandsOf, reachOf, standsOf, stepPlace, toGround, type StepPlace } from '../world/steps';
 import { bestShelter, buildWhy, builtStep, lineOf, markerShown, stepShown, unlocked, type BuildWhy } from './building';
 import { isNight } from './clock';
 import { fightLabel } from './targets';
@@ -96,12 +96,12 @@ export function atSpot(spot: UseSpot, p: Vec2): boolean {
   return !!spot.ring && Math.abs(Math.hypot(p.x - spot.ring.pos.x, p.z - spot.ring.pos.z) - spot.ring.radius) < AT_SPOT.ring;
 }
 
-/** Where he stands at step `id`: its own stands, or round it on its ring, BUILD_REACH beyond its reach; facing its
- *  middle. */
-function stepSpot(layout: Layout, id: MakeId): UseSpot | null {
+/** Where he stands at step `id`: its own stands (to build it, its build stands where it has them), or round it on its
+ *  ring, BUILD_REACH beyond its reach; facing its middle. */
+function stepSpot(layout: Layout, id: MakeId, build = false): UseSpot | null {
   const place = stepPlace(layout, id);
   if (!place) return null;
-  const stands = standsOf(layout, id);
+  const stands = build ? buildStandsOf(layout, id) : standsOf(layout, id);
   return { stands, ring: stands.length ? null : { pos: place.pos, radius: reachOf(id) + BUILD_REACH }, face: place.pos };
 }
 
@@ -127,11 +127,11 @@ export function useSpot(state: GameState, layout: Layout, id: string): UseSpot |
 }
 
 /** Where he stands to build `id` (begun, or about to be): its own stands (in front of its faces, as far out as his
- *  mallet reaches), or round its ring for something round; the storage chest from the shelter's door, facing it (D3:
- *  the point on it his strikes are aimed at, SHAPES' aim, beside the tent's front pole). Null where it has no place
- *  here. */
+ *  mallet reaches; its build stands where it has them, SHAPES' builds), or round its ring for something round; the
+ *  storage chest from the shelter's door, facing it (D3: the point on it his strikes are aimed at, SHAPES' aim, its
+ *  right end, where his head stays outside the tent). Null where it has no place here. */
 export function buildSpot(state: GameState, layout: Layout, id: MakeId): UseSpot | null {
-  if (id !== 'chest') return stepSpot(layout, id);
+  if (id !== 'chest') return stepSpot(layout, id, true);
   const spot = doorSpot(state, layout), chest = chestPlace(state, layout), aim = SHAPES.chest?.aim;
   return spot && chest ? { ...spot, face: aim ? toGround(chest, aim) : chest.pos } : spot;
 }
@@ -185,9 +185,10 @@ export type CampAction =
 
 /** Why an entry can't be chosen now (BuildWhy for building, and): sleep by day ('day') or while asleep ('asleep');
  *  store with nothing to store ('empty'); cook with no raw fish anywhere ('noFish'); stack with no logs on him
- *  ('noLogs') or the pile full ('full'); cook or practise while at it already ('at'). Knocked out, everything but
- *  Look in waits ('down'). */
-export type CampWhy = BuildWhy | { kind: 'day' } | { kind: 'asleep' } | { kind: 'empty' } | { kind: 'noFish' } | { kind: 'noLogs' } | { kind: 'full' };
+ *  ('noLogs') or the pile full ('full'), `at` the firewood pile or the woodshed; cook or practise while at it already
+ *  ('at'). Knocked out, everything but Look in waits ('down'). */
+export type CampWhy = BuildWhy | { kind: 'day' } | { kind: 'asleep' } | { kind: 'empty' } | { kind: 'noFish' }
+  | { kind: 'noLogs'; at: MakeId } | { kind: 'full'; at: MakeId };
 
 /** An entry of a spot's menu: what it does, and why it can't be chosen now (null: it can). */
 export interface CampEntry { action: CampAction; why: CampWhy | null }
@@ -231,6 +232,11 @@ function sleepIn(state: GameState): MakeId | null {
   return best && stepShown(state, 'tent') === best ? best : null;
 }
 
+/** Why logs can't be stacked `at` the firewood pile or the woodshed now: none on him, or it is full (null: they can). */
+function stackWhy(state: GameState, at: MakeId): CampWhy | null {
+  return (state.player.backpack[STOKE.item] ?? 0) <= 0 ? { kind: 'noLogs', at } : state.woodpile >= WOODPILE.max ? { kind: 'full', at } : null;
+}
+
 /** What is going on at `line`'s spot: the last step built there and the step under way there (begun, not built). */
 function spotNow(state: GameState, line: LineId): { built: MakeId | null; under: MakeId | null } {
   return { built: builtStep(state, line), under: LINES[line].find(id => begun(state, id)) ?? null };
@@ -258,8 +264,7 @@ export function campActions(state: GameState, layout: Layout, line: LineId): Cam
   } else if (line === 'hearth') {
     out.push(use({ kind: 'cook', at: built }, state.player.cook ? { kind: 'at' } : fishToCook(state, layout) ? null : { kind: 'noFish' }));
   } else if (line === 'woodpile') {
-    const logs = state.player.backpack[STOKE.item] ?? 0;
-    out.push(use({ kind: 'stack', at: built }, logs <= 0 ? { kind: 'noLogs' } : state.woodpile >= WOODPILE.max ? { kind: 'full' } : null));
+    out.push(use({ kind: 'stack', at: built }, stackWhy(state, built)));
   } else {
     const p = state.player, at = (p.task.kind === 'fight' && p.task.target === 'dummy') || (p.pending?.kind === 'fight' && p.pending.id === 'dummy');
     out.push(use({ kind: 'practise' }, at ? { kind: 'at' } : null));
@@ -270,15 +275,15 @@ export function campActions(state: GameState, layout: Layout, line: LineId): Cam
   return out;
 }
 
-/** Why a plain tap on `line`'s spot does nothing now, as its entry in the menu says, faded (review
- *  IU-pile-tap-disagrees): Stack logs at the firewood pile or the woodshed with no logs on him, or the pile full. Null
- *  when the tap goes ahead (every other tap's command says itself why it can't be done, without walking him anywhere:
- *  he isn't tired yet, no fish to cook, still needs something). The UI says so instead of walking him over to say it. */
+/** Why a plain tap on `line`'s spot does nothing now, as its entry in the menu says, faded: Stack logs at the firewood
+ *  pile or the woodshed with no logs on him, or it full; Sleep while he is asleep already. Null when the tap goes ahead
+ *  (every other tap's command says itself why it can't be done, without walking him anywhere: he isn't tired yet, no
+ *  fish to cook, still needs something). The UI says so instead of walking him over to say it, or saying nothing. */
 export function tapRefused(state: GameState, layout: Layout, line: LineId): CampWhy | null {
   const tap = campTap(state, layout, line);
-  if (tap?.action.kind !== 'stack') return null;
-  const key = actionKey(tap.action);
-  return campActions(state, layout, line).find(e => actionKey(e.action) === key)?.why ?? null;
+  if (tap?.action.kind !== 'stack' && tap?.action.kind !== 'sleep') return null;
+  const key = actionKey(tap.action), why = campActions(state, layout, line).find(e => actionKey(e.action) === key)?.why ?? null;
+  return tap.action.kind === 'stack' || why?.kind === 'asleep' ? why : null;
 }
 
 /** What a plain tap on `line`'s spot does (D10, D15; T5.4), with its words under the mouse: its marker's thing, Build;
@@ -294,7 +299,8 @@ export function campTap(state: GameState, layout: Layout, line: LineId): CampTap
   if (!built) return under ? go({ kind: 'build', id: under, how: 'carry' }) : markerShown(state, layout, first) ? go({ kind: 'build', id: first, how: 'build' }) : null;
   if (line === 'tent') {
     const shelter = sleepIn(state);
-    if (isNight(state.time)) return go({ kind: 'sleep', shelter });
+    // (asleep, just its name: the tap only says so)
+    if (isNight(state.time)) return state.player.task.kind === 'sleep' ? { action: { kind: 'sleep', shelter }, hover: MAKES[stepShown(state, 'tent') ?? built].name } : go({ kind: 'sleep', shelter });
     if (begun(state, 'chest')) return go({ kind: 'build', id: 'chest', how: 'carry' });
     if (markerShown(state, layout, 'chest')) return go({ kind: 'build', id: 'chest', how: 'build' });
     if (chestHere(state, layout)) return go({ kind: 'look' });
@@ -305,5 +311,7 @@ export function campTap(state: GameState, layout: Layout, line: LineId): CampTap
     const action: CampAction = { kind: 'cook', at: built };
     return { action, hover: state.tools.rod || owned(state, COOK.raw) > 0 ? hoverOf(layout, action) : MAKES[built].name };
   }
-  return go(line === 'woodpile' ? { kind: 'stack', at: built } : { kind: 'practise' });
+  // (no logs on him or the pile full, just its name: the tap only says why)
+  if (line === 'woodpile') return { action: { kind: 'stack', at: built }, hover: stackWhy(state, built) ? MAKES[built].name : hoverOf(layout, { kind: 'stack', at: built }) };
+  return go({ kind: 'practise' });
 }

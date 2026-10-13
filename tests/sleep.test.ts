@@ -139,7 +139,7 @@ describe('sleeping in the shelter', () => {
     expect(s.state.needs.bed).toBeNull();
   });
 
-  it('saved and opened on his way to bed sent early, his needs read back as they were: a tap elsewhere still changes his mind, and he goes to bed at his bedtime (review SAVE-slept-tap-to-bed)', () => {
+  it('saved and opened on his way to bed sent early, his needs read back as they were: a tap elsewhere still changes his mind, and he goes to bed at his bedtime', () => {
     const s = camp(21);
     s.state.stokedNight = Math.floor(s.state.time / DAY_SECONDS - STOKE.at);
     send(s, { type: 'sleep' });

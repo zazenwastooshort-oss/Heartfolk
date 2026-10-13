@@ -79,5 +79,12 @@ export function standsOf(layout: Layout, id: string): Vec2[] {
   return place && shape?.stands ? shape.stands.map(p => toGround(place, p)) : [];
 }
 
+/** Where he stands to build `id`, on the ground: its own build stands (SHAPES' builds), else its stands (none for
+ *  round things, built from anywhere round them). */
+export function buildStandsOf(layout: Layout, id: string): Vec2[] {
+  const place = stepPlace(layout, id), shape = shapeOf(id), at = shape?.builds ?? shape?.stands;
+  return place && at ? at.map(p => toGround(place, p)) : [];
+}
+
 /** How far round its middle the ring of `id` reaches (0 for something without a shape). */
 export const reachOf = (id: string): number => shapeOf(id)?.reach ?? 0;

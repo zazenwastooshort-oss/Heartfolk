@@ -13,7 +13,7 @@ import { STEP } from '../src/core/loop';
 import { DAY_SECONDS, isNight, nightOf } from '../src/core/clock';
 import { clearSave, deserialize, load, readSave, save, SAVE_KEY, serialize, type Storage } from '../src/core/save';
 import { awayOnOpening, catchUp, catchUpAway, step } from '../src/sim';
-import { addSpan, closedFor, didSomething, emptySummary, FrameClock, openFor, tally, tellAway, worthNoting } from '../src/systems/away';
+import { addSpan, Behind, closedFor, didSomething, emptySummary, FrameClock, openFor, tally, tellAway, worthNoting } from '../src/systems/away';
 import { applyCommands, type Command } from '../src/systems/commands';
 import { awayText, duration } from '../src/ui/away';
 import { CAMP } from '../src/world/camp';
@@ -296,7 +296,7 @@ describe('a game left open in a background tab', () => {
 });
 
 describe('a long catch-up while the game is open, a frame at a time (main.ts simulate, AWAY.chunk)', () => {
-  it('a frame\'s share of it is a short moment of work, even with the whole camp built (review PERF-awaychunk)', () => {
+  it('a frame\'s share of it is a short moment of work, even with the whole camp built', () => {
     const whole = readFileSync(new URL('./fixtures/camp/whole-camp.json', import.meta.url), 'utf8');
     const once = () => {
       const s = setup(CAMP), state = readSave(whole, CAMP).state, started = process.cpuUsage();
@@ -307,6 +307,39 @@ describe('a long catch-up while the game is open, a frame at a time (main.ts sim
     // (the processor time of this test's own process, the better of two tries: about 0.06 to 0.1 s on a desktop)
     expect(AWAY.chunk).toBeLessThanOrEqual(5 * 60);
     expect(Math.min(once(), once())).toBeLessThan(250);
+  });
+});
+
+describe("what is still to catch up when the page is hidden or closed again (main.ts simulate: Behind)", () => {
+  it('is a frame at a time, AWAY.chunk each, the real time it stands for going down with it', () => {
+    const behind = new Behind();
+    behind.add(openFor(HOUR / 1000).game, HOUR / 1000);
+    expect(behind.next()).toBe(AWAY.chunk);
+    expect(behind.play).toBe(3600 - AWAY.chunk);
+    expect(behind.owedMs).toBeCloseTo(HOUR - AWAY.chunk * 1000, 3);
+    while (behind.play > 0) behind.next();
+    expect(behind.owedMs).toBe(0);
+    behind.add(NaN, -1);                                            // broken or negative times: nothing
+    expect(behind.play).toBe(0);
+    expect(behind.next()).toBe(0);
+  });
+
+  it('a save made before a long catch-up is done says the game was played up to only as far as it was caught up, so none of the rest is lost: the page closed, it is caught up when it opens again', { timeout: 20_000 }, () => {
+    const s = working(), from = s.state.time, store = memory(), behind = new Behind();
+    const clock = new FrameClock(0, NOW - HOUR - 16);
+    clock.frame(16, NOW - HOUR);
+    clock.hide();                                                   // the screen off for an hour, the game open
+    const real = clock.frame(2016, NOW);
+    behind.add(openFor(real).game, real);
+    catchUp(s.state, behind.next(), s.ctx);                         // the first frame's share
+    expect(s.state.time - from).toBeCloseTo(AWAY.chunk, 3);
+    // and a second later the page is closed (or the phone closes it), the rest not caught up yet
+    save(store, s.state, clock.playedTo - behind.owedMs, NOW + 1000);
+    const loaded = load(store, CAMP)!;
+    expect(loaded.savedAt).toBeCloseTo(NOW - HOUR + AWAY.chunk * 1000, 0);
+    // opened again straight away: the rest of the hour (and the second before it closed) is played, at full speed
+    awayOnOpening(loaded, false, NOW + 1000, { layout: CAMP, rng: createRng(7), events: new EventBus() });
+    expect(loaded.state.time - from).toBeCloseTo(3600 + 1, 0);
   });
 });
 

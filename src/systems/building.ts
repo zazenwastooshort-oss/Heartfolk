@@ -91,8 +91,8 @@ export function resumeBuild(state: GameState, layout: Layout, events: EventBus):
 }
 
 /** At work beside something built in stages: the work done adds up (quicker at higher Carpentry levels: buildSpeed),
- *  each knock of his mallet is Carpentry XP, a stage going up is told, and once it has had all its work it stands
- *  (GameState.built); the firewood pile's logs are stacked in it then (GameState.woodpile). */
+ *  each knock (CARPENTRY.knock seconds of work) is Carpentry XP, a stage going up is told, and once it has had all its
+ *  work it stands (GameState.built); the firewood pile's logs are stacked in it then (GameState.woodpile). */
 export function updateBuilding(state: GameState, layout: Layout, dt: number, events: EventBus): void {
   const p = state.player, task = p.task;
   if (task.kind !== 'raise') return;
