@@ -90,7 +90,12 @@ export class CombatHud {
     // his health in the strip, once he has a weapon or is hurt
     $('healthRow').hidden = !armed && !hurt;
     $('healthBar').style.width = `${Math.max(0, Math.min(1, state.health / max)) * 100}%`;
-    $('healthText').textContent = `${Math.floor(state.health)} / ${max}`;
+    // "7 / 10"; where his state shows compactly (0.0.38) the 7 alone, the whole in its tooltip
+    const now = String(Math.floor(state.health)), of = ` / ${max}`;
+    if ($('healthText').textContent !== now) $('healthText').textContent = now;
+    if ($('healthMax').textContent !== of) $('healthMax').textContent = of;
+    const title = `Health ${now}${of}`;
+    if ($('healthRow').title !== title) $('healthRow').title = title;
     // what he trains, once he has a weapon
     $('trainRow').hidden = !armed;
     for (const [style, b] of this.buttons) {

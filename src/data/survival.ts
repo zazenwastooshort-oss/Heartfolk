@@ -62,7 +62,7 @@ export const SURVIVAL: SurvivalDef[] = [
 
   // practical tips
   { id: 'tip:tap', section: 'tips', title: 'Finding your way', found: { goal: 'salvage' },
-    text: 'Tap the goal at the top, or his thought, and he sets off to do it. Or tap anything you like.' },
+    text: "Tap the goal's arrow at the foot, or his thought, and he sets off to do it. Or tap anything you like." },
   { id: 'tip:night', section: 'tips', title: 'The fire at night', found: { built: 'woodpile' },
     text: 'At nightfall he feeds the fire from the firewood pile by himself. Keep it stacked.' },
   { id: 'tip:sleep', section: 'tips', title: 'Sleep', found: { built: 'shelter' },

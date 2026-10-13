@@ -143,12 +143,12 @@ describe('the goal card beside it (T5.7)', () => {
   it("its button builds the goal's thing as the Build window's row does, and says Carry on once begun", () => {
     const s = camp([], 'campfire');
     s.state.player.backpack = { ...MAKES.campfire.needs };
-    expect(goalCard(s.state).build).toEqual({ id: 'campfire', label: 'Build the campfire', send: 'build' });
+    expect(goalCard(s.state).build).toEqual({ id: 'campfire', label: 'Build the campfire', short: 'Build', send: 'build' });
     expect(rowCommand(row(s, 'campfire'))).toEqual({ type: 'build', id: 'campfire' });
     send(s, { type: 'build', id: 'campfire' });
     s.state.player.pending = null; s.state.player.path = []; s.state.player.task = { kind: 'idle' };
-    expect(goalCard(s.state).build).toEqual({ id: 'campfire', label: 'Carry on with the campfire', send: 'build' });
-    expect(rowButton(s.state, row(s, 'campfire')).label).toBe('Carry on');
+    expect(goalCard(s.state).build).toEqual({ id: 'campfire', label: 'Carry on with the campfire', short: 'Carry on', send: 'build' });
+    expect(rowButton(s.state, row(s, 'campfire')).label).toBe('Carry on');   // the goal line's button says it as the row does
   });
 });
 

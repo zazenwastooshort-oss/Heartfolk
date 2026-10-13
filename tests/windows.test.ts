@@ -1,7 +1,8 @@
 // The UI foundation (12 Oct 2026): windows that open from a row of buttons (ui/windows.ts), one at a time on a phone and
 // two side by side on a wide screen (the backpack and the book at 1280 px, by index.html's own widths); the bar at the
-// foot holding his state, the goal, the buttons and the clock, with the windows standing on it (13 Oct 2026); every
-// window in index.html has its button, title bar and close button; the compact goal card's words (ui/hud.ts); the Skills window's lines (ui/skills.ts) and the notices
+// foot holding his state, the goal, the buttons and the clock, with the windows standing on it (13 Oct 2026), in two rows
+// on a phone (0.0.38); every window in index.html has its button (Information's the "i" beside the clock), title bar and
+// close button; the goal line's words (ui/hud.ts), with its shorter counts; the Skills window's lines (ui/skills.ts) and the notices
 // that point to its Train choice (ui/combat.ts); the text size remembered by Settings (ui/settings.ts); the Backpack
 // button's count (ui/backpack.ts).
 import { describe, expect, it } from 'vitest';
@@ -80,13 +81,40 @@ describe('the bar at the foot (index.html .dock; the owner, 13 Oct 2026: "a perm
   const top = html.slice(html.indexOf('<div class="topbar">'), html.indexOf('<div class="hint" id="hint">'));
   const at = (s: string) => dock.indexOf(s);
 
-  it('holds his state, the goal, the row of buttons and the clock, in that order', () => {
-    for (const id of ['strip', 'healthRow', 'hungerRow', 'xpRow', 'rested', 'goal', 'goalOpen', 'goalBuild', 'rail', 'ver', 'dial', 'clock']) {
+  it('holds his state, the goal, the row of buttons and the clock, in that order, the "i" beside the clock', () => {
+    for (const id of ['strip', 'healthRow', 'hungerRow', 'xpRow', 'rested', 'fed', 'goal', 'goalOpen', 'goalBuild', 'goalGo', 'rail', 'ver', 'dial', 'clock', 'infoBtn']) {
       expect(dock, id).toContain(`id="${id}"`);
     }
     expect(at('id="strip"')).toBeLessThan(at('id="goal"'));
     expect(at('id="goal"')).toBeLessThan(at('id="rail"'));
     expect(at('id="rail"')).toBeLessThan(at('id="clock"'));
+    // (0.0.38, the owner: "Yupp beside the clock") the "i" right after the clock, in the clock's own group
+    expect(dock).toMatch(/<div class="dock-time">[^\n]*id="clock"[^<]*<\/div><button class="info-btn" id="infoBtn" type="button" data-opens="info"[^>]*>i<\/button><\/div>/);
+  });
+
+  it('the goal line: its name and count (opening its page), its Build button, the arrow that sends him off, a thin bar', () => {
+    const goal = dock.slice(at('<div class="goal" id="goal"'), at('<nav class="rail"'));
+    expect(goal).toMatch(/<button class="goal-open" id="goalOpen" type="button">\s*<span class="goal-title" id="goalTitle">[^<]*<\/span>\s*<span class="goal-count" id="goalCount">/);
+    expect(goal.indexOf('id="goalOpen"')).toBeLessThan(goal.indexOf('id="goalBuild"'));
+    expect(goal.indexOf('id="goalBuild"')).toBeLessThan(goal.indexOf('id="goalGo"'));
+    expect(goal).toMatch(/<button class="goal-go" id="goalGo" type="button" aria-label="[^"]+"><svg class="icon"/);
+    expect(goal).toContain('<span class="goal-bar" aria-hidden="true"><i id="goalBar"></i></span>');
+    expect(goal).not.toContain('goalThought');              // his thought is over his head and in the journal
+    // the slim line: 44 px tall, its arrow 44 px to tap, its Build button's tap area the line's height
+    expect(html).toMatch(/\.goal \{[^}]*min-height: 44px;/);
+    expect(html).toMatch(/\.goal-go::after \{ content: ''; position: absolute; inset: -3px -4px -3px -4px; \}/);
+    expect(cssPx(/\.goal-go \{[^}]*width: (\d+)px/) + 8).toBeGreaterThanOrEqual(44);
+    expect(cssPx(/\.goal-build \{[^}]*min-height: (\d+)px/) + 2 * 7).toBeGreaterThanOrEqual(44);
+  });
+
+  it('his state shows an icon for each where room is short, its words kept for the tooltip and a screen reader', () => {
+    const strip = dock.slice(at('<div class="strip" id="strip">'), at('<!-- the goal line'));
+    for (const id of ['healthRow', 'hungerRow', 'xpRow', 'rested', 'fed']) {
+      expect(strip, id).toMatch(new RegExp(`id="${id}"[^>]*><svg class="icon st-icon"`));
+    }
+    for (const id of ['hungerRow', 'rested', 'fed']) expect(strip, id).toMatch(new RegExp(`id="${id}" title="[^"]+"`));
+    // the words hidden only from the eye (still read out), not taken away
+    expect(html).toContain('.dock.compact .pill .name, .dock.compact .chip-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);');
   });
 
   it('leaves the top to the world: only the name, and with a mouse the words for what is under it', () => {
@@ -104,12 +132,20 @@ describe('the bar at the foot (index.html .dock; the owner, 13 Oct 2026: "a perm
     expect(readFileSync(new URL('../src/ui/windows.ts', import.meta.url), 'utf8')).toContain("setVar('--above-dock'");
   });
 
-  it('on a phone or a tablet held upright the bar is in rows: the goal and the clock, his state, then the buttons', () => {
+  it('on a phone or a tablet held upright the bar is in two rows: his state, the goal line and the clock, then the buttons', () => {
     const rows = html.replace(/\r\n/g, '\n').slice(html.replace(/\r\n/g, '\n').indexOf('@media (max-width: 600px), (max-width: 900px) and (min-height: 600px) {'));
-    expect(rows).toMatch(/^@media[^{]*\{\n  \.dock \{ flex-wrap: wrap;/);
-    expect(rows).toContain('.dock > .goal { order: 1;');
-    expect(rows).toContain('.dock > .strip { order: 3; flex: 1 0 100%; }');
+    expect(rows).toMatch(/^@media[^{]*\{\n  \.dock \{ flex-wrap: wrap; gap: 4px 6px; \}/);
+    expect(rows).toContain('.dock > .strip { order: 1; }');
+    expect(rows).toContain('.dock > .goal { order: 2; min-width: 64px; }');
+    expect(rows).toContain('.dock > .dock-time { order: 3; }');
     expect(rows).toContain('.dock > .rail { order: 4; flex: 1 0 100%; }');
+    // about 105 px on a phone (390 x 844; the owner's go, 13 Oct 2026, "two rows ... about 105 px"): the bar's border
+    // and padding, the goal line's row (44 px), the gap and the buttons' row (48 px on a phone)
+    const pad = cssPx(/\.dock \{[^}]*padding: (\d+)px/), border = cssPx(/\.dock \{[^}]*border: (\d+)px solid/);
+    const button = cssPx(/@media \(max-width: 600px\) \{\s*\.rail-btn \{ min-width: \d+px; min-height: (\d+)px; \}/);
+    const tall = 2 * (pad + border) + 44 + 4 + button;
+    expect(button).toBeGreaterThanOrEqual(44);
+    expect(tall).toBeLessThanOrEqual(110);
   });
 });
 
@@ -127,20 +163,25 @@ describe('two windows side by side on a 1280 px wide screen (index.html)', () =>
 describe('windows in the page (index.html)', () => {
   const windows = [...html.matchAll(/<section class="win[^"]*" id="(\w+)" data-win="(\w+)" data-width="(\d+)"[^>]*>([\s\S]*?)<\/section>\s*(?=<section class="win|<\/div>)/g)];
   const buttons = [...html.matchAll(/<button class="rail-btn" type="button" data-opens="(\w+)" aria-controls="(\w+)"[^>]*>([\s\S]*?)<\/button>/g)];
+  /** Every button on the bar that opens a window: the row's, and the "i" beside the clock (0.0.38). */
+  const openers = [...html.matchAll(/<button class="(?:rail-btn|info-btn)"[^>]*? data-opens="(\w+)" aria-controls="(\w+)"[^>]*>/g)];
 
-  it('has the five windows, in the order of their buttons: backpack, skills, build, book, settings', () => {
-    expect(windows.map(m => m[2])).toEqual(['backpack', 'skills', 'build', 'book', 'settings']);
+  it('has the windows of the row of buttons, in their order (backpack, skills, build, book, settings), then Information', () => {
+    expect(windows.map(m => m[2])).toEqual(['backpack', 'skills', 'build', 'book', 'settings', 'info']);
     expect(buttons.map(m => m[1])).toEqual(['backpack', 'skills', 'build', 'book', 'settings']);
+    expect(openers.map(m => m[1])).toEqual(['backpack', 'skills', 'build', 'book', 'settings', 'info']);
   });
 
-  it('every window has a title bar with its title and a close button, and a button in the row that opens it', () => {
+  it('every window has a title bar with its title and a close button, and a button on the bar that opens it', () => {
     for (const [, id, win, width, body] of windows) {
       expect(body, win).toMatch(/<div class="win-bar"><h2 class="win-title" id="\w+">[^<]+<\/h2><button class="win-x" type="button" aria-label="[^"]+">/);
       expect(Number(width), win).toBeGreaterThanOrEqual(300);
-      const button = buttons.find(b => b[1] === win);
+      const button = openers.find(b => b[1] === win);
       expect(button, win).toBeDefined();
       expect(button![2], win).toBe(id);                      // aria-controls names the window
     }
+    // Information is titled so (D9), and stands right after the Settings window
+    expect(html).toMatch(/<\/section>\s*<\/div>\s*<\/section>\s*<section class="win" id="infoWin" data-win="info"[^>]*>\s*<div class="win-bar"><h2 class="win-title" id="infoTitle">Information<\/h2>/);
   });
 
   it('every button has an icon drawn in code and a short label', () => {
@@ -181,7 +222,7 @@ describe('the goal card (ui/hud.ts)', () => {
     state.goalsDone = ['salvage'];
     state.player.backpack = { ...MAKES.campfire.needs };
     const card = goalCard(state);
-    expect(card).toMatchObject({ title: GOALS[1]!.title, ready: true, progress: 1, build: { id: 'campfire', label: 'Build the campfire', send: 'build' }, hint: GOALS[1]!.ready });
+    expect(card).toMatchObject({ title: GOALS[1]!.title, ready: true, progress: 1, build: { id: 'campfire', label: 'Build the campfire', short: 'Build', send: 'build' }, hint: GOALS[1]!.ready });
     // begun (what it needs taken): on his way, then building it, how far along; the goal stays all there
     state.player.backpack = {}; state.underway = { campfire: 0 };
     state.player.pending = { kind: 'raise', id: 'campfire' }; state.player.task = { kind: 'walk' };
@@ -190,7 +231,7 @@ describe('the goal card (ui/hud.ts)', () => {
     expect(goalCard(state)).toMatchObject({ build: null, line: 'Building the campfire... 40%', ready: true, progress: 1 });
     // sent elsewhere: Carry on
     state.player.task = { kind: 'idle' };
-    expect(goalCard(state).build).toEqual({ id: 'campfire', label: 'Carry on with the campfire', send: 'build' });
+    expect(goalCard(state).build).toEqual({ id: 'campfire', label: 'Carry on with the campfire', short: 'Carry on', send: 'build' });
     // the firewood pile is stacked; a tool is made, where he stands
     const pile = createState(CAMP, 1);
     pile.goalsDone = ['salvage', 'campfire', 'stone_axe']; pile.built = ['campfire']; pile.tools.axe = true;
@@ -198,19 +239,44 @@ describe('the goal card (ui/hud.ts)', () => {
     expect(goalCard(pile).line).toBe('Stacking the firewood pile... 20%');
     const axe = createState(CAMP, 1);
     axe.goalsDone = ['salvage', 'campfire']; axe.built = ['campfire']; axe.player.backpack = { ...MAKES.stone_axe.needs };
-    expect(goalCard(axe).build).toEqual({ id: 'stone_axe', label: 'Make the stone axe', send: 'make' });
+    expect(goalCard(axe).build).toEqual({ id: 'stone_axe', label: 'Make the stone axe', short: 'Make', send: 'make' });
     axe.player.task = { kind: 'make', id: 'stone_axe', doneAt: 99 };
     expect(goalCard(axe)).toMatchObject({ build: null, line: 'Working on the stone axe...' });
     // one thing built at a time (D8): the dummy's goal all there, with the wall tent under way, that comes first
     const dummy = createState(CAMP, 1), at = GOALS.findIndex(g => g.makes === 'dummy');
     dummy.goalsDone = GOALS.slice(0, at).map(g => g.id); dummy.built = ['campfire', 'woodpile', 'shelter', 'chest'];
     dummy.bank = { ...MAKES.dummy.needs }; dummy.underway = { wall_tent: 30 };
-    expect(goalCard(dummy).build).toEqual({ id: 'wall_tent', label: 'Carry on with the wall tent', send: 'build' });
+    expect(goalCard(dummy).build).toEqual({ id: 'wall_tent', label: 'Carry on with the wall tent', short: 'Carry on: wall tent', send: 'build' });
     dummy.player.task = { kind: 'raise', id: 'wall_tent' };
     expect(goalCard(dummy)).toMatchObject({ build: null, line: 'Building the wall tent... 25%' });
     dummy.bank = {};                                                // not all there yet: gather first, no button
     dummy.player.task = { kind: 'idle' };
     expect(goalCard(dummy).build).toBeNull();
+  });
+
+  it('where the whole count does not fit, the first thing still short, then its numbers alone (the slim goal line, 0.0.38)', () => {
+    const state = createState(CAMP, 1);
+    expect(goalCard(state)).toMatchObject({ line: '0 / 7 planks, 0 / 1 tarp, 0 / 1 book', short: '0 / 7 planks', tiny: '0 / 7' });
+    state.player.backpack = { plank: 7 };
+    expect(goalCard(state)).toMatchObject({ short: '0 / 1 tarp', tiny: '0 / 1' });
+    // all there (the campfire's planks and stones, its Build button showing): the last line
+    const all = createState(CAMP, 1);
+    all.goalsDone = ['salvage']; all.player.backpack = { ...MAKES.campfire.needs };
+    expect(goalCard(all)).toMatchObject({ short: '4 / 4 stones', tiny: '4 / 4', ready: true });
+    // a skill level, by its skill
+    const practice = createState(CAMP, 1);
+    practice.goalsDone = GOALS.slice(0, GOALS.findIndex(g => g.id === 'practice')).map(g => g.id);
+    expect(goalCard(practice)).toMatchObject({ short: 'Attack 1 / 3', tiny: '1 / 3' });
+    // building in stages: how far along; on his way or making a tool, nothing more than the tag over his head says
+    const fire = createState(CAMP, 1);
+    fire.goalsDone = ['salvage']; fire.underway = { campfire: 8 }; fire.player.task = { kind: 'raise', id: 'campfire' };
+    expect(goalCard(fire)).toMatchObject({ line: 'Building the campfire... 40%', short: 'Building... 40%', tiny: '40%' });
+    fire.player.task = { kind: 'walk' }; fire.player.pending = { kind: 'raise', id: 'campfire' };
+    expect(goalCard(fire)).toMatchObject({ short: 'On the way...', tiny: '' });
+    // every goal done: the title says it, and the page in Information
+    const done = createState(CAMP, 1);
+    done.goalsDone = GOALS.map(g => g.id);
+    expect(goalCard(done)).toMatchObject({ short: '', tiny: '' });
   });
 
   it('counts a skill level in a short line: "Attack 1 / 3"', () => {

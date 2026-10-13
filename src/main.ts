@@ -18,6 +18,7 @@ import { News } from './ui/news';
 import { Intro } from './ui/intro';
 import { BackpackWindow } from './ui/backpack';
 import { Book } from './ui/book';
+import { Information } from './ui/info';
 import { Windows } from './ui/windows';
 import { Rail } from './ui/rail';
 import { SkillsWindow } from './ui/skills';
@@ -100,6 +101,8 @@ function start(data: HotData): void {
   showModels(view, layout);                                         // dev only: ?models in the address shows chapter 2's models
   const skills = new SkillsWindow(windows, events);                 // each skill's level, and what he trains
   const book = new Book(state, events, layout, windows);            // his book: a page per goal, opened from its button or the goal card
+  const info = new Information(state, layout, windows);             // the "i" beside the clock: the story, his journal and tips
+  hud.goalName = () => info.showGoal();                             // the goal line's name opens the story at its page
   const news = new News(!newGame);                                  // a returning player sees what changed since
   const sound = new Sound(layout, events);                          // the camp's sounds and the music, made as it plays
   new Settings(windows, news, () => { startingOver = true; clearSave(browserStorage); location.reload(); }, activity, sound);   // text size, the tag, sound, What's new, Start over
@@ -168,6 +171,7 @@ function start(data: HotData): void {
       build.update(state);
       menu.update();
       book.update();
+      info.update();
       awayNote.update();
       sinceSave += dt; if (sinceSave > 10 && !startingOver && !closed) { sinceSave = 0; save(browserStorage, state, playedTo()); }
     });

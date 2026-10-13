@@ -4,7 +4,8 @@
 // the foot, while they fit across it. One look for all (index.html's .win): forest-green canvas in a wooden
 // frame, cream text, a header board with the close button, scrolling inside when tall. A window is a <section class="win" data-win="id"
 // data-width="360"> in #wins with its title bar and body, and its button a <button data-opens="id"> in the row: a new
-// window later is one more of each (tests/windows.test.ts checks every window has both). The notes over the game (.note:
+// window later is one more of each (tests/windows.test.ts checks every window has both). Its button can stand anywhere on
+// the bar at the foot: Information's is the "i" beside the clock (0.0.38, ui/info.ts). The notes over the game (.note:
 // the welcome, "What's new", "While you were away") are parchment with dark ink; their x does what their own button
 // does, and Esc closes a note before any window. The windows stand on the bar at the foot (index.html's .dock, 13 Oct
 // 2026: the owner's "permanent bar on the bottom"), from the right, below the band at the top where notices show; this
@@ -57,14 +58,13 @@ export class Windows {
   private count = 0;
   private listeners: ((id: string, open: boolean) => void)[] = [];
   private stage = $('stage');
-  private rail = $('rail');
   private dock = $('dock');
   private phone = matchMedia(PHONE);
 
   constructor() {
     for (const el of document.querySelectorAll<HTMLElement>('#wins > .win[data-win]')) {
       const id = el.dataset.win!, width = Number(el.dataset.width) || 360;
-      const button = this.rail.querySelector<HTMLButtonElement>(`[data-opens="${id}"]`);
+      const button = this.dock.querySelector<HTMLButtonElement>(`[data-opens="${id}"]`);
       el.style.setProperty('--w', `${width}px`);
       this.wins.set(id, { id, el, button, width, available: !!button && !button.hidden });
       el.querySelector('.win-x')?.addEventListener('click', () => this.close(id));

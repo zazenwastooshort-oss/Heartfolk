@@ -1,10 +1,11 @@
 // The row of buttons in the bar at the foot (the rustic UI pass, then the bar, 13 Oct 2026; ui/rail.ts): how many buttons
 // stay in the row at each size (railShows, in the room railRoom gives) and which go into a More button's menu, in order
-// (railSplit); its measures as index.html draws them; and the hand-inked icons (ui/pictures.ts) for every button.
+// (railSplit); its measures as index.html draws them; when his state beside the goal shows compactly (stripCompact, the
+// slim bar, 0.0.38); and the hand-inked icons (ui/pictures.ts) for every button and for his state.
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { DOCK_GAP, DOCK_PAD, GOAL_MIN, RAIL_PHONE, RAIL_WIDE, ROWS_MAX, ROWS_TALL, SHORT_MAX, UPRIGHT_MAX, inRows, railRoom, railShows, railSplit } from '../src/ui/rail';
-import { CLOSE_ICON, RAIL_ICONS } from '../src/ui/pictures';
+import { DOCK_GAP, DOCK_PAD, GOAL_MIN, GOAL_WANT, RAIL_PHONE, RAIL_WIDE, ROWS_MAX, ROWS_TALL, SHORT_MAX, UPRIGHT_MAX, inRows, railLength, railRoom, railShows, railSplit, stripCompact } from '../src/ui/rail';
+import { CLOSE_ICON, RAIL_ICONS, STATE_ICONS } from '../src/ui/pictures';
 import { EDGE } from '../src/ui/windows';
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -161,24 +162,73 @@ describe('the row in the page (index.html)', () => {
   it('measures the row and the bar as index.html draws them', () => {
     // the buttons: 60 px wide at least, 54 on a phone (narrow or short); 3 px apart; the row has no padding of its own
     expect(css(/\.rail-btn \{[^}]*min-width: (\d+)px/)).toBe(String(RAIL_WIDE.size));
-    expect(html.replace(/\r\n/g, '\n')).toContain(`@media (max-width: ${UPRIGHT_MAX}px) {\n  .rail-btn { min-width: ${RAIL_PHONE.size}px; }`);
-    expect(html).toContain(`@media (max-height: ${SHORT_MAX}px) { .goal-thought { display: none; } .rail-btn { min-width: ${RAIL_PHONE.size}px; } }`);
+    expect(html.replace(/\r\n/g, '\n')).toContain(`@media (max-width: ${UPRIGHT_MAX}px) {\n  .rail-btn { min-width: ${RAIL_PHONE.size}px; min-height: 48px; }`);
+    expect(html).toContain(`@media (max-height: ${SHORT_MAX}px) { .rail-btn { min-width: ${RAIL_PHONE.size}px; min-height: 48px; } }`);
     const rail = rule('.rail');
     expect(rail).toContain(`gap: ${RAIL_WIDE.gap}px`);
     expect(RAIL_PHONE.gap).toBe(RAIL_WIDE.gap);
     expect(rail).not.toContain('padding');
     expect(RAIL_WIDE.pad).toBe(0);
     expect(RAIL_PHONE.pad).toBe(0);
-    // the bar: 5 px padding and a 1 px border at each end, 8 px between the things on it; the goal keeps 120 px at least
+    // the bar: 4 px padding and a 1 px border at each end, 8 px between the things on it; the goal keeps 120 px at least
     const dock = rule('.dock');
-    expect(dock).toContain('padding: 5px');
+    expect(dock).toContain('padding: 4px');
     expect(dock).toContain('border: 1px solid');
-    expect(DOCK_PAD).toBe(2 * 5 + 2 * 1);
+    expect(DOCK_PAD).toBe(2 * 4 + 2 * 1);
     expect(dock).toContain(`gap: ${DOCK_GAP}px`);
     expect(css(/\.goal \{[^}]*min-width: (\d+)px/)).toBe(String(GOAL_MIN));
     // in rows on a phone or a tablet held upright
     expect(html).toContain(`@media (max-width: ${UPRIGHT_MAX}px), (max-width: ${ROWS_MAX}px) and (min-height: ${ROWS_TALL}px) {`);
     expect(css(/--edge: (\d+)px/)).toBe(String(EDGE));
+  });
+});
+
+describe("his state beside the goal: compact where room is short (stripCompact, 0.0.38)", () => {
+  /** Widths measured in the game (px): the clock's group with the dial and the "i" (What's new too from 900 px), and his
+   *  state with its words: the skill alone, two pills, all five (health, Hungry, the skill, Rested, Well fed). */
+  const TIME = 100, TIME_WIDE = 190, SKILL = 110, TWO = 200, ALL = 408;
+
+  it('with nothing showing it is never compact', () => {
+    for (const [w, h] of Object.values(SIZES)) expect(stripCompact(w, h, 0, TIME, 5)).toBe(false);
+  });
+
+  it('on a phone held upright (390 x 844) anything he shows goes compact, so the goal line keeps its room', () => {
+    expect(stripCompact(390, 844, SKILL, TIME, 5)).toBe(true);
+    expect(stripCompact(360, 740, SKILL, TIME, 5)).toBe(true);
+  });
+
+  it('on a tablet held upright, words while they leave the goal line its room; all five go compact', () => {
+    expect(stripCompact(768, 1024, TWO, 118, 5)).toBe(false);
+    expect(stripCompact(768, 1024, ALL, 118, 5)).toBe(true);
+  });
+
+  it('in one row the buttons share it: words for all five at 1280 x 800 and 1920 x 1080, compact on a phone held sideways', () => {
+    expect(stripCompact(1280, 800, ALL, TIME_WIDE, 5)).toBe(false);
+    expect(stripCompact(1920, 1080, ALL, TIME_WIDE, 8)).toBe(false);
+    expect(stripCompact(844, 390, TWO, 118, 5)).toBe(true);
+    // more buttons along the row leave less beside it
+    expect(stripCompact(1100, 800, ALL, TIME_WIDE, 3)).toBe(false);
+    expect(stripCompact(1100, 800, ALL, TIME_WIDE, 6)).toBe(true);
+  });
+
+  it('is compact exactly when, with its words, the goal line would have less than GOAL_WANT beside it', () => {
+    for (const [w, h] of [...Object.values(SIZES), [1920, 1080], [360, 740]] as [number, number][]) {
+      for (const strip of [SKILL, TWO, ALL]) {
+        const rail = inRows(w, h) ? 0 : railLength(5, railRoom(w, h).measure) + DOCK_GAP;
+        const left = w - 2 * EDGE - DOCK_PAD - strip - DOCK_GAP - TIME_WIDE - DOCK_GAP - rail;
+        expect(stripCompact(w, h, strip, TIME_WIDE, 5), `${strip} at ${w}x${h}`).toBe(left < GOAL_WANT);
+      }
+    }
+    expect(railLength(5, RAIL_WIDE)).toBe(5 * 60 + 4 * 3);
+    expect(GOAL_WANT).toBeGreaterThan(GOAL_MIN);
+  });
+
+  it('index.html gives each part of his state its icon and its words, the words hidden only from the eye when compact', () => {
+    const strip = html.slice(html.indexOf('<div class="strip" id="strip">'), html.indexOf('<!-- the goal line'));
+    expect([...strip.matchAll(/data-icon="(\w+)"/g)].map(m => m[1])).toEqual(['health', 'hungry', 'rested', 'fed']);
+    expect(strip).toContain('<svg class="icon st-icon" id="xpIcon"');        // the skill's own icon (SKILL_ICONS)
+    expect(html).toMatch(/\.dock\.compact \.st-icon \{ display: block;/);
+    expect(html).toMatch(/^\.st-icon \{ display: none; \}/m);
   });
 });
 
@@ -201,5 +251,15 @@ describe('the hand-inked icons (ui/pictures.ts)', () => {
   it('no two buttons share an icon', () => {
     const icons = Object.values(RAIL_ICONS);
     expect(new Set(icons).size).toBe(icons.length);
+  });
+
+  it("his state's icons, for where it shows compactly: inked the same way, each its own", () => {
+    expect(Object.keys(STATE_ICONS)).toEqual(['health', 'hungry', 'rested', 'fed']);
+    for (const [id, svg] of Object.entries(STATE_ICONS)) {
+      expect(svg, id).toMatch(/^<path /);
+      expect(svg, id).not.toMatch(/fill=/);
+      for (const n of svg.match(/-?\d*\.?\d+/g)!.map(Number)) expect(Math.abs(n), id).toBeLessThanOrEqual(24);
+    }
+    expect(new Set(Object.values(STATE_ICONS)).size).toBe(4);
   });
 });

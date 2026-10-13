@@ -170,6 +170,21 @@ export const RAIL_ICONS: Record<string, string> = {
  *  icons. */
 export const CLOSE_ICON = '<path d="M6.8 6.6c3.4 3.3 6.9 7 10.6 10.9"/><path d="M17.2 6.4C13.6 10 10.2 13.6 6.6 17.4"/>' + pass('M7.8 6.2c1.2 1 2.3 2.1 3.3 3.2');
 
+/** His state in the bar at the foot, shown compactly where room is short (0.0.38: an icon and a number, the words in a
+ *  tooltip; index.html's .dock.compact, ui/hud.ts puts each on its `data-icon`), hand-inked like the row's icons: a heart
+ *  for his health, an empty bowl while he is hungry, the sun coming up for Rested, a steaming bowl for Well fed. (The
+ *  skill he trains shows its own icon, SKILL_ICONS.) */
+export const STATE_ICONS: Record<string, string> = {
+  health: '<path d="M12 19.6c-5.6-3.7-7.9-6.8-7.8-9.9.1-2.5 2-4.3 4.3-4.2 1.5 0 2.8.9 3.5 2.1.8-1.2 2.1-2 3.6-2 2.3.1 4.2 2 4.1 4.4-.1 3-2.3 6-7.7 9.6z"/>' +
+    pass('M7.3 9.4c.2-1 .9-1.7 1.9-1.8'),
+  hungry: '<path d="M3.8 11.6c5.5-.3 10.9-.3 16.4.1-.3 4.4-3.6 7.6-8.3 7.6-4.6 0-7.8-3.3-8.1-7.7z"/><path d="M8.6 20.6c2.3.3 4.6.3 6.9-.1"/>' +
+    pass('M6.4 13.6c.7 1.8 2 3 3.8 3.6'),
+  rested: '<path d="M3.4 17.8c5.8-.3 11.5-.3 17.2.1"/><path d="M7.6 17.6c-.1-2.6 1.8-4.6 4.4-4.6 2.5 0 4.4 2 4.4 4.5"/>' +
+    '<path d="M12 6.4l.1 3.1"/><path d="M5.8 9.4l2 1.9"/><path d="M18.3 9.2l-2 2"/>' + pass('M5.6 20.4c4.2-.3 8.4-.3 12.6.1'),
+  fed: '<path d="M3.8 12.6c5.5-.3 10.9-.3 16.4.1-.3 4.2-3.6 7.2-8.3 7.2-4.6 0-7.8-3.1-8.1-7.3z"/>' +
+    '<path d="M9.3 9.6c-1.2-1.5 1.1-2.4-.1-4.1"/><path d="M14.5 9.6c-1.2-1.5 1.1-2.4-.1-4.1"/>' + pass('M6.4 14.6c.7 1.7 2 2.8 3.8 3.4'),
+};
+
 /** Every skill's icon (SKILLS in data/skills.ts): cream-style lines on a 24 x 24 grid, drawn in the skill's colour by
  *  the page (index.html's .icon). A pickaxe, an axe, a sword, a flexed arm, a shield, a heart, a fish, a pot, a mallet. */
 export const SKILL_ICONS: Record<SkillId, string> = {

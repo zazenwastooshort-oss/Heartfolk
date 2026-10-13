@@ -5,8 +5,9 @@
 // at its end, which opens a small menu listing them (the same plank look; `railShows` decides how many stay, `railSplit`
 // which). A button in the menu is the same button, moved: ui/windows.ts still opens its window and shows it as on, Esc
 // closes the menu first, and keyboard focus goes back to More when its window closes (`Windows.focusBack`,
-// `Windows.escape`). Buttons that wait to be shown (the book's, Build's) take no room until they show. Changes nothing in
-// the game.
+// `Windows.escape`). Buttons that wait to be shown (the book's, Build's) take no room until they show. Since the slim bar
+// (0.0.38) this also says when his state shows compactly, an icon and a number for each (the bar's .compact): where, with
+// its words, it would leave the goal line less than GOAL_WANT beside it (`stripCompact`). Changes nothing in the game.
 import { CLOSE_ICON, RAIL_ICONS } from './pictures';
 import { EDGE, type Windows } from './windows';
 
@@ -27,12 +28,18 @@ export const ROWS_MAX = 900, ROWS_TALL = 600;
 export const inRows = (width: number, height: number) => width <= UPRIGHT_MAX || (width <= ROWS_MAX && height >= ROWS_TALL);
 /** The bar at the foot (index.html's .dock): its padding and border at its two ends together, the gap between the
  *  things on it, and the least width the goal keeps beside the row (.goal's min-width). */
-export const DOCK_PAD = 2 * 5 + 2 * 1, DOCK_GAP = 8, GOAL_MIN = 120;
+export const DOCK_PAD = 2 * 4 + 2 * 1, DOCK_GAP = 8, GOAL_MIN = 120;
+/** The room the goal line wants beside his state, the clock and (in one row) the buttons before his state shows
+ *  compactly (px, 0.0.38): its name cut short, a short count ("2 / 7 planks") and the arrow. */
+export const GOAL_WANT = 230;
+
+/** The length of a row of `n` buttons (px). */
+export const railLength = (n: number, { size, gap, pad }: RailMeasure) => n * size + Math.max(0, n - 1) * gap + pad;
 
 /** How many of `count` buttons the row shows in `room` px along it: all of them while they fit, else as many as fit with
  *  a More button after them, which holds the rest (at least one stays in the row). */
-export function railShows(count: number, room: number, { size, gap, pad }: RailMeasure): number {
-  const fits = (n: number) => n * size + Math.max(0, n - 1) * gap + pad <= room;
+export function railShows(count: number, room: number, measure: RailMeasure): number {
+  const fits = (n: number) => railLength(n, measure) <= room;
   if (fits(count)) return count;
   let n = count - 1;
   while (n > 1 && !fits(n + 1)) n--;
@@ -54,6 +61,17 @@ export function railSplit<T extends { hidden: boolean | string }>(buttons: reado
 export function railRoom(width: number, height: number, beside = 0): { room: number; measure: RailMeasure } {
   const bar = width - 2 * EDGE - DOCK_PAD, measure = width <= UPRIGHT_MAX || height <= SHORT_MAX ? RAIL_PHONE : RAIL_WIDE;
   return { room: inRows(width, height) ? bar : bar - beside - GOAL_MIN - DOCK_GAP, measure };
+}
+
+/** Whether his state shows compactly (an icon and a number; 0.0.38, the owner's "where room is short") on a `width` x
+ *  `height` screen: when, with its words, it would leave the goal line less than GOAL_WANT. `strip`: his state's width
+ *  with its words (0 while nothing shows), `time`: the clock's, both as measured; `buttons`: how many buttons show, which
+ *  share the goal's row while the bar is in one row (in rows they have one of their own). */
+export function stripCompact(width: number, height: number, strip: number, time: number, buttons: number): boolean {
+  if (strip <= 0) return false;
+  const bar = width - 2 * EDGE - DOCK_PAD, { measure } = railRoom(width, height);
+  const rail = inRows(width, height) ? 0 : railLength(buttons, measure) + DOCK_GAP;
+  return bar - strip - DOCK_GAP - time - DOCK_GAP - rail < GOAL_WANT;
 }
 
 const svg = (inner: string) => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${inner}</svg>`;
@@ -115,11 +133,17 @@ export class Rail {
     else if (inside) this.more.focus({ preventScroll: true });
   }
 
-  /** The buttons that fit stay in the row, in their order, and the rest go into More's menu. */
+  /** His state compact or not (stripCompact); then the buttons that fit stay in the row, in their order, and the rest go
+   *  into More's menu. */
   private fit(): void {
-    const stage = document.getElementById('stage')!, width = stage.clientWidth;
+    const stage = document.getElementById('stage')!, width = stage.clientWidth, height = stage.clientHeight;
+    const dock = document.getElementById('dock')!, strip = document.getElementById('strip')!, time = document.querySelector('.dock-time');
+    // his state measured with its words: the compact look taken off a moment (nothing is drawn in between)
+    dock.classList.remove('compact');
+    const full = strip.getBoundingClientRect().width, shown = this.buttons.filter(b => !b.hidden).length;
+    if (width > 0 && stripCompact(width, height, full, time ? time.getBoundingClientRect().width : 0, shown)) dock.classList.add('compact');
     const beside = (el: Element | null) => { const w = el ? el.getBoundingClientRect().width : 0; return w > 0 ? w + DOCK_GAP : 0; };
-    const { room, measure } = railRoom(width, stage.clientHeight, beside(document.getElementById('strip')) + beside(document.querySelector('.dock-time')));
+    const { room, measure } = railRoom(width, height, beside(strip) + beside(time));
     const { row, menu } = railSplit(this.buttons, width > 0 ? room : 0, measure);
     const inMenu = new Set(menu);
     const focused = document.activeElement;

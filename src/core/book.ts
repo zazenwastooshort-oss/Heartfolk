@@ -2,6 +2,8 @@
 // still stuck together from the river. Headless, so the tests can check what each page shows; the goal card counts
 // with goalLines too, so the card and the book always agree. Since the survival book (core/survival.ts) ui/book.ts no
 // longer draws these goal pages; goalLines (the card's counts, and the Making pages' counting) and opensBook are used.
+// Since 0.0.38 the goal pages are back, as the Story in the Information window (ui/info.ts, core/survival.ts's
+// informationPages), opened at the current goal's page by the goal line's name.
 import type { GameEvent } from './events';
 import { allGoalsDone, currentGoal, goalFinished, goalMet, goalPaid, owned, type GameState } from './state';
 import { CAMP_DONE, GOALS, type Goal } from '../data/goals';

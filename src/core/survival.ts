@@ -3,10 +3,12 @@
 // each thing whose page has come unstuck: what it needs, how many of each he has, and where it is made; done once it
 // is made), Food (with how much each heals), Materials and places, and Tips. Only pages that have come unstuck
 // (GameState.thoughts.known, systems/thoughts.ts) are in it; the rest are still stuck together from the river.
+// Since 0.0.38 the Information window (ui/info.ts; the owner: "Let's do Journaling and tips as a (informstion) button")
+// shows three of these: the goal pages as its Story (core/book.ts), and the Journal and the Tips (informationPages).
 import type { GameState } from './state';
 import { begun, made, owned } from './state';
 import { DAY_SECONDS } from './clock';
-import type { BookLine } from './book';
+import { bookPages, type BookLine, type BookPage } from './book';
 import { MAKES } from '../data/making';
 import { FOOD } from '../data/food';
 import { thoughtDef } from '../data/thoughts';
@@ -35,7 +37,7 @@ export const dayOf = (time: number) => Math.floor(time / DAY_SECONDS) + 1;
 /** The Journal's pages: his thoughts in order, JOURNAL_PER_PAGE to a page; one empty page before he has any. Lines from
  *  before the book kept days (an old save's, day null) never share a page with dated ones: the dated lines start a
  *  fresh page, so each page is either "Earlier" or by day. */
-function journalPages(state: GameState): SurvivalPage[] {
+export function journalPages(state: GameState): SurvivalPage[] {
   const lines = state.thoughts.journal.flatMap((e): JournalLine[] => {
     const def = thoughtDef(e.id);
     return def ? [{ text: def.text, day: e.at === null ? null : dayOf(e.at) }] : [];
@@ -65,12 +67,26 @@ export function survivalPages(state: GameState): SurvivalPage[] {
     });
     return page({ key: makeKey(d.id), section: 'making', title: d.name, text: MAKE_NOTES[d.id] ?? '', lines, where: MAKE_WHERE[d.id] ?? SITE_WHERE[d.at] ?? '', done });
   });
-  const others = SURVIVAL.filter(p => known.has(p.id)).map(p => {
+  const all = [...journalPages(state), ...making, ...unstuck(state, known)];
+  return SECTIONS.flatMap(s => all.filter(p => p.section === s.id));
+}
+
+/** The Food, Materials and places, and Tips pages that have come unstuck (`known`), in SURVIVAL's order. */
+function unstuck(state: GameState, known: ReadonlySet<string>): SurvivalPage[] {
+  return SURVIVAL.filter(p => known.has(p.id)).map(p => {
     const item = 'item' in p.found ? p.found.item : null;
     return page({ key: p.id, section: p.section, title: p.title, text: p.text, heals: p.section === 'food' && item ? FOOD[item]?.heals ?? null : null });
   });
-  const all = [...journalPages(state), ...making, ...others];
-  return SECTIONS.flatMap(s => all.filter(p => p.section === s.id));
+}
+
+/** Information's pages (0.0.38, ui/info.ts), a list for each of its tabs: Story, the goal pages (bookPages:
+ *  one per goal, in order, up to the one he is on, which is the last); Journal, his thoughts a few to a page by day (one
+ *  empty page before he has any); Tips, a page each for those come unstuck (none before the first). */
+export interface InformationPages { story: BookPage[]; journal: SurvivalPage[]; tips: SurvivalPage[] }
+
+export function informationPages(state: GameState): InformationPages {
+  const tips = unstuck(state, new Set(state.thoughts.known)).filter(p => p.section === 'tips');
+  return { story: bookPages(state), journal: journalPages(state), tips };
 }
 
 /** Where each section starts in `pages` (an index), for its tab; a section with no pages has none. */
