@@ -50,7 +50,7 @@ function campAt(goal: string, { chest = true, seed = 11 } = {}): Setup {
   s.state.built = chest ? ['campfire', 'woodpile', 'shelter', 'chest'] : ['campfire', 'woodpile', 'shelter'];
   s.state.tools = { ...s.state.tools, axe: true, pick: true, rod: s.state.goalsDone.includes('rod') };
   s.state.hasBook = true;
-  s.state.time = at(1, 6.5);
+  s.state.time = at(1, 7.5);
   return s;
 }
 const send = (s: Setup, c: Command) => applyCommands(s.state, CAMP, [c], s.events);

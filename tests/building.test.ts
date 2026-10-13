@@ -32,7 +32,7 @@ import { navFor } from '../src/world/nav';
 import { outsideOf, stepPlace, toGround } from '../src/world/steps';
 import { waterOf } from '../src/world/water';
 import { applyCommands, type Command } from '../src/systems/commands';
-import { restedFactor, updateSleep } from '../src/systems/sleep';
+import { goToBed, restedFactor, updateSleep } from '../src/systems/sleep';
 import { canMake } from '../src/systems/making';
 import { wantsBark } from '../src/systems/building';
 import { nextStep } from '../src/systems/nextstep';
@@ -106,7 +106,7 @@ describe('the data', () => {
     expect(MAKES.campfire.needs).toEqual({ plank: 3, stone: 4 });
     expect(MAKES.woodpile.needs).toEqual({ birch_logs: 10 });
     expect(MAKES.shelter.needs).toEqual({ tarp: 1, plank: 4, birch_logs: 10 });
-    expect(MAKES.chest.needs).toEqual({ birch_logs: 10, copper_ore: 3 });
+    expect(MAKES.chest.needs).toEqual({ birch_logs: 10 });                     // logs only since 0.0.34 (ore needs smelting)
     expect(MAKES.dummy.needs).toEqual({ birch_logs: 6, branch: 4 });
   });
 
@@ -397,13 +397,20 @@ describe('building in stages', () => {
     expect(c.state.underway).toEqual({});
   });
 
-  it('asked to sleep by day while building, he says he is not tired and keeps working', () => {
+  it('at his bedtime while building, he finishes the knock he is on, then goes to bed; the work done stays', () => {
+    // (the owner, 13 Oct 2026: "always finish the action before sending to bed")
     const c = camp();
     send(c, { type: 'build', id: 'wall_tent' });
     runUntil(c, () => (c.state.underway.wall_tent ?? 0) > 5, 60);
-    send(c, { type: 'sleep' });                                    // by day: not tired; he keeps working
-    expect(of(c, 'cantSleep')).toHaveLength(1);
-    expect(c.state.player.task).toEqual({ kind: 'raise', id: 'wall_tent' });
+    c.state.time = at(2, 1) - 0.4;                                 // a moment before his bedtime, the next night
+    c.state.stokedNight = Math.floor(c.state.time / DAY_SECONDS - STOKE.at);
+    runUntil(c, () => of(c, 'bedtime').length > 0, 30);
+    expect(of(c, 'bedtime')).toHaveLength(1);
+    const worked = c.state.underway.wall_tent!;
+    expect(worked % CARPENTRY.knock).toBeLessThan(STEP * buildSpeed(c.state) + 1e-6);   // left just as a knock landed
+    expect(c.state.needs.bed!.back).toEqual({ raise: 'wall_tent' });
+    runUntil(c, () => of(c, 'awake').length > 0, DAY_SECONDS);
+    expect(c.state.underway.wall_tent).toBe(worked);
   });
 
   it('T6.4: walking is blocked by the step that stands, and by a new step from its footings on', () => {
@@ -469,7 +476,7 @@ describe("the shelter's upgrades", () => {
     it(`he sleeps in the ${cabin ? 'log cabin' : 'wall tent'} and wakes better rested than in the tent`, () => {
       const c = upgraded(22, cabin);
       expect(canSleep(c.state, CAMP)).toBe(true);
-      send(c, { type: 'sleep' });
+      goToBed(c.state, CAMP);                                      // as his bedtime would
       runUntil(c, () => c.state.player.task.kind === 'sleep', 60);
       expect(c.state.player.task.kind).toBe('sleep');
       runUntil(c, () => of(c, 'awake').length > 0, DAY_SECONDS);
@@ -494,7 +501,7 @@ describe("the shelter's upgrades", () => {
     c.state.stokedNight = Math.floor(c.state.time / DAY_SECONDS - STOKE.at);
     send(c, { type: 'build', id: 'wall_tent' });
     runUntil(c, () => stageOf(c.state, 'wall_tent') >= CARPENTRY.shown, 200);
-    send(c, { type: 'sleep' });
+    goToBed(c.state, CAMP);                                        // as his bedtime would
     runUntil(c, () => c.state.player.task.kind === 'sleep', 60);
     expect(c.state.player.task.kind).toBe('sleep');
     expect(c.state.underway.wall_tent).toBeGreaterThan(0);
@@ -999,7 +1006,7 @@ describe('everything built in stages, with Carpentry XP (In 2, In 3)', () => {
     // asleep: kept as the last thing tapped, done when he wakes
     const n = camp(22);
     n.state.stokedNight = Math.floor(n.state.time / DAY_SECONDS - STOKE.at);
-    send(n, { type: 'sleep' });
+    goToBed(n.state, CAMP);                                        // as his bedtime would
     runUntil(n, () => n.state.player.task.kind === 'sleep', 60);
     send(n, { type: 'build', id: 'woodshed' });
     expect(n.state.needs.later).toEqual({ type: 'build', id: 'woodshed' });
@@ -1125,18 +1132,20 @@ describe('committed: he goes back to what is half built (In 2, D9)', () => {
     expect(c.state.time - there).toBeLessThan(RESUME.wait + 2 * STEP);
   });
 
-  it('T2.6: stoking stopped by a tap, then Sleep: he lies down with no walk or stoke left over, wakes, goes back to the build and stokes the next night', () => {
+  it('T2.6: stoking stopped by a tap, then bedtime: he lies down with no walk or stoke left over, wakes, goes back to the build and stokes the next night', () => {
     const c = camp(19.9);
     c.state.woodpile = 10;
     send(c, { type: 'build', id: 'wall_tent' });
     runUntil(c, () => of(c, 'stokeOff').length > 0, 60);
     expect(c.state.player.stoke).not.toBeNull();
-    // a tap while he is off to stoke stops it; he would set off again once he had nothing to do
-    send(c, { type: 'work', nodeId: CAMP.nodes.find(n => n.resource === 'birch_tree')!.id });
+    // a tap while he is off to stoke stops it (back to the build); he would set off again once he had nothing to do
+    send(c, { type: 'build', id: 'wall_tent' });
     expect(c.state.stokeAgain).toBe(true);
     run(c, 2);
-    send(c, { type: 'sleep' });
-    expect(c.state.stokeAgain).toBe(false);                         // the Sleep command's own doing, before he lies down
+    c.state.needs.bedtime = 22;
+    c.state.time = at(1, 22);                                       // his bedtime comes
+    runUntil(c, () => of(c, 'bedtime').length > 0, 30);
+    expect(c.state.stokeAgain).toBe(false);                         // bedtime's own doing, before he lies down
     runUntil(c, () => c.state.player.task.kind === 'sleep', 60);
     const p = c.state.player;
     expect(p.task.kind).toBe('sleep');
@@ -1174,6 +1183,7 @@ describe('committed: he goes back to what is half built (In 2, D9)', () => {
     p.stoke = { back: null, logs: 3, empty: false, from: 'woodpile' };
     p.pending = { kind: 'visit', id: 'campfire' }; p.path = [{ x: 2, z: 2 }];
     c.state.stokeAgain = true;
+    c.state.needs.bed = { back: null, until: c.state.time };       // on his way to bed
     updateSleep(c.state, CAMP, 'shelter', c.events);
     expect(p.task).toEqual({ kind: 'sleep' });
     expect(p.pending).toBeNull();
@@ -1314,7 +1324,7 @@ describe('committed: he goes back to what is half built (In 2, D9)', () => {
       (_, r) => ({ type: 'work', nodeId: CAMP.nodes[Math.floor(r() * CAMP.nodes.length)]!.id }),
       (_, r) => ({ type: 'pickup', id: CAMP.pickups![Math.floor(r() * CAMP.pickups!.length)]!.id }),
       () => ({ type: 'visit', id: 'chest' }), () => ({ type: 'cook' }), () => ({ type: 'fight', target: 'dummy' }),
-      (_, r) => ({ type: 'fight', target: ratsOf(CAMP)[Math.floor(r() * 3)]!.id }), () => ({ type: 'sleep' }), () => ({ type: 'next' }),
+      (_, r) => ({ type: 'fight', target: ratsOf(CAMP)[Math.floor(r() * 3)]!.id }), () => ({ type: 'next' }),
       (_, r) => ({ type: 'build', id: STAGED_IDS[Math.floor(r() * STAGED_IDS.length)]! }),
       s => { const item = Object.keys(s.state.player.backpack)[0]; return item ? { type: 'drop', item, count: 1 } : null; },
       () => ({ type: 'eat', item: 'cooked_fish' }),

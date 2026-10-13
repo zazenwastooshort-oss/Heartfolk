@@ -279,7 +279,8 @@ function savedBack(v: unknown, state: GameState, layout: Layout): Back | null {
   if (typeof v.make === 'string') return makeable(state, v.make) ? { make: v.make as MakeId } : null;
   if (typeof v.fight === 'string') return targetOf(state, layout, v.fight) && state.equipment.weapon ? { fight: v.fight } : null;
   if (v.cook === true) return savedCook({ fetch: false }, state, layout) ? { cook: true } : null;
-  if (v.sleep === true) return canSleep(state, layout) ? { sleep: true } : null;
+  // (to bed once the fire is stoked, a tap on the shelter at night, from before 0.0.34: he goes at his bedtime now)
+  if (v.sleep === true) return null;
   if (typeof v.raise === 'string') return Object.hasOwn(state.underway, v.raise) ? { raise: v.raise as MakeId } : null;
   const to = v.to as { x?: unknown; z?: unknown } | undefined;
   if (isRecord(to) && Number.isFinite(to.x) && Number.isFinite(to.z)) return { to: { x: to.x as number, z: to.z as number } };

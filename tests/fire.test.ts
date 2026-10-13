@@ -131,11 +131,11 @@ describe('the storage chest stores things, like the bank', () => {
     s.state.bank = { birch_logs: 6, copper_ore: 3 };             // say, from an earlier version
     s.state.player.backpack = { birch_logs: 4 };
     const chest = GOALS.find(g => g.id === 'chest')!;
-    expect(goalLines(s.state, chest)).toEqual([{ id: 'birch_logs', need: 10, got: 10, done: true }, { id: 'copper_ore', need: 3, got: 3, done: true }]);
+    expect(goalLines(s.state, chest)).toEqual([{ id: 'birch_logs', need: 10, got: 10, done: true }]);
     send(s, { type: 'build', id: 'chest' });
     runUntil(s, () => s.state.built.includes('chest'), 90);
     expect(s.state.player.backpack).toEqual({});
-    expect(s.state.bank).toEqual({});
+    expect(s.state.bank).toEqual({ copper_ore: 3 });               // the chest needs no ore since 0.0.34: it stays stored
   });
 
   it('dropping from the backpack still works once the chest stands, and gathering stones with no room goes to the chest first', () => {

@@ -27,7 +27,7 @@ import { headingOf } from '../src/actors/player';
 import { applyCommands, type Command } from '../src/systems/commands';
 import { besideChest } from '../src/systems/tools';
 import { knockOut, wakeSpot } from '../src/systems/rats';
-import { restedFactor } from '../src/systems/sleep';
+import { goToBed, restedFactor } from '../src/systems/sleep';
 import { storeAll } from '../src/ui/backpack';
 import { stackedText } from '../src/ui/hud';
 import { CARPENTRY, DOOR, LINES, SHAPES, SHELTERS, STAGED } from '../src/data/building';
@@ -213,10 +213,10 @@ describe('everything to do with the chest happens at the door (T8.3, T8.4)', () 
       expect(walkGrid(s.state, CAMP).walkable(there.pos)).toBe(true);
     });
 
-    it('T8.3: bed: at night a tap on the shelter sends him to the same door, where he lies down; nothing is stored', () => {
+    it('T8.3: bed: at his bedtime he goes to the same door, where he lies down; nothing is stored', () => {
       const s = camp(sh, 22);
       s.state.player.backpack = { stone: 2 };
-      send(s, { type: 'sleep' });
+      goToBed(s.state, CAMP);                                        // as his bedtime would
       runUntil(s, () => s.state.player.task.kind === 'sleep', 60);
       expect(s.state.player.task.kind).toBe('sleep');
       expect(dist(whereAt(s, 'visited', 'shelter')!.pos, doorOf(sh))).toBeLessThanOrEqual(DOOR.near);

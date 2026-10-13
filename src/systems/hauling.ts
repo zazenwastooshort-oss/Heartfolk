@@ -24,8 +24,6 @@ import { canMake } from './making';
 import { setOffToFight, stockUp } from './rats';
 import { targetOf } from '../core/targets';
 import { canCook, cookForGoal, fishToCook, goCook } from './cooking';
-import { canSleep, goToBed } from './sleep';
-import { isNight } from '../core/clock';
 import { backToBuilding } from './building';
 import { fetchFirst, goWorkWith } from './tools';
 
@@ -90,7 +88,6 @@ export function backToWork(state: GameState, layout: Layout, back: Trip | Back, 
   if ('to' in back) { walkTo(state, layout, back.to); return; }
   if ('fight' in back) { setOffToFight(state, layout, back.fight, events); return; }
   if ('raise' in back) { backToBuilding(state, layout, back.raise, events); return; }
-  if ('sleep' in back) { if (canSleep(state, layout) && isNight(state.time) && !goToBed(state, layout)) events.emit({ type: 'noPath' }); return; }
   if ('cook' in back) {
     if (canCook(state, layout) && fishToCook(state, layout) && !goCook(state, layout)) events.emit({ type: 'noPath' });
     return;

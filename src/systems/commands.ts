@@ -16,10 +16,9 @@ import { mayFight, setStyle } from './combat';
 import { setOffToFight } from './rats';
 import type { CombatStyle } from '../data/combat';
 import { canCook, fishToCook, goCook } from './cooking';
-import { canSleep, goToBed } from './sleep';
 import { nextCommands } from './nextstep';
 import { startBuild } from './building';
-import { bestShelter, stagedDef } from '../core/building';
+import { stagedDef } from '../core/building';
 import { goWorkWith } from './tools';
 import { sleepsThrough, type Later } from '../core/needs';
 import { SLEEP } from '../data/sleep';
@@ -51,9 +50,6 @@ export type Command =
    *  them from the chest when he carries none; with none anywhere he says so and stays put, or before he owns a rod,
    *  walks beside the fire */
   | { type: 'cook' }
-  /** to bed in the shelter (a tap on it at night): off to stoke the fire, he stokes it first; by day he says he isn't
-   *  tired yet */
-  | { type: 'sleep' }
   /** go do it (the survival book): a tap on the goal card or on his thought sends him off on the current goal's next
    *  step (systems/nextstep.ts), as tapping the right thing in the world would; already on it, or with nothing to do
    *  yet, he says so */
@@ -85,7 +81,6 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     // when he wakes (systems/needs.ts)
     const wakes = sleepsThrough(state);
     if (wakes !== null && isLater(c)) { state.needs.later = { ...c }; events.emit({ type: 'whenAwake', at: wakes }); continue; }
-    if (wakes !== null && c.type === 'sleep') continue;
     // knocked out (chapter 2's rats): nothing but choosing what he trains until he wakes, a moment later (building says
     // so: startBuild)
     if (state.player.task.kind === 'knockedOut' && c.type !== 'style') { if (c.type === 'build') startBuild(state, layout, c, events); continue; }
@@ -122,16 +117,6 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
       if (!mayFight(state, layout, c.target, events)) continue;
       // (chapter 2) to fight the rats with no food on him, he goes by the chest for some first: a trip it sets
       ok = setOffToFight(state, layout, c.target, events);
-    } else if (c.type === 'sleep') {
-      const p = state.player;
-      if (!canSleep(state, layout) || p.task.kind === 'sleep') continue;
-      if (!isNight(state.time)) { events.emit({ type: 'cantSleep', shelter: bestShelter(state) ?? 'shelter' }); continue; }
-      // off to stoke the fire: he finishes that, then goes to bed (systems/fire.ts goes back to { sleep })
-      if (p.stoke) { p.stoke.back = { sleep: true }; events.emit({ type: 'bedLater' }); continue; }
-      // stoking stopped earlier tonight by a tap isn't taken up again on the way to bed (as at bedtime:
-      // systems/needs.ts)
-      state.stokeAgain = false;
-      ok = goToBed(state, layout);
     } else if (c.type === 'build') {
       const go = startBuild(state, layout, c, events);
       if (go === null) continue;
@@ -172,8 +157,8 @@ export function applyCommands(state: GameState, layout: Layout, queue: Command[]
     if (stoke && stoke.logs === 0 && c.type === 'visit' && c.id === stoke.from) { if (c.id === 'chest') stoke.empty = true; }
     else if (stoke) { stopStoking(state); if (isNight(state.time)) state.stokeAgain = true; }
     // (13 Oct 2026) sent somewhere: a meal trip under way is off (he is hungry still, and goes once he gets there), and
-    // so is bed sent early by a tap on the shelter (at bedtime he sleeps through taps: above)
+    // so is a bed he is neither in nor on his way to (asleep or on his way at bedtime, taps wait: above)
     state.needs.meal = null;
-    if (c.type !== 'sleep') state.needs.bed = null;
+    state.needs.bed = null;
   }
 }

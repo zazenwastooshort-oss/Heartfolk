@@ -113,13 +113,15 @@ describe('the things to make (data/making.ts)', () => {
     expect(goal('copper').makes).toBeUndefined();
     expect(goal('copper').hint).toMatch(/green/);                  // as the copper rocks look (render/nodes.ts)
     // the chest is a making goal, built since 0.0.19
-    expect(goal('chest')).toMatchObject({ title: 'A storage chest', needs: { birch_logs: 10, copper_ore: 3 }, makes: 'chest' });
+    // since 0.0.34 logs only (the owner, 13 Oct 2026: ore is raw, it would need smelting first)
+    expect(goal('chest')).toMatchObject({ title: 'A storage chest', needs: { birch_logs: 10 }, makes: 'chest' });
+    expect(goal('copper').page).toMatch(/smelted/);
     expect(makeDef('chest')).toBe(MAKES.chest);
     expect(goal('chest').ready).toBe('You have it all. Tap Build, or tap the marker in the shelter.');
     // each thing built at the camp's spots says to tap its marker (the camp build: nothing shows there until then)
     for (const g of GOALS.filter(x => x.makes && stagedDef(x.makes))) expect(g.ready, g.id).toMatch(/tap the marker/);
-    // he keeps mining after the copper goal until his backpack is full, so the hint says to make room for the logs
-    expect(goal('chest').hint).toMatch(/If your backpack is full, open it and drop some spare ore/);
+    // before the chest there is nowhere to store things: with a full backpack, the hint says to make room for the logs
+    expect(goal('chest').hint).toMatch(/If your backpack is full, open it and drop/);
     // every making goal can be made now
     expect(GOALS.filter(g => g.makes && !makeDef(g.makes)).map(g => g.id)).toEqual([]);
   });
@@ -879,8 +881,8 @@ describe('the stone pickaxe and copper ore', () => {
 });
 
 describe('building the storage chest (0.0.19)', () => {
-  it('has the chest: logs and copper ore, built in stages in the shelter, by its door (the camp build), a structure', () => {
-    expect(CHEST).toMatchObject({ name: 'Storage chest', verb: 'Build', needs: { birch_logs: 10, copper_ore: 3 }, at: 'tent', time: 45, gives: { kind: 'structure' } });
+  it('has the chest: logs (only, since 0.0.34), built in stages in the shelter, by its door (the camp build), a structure', () => {
+    expect(CHEST).toMatchObject({ name: 'Storage chest', verb: 'Build', needs: { birch_logs: 10 }, at: 'tent', time: 45, gives: { kind: 'structure' } });
     expect(stagedDef('chest')).toMatchObject({ inside: 'tent' });
     expect(Object.keys(CAMP.camp!)).not.toContain('chest');     // no spot of its own
     expect(stepPlace(VILLAGE, 'chest')).toBeNull();              // the village has its bank
@@ -893,7 +895,7 @@ describe('building the storage chest (0.0.19)', () => {
     expect(all.findPath(CAMP.start, { x: TENT.x - 2.2, z: TENT.z + 1 })).not.toBeNull();
   });
 
-  it('on a fresh camp game, after copper ore: logs chopped, built in the shelter from its door, the materials gone, every goal done', () => {
+  it('on a fresh camp game, after copper ore: logs chopped, built in the shelter from its door, the logs gone, the ore kept, every goal done', () => {
     const s = readyForShelter();
     makeIt(s, 'shelter');
     pickUpSome(s, 'branch', STONE_PICK.needs.branch!);
@@ -909,7 +911,7 @@ describe('building the storage chest (0.0.19)', () => {
     expect(goalMet(s.state, currentGoal(s.state))).toBe(true);
     const ore = owned(s.state, 'copper_ore'), logs = owned(s.state, 'birch_logs'), from = s.log.length;
     send(s, { type: 'build', id: 'chest' });
-    expect(owned(s.state, 'copper_ore')).toBe(ore - 3);              // taken at once
+    expect(owned(s.state, 'copper_ore')).toBe(ore);                  // the ore stays: it waits for smelting (0.0.34)
     runUntil(s, () => s.state.player.task.kind === 'raise', 60);
     expect(dist(s.state.player.pos, DOOR_AT)).toBeLessThan(0.1);           // at the tent's door
     // he works its time (a little less: Carpentry level 3 on the way), whatever the night sends him off to meanwhile
@@ -921,7 +923,7 @@ describe('building the storage chest (0.0.19)', () => {
     expect(working).toBeGreaterThan(CHEST.time / 1.02 - STEP);
     expect(since(s, from)).toContainEqual({ type: 'made', make: 'chest' });
     expect(s.state.built).toEqual(['campfire', 'woodpile', 'shelter', 'chest']);
-    expect(owned(s.state, 'copper_ore')).toBe(ore - 3);
+    expect(owned(s.state, 'copper_ore')).toBe(ore);                  // kept for smelting one day (0.0.34)
     expect(owned(s.state, 'birch_logs')).toBe(logs - 10);
     run(s, 0.1);
     // every goal up to the chest is done; chapter 2's come after it (tests/combat.test.ts)

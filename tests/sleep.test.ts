@@ -1,25 +1,29 @@
-// Sleeping in the shelter (12 Oct 2026, the owner): a tap on the built shelter at night sends him to bed early, he
-// sleeps 6 hours (by 07:00 at the latest) while play goes quicker, and wakes well rested: gathering yields more often
-// until nightfall. Going to bed at his bedtime by himself is in tests/needs.test.ts.
+// Sleeping in the shelter (12 Oct 2026, the owner): at his bedtime he goes to bed, sleeps 6 hours from when he lies
+// down while play goes quicker, and wakes well rested: gathering yields more often until nightfall. Since 0.0.34 only
+// his bedtime sends him (the owner, 13 Oct 2026, of a tap on the tent sending him early: "not needed"): the tent's
+// Sleep only says when. Going to bed at his bedtime by himself is in tests/needs.test.ts.
 import { describe, expect, it } from 'vitest';
 import { createState, type GameState } from '../src/core/state';
 import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
 import { STEP } from '../src/core/loop';
-import { DAY_SECONDS, dayFraction, isNight } from '../src/core/clock';
+import { DAY_SECONDS, dayFraction } from '../src/core/clock';
 import { deserialize, serialize } from '../src/core/save';
 import { freshNeeds } from '../src/core/needs';
+import { campActions, campTap, tapRefused } from '../src/core/camp';
 import { step } from '../src/sim';
 import { CAMP } from '../src/world/camp';
-import { VILLAGE, type Layout } from '../src/world/layout';
+import { type Layout } from '../src/world/layout';
 import { applyCommands, type Command } from '../src/systems/commands';
-import { isRested, playSpeed, playTime, restedFactor } from '../src/systems/sleep';
+import { goToBed, isRested, playSpeed, playTime, restedFactor } from '../src/systems/sleep';
 import { SLEEP } from '../src/data/sleep';
 import { STOKE } from '../src/data/fire';
 import { GOALS } from '../src/data/goals';
-import { SLEEP_TEXT, dialAngle } from '../src/ui/sleep';
+import { dialAngle } from '../src/ui/sleep';
+import { whyText } from '../src/ui/campmenu';
 
 const at = (day: number, hour: number) => (day + hour / 24) * DAY_SECONDS;
+const HOURS6 = SLEEP.hours / 24 * DAY_SECONDS;
 
 function setup(layout: Layout = CAMP, seed = 5) {
   const state = createState(layout, seed), events = new EventBus(), log: GameEvent[] = [];
@@ -33,41 +37,55 @@ const run = (s: Setup, seconds: number) => runUntil(s, () => false, seconds);
 const of = (s: Setup, type: GameEvent['type']) => s.log.filter(e => e.type === type);
 
 /** A camp with the shelter, the fire, the pile and the chest built, the chapter 1 goals done, at `hour` on day 1. */
-function camp(hour: number, { shelter = true } = {}): Setup {
+function camp(hour: number, { shelter = true, chest = true } = {}): Setup {
   const s = setup();
   s.state.goalsDone = GOALS.slice(0, GOALS.findIndex(g => g.id === 'chest') + 1).map(g => g.id);
-  s.state.built = shelter ? ['campfire', 'woodpile', 'shelter', 'chest'] : ['campfire', 'woodpile', 'chest'];
+  s.state.built = ['campfire', 'woodpile', ...(shelter ? ['shelter'] : []), ...(chest ? ['chest'] : [])] as GameState['built'];
   s.state.tools = { axe: true, pick: true, rod: false };
   s.state.hasBook = true;
   s.state.time = at(1, hour);
   return s;
 }
 
+/** Off to bed, as his bedtime sends him (systems/needs.ts), and asleep once he gets there. */
+function toBed(s: Setup): number {
+  s.state.stokedNight = Math.floor(s.state.time / DAY_SECONDS - STOKE.at);   // the fire seen to tonight already
+  expect(goToBed(s.state, s.layout)).toBe(true);
+  runUntil(s, () => s.state.player.task.kind === 'sleep', 60);
+  expect(s.state.player.task.kind).toBe('sleep');
+  return s.state.time;
+}
+
 describe('sleeping in the shelter', () => {
-  it('by day he isn\'t tired yet: a tap on the shelter says so and he stays put', () => {
-    const s = camp(14);
-    const pos = { ...s.state.player.pos };
-    send(s, { type: 'sleep' });
-    expect(of(s, 'cantSleep')).toEqual([{ type: 'cantSleep', shelter: 'shelter' }]);
-    expect(s.state.player.pending).toBeNull();
-    expect(s.state.player.pos).toEqual(pos);
-    // (the camp build) the notice names the shelter he would sleep in
-    expect(SLEEP_TEXT.cantSleep('tent')).toBe("He isn't tired yet. He can sleep in the tent once night falls.");
+  it('only his bedtime sends him to bed: a tap on the tent, by day or night, says when he sleeps there and walks him nowhere', () => {
+    for (const hour of [14, 21, 2]) {
+      const s = camp(hour, { chest: false });
+      s.state.goalsDone = GOALS.slice(0, GOALS.findIndex(g => g.id === 'shelter') + 1).map(g => g.id);   // the chest's goal not up yet
+      const pos = { ...s.state.player.pos };
+      s.state.needs.slept = Math.floor(s.state.time / DAY_SECONDS - STOKE.at);  // he has slept tonight (02:00 is in his bed hours)
+      expect(campTap(s.state, CAMP, 'tent')!.action.kind).toBe('sleep');
+      const why = tapRefused(s.state, CAMP, 'tent');
+      expect(why).toEqual({ kind: 'bedtime', hour: SLEEP.bedtime });
+      expect(whyText(why!)).toBe('He sleeps here at his bedtime, 01:00.');
+      run(s, 1);
+      expect(s.state.player.pos).toEqual(pos);
+      expect(s.state.needs.bed).toBeNull();
+      // its menu has Sleep, faded, saying the same; with the chest in it, a tap opens the chest instead
+      expect(campActions(s.state, CAMP, 'tent').find(e => e.action.kind === 'sleep')!.why).toEqual({ kind: 'bedtime', hour: SLEEP.bedtime });
+      s.state.built.push('chest');
+      expect(campTap(s.state, CAMP, 'tent')!.action.kind).toBe('look');
+    }
   });
 
-  it('at night a tap sends him to bed early: out of sight for 6 hours, then up well rested until nightfall', () => {
+  it('in bed he sleeps 6 hours from when he lies down, out of sight, then is up well rested until nightfall', () => {
     const s = camp(21);
-    s.state.stokedNight = Math.floor(s.state.time / DAY_SECONDS - STOKE.at);   // the fire seen to tonight already
-    send(s, { type: 'sleep' });
-    expect(s.state.player.pending).toEqual({ kind: 'visit', id: 'shelter' });
-    runUntil(s, () => s.state.player.task.kind === 'sleep', 60);
-    const lay = s.state.time, fell = of(s, 'fellAsleep');
+    const lay = toBed(s), fell = of(s, 'fellAsleep');
     expect(fell).toHaveLength(1);
-    expect((fell[0] as { until: number }).until).toBeCloseTo(lay + SLEEP.hours / 24 * DAY_SECONDS, 3);
+    expect((fell[0] as { until: number }).until).toBeCloseTo(lay + HOURS6, 3);
     expect(playSpeed(s.state)).toBe(SLEEP.speed);
     expect(isRested(s.state)).toBe(false);
     runUntil(s, () => s.state.player.task.kind !== 'sleep', DAY_SECONDS);
-    expect(s.state.time - lay).toBeCloseTo(SLEEP.hours / 24 * DAY_SECONDS, 0);
+    expect(s.state.time - lay).toBeCloseTo(HOURS6, 0);
     expect(of(s, 'awake')).toHaveLength(1);
     expect(s.state.player.task.kind).toBe('idle');
     expect(isRested(s.state)).toBe(true);
@@ -84,20 +102,6 @@ describe('sleeping in the shelter', () => {
     expect(isRested(s.state)).toBe(false);
   });
 
-  it('sent to bed early in the small hours, he still gets up by 07:00', () => {
-    const s = camp(4);
-    s.state.needs.bedtime = 22;
-    s.state.needs.slept = Math.floor(s.state.time / DAY_SECONDS - STOKE.at);  // he slept already, and is up at 04:00
-    s.state.stokedNight = s.state.needs.slept;
-    send(s, { type: 'sleep' });
-    runUntil(s, () => s.state.player.task.kind === 'sleep', 60);
-    expect(isNight(s.state.time)).toBe(true);
-    runUntil(s, () => !isNight(s.state.time), DAY_SECONDS);
-    expect(s.state.player.task.kind).toBe('sleep');                  // 05:00: still asleep while the dawn comes
-    runUntil(s, () => s.state.player.task.kind !== 'sleep', DAY_SECONDS);
-    expect(dayFraction(s.state.time) * 24).toBeCloseTo(SLEEP.latest, 1);
-  });
-
   it('only a frame\'s worth of time goes quicker: a long gap (the screen off, the page hidden) counts at real speed', () => {
     const s = camp(23);
     s.state.player.task = { kind: 'sleep' };
@@ -109,12 +113,10 @@ describe('sleeping in the shelter', () => {
 
   it('a tap on the goal card or his thought while he sleeps leaves him asleep: he sees to it when he wakes', () => {
     const s = camp(23);
-    s.state.stokedNight = Math.floor(s.state.time / DAY_SECONDS - STOKE.at);
-    send(s, { type: 'sleep' });
-    runUntil(s, () => s.state.player.task.kind === 'sleep', 60);
+    toBed(s);
     send(s, { type: 'next' });
     expect(s.state.player.task.kind).toBe('sleep');
-    const until = s.state.needs.bed!.until!;
+    const until = s.state.needs.bed!.until;
     expect(of(s, 'whenAwake')).toEqual([{ type: 'whenAwake', at: until }]);
     expect(s.state.needs.later).toEqual({ type: 'next' });
     // a tap in the world leaves him asleep too, and is the one done: the last thing tapped
@@ -128,44 +130,31 @@ describe('sleeping in the shelter', () => {
     expect(s.state.needs.later).toBeNull();
   });
 
-  it('on his way to bed sent early, a tap elsewhere changes his mind (only bed at his bedtime is a must)', () => {
+  it('a save from before 0.0.34 on his way to bed sent early by a tap loads with no bed: he gets there, stays up, and goes at his bedtime', () => {
     const s = camp(21);
-    s.state.stokedNight = Math.floor(s.state.time / DAY_SECONDS - STOKE.at);
-    send(s, { type: 'sleep' });
-    send(s, { type: 'work', nodeId: 'camp_copper1' });
-    expect(s.state.player.pending).toEqual({ kind: 'node', id: 'camp_copper1' });
-    expect(of(s, 'whenAwake')).toHaveLength(0);
-    run(s, 5);
-    expect(s.state.needs.bed).toBeNull();
-  });
-
-  it('saved and opened on his way to bed sent early, his needs read back as they were: a tap elsewhere still changes his mind, and he goes to bed at his bedtime', () => {
-    const s = camp(21);
-    s.state.stokedNight = Math.floor(s.state.time / DAY_SECONDS - STOKE.at);
-    send(s, { type: 'sleep' });
+    expect(goToBed(s.state, s.layout)).toBe(true);
     run(s, 0.5);
-    expect(s.state.player.pending).toEqual({ kind: 'visit', id: 'shelter' });
-    const before = structuredClone(s.state.needs);
-    s.state = deserialize(serialize(s.state), CAMP);
-    expect(s.state.needs).toEqual(before);
-    send(s, { type: 'work', nodeId: 'camp_copper1' });
-    runUntil(s, () => of(s, 'bedtime').length > 0, DAY_SECONDS / 2);
+    const raw = JSON.parse(serialize(s.state)) as { needs: { bed: { until: number | null } } };
+    raw.needs.bed.until = null;                                       // sent early: set once he lay down
+    s.state = deserialize(JSON.stringify(raw), CAMP);
+    expect(s.state.needs.bed).toBeNull();
+    runUntil(s, () => s.state.player.pending === null, 60);
+    run(s, 5);
+    expect(s.state.player.task.kind).not.toBe('sleep');
+    runUntil(s, () => s.state.player.task.kind === 'sleep', DAY_SECONDS / 2);
     expect(of(s, 'bedtime')).toHaveLength(1);
-    runUntil(s, () => s.state.player.task.kind === 'sleep', 120);
-    expect(s.state.player.task.kind).toBe('sleep');
+    expect(dayFraction(s.state.time) * 24).toBeGreaterThanOrEqual(SLEEP.bedtime);
   });
 
-  it('off to stoke the fire at nightfall, a tap on the shelter waits: he stokes first, then goes to bed', () => {
+  it('a save from before 0.0.34 off to stoke the fire, then to bed (a tap on the shelter), loads with nothing to go back to', () => {
     const s = camp(19.9);
     s.state.woodpile = 10;                                            // logs to stoke with
     runUntil(s, () => !!s.state.player.stoke, 30);
-    expect(s.state.player.stoke).not.toBeNull();
-    send(s, { type: 'sleep' });
-    expect(of(s, 'bedLater')).toHaveLength(1);
-    expect(s.state.player.stoke!.back).toEqual({ sleep: true });
-    runUntil(s, () => of(s, 'stoked').length > 0, 120);
-    runUntil(s, () => s.state.player.task.kind === 'sleep', 60);
-    expect(s.state.player.task.kind).toBe('sleep');
+    const raw = JSON.parse(serialize(s.state)) as { player: { stoke: { back: unknown } } };
+    raw.player.stoke.back = { sleep: true };
+    const back = deserialize(JSON.stringify(raw), CAMP);
+    expect(back.player.stoke).not.toBeNull();
+    expect(back.player.stoke!.back).toBeNull();
   });
 
   it('well rested, gathering yields more often', () => {
@@ -180,22 +169,9 @@ describe('sleeping in the shelter', () => {
     expect(chops(true)).toBeGreaterThan(chops(false) * 1.1);
   });
 
-  it('with no shelter, or in the village, a tap does nothing', () => {
-    const s = camp(22, { shelter: false });
-    send(s, { type: 'sleep' });
-    expect(s.state.player.pending).toBeNull();
-    expect(of(s, 'cantSleep')).toHaveLength(0);
-    const v = setup(VILLAGE);
-    v.state.time = at(1, 22);
-    send(v, { type: 'sleep' });
-    expect(v.state.player.pending).toBeNull();
-  });
-
   it('saves: asleep carries on until he gets up; a save from the morning finds him up; a broken rest is none', () => {
     const s = camp(22);
-    s.state.stokedNight = Math.floor(s.state.time / DAY_SECONDS - STOKE.at);
-    send(s, { type: 'sleep' });
-    runUntil(s, () => s.state.player.task.kind === 'sleep', 60);
+    toBed(s);
     const back = deserialize(serialize(s.state), CAMP);
     expect(back.player.task).toEqual({ kind: 'sleep' });
     expect(back.needs.bed).toEqual(s.state.needs.bed);
@@ -207,8 +183,8 @@ describe('sleeping in the shelter', () => {
     delete old.needs; delete old.toolsInChest;
     const loaded = deserialize(JSON.stringify(old), CAMP);
     expect(loaded.player.task).toEqual({ kind: 'sleep' });
-    expect(dayFraction(loaded.needs.bed!.until!) * 24).toBeCloseTo(7, 3);
-    expect(loaded.needs.bed!.until! - loaded.time).toBeLessThan(DAY_SECONDS / 2);
+    expect(dayFraction(loaded.needs.bed!.until) * 24).toBeCloseTo(7, 3);
+    expect(loaded.needs.bed!.until - loaded.time).toBeLessThan(DAY_SECONDS / 2);
     const edit = (rested: unknown) => { const r = JSON.parse(serialize(s.state)); r.restedUntil = rested; return deserialize(JSON.stringify(r), CAMP).restedUntil; };
     expect(edit('soon')).toBe(0);
     expect(edit(-5)).toBe(0);

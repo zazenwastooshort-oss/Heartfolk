@@ -53,11 +53,7 @@ export type GameEvent =
   | { type: 'stoked'; logs: number }
   /** nightfall, and no logs in the pile, the chest or the backpack: the fire burns low until it is next stoked */
   | { type: 'fireLow' }
-  /** asked to sleep by day: he isn't tired yet; `shelter` is the one he would sleep in (systems/commands.ts) */
-  | { type: 'cantSleep'; shelter: MakeId }
-  /** asked to sleep while off to stoke the fire: he stokes it first, then goes to bed */
-  | { type: 'bedLater' }
-  /** he lay down in the shelter for the night, to sleep until `until` (in-game seconds: his waking hour) */
+  /** he lay down in the shelter for the night, to sleep until `until` (in-game seconds: 6 hours on) */
   | { type: 'fellAsleep'; until: number }
   /** dawn: he got up after a full night's sleep, well rested */
   | { type: 'awake' }

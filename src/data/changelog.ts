@@ -6,6 +6,14 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.34', date: '13 Oct 2026', notes: [
+      'The storage chest is built from logs only. Copper ore is no use until it is smelted, so it waits in the chest for now.',
+      'At bedtime he finishes what he is doing first: the fight he is in, the swing, the knock of his hammer, the fish on the fire.',
+      'He always sleeps a full 6 hours from when he lies down, however late he gets to bed.',
+      'Tapping the tent no longer sends him to bed early: he sleeps at his bedtime (Settings). Before the chest is built, a tap on the tent says when.',
+    ],
+  },
+  {
     version: '0.0.33', date: '13 Oct 2026', notes: [
       'A cooked meal leaves him well fed: for half a day he learns a little quicker. Look for the Well fed tag beside Rested.',
       'A night in the shelter heals him fully as well as resting him.',

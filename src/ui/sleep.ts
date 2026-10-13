@@ -11,13 +11,10 @@ import { wakeLabel } from './needs';
 import type { Layout } from '../world/layout';
 import { stepPlace } from '../world/steps';
 import { STOKE } from '../data/fire';
-import { MAKES } from '../data/making';
 import type { Hud } from './hud';
 
-/** The notices, in plain words (by day, he isn't tired yet: in the shelter he would sleep in, by its name). */
+/** The notices, in plain words. */
 export const SLEEP_TEXT = {
-  cantSleep: (shelter: string) => `He isn't tired yet. He can sleep in the ${shelter} once night falls.`,
-  bedLater: "He'll stoke the fire first, then go to bed.",
   fellAsleep: (until: number) => `Goodnight. He sleeps until ${wakeLabel(until)}.`,
   awake: 'He wakes up healed and well rested: gathering goes faster until nightfall.',
   wellFed: 'A hot meal: he is well fed, and learns a little quicker for a while.',
@@ -44,8 +41,7 @@ export function dialSvg(): string {
 /** The notices that go with sleeping. */
 export function sleepNotices(events: EventBus, hud: Hud): void {
   events.on(e => {
-    if (e.type === 'bedLater' || e.type === 'awake' || e.type === 'wellFed') hud.notice(SLEEP_TEXT[e.type]);
-    else if (e.type === 'cantSleep') hud.notice(SLEEP_TEXT.cantSleep(MAKES[e.shelter].name.toLowerCase()));
+    if (e.type === 'awake' || e.type === 'wellFed') hud.notice(SLEEP_TEXT[e.type]);
     else if (e.type === 'fellAsleep') hud.notice(SLEEP_TEXT.fellAsleep(e.until));
   });
 }

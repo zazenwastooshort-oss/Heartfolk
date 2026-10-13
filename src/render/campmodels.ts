@@ -293,14 +293,14 @@ function shelter(s: Stages, P: Protos, shape: Shape): void {
   }
 }
 
-/** The storage chest's look (0.0.19): a box of split-log boards under a lid, two copper straps over it and a copper
- *  latch at the front (+z, out of the shelter's door), in metres. Side by side, each side board by board, so what he
+/** The storage chest's look (0.0.19): a box of split-log boards under a lid, two rope bindings over it (copper straps
+ *  until 0.0.34: ore needs smelting first) and a wooden toggle at the front (+z, out of the shelter's door), in metres. Side by side, each side board by board, so what he
  *  works on is at its full height from the start (his mallet lands on it from the door, all but upright, his head
- *  outside the tent): the bottom and the two ends, then the back, then the front, then the lid and the copper. */
-const CHEST = { w: 0.9, d: 0.56, boards: 3, board: 0.14, side: 0.045, lid: 0.12, wood: ['#80583a', '#73502f'], lidWood: '#644428', copper: '#e8904e' };
+ *  outside the tent): the bottom and the two ends, then the back, then the front, then the lid and the bindings. */
+const CHEST = { w: 0.9, d: 0.56, boards: 3, board: 0.14, side: 0.045, lid: 0.12, wood: ['#80583a', '#73502f'], lidWood: '#644428', toggle: '#4f3520' };
 
 function chest(s: Stages): void {
-  const metal = new THREE.MeshStandardMaterial({ color: CHEST.copper, roughness: 0.5, metalness: 0.25, flatShading: true });
+  const rope = new THREE.MeshStandardMaterial({ color: C.rope, roughness: 0.95, metalness: 0, flatShading: true });
   const body = CHEST.boards * CHEST.board, high = body + CHEST.lid, t = CHEST.side, wood = (i: number) => CHEST.wood[i % CHEST.wood.length]!;
   s.add(0, box(CHEST.w - 2 * t, t, CHEST.d - 2 * t, wood(1), 0, t / 2, 0));
   for (let i = 0; i < CHEST.boards; i++) {
@@ -310,8 +310,8 @@ function chest(s: Stages): void {
     s.add(2, box(CHEST.w - 2 * t, CHEST.board, t, wood(i), 0, y, (CHEST.d - t) / 2));
   }
   s.add(3, box(CHEST.w + 0.04, CHEST.lid, CHEST.d + 0.04, CHEST.lidWood, 0, body + CHEST.lid / 2, 0));
-  for (const x of [-0.29, 0.29]) { const strap = box(0.08, high + 0.016, CHEST.d + 0.07, C.log, x, (high + 0.016) / 2, 0); strap.material = metal; s.add(3, strap); }
-  const latch = box(0.12, 0.13, 0.03, C.log, 0, body, CHEST.d / 2 + 0.04); latch.material = metal; s.add(3, latch);
+  for (const x of [-0.29, 0.29]) { const strap = box(0.08, high + 0.016, CHEST.d + 0.07, C.log, x, (high + 0.016) / 2, 0); strap.material = rope; s.add(3, strap); }
+  s.add(3, box(0.12, 0.13, 0.03, CHEST.toggle, 0, body, CHEST.d / 2 + 0.04));
   // the square chalked on the floor where it goes, under it while it goes up
   s.only(0, 2, ...chalkSquare());
 }

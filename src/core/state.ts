@@ -68,7 +68,7 @@ export type Trip = ({ nodeId: string; tool?: true } | { pickupId: string } | { f
  *  things off the ground like `pickupId` (or picking up that one), making something, walking on to a spot, or (chapter
  *  2, 0.0.22) cooking at the campfire or fighting something (practising on the training dummy). */
 export type Back = { nodeId: string } | { pickupId: string } | { make: MakeId } | { to: Vec2 } | { cook: true } | { fight: string }
-  | { sleep: true } | { raise: MakeId };
+  | { raise: MakeId };
 
 /** Stoking the fire (0.0.19; systems/fire.ts): at nightfall he left what he was doing (`back`, null for nothing),
  *  walks to where he takes the logs (`from`: the firewood pile since 0.0.21, or the storage chest; null when he took

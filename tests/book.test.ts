@@ -88,7 +88,7 @@ describe('the pages of his book', () => {
     pages = bookPages(s.state);
     expect(pages).toHaveLength(8);
     expect(pages.at(-1)).toMatchObject({ goal: 'chest', title: 'A storage chest', current: true, done: false, text: GOALS[7]!.page });
-    expect(pages.at(-1)!.lines).toEqual([{ id: 'birch_logs', need: 10, got: 0, done: false }, { id: 'copper_ore', need: 3, got: 3, done: true }]);
+    expect(pages.at(-1)!.lines).toEqual([{ id: 'birch_logs', need: 10, got: 0, done: false }]);          // logs only since 0.0.34
     // with everything there the page says to build it, as the card does (0.0.19)
     s.state.player.backpack.birch_logs = 10;
     expect(bookPages(s.state).at(-1)!.hint).toBe('You have it all. Tap Build, or tap the marker in the shelter.');

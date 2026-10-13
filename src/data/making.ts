@@ -77,11 +77,12 @@ export const MAKES: Record<MakeId, MakeDef> = {
     id: 'stone_pickaxe', name: 'Stone pickaxe', verb: 'Make', needs: { branch: 2, stone: 3 }, at: 'here', time: 3,
     gives: { kind: 'tool', tool: 'pick' }, done: 'You made a stone pickaxe.',
   },
-  // a box of split logs with copper straps, in the shelter by its door (the owner, 13 Oct 2026: "maybe chest is just
+  // a box of split logs bound with rope (logs only since 0.0.34: ore needs smelting first, the owner, 13 Oct 2026), in
+  // the shelter by its door (the owner, 13 Oct 2026: "maybe chest is just
   // furniture in the tent or house"): the camp's storage (systems/hauling: a full backpack is emptied into it at the
   // shelter's door, as at the village's bank)
   chest: {
-    id: 'chest', name: 'Storage chest', verb: 'Build', needs: { birch_logs: 10, copper_ore: 3 }, at: 'tent', time: 45,
+    id: 'chest', name: 'Storage chest', verb: 'Build', needs: { birch_logs: 10 }, at: 'tent', time: 45,
     gives: { kind: 'structure' }, done: 'Your storage chest is built, just inside the tent. A full backpack is emptied into it now.',
   },
   // chapter 2 (0.0.22): a post and crossbar of logs with a stuffed sack for a body, beside the camp; once he has a

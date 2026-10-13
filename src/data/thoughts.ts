@@ -53,7 +53,7 @@ export const THOUGHTS: ThoughtDef[] = [
 
   // first finds
   { id: 'first:logs', cue: { item: 'birch_logs' }, text: "Birch splits clean, and there's plenty of it." },
-  { id: 'first:copper', cue: { item: 'copper_ore' }, text: 'Copper. Soft, but good for better tools one day.' },
+  { id: 'first:copper', cue: { item: 'copper_ore' }, text: "Copper. It needs smelting before it's any use." },
   { id: 'first:berries', cue: { item: 'berries' }, text: "Sweet, a bit sour. They'll keep me going." },
   { id: 'first:fish', cue: { item: 'raw_fish' }, text: "A fish. Small, but it's supper." },
   { id: 'first:burnt', cue: { item: 'burnt_fish' }, text: 'Burnt that one. Less time over the flames.' },

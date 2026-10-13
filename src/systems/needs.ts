@@ -14,23 +14,23 @@
 //   (a tap on Eat, eating when hurt in a fight) fills him too (systems/food.ts).
 // - Bedtime: going to bed is a must every night once the shelter stands (the owner: "going to bed is mandatory, every
 //   night ... at least 6 hours of sleep, you can set the time"). At his bedtime (Settings: 22:00 to 01:00) he leaves
-//   what he does (making something, stoking the fire, a meal or a fight is finished first) and goes to bed in the
-//   shelter until his waking hour, 6 hours later (systems/sleep.ts); then he gets up well rested and goes back to what
-//   he was doing, or does what was tapped while he slept (the last thing: systems/commands.ts keeps it). Before the
-//   shelter stands nothing changes: he works on through the night. While the game is closed (away time) he doesn't go
-//   to bed: away work isn't cut by nights (the owner, 13 Oct 2026).
+//   what he does once he has finished the action he is in ("always finish the action before sending to bed": the
+//   fight, the swing, the knock, the fish over the fire, making something, stoking the fire, a meal: core/needs.ts
+//   midAction) and goes to bed in the shelter for 6 hours (systems/sleep.ts); then he gets up well rested and goes back
+//   to what he was doing, or does what was tapped while he slept (the last thing: systems/commands.ts keeps it). Before
+//   the shelter stands nothing changes: he works on through the night. While the game is closed (away time) he doesn't
+//   go to bed: away work isn't cut by nights (the owner, 13 Oct 2026).
 // Only at the camp. It runs every step, so a catch-up eats (and, open, sleeps) as playing does.
 import { maxHealth, type GameState } from '../core/state';
 import type { EventBus } from '../core/events';
 import type { Layout } from '../world/layout';
 import { nightOf } from '../core/clock';
-import { HUNGER_PER_SECOND, atGoblins, bedtimeNow, goalsFood, goblinRace, hungerStarted, isHungry, midFight, nothingToEat, sinceBedtime, spareFood, wakeAt } from '../core/needs';
+import { HUNGER_PER_SECOND, atGoblins, bedtimeNow, goalsFood, hungerStarted, isHungry, midAction, midFight, nothingToEat, spareFood } from '../core/needs';
 import { chestHere } from '../core/camp';
 import { HUNGER, NEEDS_RETRY } from '../data/needs';
 import { FOOD } from '../data/food';
 import { fill } from './food';
 import { KEEP_FOOD } from '../data/hauling';
-import { GOBLIN } from '../data/goblins';
 import { goVisit } from '../actors/player';
 import { backpackFull, deposit } from './backpack';
 import { backOf } from './fire';
@@ -93,13 +93,11 @@ function busyForMeal(state: GameState, layout: Layout): boolean {
 }
 
 /** Whether something keeps him from going to bed at bedtime just yet: knocked out (he wakes first), making something,
- *  stoking the fire or a meal (each a moment), or in the middle of a fight (it is finished first): the foe he strikes,
- *  and at the goblin camp the race to beat all three and their chief, for as long as one can last past his bedtime
- *  (goblinRace; a lost one ends with him knocked out, and he goes to bed once he wakes at the camp). */
-function busyForBed(state: GameState, layout: Layout): boolean {
+ *  stoking the fire or a meal (each a moment), or in the middle of an action (midAction: the fight he is in, the swing,
+ *  the knock, the fish over the fire; at the goblin camp the goblin he is fighting, not the race to their chief). */
+function busyForBed(state: GameState, layout: Layout, dt: number): boolean {
   const p = state.player, k = p.task.kind;
-  return k === 'sleep' || k === 'knockedOut' || k === 'make' || !!p.stoke || !!state.needs.meal || midFight(state)
-    || (goblinRace(state, layout) && sinceBedtime(state.time, state.needs.bedtime) < GOBLIN.back);
+  return k === 'sleep' || k === 'knockedOut' || k === 'make' || !!p.stoke || !!state.needs.meal || midAction(state, layout, dt);
 }
 
 /** `visited`: the building or built thing he reached this step, unless stoking or cooking saw to it. `down`: he was
@@ -146,11 +144,11 @@ export function updateNeeds(state: GameState, layout: Layout, dt: number, visite
     if (goVisit(state, layout, 'chest')) { n.meal = { back }; p.trip = null; events.emit({ type: 'mealOff' }); }
     else n.retryAt = state.time + NEEDS_RETRY;
   }
-  // bedtime: to bed in the shelter until his waking hour, from whatever he does once nothing keeps him (never while the
+  // bedtime: to bed in the shelter for a night's sleep, from whatever he does once nothing keeps him (never while the
   // game is closed)
-  if (!away && retry && !n.bed && bedtimeNow(state, layout) && !busyForBed(state, layout)) {
+  if (!away && retry && !n.bed && bedtimeNow(state, layout) && !busyForBed(state, layout, dt)) {
     const back = backOf(state), was = { task: p.task, path: p.path, pending: p.pending };
-    if (goToBed(state, layout, back, wakeAt(state.time, n.bedtime, false))) {
+    if (goToBed(state, layout, back)) {
       p.trip = null; p.cook = null; state.stokeAgain = false;
       n.slept = nightOf(state.time);
       events.emit({ type: 'bedtime' });

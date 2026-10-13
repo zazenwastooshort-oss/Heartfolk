@@ -2,7 +2,7 @@
 // food on, and food fills it; hungry, he eats food to spare from his backpack, or walks to the chest for some, and goes
 // back to what he was doing; never the food the current goal counts, never in the middle of a fight; with nothing to
 // eat he works a little slower, never worse. Going to bed is a must every night once the shelter stands: at his bedtime
-// (Settings) he leaves what he does (a fight finished first), sleeps 6 hours, gets up well rested and goes back to what
+// (Settings) he leaves what he does (the action he is in finished first), sleeps 6 hours from lying down, gets up well rested and goes back to what
 // he was doing, or does what was tapped while he slept. Never to bed while the game is closed. data/needs.ts,
 // data/sleep.ts, core/needs.ts, systems/needs.ts, systems/sleep.ts, ui/needs.ts, ui/bedtime.ts.
 import { describe, expect, it } from 'vitest';
@@ -17,6 +17,8 @@ import { catchUp, catchUpAway, step } from '../src/sim';
 import { CAMP } from '../src/world/camp';
 import { VILLAGE, type Layout } from '../src/world/layout';
 import { applyCommands, type Command } from '../src/systems/commands';
+import { goToBed } from '../src/systems/sleep';
+import { SWINGS } from '../src/data/animation';
 import { HUNGER } from '../src/data/needs';
 import { SLEEP } from '../src/data/sleep';
 import { STOKE } from '../src/data/fire';
@@ -257,7 +259,7 @@ describe('hungry', () => {
     s.state.player.backpack = { cooked_fish: 2 };
     s.state.time = at(1, 23);
     s.state.stokedNight = nightOf(s.state.time);
-    send(s, { type: 'sleep' });
+    goToBed(s.state, s.layout);                                         // as his bedtime would
     runUntil(s, () => s.state.player.task.kind === 'sleep', 60);
     nearlyHungry(s, 5);
     run(s, 60);
@@ -345,7 +347,7 @@ describe('hungry', () => {
     s.state.bank = {};
     s.state.time = at(1, 23);
     s.state.stokedNight = nightOf(s.state.time);
-    send(s, { type: 'sleep' });
+    goToBed(s.state, s.layout);                                         // as his bedtime would
     runUntil(s, () => s.state.player.task.kind === 'sleep', 60);
     s.state.needs.fullness = 0.1;                                       // got hungry in his sleep: no word of it then
     runUntil(s, () => of(s, 'awake').length > 0, DAY_SECONDS);
@@ -377,7 +379,7 @@ describe('bedtime', () => {
     expect(bedHours(at(1, 0.5), 1)).toBe(false);
     expect(bedHours(at(1, 6.5), 1)).toBe(true);
     expect(hourLabel(0)).toBe('00:00');
-    expect(bedtimeText(22)).toBe('Once his shelter stands, he sleeps there every night from 22:00 until 04:00.');
+    expect(bedtimeText(22)).toBe('Once his shelter stands, he goes to bed there at 22:00 every night, once he has finished what he is doing, and sleeps 6 hours.');
     // a waking hour reached by sums never shows a minute early
     for (const bedtime of SLEEP.bedtimes) {
       const up = nextHour(at(3, 21.5), wakeHour(bedtime));
@@ -385,7 +387,7 @@ describe('bedtime', () => {
     }
   });
 
-  it('at each bedtime he leaves his work for bed, sleeps until 6 hours later, and is back at it well rested', () => {
+  it('at each bedtime he finishes his swing, leaves his work for bed, sleeps 6 hours from lying down, and is back at it well rested', () => {
     for (const bedtime of SLEEP.bedtimes) {
       const s = campAt(AFTER_FOOD, { hour: 19.5 });
       s.state.woodpile = 10;
@@ -393,18 +395,23 @@ describe('bedtime', () => {
       send(s, { type: 'work', nodeId: 'camp_copper1' });
       runUntil(s, () => of(s, 'bedtime').length > 0, DAY_SECONDS);
       expect(of(s, 'stoked'), `${bedtime}`).toHaveLength(1);              // the fire stoked at nightfall, before bed
-      expect(hourOf(s.state.time), `${bedtime}`).toBeCloseTo(bedtime, 1);
+      // (within a swing of his pickaxe: the one under way lands first)
+      expect((hourOf(s.state.time) - bedtime + 24) % 24, `${bedtime}`).toBeLessThan(SWINGS.mining.cycle / DAY_SECONDS * 24 + 0.01);
+      const task = s.state.player.task;
+      expect(task.kind === 'gather' && task.progress > 0 && task.progress < SWINGS.mining.impact / SWINGS.mining.cycle, `${bedtime}`).toBe(false);
       const back = s.state.needs.bed!.back as { nodeId: string };
       expect(CAMP.nodes.find(n => n.id === back.nodeId)?.resource, `${bedtime}`).toBe('copper_rock');
       runUntil(s, () => s.state.player.task.kind === 'sleep', 60);
+      const lay = s.state.time;
       runUntil(s, () => of(s, 'awake').length > 0, DAY_SECONDS);
-      expect(hourOf(s.state.time), `${bedtime}`).toBeCloseTo(wakeHour(bedtime), 2);
+      expect(s.state.time - lay, `${bedtime}`).toBeCloseTo(SLEEP.hours / 24 * DAY_SECONDS, 0);
+      expect((hourOf(s.state.time) - wakeHour(bedtime) + 24) % 24, `${bedtime}`).toBeLessThan(0.5);   // a little after his waking hour: the walk
       expect(hourOf(s.state.restedUntil), `${bedtime}`).toBeCloseTo(STOKE.at * 24, 3);
       run(s, 0.5);
       expect(workingOn(s.state, 'copper_rock'), `${bedtime}`).toBe(true);
       expect(of(s, 'bedtime'), `${bedtime}`).toHaveLength(1);
       // the bed's notice says when
-      expect(of(s, 'fellAsleep')[0]!.until).toBeCloseTo(at(Math.floor(s.state.time / DAY_SECONDS), wakeHour(bedtime)), 1);
+      expect(of(s, 'fellAsleep')[0]!.until).toBeCloseTo(lay + SLEEP.hours / 24 * DAY_SECONDS, 0);
     }
   });
 
@@ -493,7 +500,9 @@ describe('bedtime', () => {
     }
   });
 
-  it('at the goblin camp, bedtime waits for the race under way: won (the chief beaten), or lost (knocked out), then bed', () => {
+  it('at the goblin camp he finishes the goblin he is fighting, then goes to bed: not the whole race to their chief', () => {
+    // (the owner, 13 Oct 2026: "if he ends a fight he should head back, never leave mid fight, always finish the
+    // action before sending to bed")
     /** Striking goblin2 at his bedtime (01:00) with goblin1 beaten a moment ago, at `level` in his fighting skills. */
     const race = (level: number, food: number) => {
       const s = campAt('goblins', { hour: 0.5 });
@@ -506,28 +515,26 @@ describe('bedtime', () => {
       Object.assign(s.state.goblins.goblin1!, { health: 0, downUntil: s.state.time + GOBLIN.back - 5, to: null, swing: null });
       return s;
     };
-    const won = race(40, 10);
-    runUntil(won, () => of(won, 'bedtime').length > 0, DAY_SECONDS / 4);
-    expect(of(won, 'campCleared')).toHaveLength(1);
-    expect(of(won, 'bedtime')).toHaveLength(1);
-    expect(won.log.findIndex(e => e.type === 'bedtime')).toBeGreaterThan(won.log.findIndex(e => e.type === 'campCleared'));
-    expect(of(won, 'goblinBack')).toHaveLength(0);
-    // too weak to win it, and nothing to eat: knocked out, he wakes at the camp and goes to bed from there
+    const s = race(40, 10);
+    runUntil(s, () => of(s, 'bedtime').length > 0, DAY_SECONDS / 4);
+    expect(of(s, 'bedtime')).toHaveLength(1);
+    expect(of(s, 'campCleared')).toHaveLength(0);                     // the chief left for another day
+    const beaten = s.log.findIndex(e => e.type === 'beaten');
+    expect(beaten).toBeGreaterThanOrEqual(0);
+    expect(s.log.findIndex(e => e.type === 'bedtime')).toBeGreaterThan(beaten);
+    expect(s.state.needs.bed!.back).toMatchObject({ fight: expect.any(String) });
+    // too weak to beat the one he fights, and nothing to eat: knocked out, he wakes at the camp and goes to bed from there
     const lost = race(1, 0);
     lost.state.health = 1;
     runUntil(lost, () => of(lost, 'bedtime').length > 0, DAY_SECONDS / 4);
     expect(of(lost, 'knockedOut')).toHaveLength(1);
     expect(of(lost, 'bedtime')).toHaveLength(1);
     expect(lost.log.findIndex(e => e.type === 'bedtime')).toBeGreaterThan(lost.log.findIndex(e => e.type === 'wokeUp'));
-    // between goblins (the one he beat down, none struck): he goes on with the race, but not past a race's length after
-    // his bedtime (one he can't win nor lose would go on all night)
-    for (const [since, bed] of [[30, 0], [GOBLIN.back + 1, 1]] as const) {
-      const s = race(40, 10);
-      s.state.time = at(1, 1) + since;
-      Object.assign(s.state.goblins.goblin2!, { health: 0, downUntil: s.state.time + GOBLIN.back, to: null, swing: null });
-      run(s, 2 * STEP);
-      expect(of(s, 'bedtime'), `${since} s after bedtime`).toHaveLength(bed);
-    }
+    // between goblins (the one he fought down, none struck yet): he goes at once
+    const between = race(40, 10);
+    Object.assign(between.state.goblins.goblin2!, { health: 0, downUntil: between.state.time + GOBLIN.back, to: null, swing: null });
+    run(between, 2 * STEP);
+    expect(of(between, 'bedtime')).toHaveLength(1);
   });
 
   it('a Build start tapped while he sleeps is kept (in a save too), and he sets about it when he wakes', () => {
@@ -535,6 +542,7 @@ describe('bedtime', () => {
     const s = campAt(AFTER_FOOD, { hour: 0.99 });
     s.state.bank = { birch_logs: 30, bark: 6 };
     runUntil(s, () => s.state.player.task.kind === 'sleep', 120);
+    const until = s.state.needs.bed!.until;
     send(s, { type: 'build', id: 'woodshed' });
     expect(of(s, 'whenAwake')).toHaveLength(1);
     expect(s.state.needs.later).toEqual({ type: 'build', id: 'woodshed' });
@@ -551,7 +559,7 @@ describe('bedtime', () => {
     const t = { ...s, state: loaded, log: [] as GameEvent[] };
     t.events.on(e => t.log.push(e));
     runUntil(t, () => of(t, 'awake').length > 0, DAY_SECONDS);
-    expect(hourOf(loaded.time)).toBeCloseTo(wakeHour(SLEEP.bedtime), 2);
+    expect(loaded.time).toBeCloseTo(until, 1);
     expect(loaded.underway.woodshed).toBeDefined();
     runUntil(t, () => loaded.player.task.kind === 'raise', 60);
     expect(loaded.player.task.kind).toBe('raise');
@@ -563,9 +571,14 @@ describe('bedtime', () => {
     runUntil(s, () => of(s, 'bedtime').length > 0, 60);
     send(s, { type: 'work', nodeId: 'camp_birch1' });
     expect(s.state.player.pending).toEqual({ kind: 'visit', id: 'shelter' });
-    expect(of(s, 'whenAwake')).toEqual([{ type: 'whenAwake', at: s.state.needs.bed!.until! }]);
-    expect(NEEDS_TEXT.whenAwake(s.state.needs.bed!.until!)).toBe("He'll see to it when he wakes at 07:00.");
+    const until = s.state.needs.bed!.until;
+    expect(of(s, 'whenAwake')).toEqual([{ type: 'whenAwake', at: until }]);
+    // 6 hours from when he gets there: a little after 07:00, the walk counted
+    expect(until).toBeGreaterThan(at(1, 7));
+    expect(until).toBeLessThan(at(1, 7.5));
+    expect(NEEDS_TEXT.whenAwake(until)).toMatch(/^He'll see to it when he wakes at 07:[0-2]\d\.$/);
     runUntil(s, () => s.state.player.task.kind === 'sleep', 60);
+    expect(s.state.needs.bed!.until).toBeCloseTo(until, 1);           // and he does get up then
     send(s, { type: 'next' });
     send(s, { type: 'work', nodeId: 'camp_copper1' });
     expect(s.state.needs.later).toEqual({ type: 'work', nodeId: 'camp_copper1' });
@@ -585,15 +598,21 @@ describe('bedtime', () => {
     expect(workingOn(s.state, 'copper_rock')).toBe(true);
   });
 
-  it('kept from bed until shortly before his waking hour, he doesn\'t go that night', () => {
-    const s = campAt(AFTER_FOOD, { hour: 6.2 });
+  it('kept from bed until shortly before his waking hour, he still goes, and sleeps his 6 hours; past it, not that night', () => {
+    // (the owner, 13 Oct 2026: "at that point he needs to sleep his 6 hours")
+    const s = campAt(AFTER_FOOD, { hour: 6.8 });
     send(s, { type: 'work', nodeId: 'camp_copper1' });
-    run(s, 30);
-    expect(of(s, 'bedtime')).toHaveLength(0);
-    // in the small hours, kept from it till then (a fight, the shelter just built), he still goes
-    const t = campAt(AFTER_FOOD, { hour: 4 });
-    run(t, 1);
-    expect(of(t, 'bedtime')).toHaveLength(1);
+    runUntil(s, () => s.state.player.task.kind === 'sleep', 60);
+    expect(of(s, 'bedtime')).toHaveLength(1);
+    const lay = s.state.time;
+    runUntil(s, () => of(s, 'awake').length > 0, DAY_SECONDS);
+    expect(s.state.time - lay).toBeCloseTo(SLEEP.hours / 24 * DAY_SECONDS, 0);
+    expect(hourOf(s.state.time)).toBeGreaterThan(12.8);
+    // past his waking hour without sleep, it is morning: no bed until his next bedtime
+    const t = campAt(AFTER_FOOD, { hour: 7.1 });
+    send(t, { type: 'work', nodeId: 'camp_copper1' });
+    run(t, 30);
+    expect(of(t, 'bedtime')).toHaveLength(0);
   });
 
   it('while the game is closed he doesn\'t go to bed; left open (a hidden tab), he does', () => {
@@ -626,7 +645,7 @@ describe('bedtime', () => {
     const t = { ...s, state: loaded, log: [] as GameEvent[] };
     t.events.on(e => t.log.push(e));
     runUntil(t, () => loaded.player.task.kind !== 'sleep', DAY_SECONDS);
-    expect(hourOf(loaded.time)).toBeCloseTo(wakeHour(SLEEP.bedtime), 2);
+    expect(loaded.time).toBeCloseTo(s.state.needs.bed!.until, 1);
     const edit = (needs: unknown) => { const r = JSON.parse(serialize(s.state)); r.needs = needs; return deserialize(JSON.stringify(r), CAMP).needs; };
     const broken = edit({ fullness: 'x', bedtime: 3, slept: 1e9, later: { type: 'work', nodeId: 'nope' }, bed: { back: { nodeId: 'nope' }, until: 'soon' }, retryAt: Infinity });
     expect(broken).toMatchObject({ fullness: 1, meal: null, bedtime: SLEEP.bedtime, later: null, retryAt: 0 });

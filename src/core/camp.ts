@@ -13,7 +13,6 @@ import type { Layout, Vec2 } from '../world/layout';
 import { doorOf, siteOf } from '../world/layout';
 import { buildStandsOf, reachOf, standsOf, stepPlace, toGround, type StepPlace } from '../world/steps';
 import { bestShelter, buildWhy, builtStep, lineOf, markerShown, stepShown, unlocked, type BuildWhy } from './building';
-import { isNight } from './clock';
 import { fightLabel } from './targets';
 import { LINES, MARKER, SHAPES, TAP, type LineId } from '../data/building';
 import { BUILD_REACH, MAKES, type MakeId } from '../data/making';
@@ -169,8 +168,9 @@ export const canStoke = (state: GameState, layout: Layout) =>
 /** Something to do at one of the camp's spots. The UI turns each into the command it sends (ui/campmenu.ts), except
  *  Look in, which opens the Backpack at the chest's section and sends nothing (he goes nowhere).
  *  look: see what is in the storage chest. store: put everything he carries into it (the old tap on the chest).
- *  sleep: to bed in `shelter`, the best shelter that stands (by day he isn't tired yet); null while it isn't the one
- *  drawn there (a bigger one half built round it), so the words say "the shelter" instead. build: begin `id` ('build':
+ *  sleep: in `shelter`, the best shelter that stands, which is never chosen: he sleeps at his bedtime, and the entry
+ *  only says when (the owner, 13 Oct 2026, of a tap on the tent sending him to bed early: "not needed"); null while it
+ *  isn't the one drawn there (a bigger one half built round it), so the words say "the shelter" instead. build: begin `id` ('build':
  *  a marker's thing, the chest in the shelter; 'upgrade': the next step at a spot) or carry on with it ('carry').
  *  cook: his raw fish at the fire, `at` the campfire or the stone hearth. stack: the logs he carries, on the firewood
  *  pile or the woodshed (`at`). practise: on the training dummy. */
@@ -183,11 +183,12 @@ export type CampAction =
   | { kind: 'stack'; at: MakeId }
   | { kind: 'practise' };
 
-/** Why an entry can't be chosen now (BuildWhy for building, and): sleep by day ('day') or while asleep ('asleep');
+/** Why an entry can't be chosen now (BuildWhy for building, and): sleep, ever: he sleeps at his `hour` ('bedtime'),
+ *  or is asleep ('asleep');
  *  store with nothing to store ('empty'); cook with no raw fish anywhere ('noFish'); stack with no logs on him
  *  ('noLogs') or the pile full ('full'), `at` the firewood pile or the woodshed; cook or practise while at it already
  *  ('at'). Knocked out, everything but Look in waits ('down'). */
-export type CampWhy = BuildWhy | { kind: 'day' } | { kind: 'asleep' } | { kind: 'empty' } | { kind: 'noFish' }
+export type CampWhy = BuildWhy | { kind: 'bedtime'; hour: number } | { kind: 'asleep' } | { kind: 'empty' } | { kind: 'noFish' }
   | { kind: 'noLogs'; at: MakeId } | { kind: 'full'; at: MakeId };
 
 /** An entry of a spot's menu: what it does, and why it can't be chosen now (null: it can). */
@@ -258,7 +259,7 @@ export function campActions(state: GameState, layout: Layout, line: LineId): Cam
   const out: CampEntry[] = [];
   if (line === 'tent') {
     if (chestHere(state, layout)) out.push(use({ kind: 'look' }, null), use({ kind: 'store' }, hasToStore(state) ? null : { kind: 'empty' }));
-    if (bestShelter(state) && canSleep(state, layout)) out.push(use({ kind: 'sleep', shelter: sleepIn(state) }, task.kind === 'sleep' ? { kind: 'asleep' } : isNight(state.time) ? null : { kind: 'day' }));
+    if (bestShelter(state) && canSleep(state, layout)) out.push(use({ kind: 'sleep', shelter: sleepIn(state) }, task.kind === 'sleep' ? { kind: 'asleep' } : { kind: 'bedtime', hour: state.needs.bedtime }));
     if (begun(state, 'chest')) out.push(build('chest', 'carry'));
     else if (markerShown(state, layout, 'chest')) out.push(build('chest', 'build'));
   } else if (line === 'hearth') {
@@ -276,21 +277,22 @@ export function campActions(state: GameState, layout: Layout, line: LineId): Cam
 }
 
 /** Why a plain tap on `line`'s spot does nothing now, as its entry in the menu says, faded: Stack logs at the firewood
- *  pile or the woodshed with no logs on him, or it full; Sleep while he is asleep already. Null when the tap goes ahead
- *  (every other tap's command says itself why it can't be done, without walking him anywhere: he isn't tired yet, no
- *  fish to cook, still needs something). The UI says so instead of walking him over to say it, or saying nothing. */
+ *  pile or the woodshed with no logs on him, or it full; Sleep, always (when he sleeps there, or that he is asleep).
+ *  Null when the tap goes ahead (every other tap's command says itself why it can't be done, without walking him
+ *  anywhere: no fish to cook, still needs something). The UI says so instead of walking him over to say it, or saying
+ *  nothing. */
 export function tapRefused(state: GameState, layout: Layout, line: LineId): CampWhy | null {
   const tap = campTap(state, layout, line);
   if (tap?.action.kind !== 'stack' && tap?.action.kind !== 'sleep') return null;
   const key = actionKey(tap.action), why = campActions(state, layout, line).find(e => actionKey(e.action) === key)?.why ?? null;
-  return tap.action.kind === 'stack' || why?.kind === 'asleep' ? why : null;
+  return why;
 }
 
 /** What a plain tap on `line`'s spot does (D10, D15; T5.4), with its words under the mouse: its marker's thing, Build;
  *  something begun there, Carry on (D10: building comes first; the fire is still cooked at and the pile stacked from
- *  the menu); at the shelter, at night Sleep, by day the chest while its goal is up (Build, or Carry on), then once it
- *  stands Look in (with an upgrade under way too), and before it "he isn't tired yet" (the sleep command by day), its
- *  words just the shelter's name; the fire Cook ("Cook at" once he has a rod or fish, else just its name: the cook
+ *  the menu); at the shelter, day or night, the chest while its goal is up (Build, or Carry on), then once it stands
+ *  Look in (with an upgrade under way too), and before it Sleep, which only says when he sleeps there, its words just
+ *  the shelter's name; the fire Cook ("Cook at" once he has a rod or fish, else just its name: the cook
  *  command walks him beside it), the pile Stack logs, the dummy Practise. Null where nothing shows. */
 export function campTap(state: GameState, layout: Layout, line: LineId): CampTap | null {
   if (!tapBoxOf(state, layout, line)) return null;
@@ -298,13 +300,10 @@ export function campTap(state: GameState, layout: Layout, line: LineId): CampTap
   const go = (action: CampAction): CampTap => ({ action, hover: hoverOf(layout, action) });
   if (!built) return under ? go({ kind: 'build', id: under, how: 'carry' }) : markerShown(state, layout, first) ? go({ kind: 'build', id: first, how: 'build' }) : null;
   if (line === 'tent') {
-    const shelter = sleepIn(state);
-    // (asleep, just its name: the tap only says so)
-    if (isNight(state.time)) return state.player.task.kind === 'sleep' ? { action: { kind: 'sleep', shelter }, hover: MAKES[stepShown(state, 'tent') ?? built].name } : go({ kind: 'sleep', shelter });
     if (begun(state, 'chest')) return go({ kind: 'build', id: 'chest', how: 'carry' });
     if (markerShown(state, layout, 'chest')) return go({ kind: 'build', id: 'chest', how: 'build' });
     if (chestHere(state, layout)) return go({ kind: 'look' });
-    return { action: { kind: 'sleep', shelter }, hover: MAKES[stepShown(state, 'tent') ?? built].name };
+    return { action: { kind: 'sleep', shelter: sleepIn(state) }, hover: MAKES[stepShown(state, 'tent') ?? built].name };
   }
   if (under) return go({ kind: 'build', id: under, how: 'carry' });
   if (line === 'hearth') {

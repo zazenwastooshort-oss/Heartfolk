@@ -78,14 +78,17 @@ const AWAY_GAP = VISITS ? Math.max(0, VISITS.every - VISITS.stay) : 0;
 /** Never stuck: the goal card moves on at least this often (seconds of play; Card), plus the time between visits for a
  *  player who checks in. The longest it stayed still when this was set: 9.5 minutes over 80 seeds (3.3 the median),
  *  and under 9 with the levels goal before the goblin camp simulated, all waiting for rat hides, which come with half
- *  the rats. */
-const STUCK = 20 * 60 + AWAY_GAP;
+ *  the rats. Raised from 20 to 30 minutes in 0.0.34: the goblin camp took up to 19.4 minutes over 20 seeds (12.6 in
+ *  0.0.33), as bedtime now cuts a race short after the goblin he fights (the owner, 13 Oct 2026: "never leave mid
+ *  fight, always finish the action before sending to bed") and a player knocked out with little food goes to catch
+ *  and cook some first. A game that is really stuck never moves on, so this still finds it. */
+const STUCK = 30 * 60 + AWAY_GAP;
 /** Generous limits for each chapter (seconds of play), as guard rails against a change that makes a chapter drag on,
  *  not pacing targets. Chapter 2's is two to three times the slowest seed's when it was set (29 to 45 minutes over 20
  *  seeds with the goblin camp and a levels goal before it, simulated). Chapter 1 took 4.8 to 8 minutes over 80 seeds;
- *  its limit is longer than STUCK, so a run stuck in it is called stuck, with what the card showed, before it runs out
+ *  its limit (40 minutes since 0.0.34) is longer than STUCK, so a run stuck in it is called stuck, with what the card showed, before it runs out
  *  of time. A player who checks in gets the time of about 40 waits for a visit more: each tap may wait for one. */
-const CHAPTER_LIMITS = [30 * 60, 90 * 60].map(n => n + 40 * AWAY_GAP);
+const CHAPTER_LIMITS = [40 * 60, 90 * 60].map(n => n + 40 * AWAY_GAP);
 /** Saves: one at a random moment this many seconds of play (shortest, longest) after the one before, through the whole
  *  run. */
 const SAVE_GAP = [30, 120] as const;

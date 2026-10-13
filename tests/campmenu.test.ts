@@ -17,6 +17,7 @@ import { actionKey, campActions, campTap, hoverOf, tapBoxOf, tapRefused, type Ca
 import { foundNow } from '../src/core/thoughts';
 import { step } from '../src/sim';
 import { applyCommands, type Command } from '../src/systems/commands';
+import { goToBed } from '../src/systems/sleep';
 import { CAMP } from '../src/world/camp';
 import { VILLAGE } from '../src/world/layout';
 import { commandOf, labelOf, menuKey, menuSpot, noteOf, titleOf, whyText, type Box } from '../src/ui/campmenu';
@@ -106,7 +107,9 @@ describe("the camp's menu (campActions, T5.4)", () => {
         expect(new Set(keys(entries)).size, where).toBe(entries.length);
         for (const e of entries) {
           const c = commandOf(e.action);
-          if (e.action.kind === 'look') expect(c, where).toBeNull(); else expect(c, where).not.toBeNull();
+          // (Sleep is never chosen: he sleeps at his bedtime, and its entry only says when, 0.0.34)
+          if (e.action.kind === 'look' || e.action.kind === 'sleep') expect(c, where).toBeNull(); else expect(c, where).not.toBeNull();
+          if (e.action.kind === 'sleep') expect(e.why, where).not.toBeNull();
           expect(labelOf(e.action).length, where).toBeGreaterThan(4);
           if (e.why) expect(whyText(e.why), `${where} ${actionKey(e.action)}`).toMatch(/\w.*\.$/);
           // knocked out, everything but looking in the chest waits
@@ -138,18 +141,20 @@ describe("the camp's menu (campActions, T5.4)", () => {
     expect(campActions(s.state, CAMP, 'hearth')[0]!.why).toEqual({ kind: 'at' });
   });
 
-  it('the shelter by day and at night (T8.5): Look in, Store, Sleep only at night, then its upgrade', () => {
+  it('the shelter by day and at night (T8.5): Look in, Store, Sleep (saying when he sleeps there), then its upgrade', () => {
     const day = camp(BASE);
     expect(keys(campActions(day.state, CAMP, 'tent'))).toEqual(['look', 'store', 'sleep:shelter', 'build:wall_tent:upgrade']);
-    expect(entryOf(day.state, 'tent', 'sleep:shelter')!.why).toEqual({ kind: 'day' });
+    expect(entryOf(day.state, 'tent', 'sleep:shelter')!.why).toEqual({ kind: 'bedtime', hour: 1 });
     expect(entryOf(day.state, 'tent', 'store')!.why).toEqual({ kind: 'empty' });            // nothing on him to store
     expect(entryOf(day.state, 'tent', 'build:wall_tent:upgrade')!.why).toEqual({ kind: 'missing', items: MAKES.wall_tent.needs });
     day.state.player.backpack = { birch_logs: 3 };
     expect(entryOf(day.state, 'tent', 'store')!.why).toBeNull();
     day.state.player.backpack = { cooked_fish: 3 };                                        // the meals a trip leaves on him anyway
     expect(entryOf(day.state, 'tent', 'store')!.why).toEqual({ kind: 'empty' });
+    // at night the same: only his bedtime sends him to bed (the owner, 13 Oct 2026, of a tap sending him early: "not needed")
     const night = camp(BASE, { hour: 22 });
-    expect(entryOf(night.state, 'tent', 'sleep:shelter')!.why).toBeNull();
+    night.state.needs.bedtime = 23;
+    expect(entryOf(night.state, 'tent', 'sleep:shelter')!.why).toEqual({ kind: 'bedtime', hour: 23 });
     night.state.player.task = { kind: 'sleep' };
     expect(entryOf(night.state, 'tent', 'sleep:shelter')!.why).toEqual({ kind: 'asleep' });
     // before the chest: Sleep, and the chest itself while its goal is up
@@ -195,7 +200,7 @@ describe("the camp's menu (campActions, T5.4)", () => {
   it('asleep, its choices are kept for when he wakes (the build command waits as `later`)', () => {
     const s = camp(BASE, { hour: 23, underway: { woodshed: 20 } });
     s.state.bank = { birch_logs: 3 };                                                     // logs for the fire
-    send(s, { type: 'sleep' });
+    goToBed(s.state, CAMP);                                                                 // as his bedtime would
     for (let t = 0; t < 300 && s.state.player.task.kind !== 'sleep'; t += STEP) step(s.state, STEP, s.ctx);
     expect(s.state.player.task).toEqual({ kind: 'sleep' });
     const carry = entryOf(s.state, 'woodpile', 'build:woodshed:carry')!;
@@ -218,10 +223,10 @@ describe("the camp's menu (campActions, T5.4)", () => {
     go(store, 'tent', 'store'); run(store, 30);
     expect(store.state.player.backpack).toEqual({});
     expect(store.state.bank).toMatchObject({ birch_logs: 5, stone: 2 });
-    // Sleep at night: to bed in the shelter
-    const bed = camp(BASE, { hour: 22 });
-    go(bed, 'tent', 'sleep:shelter'); run(bed, 30);
-    expect(bed.state.player.task.kind).toBe('sleep');
+    // Sleep is never chosen, by day or at night: it only says when he sleeps there
+    const bed = camp(BASE, { hour: 22 }), sleep = entryOf(bed.state, 'tent', 'sleep:shelter')!;
+    expect(sleep.why).toEqual({ kind: 'bedtime', hour: 1 });
+    expect(commandOf(sleep.action)).toBeNull();
     // Cook: his fish at the fire
     const cook = camp(BASE); cook.state.player.backpack = { raw_fish: 1 };
     go(cook, 'hearth', 'cook:campfire');
@@ -251,7 +256,8 @@ describe("the camp's menu (campActions, T5.4)", () => {
     expect(noteOf(s.state, { kind: 'build', id: 'wall_tent', how: 'carry' })).toBe('Frame, 40% done');
     expect(noteOf(s.state, { kind: 'build', id: 'stone_hearth', how: 'upgrade' })).toBe('a minute and a half: 12 stones and 4 clay');
     expect(whyText({ kind: 'missing', items: { birch_logs: 4, fibre: 8 } })).toBe('Still needs 4 birch logs and 8 fibre.');
-    expect(whyText({ kind: 'day' })).toBe("He isn't tired until night falls.");
+    expect(whyText({ kind: 'bedtime', hour: 1 })).toBe('He sleeps here at his bedtime, 01:00.');
+    expect(whyText({ kind: 'bedtime', hour: 22 })).toBe('He sleeps here at his bedtime, 22:00.');
     expect(whyText({ kind: 'down' })).toBe("He's knocked out.");
   });
 });
@@ -265,7 +271,7 @@ describe('the menu headed and worded by what is drawn', () => {
     expect(entryOf(half.state, 'tent', 'sleep:shelter')).toBeDefined();
     const sleep = campActions(half.state, CAMP, 'tent').find(e => e.action.kind === 'sleep')!;
     expect(labelOf(sleep.action)).toBe('Sleep in the shelter');
-    expect(commandOf(sleep.action)).toEqual({ type: 'sleep' });
+    expect(commandOf(sleep.action)).toBeNull();
     expect(titleOf(camp([...BASE, 'wall_tent'], {}).state, CAMP, 'tent')).toBe('Wall tent');
   });
 });
@@ -292,16 +298,22 @@ describe('a tap that can do nothing now says why, as the menu does, and walks hi
     expect(tapRefused(camp(BASE, { underway: { woodshed: 9 } }).state, CAMP, 'woodpile')).toBeNull();
   });
 
-  it(`the shelter at night with him asleep in it already: "He's asleep.", as the menu says, and its words just its name`, () => {
-    for (const [built, name] of [[BASE, 'Tent'], [[...BASE, 'wall_tent'], 'Wall tent']] as const) {
-      const s = camp([...built], { hour: 22 });
-      expect(tapRefused(s.state, CAMP, 'tent')).toBeNull();                                   // awake: to bed
+  it(`the tent before the chest, by day or night: when he sleeps there, or "He's asleep.", as the menu says, its words just its name`, () => {
+    for (const hour of [10, 22]) {
+      const s = camp(['campfire', 'woodpile', 'shelter'], { goal: 'stone_pickaxe', hour });
+      expect(tapRefused(s.state, CAMP, 'tent')).toEqual({ kind: 'bedtime', hour: 1 });
+      expect(whyText(tapRefused(s.state, CAMP, 'tent')!)).toBe('He sleeps here at his bedtime, 01:00.');
       s.state.player.task = { kind: 'sleep' };
       expect(tapRefused(s.state, CAMP, 'tent')).toEqual({ kind: 'asleep' });
       expect(whyText(tapRefused(s.state, CAMP, 'tent')!)).toBe("He's asleep.");
       expect(campActions(s.state, CAMP, 'tent').find(e => e.action.kind === 'sleep')!.why).toEqual({ kind: 'asleep' });
-      expect(campTap(s.state, CAMP, 'tent')!.hover).toBe(name);
+      expect(campTap(s.state, CAMP, 'tent')!.hover).toBe('Tent');
     }
+    // with the chest in it, asleep or not, a tap looks in the chest (he goes nowhere)
+    const s = camp([...BASE, 'wall_tent'], { hour: 22 });
+    s.state.player.task = { kind: 'sleep' };
+    expect(tapRefused(s.state, CAMP, 'tent')).toBeNull();
+    expect(campTap(s.state, CAMP, 'tent')!.action.kind).toBe('look');
   });
 });
 
@@ -332,19 +344,16 @@ describe('what a plain tap does, and its words under the mouse (campTap, D10, D1
       ['the campfire begun', camp([], { goal: 'campfire', underway: { campfire: 3 } }), 'hearth', 'Carry on|Campfire'],
       ['the firewood pile marker', camp(['campfire'], { goal: 'firewood' }), 'woodpile', 'Stack|Firewood pile'],
       ['the tent by day, before the chest', camp(['campfire', 'woodpile', 'shelter'], { goal: 'stone_pickaxe' }), 'tent', 'Tent'],
-      ['the tent at night, before the chest', camp(['campfire', 'woodpile', 'shelter'], { goal: 'stone_pickaxe', hour: 22 }), 'tent', 'Sleep in|Tent'],
+      ['the tent at night, before the chest', camp(['campfire', 'woodpile', 'shelter'], { goal: 'stone_pickaxe', hour: 22 }), 'tent', 'Tent'],
       ['the chest marker by day', camp(['campfire', 'woodpile', 'shelter'], { goal: 'chest' }), 'tent', 'Build|Storage chest'],
       ['the chest begun by day', camp(['campfire', 'woodpile', 'shelter'], { goal: 'chest', underway: { chest: 5 } }), 'tent', 'Carry on|Storage chest'],
-      ['the chest goal at night', camp(['campfire', 'woodpile', 'shelter'], { goal: 'chest', hour: 22 }), 'tent', 'Sleep in|Tent'],
+      ['the chest goal at night', camp(['campfire', 'woodpile', 'shelter'], { goal: 'chest', hour: 22 }), 'tent', 'Build|Storage chest'],
       ['the chest built, by day', camp(BASE), 'tent', 'Look in|Chest'],
       ['a wall tent under way, by day', camp(BASE, { underway: { wall_tent: 9 } }), 'tent', 'Look in|Chest'],
-      ['a wall tent under way, at night', camp(BASE, { underway: { wall_tent: 9 }, hour: 22 }), 'tent', 'Sleep in|Tent'],
-      // half built, the wall tent is drawn there, not the tent he still sleeps in
-      ['a wall tent half built, at night', camp(BASE, { underway: { wall_tent: MAKES.wall_tent.time * 0.7 }, hour: 22 }), 'tent', 'Sleep in|Shelter'],
-      ['a log cabin half built, at night', camp([...BASE, 'wall_tent'], { underway: { log_cabin: MAKES.log_cabin.time * 0.7 }, hour: 22 }), 'tent', 'Sleep in|Shelter'],
-      ['a log cabin at its frame, at night', camp([...BASE, 'wall_tent'], { underway: { log_cabin: MAKES.log_cabin.time * 0.4 }, hour: 22 }), 'tent', 'Sleep in|Wall tent'],
-      ['the wall tent at night', camp([...BASE, 'wall_tent'], { hour: 22 }), 'tent', 'Sleep in|Wall tent'],
-      ['the log cabin at night', camp([...BASE, 'wall_tent', 'log_cabin'], { hour: 2 }), 'tent', 'Sleep in|Log cabin'],
+      // at night the same as by day (0.0.34: only his bedtime sends him to bed)
+      ['a wall tent under way, at night', camp(BASE, { underway: { wall_tent: 9 }, hour: 22 }), 'tent', 'Look in|Chest'],
+      ['a log cabin half built, at night', camp([...BASE, 'wall_tent'], { underway: { log_cabin: MAKES.log_cabin.time * 0.7 }, hour: 22 }), 'tent', 'Look in|Chest'],
+      ['the log cabin at night', camp([...BASE, 'wall_tent', 'log_cabin'], { hour: 2 }), 'tent', 'Look in|Chest'],
       ['the campfire, with a rod', camp(BASE), 'hearth', 'Cook at|Campfire'],
       ['the stone hearth', camp([...BASE, 'stone_hearth']), 'hearth', 'Cook at|Stone hearth'],
       ['the stone hearth under way', camp(BASE, { underway: { stone_hearth: 9 } }), 'hearth', 'Carry on|Stone hearth'],
@@ -364,21 +373,21 @@ describe('what a plain tap does, and its words under the mouse (campTap, D10, D1
     expect(hover(poor, 'hearth')).toBe('Cook at|Campfire');
   });
 
-  it('by day the shelter opens the chest once it stands, an upgrade under way too (D10); at night it is bed; the fire and the pile carry on with theirs', () => {
+  it('by day or night the shelter opens the chest once it stands, an upgrade under way too (D10); the fire and the pile carry on with theirs', () => {
     expect(tapKey(camp(BASE), 'tent')).toBe('look');
     expect(commandOf({ kind: 'look' })).toBeNull();                               // Look in sends nothing: he goes nowhere
     expect(tapKey(camp(BASE, { underway: { log_cabin: 9 } }), 'tent')).toBe('look');
-    expect(tapKey(camp(BASE, { hour: 22 }), 'tent')).toBe('sleep:shelter');
+    expect(tapKey(camp(BASE, { hour: 22 }), 'tent')).toBe('look');
     expect(tapKey(camp(BASE, { underway: { woodshed: 9 } }), 'woodpile')).toBe('build:woodshed:carry');
     expect(tapKey(camp(BASE, { underway: { stone_hearth: 9 } }), 'hearth')).toBe('build:stone_hearth:carry');
   });
 
-  it('the tent by day before the chest: "he isn\'t tired yet", naming the tent', () => {
+  it('the tent before the chest: its tap sends nothing, so he goes nowhere (the UI says when he sleeps there)', () => {
     const s = camp(['campfire', 'woodpile', 'shelter'], { goal: 'stone_pickaxe' });
-    const tap = campTap(s.state, CAMP, 'tent')!, pos = { ...s.state.player.pos };
-    send(s, commandOf(tap.action)!);
-    expect(s.log).toEqual([{ type: 'cantSleep', shelter: 'shelter' }]);
-    expect(s.state.player.pos).toEqual(pos);
+    const tap = campTap(s.state, CAMP, 'tent')!;
+    expect(tap.action.kind).toBe('sleep');
+    expect(commandOf(tap.action)).toBeNull();
+    expect(tapRefused(s.state, CAMP, 'tent')).toEqual({ kind: 'bedtime', hour: 1 });
   });
 
   it('a marker sends what the Build window row sends (T1.6), for each of the first five at its goal', () => {

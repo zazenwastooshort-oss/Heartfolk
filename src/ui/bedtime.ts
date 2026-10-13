@@ -4,7 +4,6 @@
 // bedtime command; the game keeps it (core/needs.ts). Changes nothing in the game itself.
 import type { GameState } from '../core/state';
 import type { Command } from '../systems/commands';
-import { wakeHour } from '../core/needs';
 import { SLEEP } from '../data/sleep';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -14,7 +13,7 @@ export const hourLabel = (hour: number) => `${String(hour).padStart(2, '0')}:00`
 
 /** The line under the buttons. */
 export const bedtimeText = (bedtime: number) =>
-  `Once his shelter stands, he sleeps there every night from ${hourLabel(bedtime)} until ${hourLabel(wakeHour(bedtime))}.`;
+  `Once his shelter stands, he goes to bed there at ${hourLabel(bedtime)} every night, once he has finished what he is doing, and sleeps ${SLEEP.hours} hours.`;
 
 export class BedtimeSetting {
   private shown = -1;

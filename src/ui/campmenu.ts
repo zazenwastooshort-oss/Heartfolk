@@ -1,7 +1,7 @@
 // The camp's menu (the camp build's stage 5; the owner, 13 Oct 2026: "you upgrade by the building tab, and or right
 // clicking the object"; In 5): a right click on a building at the camp, or a long press on a phone, opens a small
 // wooden board beside it listing what can be done there (core/camp.ts campActions): Look in the chest, Store
-// everything, Sleep, Upgrade to the next step, Carry on with it, Build the chest, Cook, Stack logs, Practise, Build
+// everything, Sleep (faded: when he sleeps there), Upgrade to the next step, Carry on with it, Build the chest, Cook, Stack logs, Practise, Build
 // what its marker is for. What a plain tap there does is the amber one. One that can't be chosen now stays in the list,
 // faded, saying why; chosen anyway (or chosen as the game changed under it: night fell, the build finished), it is
 // refused with that reason as a notice. It refreshes while open, keeps on the screen clear of the goal card and the row
@@ -21,16 +21,18 @@ import { MENU } from '../data/input';
 import { itemList, stackedText } from './hud';
 import { EDGE, GAP } from './windows';
 import { buildWhyText, percentDone, workTime } from './build';
+import { hourLabel } from './bedtime';
 
 const $ = (id: string) => document.getElementById(id)!;
 
 /** The command an action sends, as a tap in the world would (T1.6: a marker's tap and the Build list's row send the
- *  same); null for Look in, which only opens the chest's section of the Backpack window. */
+ *  same); null for Look in, which only opens the chest's section of the Backpack window, and for Sleep, which is never
+ *  chosen (he sleeps at his bedtime: core/camp.ts). */
 export function commandOf(action: CampAction): Command | null {
   switch (action.kind) {
     case 'look': return null;
     case 'store': return { type: 'visit', id: 'chest' };
-    case 'sleep': return { type: 'sleep' };
+    case 'sleep': return null;
     case 'build': return { type: 'build', id: action.id };
     case 'cook': return { type: 'cook' };
     case 'stack': return { type: 'visit', id: 'woodpile' };
@@ -56,7 +58,7 @@ export function labelOf(action: CampAction): string {
 /** Why an entry can't be chosen now, in plain words. */
 export function whyText(why: CampWhy): string {
   switch (why.kind) {
-    case 'day': return "He isn't tired until night falls.";
+    case 'bedtime': return `He sleeps here at his bedtime, ${hourLabel(why.hour)}.`;
     case 'asleep': return "He's asleep.";
     case 'empty': return 'Nothing on him to store.';
     case 'noFish': return 'No raw fish to cook.';

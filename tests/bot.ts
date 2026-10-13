@@ -26,6 +26,8 @@
 // - with a full backpack and nowhere to store it (before the chest), it drops what the goal doesn't need first, from
 //   the backpack list: Drop all, or Drop 1 as often as it takes for the spare beyond what the goal needs.
 // - before setting off to fight something that hits back with his health low (after a knock-out), it eats.
+// - knocked out with little food left, carried or stored (healing less than RESTOCK_HEALS; the goblin camp's page:
+//   "Bring food"), it catches and cooks a batch of fish (as for a meal) before it sends him to fight on.
 // While the player is there it looks every second of play (an attentive player, who also looks at once when a notice
 // comes or the goal card moves on); with `visits` the player is there only now and then (Visits). It taps only when he
 // has nothing useful to do (idle, or busy with something the goal no longer needs), so he is left to work otherwise.
@@ -78,6 +80,8 @@ const RAW_PER_COOKED = 1.5;
 /** The skill cooking trains (systems/cooking.ts), and for a goal asking a level of it, the cooked fish aimed for at a
  *  time (catching half again as many raw ones, then cooking them all). */
 const COOKING = 'cooking' satisfies SkillId, COOK_BATCH = 10;
+/** Knocked out with food that heals less than this in all (five cooked fish), it cooks a batch before fighting on. */
+const RESTOCK_HEALS = 5 * FOOD[COOK.cooked]!.heals;
 
 /** When the player is there to look at the game: a visit begins every `every` seconds of play (the first at the
  *  start) and lasts `stay` seconds; between visits nobody looks, and notices wait for the next visit. While there the
@@ -118,6 +122,10 @@ export class Bot {
   private noticed = false;
   private nextLook = -Infinity;
   private quietUntil = -Infinity;
+  /** knocked out since it last looked; and, with little food left then, catching and cooking a batch of fish before
+   *  fighting on, until it is cooked */
+  private knocked = false;
+  private restock = false;
   /** with visits: when the first look was (the start of the first visit), and which visit the player is on */
   private start: number | null = null;
   private visit = -1;
@@ -126,6 +134,7 @@ export class Bot {
    *  builds every upgrade he can along the way (see above). */
   constructor(private layout: Layout, events: EventBus, private visits: Visits | null = null, private upgrades = false) {
     events.on(e => {
+      if (e.type === 'knockedOut') this.knocked = true;
       if (!NOTICES.has(e.type)) return;
       this.noticed = true;
       if (e.type === 'cantFight' && e.reason === 'taught' && e.target === 'dummy' && isStyle(e.skill)) this.taught.add(e.skill);
@@ -162,14 +171,18 @@ export class Bot {
   /** What the current goal still asks for. */
   plan(state: GameState): Plan {
     const goal = currentGoal(state), def = goal.makes ? makeDef(goal.makes) : null, items: Record<string, number> = {};
-    if (!goalPaid(state, goal)) for (const [id, n] of Object.entries(def?.needs ?? goal.needs)) { const short = n - owned(state, id); if (short > 0) items[id] = short; }
-    const make = def && !Object.keys(items).length ? def.id : null;
+    // knocked out with little food left: a batch of cooked fish first, then the goal; done once it is cooked
+    if (this.knocked && Object.keys(FOOD).reduce((a, f) => a + owned(state, f) * FOOD[f]!.heals, 0) < RESTOCK_HEALS) this.restock = true;
+    this.knocked = false;
+    if (this.restock && !state.player.cook && owned(state, COOK.raw) === 0 && owned(state, COOK.cooked) > 0) this.restock = false;
+    if (!this.restock && !goalPaid(state, goal)) for (const [id, n] of Object.entries(def?.needs ?? goal.needs)) { const short = n - owned(state, id); if (short > 0) items[id] = short; }
+    const make = def && !this.restock && !Object.keys(items).length ? def.id : null;
     const levels = Object.entries(goal.levels ?? {}).filter(([id, n]) => levelOf(state, id as SkillId) < n!).map(([id]) => id as SkillId);
     const styles = levels.filter(isStyle), skills = levels.filter(s => !isStyle(s));
     // cooked fish, for a goal that wants them or a Cooking level: cook while there are raw ones (finishing a catch
     // first), else catch some
     let cook = false;
-    const cooked = items[COOK.cooked] ?? (skills.includes(COOKING) ? COOK_BATCH : 0);
+    const cooked = items[COOK.cooked] ?? (skills.includes(COOKING) || this.restock ? COOK_BATCH : 0);
     if (cooked > 0) {
       const raw = owned(state, COOK.raw), want = Math.ceil(cooked * RAW_PER_COOKED), p = state.player;
       const fishing = (p.task.kind === 'gather' && this.nodeGives(p.task.nodeId) === COOK.raw) || (p.pending?.kind === 'node' && this.nodeGives(p.pending.id) === COOK.raw);

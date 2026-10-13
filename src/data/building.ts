@@ -46,7 +46,7 @@ export const STAGED: Partial<Record<MakeId, StagedDef>> = {
   campfire: { blurb: 'A ring of stones round planks leaned together. It lights up the camp at night.' },
   woodpile: { blurb: 'Logs stacked on two bearers beside the fire, to stoke it from at night.' },
   shelter: { blurb: 'The torn tarp over a frame of logs, with planks for a floor. Somewhere dry to sleep.' },
-  chest: { inside: 'tent', blurb: 'A box of split logs with copper straps, to keep everything he owns safe.' },
+  chest: { inside: 'tent', blurb: 'A box of split logs bound with rope, to keep everything he owns safe.' },
   dummy: { blurb: 'A post and crossbar of logs with a stuffed sack. Somewhere safe to learn to fight.' },
   wall_tent: { upgrades: 'shelter', rest: 0.35, blurb: 'A squared timber frame round the old canvas, a plank floor and a porch. He sleeps better in it.' },
   log_cabin: { upgrades: 'wall_tent', rest: 0.5, blurb: 'Round logs notched at the corners, a loft and a stone chimney. He sleeps best of all here.' },
