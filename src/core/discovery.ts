@@ -396,13 +396,16 @@ export function nodeCard(state: GameState, layout: Layout, id: string): NodeCard
 // ---- saves ----
 
 /** What an old save (from before Discovery, format 12 and before) has already come across (In 6): what he holds now
- *  (heldThings: what he carries or stores, his tools and what he wears, everything built or begun), every goal done
+ *  (heldThings: what he carries or stores, his tools and what he wears, everything built or begun, with what each of
+ *  those things was made of), every goal done
  *  and the things it made or asked for, and the things of the book's pages already come unstuck (GameState.thoughts,
  *  read before this: its Making pages' things, the Food pages' food, and what the Materials and places pages are
  *  about). In the nodes' order. */
 export function impliedDiscovered(state: GameState): string[] {
   const out = new Set<string>();
-  heldThings(state, id => out.add(id));
+  // what he holds, and for each thing built, begun, used or worn what went into it (the upgrades' fibre, clay and bark
+  // are asked for by no goal)
+  heldThings(state, id => { out.add(id); const def = makeDef(id); if (def) for (const n of Object.keys(def.needs)) out.add(n); });
   for (const g of GOALS) if (state.goalsDone.includes(g.id)) {
     if (g.makes) out.add(g.makes);
     for (const id of Object.keys(g.needs)) out.add(id);
@@ -417,11 +420,15 @@ export function impliedDiscovered(state: GameState): string[] {
 
 /** What he has found, read back from a save (`v`): the nodes the game still has, each once, in the order found (so a
  *  save reads back exactly; anything he holds that a hand-edited list left out is found again on the next step). A save
- *  from before Discovery (none saved: the migration from format 12 leaves it out) or a damaged one (not a list) is
- *  given what it has already come across (impliedDiscovered), with no notice for any of it. */
+ *  from before Discovery (none saved: the migration from format 12 leaves it out) or a damaged one (not a list, or one
+ *  with something in it the game can't read) is given what it has already come across (impliedDiscovered), with no
+ *  notice for any of it. */
 export function savedDiscovered(v: unknown, state: GameState): string[] {
   if (!Array.isArray(v)) return impliedDiscovered(state);
-  return [...new Set(v.filter((id): id is string => typeof id === 'string' && isNode(id)))];
+  const kept = [...new Set(v.filter((id): id is string => typeof id === 'string' && isNode(id)))];
+  // a damaged list (something in it the game can't read): what the save implies as well, first, so nothing is lost or
+  // told again as new
+  return kept.length === v.length ? kept : [...new Set([...impliedDiscovered(state), ...kept])];
 }
 
 /** What creatures leave, for a tap on one (systems/discovery.ts): a rat's hide, a goblin's and its chief's torn map. */

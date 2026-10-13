@@ -8,7 +8,7 @@
 // growing as he goes. Old saves given what they have come across are in tests/saves.test.ts.
 import { afterEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { createState, made, type GameState } from '../src/core/state';
+import { createState, made, SAVE_VERSION, type GameState } from '../src/core/state';
 import { EventBus, type GameEvent } from '../src/core/events';
 import { createRng } from '../src/core/rng';
 import { STEP } from '../src/core/loop';
@@ -369,11 +369,15 @@ describe('discovering (In 3, D1)', () => {
     expect(s.state.discovered).toEqual(['stone', 'copper_ore']);
     const back = deserialize(serialize(s.state), CAMP);
     expect(back).toEqual(s.state);
-    // checked: unknown and repeated ones dropped, a damaged list given what the game has come across
+    // checked: a list with something in it the game can't read (a number, an unknown thing, a repeat) keeps the ones it
+    // can, and is given what the save implies as well (the review of 0.0.38: nothing lost, nothing told again); one that
+    // isn't a list is given what the save implies
     const raw = JSON.parse(serialize(s.state));
     raw.discovered = ['copper_ore', 7, 'no_such_thing', 'copper_ore', 'stone'];
-    expect(deserialize(JSON.stringify(raw), CAMP).discovered).toEqual(['copper_ore', 'stone']);
-    // (the copper rock only tapped is lost with the list; the stone he picked up isn't)
+    const mended = deserialize(JSON.stringify(raw), CAMP).discovered;
+    expect(mended).toEqual(expect.arrayContaining(['copper_ore', 'stone']));
+    expect(new Set(mended).size).toBe(mended.length);
+    // (the copper rock only tapped is lost with a list that isn't one; the stone he picked up isn't)
     raw.discovered = 'x';
     expect(deserialize(JSON.stringify(raw), CAMP).discovered).toEqual(expect.arrayContaining(['stone']));
   });
@@ -442,5 +446,36 @@ describe('a new game, played (the playthrough bot through chapter 1)', () => {
     expect(sizes.length).toBeGreaterThan(5);                  // found a few at a time, not all at once
     const tree = discoveryTree(s.state, CAMP);
     expect(tree.nodes.filter(n => n.state === 'made').map(n => n.id).sort()).toEqual(['campfire', 'chest', 'shelter', 'stone_axe', 'stone_pickaxe', 'woodpile']);
+  });
+});
+
+describe('old and damaged saves (the review of 0.0.38)', () => {
+  const whole = () => JSON.parse(readFileSync(new URL('./fixtures/camp/whole-camp.json', import.meta.url), 'utf8')) as Record<string, unknown>;
+
+  it("an old save finds what went into what he built, though none of it is left: the upgrades' fibre, clay and bark", () => {
+    const raw = whole();
+    raw.version = 12; delete raw.discovered;
+    const keep = (o: unknown) => { const r = o as Record<string, number>; for (const k of ['fibre', 'clay', 'bark']) delete r[k]; };
+    keep(raw.bank); keep((raw.player as Record<string, unknown>).backpack);
+    const state = readSave(JSON.stringify(raw), CAMP).state;
+    expect(state.built).toEqual(expect.arrayContaining(['wall_tent', 'log_cabin', 'stone_hearth', 'woodshed']));
+    for (const id of ['fibre', 'clay', 'bark']) expect(state.discovered, id).toContain(id);
+    expect(nodeCard(state, CAMP, 'wall_tent')!.needs.every(n => n.found)).toBe(true);
+  });
+
+  it('a damaged list (something in it the game cannot read) is given what the save implies too, so nothing is told again', () => {
+    const raw = whole();
+    const good = readSave(JSON.stringify(raw), CAMP).state.discovered;
+    for (const junk of [[1, 2], ['nonsense'], ['plank', 7]]) {
+      const r = whole(); r.version = SAVE_VERSION; r.discovered = junk;
+      const s = readSave(JSON.stringify(r), CAMP).state, events = new EventBus(), log: GameEvent[] = [];
+      events.on(e => log.push(e));
+      expect(new Set(s.discovered), JSON.stringify(junk)).toEqual(new Set([...good, ...(junk.includes('plank') ? ['plank'] : [])]));
+      step(s, STEP, { layout: CAMP, rng: createRng(1), events });
+      expect(log.filter(e => e.type === 'discovered'), JSON.stringify(junk)).toEqual([]);
+    }
+    // a good list reads back exactly, in its order
+    const r = whole(); r.version = SAVE_VERSION; r.discovered = [...good].reverse();
+    expect(readSave(JSON.stringify(r), CAMP).state.discovered).toEqual([...good].reverse());
   });
 });

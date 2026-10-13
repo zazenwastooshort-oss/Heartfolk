@@ -106,6 +106,9 @@ export class Information {
     // down to the page, before ui/input.ts hears it on the way back up.
     window.addEventListener('keydown', e => {
       if (!windows.isOpen('info') || e.altKey || e.ctrlKey || e.metaKey) return;
+      // keys pressed in another window are its own (Discovery's tree follows its lines with them)
+      const t = e.target as Element | null;
+      if (t?.closest?.('.win') && !t.closest('#infoWin')) return;
       if (e.key === 'ArrowLeft') this.turn(-1);
       else if (e.key === 'ArrowRight') this.turn(1);
       else return;
