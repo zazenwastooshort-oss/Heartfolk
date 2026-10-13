@@ -88,8 +88,8 @@ function start(data: HotData): void {
   const needs = new NeedsHud(layout, events, hud);                  // Hungry in the strip; meals, bedtime, his tools from the chest
   events.on(e => { if (e.type === 'strike') view.strike(e.nodeId); });     // chips fly where the tool lands
   events.on(e => { if (e.type === 'hit') view.hit(e.target, e.damage); }); // the training dummy wobbles when struck
-  const build = new BuildWindow(windows, view, events, layout, queue, hud);   // the Build window, and placing what it builds
-  bindInput(view, layout, queue, label => hud.hover(label), build.hooks);
+  const build = new BuildWindow(windows, events, layout, queue, hud);   // the Build window: what can be built, and how far along
+  bindInput(view, layout, queue, label => hud.hover(label));
   showModels(view, layout);                                         // dev only: ?models in the address shows chapter 2's models
   const pack = new BackpackWindow(windows, queue, layout);           // what's in the backpack, to eat and drop things
   const skills = new SkillsWindow(windows, events);                 // each skill's level, and what he trains
@@ -151,7 +151,7 @@ function start(data: HotData): void {
       showArmour(state);                                            // what he wears, in the Backpack window
       pack.update(state);
       skills.update(state);
-      build.update(state, dt);
+      build.update(state);
       book.update();
       awayNote.update();
       sinceSave += dt; if (sinceSave > 10 && !startingOver) { sinceSave = 0; save(browserStorage, state, clock.playedTo); }

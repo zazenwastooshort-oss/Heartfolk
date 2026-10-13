@@ -12,25 +12,18 @@ import type { Goal } from '../data/goals';
 import type { EventBus } from '../core/events';
 import type { Rng } from '../core/rng';
 import type { Layout } from '../world/layout';
-import { siteOf } from '../world/layout';
 import { goVisit } from '../actors/player';
+import { canCook, fishInChest, fishToCook } from '../core/camp';
 import { COOK, burnChance } from '../data/cooking';
 import { BACKPACK_SLOTS } from '../data/hauling';
 import { backpackCount, deposit } from './backpack';
 import { addXp, levelOf } from './skills';
 
-/** Whether there is a fire to cook at: the campfire stands at this layout's fire spot (never in the village). */
-export const canCook = (state: GameState, layout: Layout) => !!siteOf(layout, 'hearth') && state.built.includes('campfire');
+// whether there is a fire to cook at, and fish to cook (carried or in the chest): core/camp.ts
+export { canCook, fishToCook };
 
 /** Raw fish he carries. */
 const carried = (state: GameState) => state.player.backpack[COOK.raw] ?? 0;
-
-/** Raw fish in the storage chest, where it stands (none before it is built). */
-const inChest = (state: GameState, layout: Layout) =>
-  !!siteOf(layout, 'chest') && state.built.includes('chest') ? state.bank[COOK.raw] ?? 0 : 0;
-
-/** Whether he has raw fish to cook, carried or in the chest. */
-export const fishToCook = (state: GameState, layout: Layout) => carried(state) + inChest(state, layout) > 0;
 
 /** Set off to cook: to the fire with the raw fish he carries, or with none, to the chest for them first. Returns false,
  *  with him as he was, when there is no way there. The caller checks there is a fire (canCook) and fish (fishToCook). */
@@ -59,7 +52,7 @@ function stop(state: GameState, events: EventBus, why: 'cookedAll' | 'noPath'): 
 function next(state: GameState, layout: Layout, events: EventBus): void {
   const p = state.player;
   if (carried(state) > 0) { p.task = { kind: 'cook', doneAt: state.time + COOK.time }; return; }
-  if (!inChest(state, layout)) { stop(state, events, 'cookedAll'); return; }
+  if (!fishInChest(state, layout)) { stop(state, events, 'cookedAll'); return; }
   if (!goCook(state, layout)) stop(state, events, 'noPath');
 }
 
@@ -68,7 +61,7 @@ function next(state: GameState, layout: Layout, events: EventBus): void {
 function fetchFish(state: GameState, layout: Layout, events: EventBus): void {
   const p = state.player;
   if (backpackCount(state) >= BACKPACK_SLOTS) deposit(state, events);
-  const take = Math.min(inChest(state, layout), BACKPACK_SLOTS - backpackCount(state));
+  const take = Math.min(fishInChest(state, layout), BACKPACK_SLOTS - backpackCount(state));
   if (take <= 0) { stop(state, events, 'cookedAll'); return; }
   const left = state.bank[COOK.raw]! - take;
   if (left > 0) state.bank[COOK.raw] = left; else delete state.bank[COOK.raw];

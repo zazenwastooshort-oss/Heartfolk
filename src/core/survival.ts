@@ -10,7 +10,7 @@ import type { BookLine } from './book';
 import { MAKES } from '../data/making';
 import { FOOD } from '../data/food';
 import { thoughtDef } from '../data/thoughts';
-import { JOURNAL_PER_PAGE, MAKE_NOTES, SECTIONS, SITE_WHERE, SURVIVAL, type Section } from '../data/survival';
+import { JOURNAL_PER_PAGE, MAKE_NOTES, MAKE_WHERE, SECTIONS, SITE_WHERE, SURVIVAL, type Section } from '../data/survival';
 import { makeKey } from './thoughts';
 
 /** A line in the journal: what he thought, and on which day (from 1; null for one an old save was given). */
@@ -62,7 +62,7 @@ export function survivalPages(state: GameState): SurvivalPage[] {
       const got = done ? need : Math.min(need, owned(state, id));
       return { id, need, got, done: got >= need };
     });
-    return page({ key: makeKey(d.id), section: 'making', title: d.name, text: MAKE_NOTES[d.id] ?? '', lines, where: SITE_WHERE[d.at] ?? '', done });
+    return page({ key: makeKey(d.id), section: 'making', title: d.name, text: MAKE_NOTES[d.id] ?? '', lines, where: MAKE_WHERE[d.id] ?? SITE_WHERE[d.at] ?? '', done });
   });
   const others = SURVIVAL.filter(p => known.has(p.id)).map(p => {
     const item = 'item' in p.found ? p.found.item : null;

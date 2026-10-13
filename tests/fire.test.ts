@@ -20,6 +20,7 @@ import { backpackCount } from '../src/systems/backpack';
 import { GOALS } from '../src/data/goals';
 import { BACKPACK_SLOTS } from '../src/data/hauling';
 import { STOKE } from '../src/data/fire';
+import { MAKES } from '../src/data/making';
 
 const dist = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.z - b.z);
 const FIRE = CAMP.hearth.pos, CHEST = CAMP.camp!.chest.pos;
@@ -53,6 +54,8 @@ const count = (s: Setup, type: GameEvent['type']) => s.log.filter(e => e.type ==
 /** In-game time on `day` (from 0) at `hour` o'clock. */
 const at = (day: number, hour: number) => (day + hour / 24) * DAY_SECONDS;
 const NIGHTFALL = STOKE.at * 24;
+/** The bark the woodshed needs (the camp build): with it in the chest, chopping birch peels none (wantsBark). */
+const BARK_NEEDED = MAKES.woodshed.needs.bark!;
 /** A setup's game, saved and loaded again, carrying on with fresh events and randomness. */
 function reload(s: Setup): Setup {
   const t = setup(CAMP, 9);
@@ -67,6 +70,7 @@ const atBirch = (state: GameState) => {
 describe('the storage chest stores things, like the bank', () => {
   it('a full backpack while chopping is walked to the chest, emptied into it, and he goes back to chopping', () => {
     const s = campSet();
+    s.state.bank = { bark: BARK_NEEDED };                         // (the woodshed's bark: none peeled while he chops)
     send(s, { type: 'work', nodeId: 'camp_birch1' });
     runUntil(s, () => count(s, 'backpackFull') > 0, 900);
     expect(count(s, 'noStorage')).toBe(0);
@@ -75,7 +79,7 @@ describe('the storage chest stores things, like the bank', () => {
     expect(s.state.player.pending).toEqual({ kind: 'visit', id: 'chest' });
     runUntil(s, () => count(s, 'banked') > 0, 60);
     expect(s.log.find(e => e.type === 'banked')).toEqual({ type: 'banked', items: { birch_logs: BACKPACK_SLOTS } });
-    expect(s.state.bank).toEqual({ birch_logs: BACKPACK_SLOTS });
+    expect(s.state.bank).toEqual({ bark: BARK_NEEDED, birch_logs: BACKPACK_SLOTS });
     expect(s.state.player.backpack).toEqual({});
     expect(dist(s.state.player.pos, CHEST)).toBeLessThan(CAMP.camp!.chest.radius + 1);
     // after a moment at the chest he goes back to the birches
@@ -290,7 +294,7 @@ describe('stoking the fire at night', () => {
   it('a full backpack he was taking to the chest is emptied there on the way, then he stokes and goes back to work', () => {
     const s = campSet();
     s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
-    s.state.bank = { birch_logs: 2 };
+    s.state.bank = { birch_logs: 2, bark: BARK_NEEDED };          // (the woodshed's bark: none peeled while he chops)
     send(s, { type: 'work', nodeId: 'camp_birch1' });
     runUntil(s, () => count(s, 'backpackFull') > 0, 900);
     // nightfall strikes on the way to the chest
@@ -432,7 +436,7 @@ describe('saving the chest and the fire', () => {
     const { stokedNight: _n, fireLow: _l, ...rest } = JSON.parse(serialize(s.state));
     const { stoke: _s, ...player } = rest.player;
     const back = deserialize(JSON.stringify({ ...rest, player, version: 6 }), CAMP);
-    expect(SAVE_VERSION).toBe(11);
+    expect(SAVE_VERSION).toBe(12);
     expect(back.version).toBe(SAVE_VERSION);
     expect(back.stokedNight).toBe(-1);
     expect(back.fireLow).toBe(false);

@@ -1,10 +1,11 @@
 // Saving: versioned JSON with a migration for every format change, so an update never wipes a village.
-import { SAVE_VERSION, canSleep, createState, made, maxHealth, owned, type Back, type Cook, type GameState, type Stoke } from './state';
-import { siteOf, type Layout } from '../world/layout';
+import { SAVE_VERSION, canSleep, createState, made, maxHealth, owned, type Back, type Cook, type GameState, type Pending, type Stoke, type Task } from './state';
+import { siteOf, type Layout, type Vec2 } from '../world/layout';
 import { ITEMS, SKILLS, TOOL_IDS, type SkillId, type ToolId } from '../data/skills';
 import { PICKUPS } from '../data/pickups';
 import { BOOK, GOALS } from '../data/goals';
-import { makeDef, type MakeId } from '../data/making';
+import { MAKES, makeDef, type MakeId } from '../data/making';
+import { LOAD } from '../data/building';
 import { STOKE, WOODPILE } from '../data/fire';
 import { SLOTS, STYLES, gearDef, type CombatStyle, type GearId, type Slot } from '../data/combat';
 import { targetOf } from './targets';
@@ -14,6 +15,7 @@ import { KNOCKED_OUT } from '../data/rats';
 import { CHIEF } from '../data/goblins';
 import { savedThoughts } from './thoughts';
 import { savedBuilding, walkGrid } from './building';
+import type { NavGrid } from '../world/nav';
 import { restedTill, savedNeeds } from './needs';
 import { savedToolsInChest } from './tools';
 
@@ -76,7 +78,117 @@ const migrations: Record<number, (s: any) => any> = {
     const done: unknown[] = Array.isArray(s.goalsDone) ? s.goalsDone : [];
     return done.includes('goblins') && !done.includes('ready') ? { ...s, goalsDone: [...done, 'ready'] } : s;
   },
+  // the camp build (13 Oct 2026): the lean-to and the log hut became the wall tent and the log cabin, the log bench and
+  // the workbench and placing them went (campBuildSave)
+  11: (s) => campBuildSave(s),
 };
+
+// ---- the camp build's save (format 11 to 12) ----
+
+/** Ids the camp build renamed: the lean-to is the wall tent now, the log hut the log cabin (a built log hut stood in
+ *  place of a lean-to, so it gives the wall tent as well). */
+const RENAMED: Record<string, MakeId> = { lean_to: 'wall_tent', log_hut: 'log_cabin' };
+/** Ids it removed (the owner, 13 Oct 2026: "remove the bench and workbench, these can be added later if needed"), each
+ *  with what it took, given back to the chest whether it was built or begun. */
+const REMOVED: Record<string, Record<string, number>> = { log_bench: { birch_logs: 4, branch: 2 }, workbench: { birch_logs: 6, fibre: 4 } };
+/** How long the renamed ones took to build: one begun keeps the same share of the new one's time (D12; the new one's
+ *  materials differ, and nothing more is asked for). */
+const OLD_TIME: Record<string, number> = { lean_to: 90, log_hut: 180 };
+
+/** An id as the camp build has it: renamed, null for one it removed, anything else as it was. */
+const campId = (id: unknown): unknown => typeof id !== 'string' ? id : Object.hasOwn(RENAMED, id) ? RENAMED[id] : Object.hasOwn(REMOVED, id) ? null : id;
+
+/** What he goes back to (after stoking the fire, a meal or bed), as the camp build has it: back to something removed is
+ *  nothing (null). */
+function campBack(b: unknown): unknown {
+  if (!isRecord(b) || !('raise' in b)) return b;
+  const id = campId(b.raise);
+  return id === null ? null : { ...b, raise: id };
+}
+
+/** A format 11 save (0.0.25 to 0.0.30) as format 12, the camp build's (13 Oct 2026). Every part is read with checks: a
+ *  save from before needs (0.0.25 to 0.0.29) has no `needs` or `toolsInChest`, a damaged one anything at all, and this
+ *  never throws (readSave checks what comes out, and a new game would write over a save that couldn't be read).
+ *  built: the lean-to is the wall tent, the log hut the wall tent and the log cabin; the log bench and the workbench are
+ *  gone, what they took given back into the chest (GameState.bank).
+ *  underway: a begun lean-to is a wall tent begun, a begun log hut a log cabin, each as far along as a share of its
+ *  time; a begun bench or workbench is gone, what it took given back (once, even if it was built too).
+ *  placed: gone (nothing is placed any more; the spots are fixed).
+ *  his task, where he was on his way to, and what stoking, a meal or bed goes back to: at work at or on his way to
+ *  something renamed, the same with the new one; to something removed, nothing.
+ *  a tap kept while he slept: a build keeps only its id, renamed; one of something removed is dropped.
+ *  the book's Making pages he knows: renamed, the removed ones dropped.
+ *  A storage chest standing with no shelter (never in play: a hand-edited save) gets the tent it now stands in. */
+export function campBuildSave(s: any): any {
+  if (!isRecord(s)) return s;
+  const out: Record<string, unknown> = { ...s };
+  const bank: Record<string, unknown> = isRecord(s.bank) ? { ...s.bank } : {};
+  const given = new Set<string>();
+  const giveBack = (id: string) => {
+    if (given.has(id)) return;
+    given.add(id);
+    for (const [item, n] of Object.entries(REMOVED[id]!)) {
+      const had = bank[item];
+      bank[item] = (Number.isSafeInteger(had) && (had as number) > 0 ? had as number : 0) + n;
+    }
+  };
+  const wasBuilt: unknown[] = Array.isArray(s.built) ? s.built : [];
+  const built: unknown[] = [];
+  const add = (id: unknown) => { if (!built.includes(id)) built.push(id); };
+  for (const id of wasBuilt) {
+    if (id === 'log_hut') { add('wall_tent'); add('log_cabin'); }
+    else if (typeof id === 'string' && Object.hasOwn(REMOVED, id)) giveBack(id);
+    else add(campId(id));
+  }
+  if (built.includes('chest') && !built.includes('shelter')) built.push('shelter');
+  const underway: Record<string, unknown> = {};
+  if (isRecord(s.underway)) for (const [id, worked] of Object.entries(s.underway)) {
+    if (Object.hasOwn(REMOVED, id)) giveBack(id);
+    else if (Object.hasOwn(RENAMED, id)) {
+      const to = RENAMED[id]!;
+      underway[to] = typeof worked === 'number' && Number.isFinite(worked) ? worked / OLD_TIME[id]! * MAKES[to].time : worked;
+    } else underway[id] = worked;
+  }
+  out.built = built; out.underway = underway; out.bank = bank;
+  delete out.placed;
+  if (isRecord(s.player)) {
+    const p: Record<string, unknown> = { ...s.player };
+    if (isRecord(p.task) && p.task.kind === 'raise') {
+      const id = campId(p.task.id);
+      p.task = id === null ? { kind: 'idle' } : { ...p.task, id };
+    }
+    if (isRecord(p.pending) && p.pending.kind === 'raise') {
+      const id = campId(p.pending.id);
+      if (id !== null) p.pending = { ...p.pending, id };
+      else { p.pending = null; p.path = []; if (isRecord(p.task) && p.task.kind === 'walk') p.task = { kind: 'idle' }; }
+    }
+    if (isRecord(p.stoke) && 'back' in p.stoke) p.stoke = { ...p.stoke, back: campBack(p.stoke.back) };
+    out.player = p;
+  }
+  if (isRecord(s.needs)) {
+    const n: Record<string, unknown> = { ...s.needs };
+    if (isRecord(n.meal) && 'back' in n.meal) n.meal = { ...n.meal, back: campBack(n.meal.back) };
+    if (isRecord(n.bed) && 'back' in n.bed) n.bed = { ...n.bed, back: campBack(n.bed.back) };
+    const later = n.later;
+    if (isRecord(later) && (later.type === 'build' || later.type === 'make')) {
+      const id = campId(later.id);
+      n.later = id === null ? null : later.type === 'build' ? { type: 'build', id } : { ...later, id };
+    }
+    out.needs = n;
+  }
+  if (isRecord(s.thoughts) && Array.isArray(s.thoughts.known)) {
+    const page = (k: unknown): unknown[] => {
+      if (typeof k !== 'string' || !k.startsWith(MAKE_PAGE)) return [k];
+      const id = campId(k.slice(MAKE_PAGE.length));
+      return id === null ? [] : [MAKE_PAGE + String(id)];
+    };
+    out.thoughts = { ...s.thoughts, known: s.thoughts.known.flatMap(page) };
+  }
+  return out;
+}
+
+/** How a Making page of the book is known by its id (makeKey in core/thoughts.ts). */
+const MAKE_PAGE = 'make:';
 
 /** The game as saved text. `savedAt` (since 0.0.20): the real time the game had been played up to when it was saved,
  *  in ms since 1970 (Date.now()), from which away time is counted when it is opened again (sim.ts, catchUpAway).
@@ -127,13 +239,12 @@ function savedTaken(v: unknown, layout: Layout): Record<string, number | null> {
   return Object.fromEntries(Object.entries(v).filter(([id, t]) => ids.has(id) && (t === null || (typeof t === 'number' && Number.isFinite(t))))) as Record<string, number | null>;
 }
 
-/** What stands built: things in MAKES that give a structure and whose site this layout has (or, placed by the player,
- *  at a camp: savedBuilding in core/building.ts checks where), each once. */
+/** What stands built: things in MAKES that give a structure and whose site this layout has, each once. */
 function savedBuilt(v: unknown, layout: Layout): MakeId[] {
   if (!Array.isArray(v)) return [];
   const ok = (id: unknown) => {
     const def = typeof id === 'string' ? makeDef(id) : null;
-    return !!def && def.gives.kind === 'structure' && def.at !== 'here' && (def.at === 'placed' ? !!layout.camp : siteOf(layout, def.at) !== null);
+    return !!def && def.gives.kind === 'structure' && def.at !== 'here' && siteOf(layout, def.at) !== null;
   };
   return [...new Set(v.filter(ok))] as MakeId[];
 }
@@ -198,12 +309,94 @@ function makeable(state: GameState, layout: Layout, id: unknown): boolean {
   return !made(state, def.id);
 }
 
+/** A finite point, or null. */
+const pointOf = (v: unknown): Vec2 | null => isRecord(v) && Number.isFinite(v.x) && Number.isFinite(v.z) ? { x: v.x as number, z: v.z as number } : null;
+const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const str = (v: unknown): v is string => typeof v === 'string';
+
+/** His task as saved, in its shape (what it names is checked against the game in readSave): a kind the game has with
+ *  the fields it needs, of the right sort; anything else (a damaged save) is idle. */
+function savedTask(v: unknown): Task {
+  if (!isRecord(v)) return { kind: 'idle' };
+  switch (v.kind) {
+    case 'idle': case 'walk': case 'sleep': return { kind: v.kind };
+    case 'gather': {
+      if (!str(v.nodeId)) break;
+      const progress = finite(v.progress) && v.progress >= 0 && v.progress < 1 ? v.progress : 0;
+      return v.mayMoveOn === true ? { kind: 'gather', nodeId: v.nodeId, progress, mayMoveOn: true } : { kind: 'gather', nodeId: v.nodeId, progress };
+    }
+    case 'pickup': return str(v.id) && finite(v.doneAt) ? { kind: 'pickup', id: v.id, doneAt: v.doneAt } : { kind: 'idle' };
+    case 'make': return str(v.id) && finite(v.doneAt) ? { kind: 'make', id: v.id as MakeId, doneAt: v.doneAt } : { kind: 'idle' };
+    case 'stoke': return finite(v.doneAt) ? { kind: 'stoke', doneAt: v.doneAt } : { kind: 'idle' };
+    case 'cook': return finite(v.doneAt) ? { kind: 'cook', doneAt: v.doneAt } : { kind: 'idle' };
+    case 'fight': return str(v.target) && finite(v.progress) ? { kind: 'fight', target: v.target, progress: v.progress } : { kind: 'idle' };
+    // (knocked out: when he wakes is checked in readSave, which wakes him at once if it is broken)
+    case 'knockedOut': return { kind: 'knockedOut', wakeAt: finite(v.wakeAt) ? v.wakeAt : NaN, by: str(v.by) ? v.by : '' };
+    case 'raise': return str(v.id) ? { kind: 'raise', id: v.id as MakeId } : { kind: 'idle' };
+  }
+  return { kind: 'idle' };
+}
+
+/** Where he was on his way to, in its shape: a kind the game has with an id; anything else is nowhere (null). */
+function savedPending(v: unknown): Pending {
+  if (!isRecord(v) || !str(v.id)) return null;
+  switch (v.kind) {
+    case 'node': case 'visit': case 'pickup': case 'fight': return { kind: v.kind, id: v.id };
+    case 'make': return { kind: 'make', id: v.id as MakeId };
+    case 'raise': return { kind: 'raise', id: v.id as MakeId };
+  }
+  return null;
+}
+
+/** The way he was walking: finite points (none, for a damaged one). */
+const savedPath = (v: unknown): Vec2[] => {
+  if (!Array.isArray(v)) return [];
+  const path = v.map(pointOf);
+  return path.every(p => p !== null) ? path as Vec2[] : [];
+};
+
+/** Whether the way still ahead of him, from `from` along `path`, is clear on `nav` (something now stands across it: a
+ *  bigger step than when the save was made). */
+function wayClear(nav: NavGrid, from: Vec2, path: Vec2[]): boolean {
+  let at = from;
+  for (const next of path) { if (!nav.lineOfSight(at, next)) return false; at = next; }
+  return true;
+}
+
+/** Where he stands, read back (readSave), and the way he was walking: a broken position, or one more than LOAD.nudge
+ *  from open ground, starts him again where a new game starts, doing nothing; one where something now stands (a bigger
+ *  step than when the save was made) moves him out to the nearest open ground, and he carries on with what he was
+ *  doing (asleep, building, knocked out). A way he was walking that something now stands across is walked again round
+ *  it, to where it went (or, now under something, the nearest open ground to there within LOAD.nudge); with no way
+ *  there, he stops where he is. */
+function savedWhere(state: GameState, layout: Layout): void {
+  const p = state.player, nav = walkGrid(state, layout);
+  const stop = () => { p.path = []; p.pending = null; if (p.task.kind === 'walk') p.task = { kind: 'idle' }; };
+  const near = (q: Vec2): Vec2 | null => {
+    if (nav.walkable(q)) return q;
+    const n = nav.nearestWalkable(q);
+    return nav.walkable(n) && Math.hypot(n.x - q.x, n.z - q.z) <= LOAD.nudge ? n : null;
+  };
+  const at = pointOf(p.pos) && near(p.pos);
+  if (!at) {
+    p.pos = { ...layout.start }; p.path = []; p.task = { kind: 'idle' }; p.pending = null; p.trip = null;
+    return;
+  }
+  const moved = at !== p.pos;
+  p.pos = { ...at };
+  if (!p.path.length || (!moved && wayClear(nav, p.pos, p.path))) return;
+  const end = near(p.path.at(-1)!), way = end && nav.findPath(p.pos, end);
+  if (way) p.path = way; else stop();
+}
+
 /** The game in a save, without when it was saved (readSave has both). */
 export function deserialize(raw: string, layout: Layout): GameState { return readSave(raw, layout).state; }
 
+/** A save read back. Throws only for something that isn't a Hearthfolk save at all (or is from a newer version): every
+ *  part of one is checked, and a damaged part is as a new game has it, so a damaged save still loads. */
 export function readSave(raw: string, layout: Layout): Loaded {
   let data = JSON.parse(raw);
-  if (typeof data !== 'object' || data === null || typeof data.version !== 'number') throw new Error('not a Hearthfolk save');
+  if (typeof data !== 'object' || data === null || Array.isArray(data) || typeof data.version !== 'number') throw new Error('not a Hearthfolk save');
   if (data.version > SAVE_VERSION) throw new Error(`save is from a newer version (${data.version})`);
   while (data.version < SAVE_VERSION) {
     const m = migrations[data.version];
@@ -216,11 +409,22 @@ export function readSave(raw: string, layout: Layout): Loaded {
   // when the page was closed: only with a time it was played up to, and not before it
   const closedAt: number | null = savedAt !== null && typeof data.closedAt === 'number' && Number.isFinite(data.closedAt) && data.closedAt >= savedAt ? data.closedAt : null;
   delete data.savedAt; delete data.closedAt;
+  // (nothing is placed since the camp build: a placement must not be saved again for ever)
+  delete data.placed;
   // fill anything missing (for example a rock added to the layout since the save was made)
-  const fresh = createState(layout, data.seed ?? 1);
+  const seed = Number.isSafeInteger(data.seed) ? data.seed as number : 1;
+  const fresh = createState(layout, seed);
+  const player = isRecord(data.player) ? data.player : {};
   const state: GameState = {
     ...fresh, ...data,
-    player: { ...fresh.player, ...data.player, backpack: savedItems(data.player?.backpack) },
+    version: SAVE_VERSION, seed,
+    time: finite(data.time) && data.time >= 0 ? data.time : fresh.time,
+    player: {
+      ...fresh.player, ...player, backpack: savedItems(player.backpack),
+      pos: pointOf(player.pos) ?? { x: NaN, z: NaN }, heading: finite(player.heading) ? player.heading : fresh.player.heading,
+      path: savedPath(player.path), task: savedTask(player.task), pending: savedPending(player.pending),
+      trip: isRecord(player.trip) ? { ...player.trip } as GameState['player']['trip'] : null,
+    },
     skills: savedSkills(data.skills, fresh.skills),
     bank: savedItems(data.bank),
     tools: savedTools(data.tools, fresh.tools),
@@ -232,13 +436,19 @@ export function readSave(raw: string, layout: Layout): Loaded {
     fireLow: data.fireLow === true,
     woodpile: 0,
     stokeAgain: data.stokeAgain === true,
-    parcels: { ...fresh.parcels, ...Object.fromEntries(Object.entries(data.parcels ?? {}).filter(([id]) => id in fresh.parcels)) },
+    parcels: { ...fresh.parcels, ...Object.fromEntries(Object.entries(isRecord(data.parcels) ? data.parcels : {}).filter(([id, v]) => id in fresh.parcels && isRecord(v)).map(([id, v]) => [id, { claimed: (v as Record<string, unknown>).claimed === true }])) },
     // what he wears and what fighting trains (0.0.22): anything unknown is as a new game has it
     equipment: savedEquipment(data.equipment, fresh.equipment),
     combatStyle: STYLES.includes(data.combatStyle) ? data.combatStyle as CombatStyle : fresh.combatStyle,
+    // (the camp build) going back by himself to something half built waits for nothing at first
+    resumeAt: 0,
   };
-  // building in stages: where he placed things, and what he has begun (core/building.ts); none in an older save
-  Object.assign(state, savedBuilding(data, state, layout));
+  // building in stages: what he has begun (core/building.ts), at most one thing, the one he was at or on his way to; what
+  // anything else begun took goes back into the chest. None in an older save
+  const raising = [player.task, player.pending].find(t => isRecord(t) && t.kind === 'raise') as Record<string, unknown> | undefined;
+  const { underway, refund } = savedBuilding(data, state, layout, raising?.id);
+  state.underway = underway;
+  for (const [item, n] of Object.entries(refund)) state.bank[item] = (state.bank[item] ?? 0) + n;
   // the rats round their nests (chapter 2): each keeps what it was doing that matters, or is a fresh one (core/rats.ts)
   state.rats = savedRats(data.rats, state, layout);
   // the goblin camp (chapter 2): cleared for good only with the chief's torn map to show for it (carried, stored, or its
@@ -259,14 +469,18 @@ export function readSave(raw: string, layout: Layout): Loaded {
   state.health = typeof data.health === 'number' && Number.isFinite(data.health) && data.health > 0 ? Math.min(data.health, max) : max;
   // the firewood pile's logs: a whole number up to what it holds, and none unless it stands
   if (state.built.includes('woodpile') && Number.isSafeInteger(data.woodpile) && data.woodpile > 0) state.woodpile = Math.min(data.woodpile, WOODPILE.max);
-  state.nodes = { ...fresh.nodes, ...Object.fromEntries(Object.entries(data.nodes ?? {}).filter(([id]) => id in fresh.nodes)) } as GameState['nodes'];
+  // the rocks and trees: each the layout has, run out until a finite time (or not)
+  const nodes = isRecord(data.nodes) ? data.nodes : {};
+  state.nodes = Object.fromEntries(Object.entries(fresh.nodes).map(([id, n]) => {
+    const v = nodes[id], until = isRecord(v) ? v.depletedUntil : undefined;
+    return [id, finite(until) ? { id, depletedUntil: until } : n];
+  }));
   // his thoughts and the pages of his book (the survival book): checked, or what an older save's progress implies
   state.thoughts = savedThoughts(data.thoughts, state, layout);
-  // a position that is broken, or now inside a building or off the land, goes back to the start
+  // where he stands, and the way he was walking: a broken position starts him again; one where something now stands, or
+  // a way that something now stands across, is moved out to open ground round it (savedWhere)
+  savedWhere(state, layout);
   const p = state.player;
-  if (!Number.isFinite(p.pos?.x) || !Number.isFinite(p.pos?.z) || !walkGrid(state, layout).walkable(p.pos)) {
-    p.pos = { ...layout.start }; p.path = []; p.task = { kind: 'idle' }; p.pending = null; p.trip = null;
-  }
   // a task or destination pointing at something that no longer exists (or a pickup taken for good) is dropped; a
   // stone or branch that isn't back yet is kept: gathering, he walks to it or waits beside it
   const pickupThere = (id: string) => (layout.pickups ?? []).some(x => x.id === id) && (!(id in state.taken) || state.taken[id] !== null);
@@ -336,12 +550,21 @@ export function readSave(raw: string, layout: Layout): Loaded {
   return { state, savedAt, closedAt };
 }
 
-/** The saved game and when it was saved, or null when there is none (or it can't be read). */
+/** Where a save that can't be read is kept (only the first such: a later one never writes over it), so a new game's
+ *  first save doesn't lose it for good: it can be looked at, and perhaps mended, later. */
+export const UNREAD_KEY = `${SAVE_KEY}.unread`;
+
+/** The saved game and when it was saved, or null when there is none (or it can't be read: then it is kept under
+ *  UNREAD_KEY first, as a new game is about to save over it). */
 export function load(storage: Storage, layout: Layout): Loaded | null {
+  let raw: string | null = null;
   try {
-    const raw = storage.get(SAVE_KEY);
+    raw = storage.get(SAVE_KEY);
     return raw ? readSave(raw, layout) : null;
-  } catch { return null; }
+  } catch {
+    try { if (raw && !storage.get(UNREAD_KEY)) storage.set(UNREAD_KEY, raw); } catch { /* storage blocked */ }
+    return null;
+  }
 }
 
 /** Save the game, saying it had been played up to `savedAt` (real time, ms since 1970: see serialize), and, saved

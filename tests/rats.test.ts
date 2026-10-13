@@ -817,7 +817,7 @@ describe('saving the rats', () => {
     const raw = JSON.parse(serialize(s.state, Date.now()));
     delete raw.rats;
     raw.version = 10;                                          // as 0.0.22 to 0.0.24 wrote it
-    expect(SAVE_VERSION).toBe(11);
+    expect(SAVE_VERSION).toBe(12);
     const back = readSave(JSON.stringify(raw), CAMP).state;
     expect(back.rats).toEqual(Object.fromEntries(ratsOf(CAMP).map(r => [r.id, expect.objectContaining({ health: RAT.health, downUntil: null, pos: r.home, to: null, bite: null })])));
     expect(currentGoal(back)).toBe(GOALS[at('meal') + 1]);

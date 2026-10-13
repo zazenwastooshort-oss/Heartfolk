@@ -4,7 +4,6 @@ import type { SkillId, ToolId } from '../data/skills';
 import type { GatherId, PickupKind } from '../data/pickups';
 import type { MakeId } from '../data/making';
 import type { CombatStyle } from '../data/combat';
-import type { Misfit } from './building';
 
 export type GameEvent =
   | { type: 'strike'; nodeId: string }
@@ -115,9 +114,9 @@ export type GameEvent =
   | { type: 'begun'; make: MakeId }
   /** what he builds went up a stage (1: its frame is up, 2: half built; STAGE_NAMES) */
   | { type: 'buildStage'; make: MakeId; stage: number }
-  /** he can't begin `make`: it isn't to be built yet ('locked'), he needs Carpentry level `need` ('level'), or it
-   *  doesn't fit where it was placed ('fit', and why: core/building.ts) */
-  | { type: 'cantBuild'; make: MakeId; reason: 'locked' | 'level' | 'fit'; need?: number; misfit?: Misfit }
+  /** he can't begin `make`: it isn't to be built yet ('locked': the step before it, or the storage chest, doesn't stand
+   *  yet). Carpentry is just another skill: no level is ever needed (the owner, 13 Oct 2026) */
+  | { type: 'cantBuild'; make: MakeId; reason: 'locked' }
   /** chopping birch, he peeled a strip of bark off the log too (it went into his backpack: itemGained) */
   | { type: 'barkPeeled' }
   /** (systems/needs.ts) hungry, he ate `items` (from his backpack, or at the chest from the chest), and is `fullness`

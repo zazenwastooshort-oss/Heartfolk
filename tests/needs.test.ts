@@ -31,6 +31,7 @@ import { cued } from '../src/core/thoughts';
 import { awayText } from '../src/ui/away';
 import { NEEDS_TEXT } from '../src/ui/needs';
 import { bedtimeText, hourLabel } from '../src/ui/bedtime';
+import { MAKES } from '../src/data/making';
 
 const at = (day: number, hour: number) => (day + hour / 24) * DAY_SECONDS;
 const hourOf = (time: number) => dayFraction(time) * 24;
@@ -447,21 +448,22 @@ describe('bedtime', () => {
   });
 
   it('mid-build: he leaves what he builds for bed, and goes back to it once he is up', () => {
+    // (the camp build: the woodshed, the firewood pile's upgrade, in place of the log bench there was)
     const s = campAt(AFTER_FOOD, { hour: 0.5 });
-    s.state.bank = { birch_logs: 20, branch: 6 };
+    s.state.bank = { birch_logs: 30, bark: 6 };
     s.state.player.pos = { x: 3, z: -1 };
-    send(s, { type: 'build', id: 'log_bench', at: { x: -1, z: -2.5 }, turn: 0 });
-    runUntil(s, () => (s.state.underway.log_bench ?? 0) > 3, 60);
+    send(s, { type: 'build', id: 'woodshed' });
+    runUntil(s, () => (s.state.underway.woodshed ?? 0) > 3, 60);
     expect(s.state.player.task.kind).toBe('raise');
     s.state.time = at(1, 1) - 1;                                         // a moment before his bedtime
     runUntil(s, () => of(s, 'bedtime').length > 0, 120);
-    const worked = s.state.underway.log_bench!;
+    const worked = s.state.underway.woodshed!;
     expect(worked).toBeGreaterThan(0);
-    expect(s.state.needs.bed!.back).toEqual({ raise: 'log_bench' });
+    expect(s.state.needs.bed!.back).toEqual({ raise: 'woodshed' });
     runUntil(s, () => of(s, 'awake').length > 0, DAY_SECONDS);
-    expect(s.state.underway.log_bench).toBe(worked);
-    runUntil(s, () => s.state.built.includes('log_bench'), 120);
-    expect(s.state.built).toContain('log_bench');
+    expect(s.state.underway.woodshed).toBe(worked);
+    runUntil(s, () => s.state.built.includes('woodshed'), MAKES.woodshed.time + 30);
+    expect(s.state.built).toContain('woodshed');
   });
 
   it('mid-fight, a rat or a goblin: the fight is finished first, then bed, then back to them', () => {
@@ -526,28 +528,28 @@ describe('bedtime', () => {
   });
 
   it('a Build start tapped while he sleeps is kept (in a save too), and he sets about it when he wakes', () => {
+    // (the camp build: the woodshed in place of the log bench there was; nothing is placed, so a kept build is its id)
     const s = campAt(AFTER_FOOD, { hour: 0.99 });
-    s.state.bank = { birch_logs: 20, branch: 6 };
+    s.state.bank = { birch_logs: 30, bark: 6 };
     runUntil(s, () => s.state.player.task.kind === 'sleep', 120);
-    const spot = { x: -1, z: -2.5 };
-    send(s, { type: 'build', id: 'log_bench', at: spot, turn: 5 });
+    send(s, { type: 'build', id: 'woodshed' });
     expect(of(s, 'whenAwake')).toHaveLength(1);
-    expect(s.state.needs.later).toMatchObject({ type: 'build', id: 'log_bench', at: spot });
-    expect(s.state.underway.log_bench).toBeUndefined();
-    // a save keeps it, its turn one of the four
+    expect(s.state.needs.later).toEqual({ type: 'build', id: 'woodshed' });
+    expect(s.state.underway.woodshed).toBeUndefined();
+    // a save keeps it
     const loaded = deserialize(serialize(s.state), CAMP);
-    expect(loaded.needs.later).toEqual({ type: 'build', id: 'log_bench', at: spot, turn: 1 });
+    expect(loaded.needs.later).toEqual({ type: 'build', id: 'woodshed' });
     const edit = (later: unknown) => { const r = JSON.parse(serialize(s.state)); r.needs.later = later; return deserialize(JSON.stringify(r), CAMP).needs.later; };
-    expect(edit({ type: 'build', id: 'log_bench', at: { x: 'a', z: 1 }, turn: 2 })).toEqual({ type: 'build', id: 'log_bench' });
-    expect(edit({ type: 'build', id: 'log_bench', at: spot, turn: 'x' })).toEqual({ type: 'build', id: 'log_bench', at: spot, turn: 0 });
-    expect(edit({ type: 'build', id: 'log_bench', at: spot, turn: -3 })).toEqual({ type: 'build', id: 'log_bench', at: spot, turn: 1 });
-    expect(edit({ type: 'build', id: 'nope', at: spot })).toBeNull();
+    // one kept by an older game, with where it was placed: its id only
+    expect(edit({ type: 'build', id: 'woodshed', at: { x: -1, z: -2.5 }, turn: 2 })).toEqual({ type: 'build', id: 'woodshed' });
+    expect(edit({ type: 'build', id: 'nope' })).toBeNull();
+    expect(edit({ type: 'build', id: 7 })).toBeNull();
     // he wakes, and sets about it from the save
     const t = { ...s, state: loaded, log: [] as GameEvent[] };
     t.events.on(e => t.log.push(e));
     runUntil(t, () => of(t, 'awake').length > 0, DAY_SECONDS);
     expect(hourOf(loaded.time)).toBeCloseTo(wakeHour(SLEEP.bedtime), 2);
-    expect(loaded.underway.log_bench).toBeDefined();
+    expect(loaded.underway.woodshed).toBeDefined();
     runUntil(t, () => loaded.player.task.kind === 'raise', 60);
     expect(loaded.player.task.kind).toBe('raise');
   });

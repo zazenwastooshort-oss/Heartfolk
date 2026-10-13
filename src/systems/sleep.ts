@@ -22,7 +22,7 @@ export { canSleep };
 export const isRested = (state: GameState) => state.time < state.restedUntil;
 
 /** How much more often gathering yields while he is well rested: SLEEP.bonus more, or more in a better shelter (the
- *  lean-to, the log hut: restBonus in core/building.ts). */
+ *  wall tent, the log cabin: restBonus in core/building.ts). */
 export const restedFactor = (state: GameState) => isRested(state) ? 1 + restBonus(state) : 1;
 
 /** How many times faster than real time play goes: SLEEP.speed while he sleeps, else 1 (main.ts; never in a catch-up). */

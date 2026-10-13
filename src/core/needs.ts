@@ -19,7 +19,7 @@ import { makeDef, type MakeId } from '../data/making';
  *  commands that send him somewhere (systems/commands.ts has them all), the last one tapped. */
 export type Later = { type: 'walk'; to: Vec2 } | { type: 'work'; nodeId: string } | { type: 'visit'; id: string; at?: Vec2 }
   | { type: 'pickup'; id: string } | { type: 'make'; id: MakeId } | { type: 'fight'; target: string } | { type: 'cook' }
-  | { type: 'next' } | { type: 'build'; id: MakeId; at?: Vec2; turn?: number };
+  | { type: 'next' } | { type: 'build'; id: MakeId };
 
 /** In bed: what he goes back to when he gets up (null for nothing), and when he gets up (in-game seconds; null while he
  *  is on his way to bed sent early by a tap on the shelter: set once he lies down). */
@@ -164,11 +164,8 @@ export function savedLater(v: unknown, state: GameState, layout: Layout): Later 
     case 'fight': { const id = str('target'); return id ? { type: 'fight', target: id } : null; }
     case 'cook': return { type: 'cook' };
     case 'next': return { type: 'next' };
-    case 'build': {
-      const id = make('id'), at = spot(v.at);
-      if (!id) return null;
-      return at ? { type: 'build', id, at, turn: Number.isSafeInteger(v.turn) ? ((v.turn as number) % 4 + 4) % 4 : 0 } : { type: 'build', id };
-    }
+    // (since the camp build nothing is placed: a build tap kept from before has its id only)
+    case 'build': { const id = make('id'); return id ? { type: 'build', id } : null; }
     default: return null;
   }
 }

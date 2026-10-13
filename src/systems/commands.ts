@@ -56,10 +56,10 @@ export type Command =
    *  step (systems/nextstep.ts), as tapping the right thing in the world would; already on it, or with nothing to do
    *  yet, he says so */
   | { type: 'next' }
-  /** build something in stages (the Build list, data/building.ts): begin it, placed `at` turned `turn` quarter turns
-   *  for something the player places (what it needs is taken then), or carry on with it once begun (a tap on it). Not
-   *  to be built yet, without the Carpentry level or everything it needs, or not fitting there, he says so and stays */
-  | { type: 'build'; id: MakeId; at?: Vec2; turn?: number }
+  /** build something in stages at its spot (the Build list, data/building.ts): begin it (what it needs is taken then),
+   *  or carry on with it once begun (a tap on it). Not to be built yet, or without everything it needs, he says so and
+   *  stays */
+  | { type: 'build'; id: MakeId }
   /** (13 Oct 2026) his bedtime, an hour of SLEEP.bedtimes (Settings); nothing else stops */
   | { type: 'bedtime'; hour: number };
 

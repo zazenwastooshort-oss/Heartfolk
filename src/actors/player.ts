@@ -6,12 +6,13 @@ import type { EventBus } from '../core/events';
 import { targetOf } from '../core/targets';
 import type { Layout, NodeSpot, Site, Vec2 } from '../world/layout';
 import { doorOf, siteOf } from '../world/layout';
-import { navFor, type NavGrid } from '../world/nav';
+import type { NavGrid } from '../world/nav';
+import { reachOf, stepPlace } from '../world/steps';
 import { GAIT, SWINGS } from '../data/animation';
 import { RESOURCES } from '../data/skills';
 import { pauseFor } from '../data/pickups';
 import { BUILD_REACH, MAKES, makeDef, type MakeId } from '../data/making';
-import { buildSite, placedRects, walkGrid } from '../core/building';
+import { openOnceBuilt, walkGrid } from '../core/building';
 
 export const WALK_SPEED = GAIT.speed;  // m/s
 const TURN_RATE = 12;                  // how quickly heading catches up with the walking direction
@@ -127,14 +128,14 @@ export function goMake(state: GameState, layout: Layout, id: MakeId): boolean {
   if (def.at === 'here') return setPath(state, [{ ...p.pos }], pending);
   const site = siteOf(layout, def.at);
   if (!site) return false;
-  return goBeside(state, layout, site, navFor(layout, [...state.built, id], placedRects(state)), pending);
+  return goBeside(state, layout, site, openOnceBuilt(state, layout, id), pending);
 }
 
-/** Walk to stand beside something built in stages (systems/building.ts: placed by the player, or the shelter's upgrades
- *  at the tent's spot), on the side nearest him; already there, he stays. It is in the way from when it is begun. */
+/** Walk to stand beside something built in stages (systems/building.ts: the camp's upgrades, each at its spot), just
+ *  beyond its ring, on the side nearest him; already there, he stays. It is in the way from when it is begun. */
 export function goBuild(state: GameState, layout: Layout, id: MakeId): boolean {
-  const site = buildSite(state, layout, id);
-  return !!site && goBeside(state, layout, site, walkGrid(state, layout), { kind: 'raise', id });
+  const place = stepPlace(layout, id);
+  return !!place && goBeside(state, layout, { pos: place.pos, rot: place.rot, radius: reachOf(id) }, walkGrid(state, layout), { kind: 'raise', id });
 }
 
 /** Where he faces while making something: its site, or straight ahead for something made where he stands. */
@@ -206,7 +207,7 @@ export function updatePlayer(state: GameState, layout: Layout, dt: number, event
     const at = task.kind === 'gather' ? layout.nodes.find(n => n.id === task.nodeId)?.pos
       : task.kind === 'pickup' ? layout.pickups?.find(x => x.id === task.id)?.pos
       : task.kind === 'make' ? makeAt(layout, task.id) : task.kind === 'fight' ? targetOf(state, layout, task.target)?.pos
-      : task.kind === 'raise' ? buildSite(state, layout, task.id)?.pos
+      : task.kind === 'raise' ? stepPlace(layout, task.id)?.pos
       : siteOf(layout, 'hearth')?.pos;
     if (at && len(sub(at, p.pos)) > 1e-3) p.heading = angleToward(p.heading, headingOf(sub(at, p.pos)), TURN_RATE * dt);
   }

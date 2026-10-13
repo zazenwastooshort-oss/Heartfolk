@@ -19,8 +19,7 @@ import type { EventBus } from '../core/events';
 import type { Rng } from '../core/rng';
 import type { Layout, NestSpot, Vec2 } from '../world/layout';
 import { siteOf } from '../world/layout';
-import { navFor } from '../world/nav';
-import { placedRects } from '../core/building';
+import { walkGrid } from '../core/building';
 import { facing, freshRat, ratsOf, ratSpot, type RatSpot } from '../core/rats';
 import { targetOf } from '../core/targets';
 import { goVisit } from '../actors/player';
@@ -102,7 +101,7 @@ export function stockUp(state: GameState, events: EventBus, store = false): void
 /** Where he wakes after being knocked out: in front of the shelter, facing the fire; with no shelter, beside the fire,
  *  facing it; with neither, where a new game starts. */
 export function wakeSpot(state: GameState, layout: Layout): { pos: Vec2; heading: number } {
-  const nav = navFor(layout, state.built, placedRects(state)), fire = siteOf(layout, 'hearth'), tent = siteOf(layout, 'tent');
+  const nav = walkGrid(state, layout), fire = siteOf(layout, 'hearth'), tent = siteOf(layout, 'tent');
   const lit = !!fire && state.built.includes('campfire');
   const beside = (site: { pos: Vec2; radius: number }, towards: Vec2, gap: number) => {
     const d = dist(site.pos, towards) || 1;
@@ -194,7 +193,7 @@ export interface Potterer { pos: Vec2; to: Vec2 | null; restUntil: number; headi
  *  a straight line from it, and apart from the others (`others()`: where they are and where they move to); or null
  *  when no such spot comes up just now. `index` sets its moves apart from the others'. */
 function nextSpot(state: GameState, layout: Layout, ground: Ground, index: number, r: Potterer, others: () => readonly Potterer[], pace: Pace): Vec2 | null {
-  const nav = navFor(layout, state.built, placedRects(state));
+  const nav = walkGrid(state, layout);
   for (let k = 0; k < 6; k++) {
     const a = noise(index + 1, state.time + k * 0.37) * Math.PI * 2;
     const len = pace.hop[0] + noise(state.time + 0.5, index + k + 1) * (pace.hop[1] - pace.hop[0]);

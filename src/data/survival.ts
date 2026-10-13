@@ -93,22 +93,30 @@ export const MAKE_NOTES: Partial<Record<MakeId, string>> = {
   hide_cap: 'Two hides stitched into a snug cap.',
   hide_vest: 'Four hides to cover your chest.',
   hide_shield: 'Hides stretched over a frame of branches, strapped to your arm.',
-  log_bench: 'Two logs on short stumps. Somewhere to sit by the fire.',
-  workbench: 'Split logs for a top, log legs, all lashed with fibre. Better than working on your knees.',
-  lean_to: 'A sloping frame of logs, roofed with bark and tied with fibre. Drier than the tarp.',
-  log_hut: 'Log walls with clay pressed into the gaps, a roof and a chimney. A proper home.',
+  wall_tent: 'A squared frame of logs round the old canvas, lashed with fibre, a plank floor and a porch. Snug and dry.',
+  log_cabin: 'Round logs notched at the corners, clay in the gaps, a loft and a stone chimney. A proper home.',
+  stone_hearth: 'A raised ring of stones set in clay round the fire, a spit across it and logs to sit on.',
+  woodshed: 'A bark roof on four posts over the firewood, to keep it dry, and a block to split logs on.',
 };
 
-/** Where things are built, for the Making pages ("Built at the fire spot"); 'here' is wherever he stands, 'placed'
- *  wherever the player sets it down. A site with no words here says nothing of where. */
-export const SITE_WHERE: Partial<Record<SiteId | 'here' | 'placed', string>> = {
+/** Where things are built, for the Making pages ("Built at the fire spot"); 'here' is wherever he stands. A site with no
+ *  words here says nothing of where. */
+export const SITE_WHERE: Partial<Record<SiteId | 'here', string>> = {
   hearth: 'Built at the fire spot.',
   tent: 'Built at the shelter spot by the fire.',
   chest: 'Built beside the shelter.',
   woodpile: 'Stacked beside the fire.',
   dummy: 'Built on the grass west of the fire.',
   here: 'Made wherever you stand.',
-  placed: 'Built wherever you set it down.',
+};
+
+/** Where one thing is built, for its Making page, when its site's words (SITE_WHERE) don't say it best: the camp's
+ *  upgrades, each in place of the thing before it. */
+export const MAKE_WHERE: Partial<Record<MakeId, string>> = {
+  wall_tent: 'Built round the tent, at the shelter spot.',
+  log_cabin: 'Built in place of the wall tent, at the shelter spot.',
+  stone_hearth: 'Built round the campfire.',
+  woodshed: 'Built over the firewood pile, beside the fire.',
 };
 
 /** Journal lines on a page of the book. */

@@ -5,23 +5,13 @@
 // full backpack is made room in by dropping things he can find again (canDrop); dropping always works.
 import { canDrop, type GameState } from '../core/state';
 import type { EventBus } from '../core/events';
-import type { Layout, Vec2 } from '../world/layout';
-import { doorOf, siteOf } from '../world/layout';
+import { isStore, stores } from '../core/camp';
 import { BACKPACK_SLOTS, KEEP_FOOD } from '../data/hauling';
 import { FOOD } from '../data/food';
 import { STOKE, WOODPILE } from '../data/fire';
 
-/** The places he can empty his backpack, by id, with where he stands to do it: each bank's door (the village), and
- *  the camp's storage chest once it stands ('chest', the id of what he built; he stands beside it). */
-export function stores(state: GameState, layout: Layout): { id: string; pos: Vec2 }[] {
-  const out = layout.buildings.filter(b => b.kind === 'bank').map(b => ({ id: b.id, pos: doorOf(b) }));
-  const chest = siteOf(layout, 'chest');
-  if (chest && state.built.includes('chest')) out.push({ id: 'chest', pos: chest.pos });
-  return out;
-}
-
-/** Whether `id` (a building, or something he built) is somewhere to empty the backpack: a bank, or the built chest. */
-export const isStore = (state: GameState, layout: Layout, id: string) => stores(state, layout).some(x => x.id === id);
+// where the backpack can be emptied (the banks, the camp's chest): core/camp.ts, offered here as before
+export { isStore, stores };
 
 /** Slots in use. */
 export const backpackCount = (state: GameState) => Object.values(state.player.backpack).reduce((a, n) => a + n, 0);

@@ -10,19 +10,20 @@ import type { GearId } from './combat';
 /** Places in a layout where something is built (siteOf in world/layout.ts): 'hearth' is the camp's fire spot, 'tent'
  *  the camp's tent spot, 'chest' the camp's chest spot beside the shelter, 'woodpile' the spot beside the fire for the
  *  firewood pile, 'dummy' the training dummy's spot beside the camp (0.0.22). A new site is a name here and a line in
- *  siteOf. */
+ *  siteOf. Each thing built at a spot, and each of its upgrades, has its own shape there (SHAPES in data/building.ts). */
 export type SiteId = 'hearth' | 'tent' | 'chest' | 'woodpile' | 'dummy';
 
 export type MakeId = 'campfire' | 'stone_axe' | 'woodpile' | 'shelter' | 'stone_pickaxe' | 'chest' | 'dummy' | 'stone_club' | 'rod'
   | 'hide_cap' | 'hide_vest' | 'hide_shield'
-  // built in stages, training Carpentry (data/building.ts): placed where the player puts them, or the shelter's upgrades
-  | 'log_bench' | 'workbench' | 'lean_to' | 'log_hut';
+  // the camp's upgrades (the camp build, 13 Oct 2026), built in stages, training Carpentry (data/building.ts): the tent
+  // becomes a wall tent, then a log cabin; the campfire a stone hearth; the firewood pile a woodshed
+  | 'wall_tent' | 'log_cabin' | 'stone_hearth' | 'woodshed';
 
 /** name: what it is called ("Campfire"). verb: what making it is called, for the hover text over its site
  *  ("Build|Campfire") and the goal card's button ("Build the campfire", "Make the stone axe").
  *  needs: the items it uses up, taken from his backpack first, then the bank.
- *  at: the site where it will stand (he works beside it), or 'here': made wherever he stands (a tool), or 'placed': where
- *  the player puts it down (the Build list; GameState.placed), built there in stages (data/building.ts).
+ *  at: the site where it will stand (he works beside it), or 'here': made wherever he stands (a tool). Every spot is
+ *  fixed (the owner, 13 Oct 2026: "sure, fixed location").
  *  time: seconds he works at it.
  *  gives: a structure, which stands at its site from then on (GameState.built) and is in the way like the village's
  *  hearth, or a tool he owns from then on (GameState.tools), or (0.0.22) gear he wears from then on (GameState.equipment;
@@ -33,7 +34,7 @@ export type MakeId = 'campfire' | 'stone_axe' | 'woodpile' | 'shelter' | 'stone_
 export interface MakeDef {
   id: MakeId; name: string; verb: string;
   needs: Record<string, number>;
-  at: SiteId | 'here' | 'placed';
+  at: SiteId | 'here';
   time: number;
   gives: { kind: 'structure' } | { kind: 'tool'; tool: ToolId } | { kind: 'gear'; gear: GearId };
   done: string;
@@ -57,10 +58,11 @@ export const MAKES: Record<MakeId, MakeDef> = {
     gives: { kind: 'structure' }, done: 'Your firewood pile is stacked by the fire. At nightfall he stokes the fire from it.',
     pile: 'birch_logs',
   },
-  // the tarp over a frame of logs, the planks for a floor, at the tent's spot facing the fire
+  // the tarp over a frame of logs, the planks for a floor, at the tent's spot facing the fire: a tent, the first of the
+  // camp's shelters (its goal is still "A shelter"; the wall tent and the log cabin come after it)
   shelter: {
-    id: 'shelter', name: 'Shelter', verb: 'Build', needs: { tarp: 1, plank: 4, birch_logs: 10 }, at: 'tent', time: 6,
-    gives: { kind: 'structure' }, done: 'Your shelter is up. Somewhere dry to sleep at last.',
+    id: 'shelter', name: 'Tent', verb: 'Build', needs: { tarp: 1, plank: 4, birch_logs: 10 }, at: 'tent', time: 6,
+    gives: { kind: 'structure' }, done: 'Your tent is up. Somewhere dry to sleep at last.',
   },
   // like the axe, with a heavier, pointed stone for breaking rock
   stone_pickaxe: {
@@ -106,28 +108,33 @@ export const MAKES: Record<MakeId, MakeDef> = {
     id: 'hide_shield', name: 'Hide shield', verb: 'Make', needs: { rat_hide: 3, branch: 2 }, at: 'here', time: 4,
     gives: { kind: 'gear', gear: 'hide_shield' }, done: 'You made a hide shield and strapped it to your arm. Your hide armour is all on.',
   },
-  // built in stages over `time`, training Carpentry (data/building.ts, systems/building.ts): the Build list has them
-  // once the camp is set up. What each needs is taken when he starts on it. A log bench and a workbench go where the
-  // player places them; the lean-to and then the log hut go up at the tent's spot, in place of the shelter before
-  log_bench: {
-    id: 'log_bench', name: 'Log bench', verb: 'Build', needs: { birch_logs: 4, branch: 2 }, at: 'placed', time: 30,
-    gives: { kind: 'structure' }, done: 'Your log bench is built. A good spot to sit by the fire.',
+  // the camp's upgrades (the camp build, 13 Oct 2026): built in stages over `time`, training Carpentry (data/building.ts,
+  // systems/building.ts), each in place of the step before it at that step's spot, bigger. What each needs is taken
+  // when he begins it. The Build list has them once the thing they upgrade and the storage chest stand.
+  // a squared timber frame round the old tent's canvas, a raised plank floor, a porch, guy ropes and a stovepipe
+  wall_tent: {
+    id: 'wall_tent', name: 'Wall tent', verb: 'Build', needs: { birch_logs: 12, fibre: 8 }, at: 'tent', time: 120,
+    gives: { kind: 'structure' }, done: 'Your wall tent is up: a proper frame, a plank floor and a porch. He sleeps better in it.',
   },
-  workbench: {
-    id: 'workbench', name: 'Workbench', verb: 'Build', needs: { birch_logs: 6, fibre: 4 }, at: 'placed', time: 45,
-    gives: { kind: 'structure' }, done: 'Your workbench is built. Carpentry will be done here one day.',
+  // round notched logs, a loft, a stone chimney and a covered porch, in place of the wall tent
+  log_cabin: {
+    id: 'log_cabin', name: 'Log cabin', verb: 'Build', needs: { birch_logs: 30, clay: 10, stone: 12 }, at: 'tent', time: 240,
+    gives: { kind: 'structure' }, done: 'Your log cabin is built. Thick walls and a warm chimney: he sleeps best of all here.',
   },
-  lean_to: {
-    id: 'lean_to', name: 'Lean-to', verb: 'Build', needs: { birch_logs: 8, bark: 6, fibre: 6 }, at: 'tent', time: 90,
-    gives: { kind: 'structure' }, done: 'Your lean-to is built where the tent stood. Snug and dry: he sleeps better now.',
+  // a raised ring of stones round the fire, a spit with fish over it and log seats, in place of the campfire
+  stone_hearth: {
+    id: 'stone_hearth', name: 'Stone hearth', verb: 'Build', needs: { stone: 12, clay: 4 }, at: 'hearth', time: 90,
+    gives: { kind: 'structure' }, done: 'Your stone hearth is built round the fire, with a spit and somewhere to sit.',
   },
-  log_hut: {
-    id: 'log_hut', name: 'Log hut', verb: 'Build', needs: { birch_logs: 20, clay: 10 }, at: 'tent', time: 180,
-    gives: { kind: 'structure' }, done: 'Your log hut is built. Real walls at last: he sleeps best of all now.',
+  // a bark roof over the firewood, its logs stacked end on, and a chopping block, in place of the firewood pile
+  woodshed: {
+    id: 'woodshed', name: 'Woodshed', verb: 'Build', needs: { birch_logs: 10, bark: 6 }, at: 'woodpile', time: 90,
+    gives: { kind: 'structure' }, done: 'Your woodshed is built. The firewood stays dry under its roof.',
   },
 };
 
-/** How far beyond the edge of a site he stands while he builds there. */
+/** How far beyond the edge of a site he stands while he makes something there (the camp's first five, until they are
+ *  built in stages too), or builds something whose shape has no stands (data/building.ts SHAPES). */
 export const BUILD_REACH = 0.6;
 
 /** The row for `id`, or null for one that isn't in MAKES (yet). */

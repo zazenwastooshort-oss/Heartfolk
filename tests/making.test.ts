@@ -114,7 +114,7 @@ describe('the things to make (data/making.ts)', () => {
   });
 
   it('has the shelter: the tarp, planks and logs, built at the camp tent spot in a few seconds, a structure', () => {
-    expect(SHELTER).toMatchObject({ name: 'Shelter', verb: 'Build', needs: { tarp: 1, plank: 4, birch_logs: 10 }, at: 'tent', gives: { kind: 'structure' } });
+    expect(SHELTER).toMatchObject({ name: 'Tent', verb: 'Build', needs: { tarp: 1, plank: 4, birch_logs: 10 }, at: 'tent', gives: { kind: 'structure' } });
     expect(SHELTER.time).toBeGreaterThan(1);
     expect(SHELTER.time).toBeLessThan(10);
     expect(siteOf(CAMP, 'tent')).toEqual(CAMP.camp!.tent);
@@ -352,7 +352,7 @@ describe('saving the campfire and the goals', () => {
   });
 
   it('a version 5 save that already salvaged the wreck counts it done, and building the fire keeps it done', () => {
-    expect(SAVE_VERSION).toBe(11);
+    expect(SAVE_VERSION).toBe(12);
     const s = readyForFire();
     const { built: _b, goalsDone: _g, ...rest } = JSON.parse(serialize(s.state));
     const v5 = { ...rest, version: 5 };

@@ -4,7 +4,8 @@
 // planks, a torn tarp, a smashed crate and his book, strewn along the bank. Stones and branches lie round the clearing,
 // and (for building, data/building.ts) reeds and clay along the river bank.
 // The camp starts bare: the campfire, the firewood pile, the shelter (a tent), the storage chest and (0.0.22) the
-// training dummy have their spots here and are built later. Since chapter 2 berry bushes grow in a patch east of the
+// training dummy have their spots here and are built later; each spot keeps room for its largest upgrade (the stone
+// hearth, the woodshed, the log cabin: SHAPES in data/building.ts). Since chapter 2 berry bushes grow in a patch east of the
 // fire, fish rise in the pool and along the river, and rats live round a nest in the edge of the woods downriver; past
 // them, where the river leaves the valley, goblins have made a camp in a small clearing by the bank, blocking the way
 // on. The village lies far up the river and comes much later (world/layout.ts, VILLAGE).
@@ -37,8 +38,10 @@ const FIRE = W(2.4, 3.0), TENT = W(-1.6, 5.8), TENT_SIZE = { w: 1.9, d: 2.4, rad
 // stay clear of the tent's (1.75 m and 1.92 m out from the tent's middle; the chest's 0.8 m and 0.97 m).
 const CHEST = W(0.9, 7.3), CHEST_SIZE = { w: 0.9, d: 0.56, radius: 0.6 };
 // where the firewood pile is stacked (0.0.21): beside the fire on its east side, end on to it, with room to walk
-// between them. Logs on two bearers, 1.2 m along and 0.6 across; its ring reaches just round its ends.
-const WOODPILE = W(4.6, 2.2), WOODPILE_SIZE = { w: 1.2, d: 0.6, radius: 0.75 };
+// between them. Logs on two bearers, 1.2 m along and 0.6 across; its ring reaches just round its ends. Since the camp
+// build (13 Oct 2026) 0.9 m further out along its line from the fire than before (4.6, 2.2), so the woodshed it
+// becomes and the stone hearth's seats have room between them (tests/layout.test.ts).
+const WOODPILE = W(5.45, 1.89), WOODPILE_SIZE = { w: 1.2, d: 0.6, radius: 0.75 };
 // where the training dummy stands (0.0.22): on the open grass west of the fire, between the shelter and the pool's bank,
 // clear of the camp's other spots and of the stones and branches, with room to walk all round it. A post with its
 // crossbar running east to west, side on to the camera as it starts (looking north), so it reads as a dummy (he
@@ -139,8 +142,9 @@ export const CAMP: Layout = {
     ['tarp', -12.0, -2.6, 0.8],
     ['crate', -10.4, -5.6, 0.5],
     // stones round the clearing and along the bank
+    // (the fifth lay at (-3.8, 7.6) before the camp build, 13 Oct 2026: where the log cabin's back wall now goes)
     ['stone', -9.6, -2.0, 0], ['stone', -3.0, -9.6, 1.2], ['stone', 3.6, -6.2, 2.1], ['stone', 5.2, 4.4, 0.4],
-    ['stone', -3.8, 7.6, 2.8], ['stone', 11.8, -11.4, 1.7], ['stone', -13.6, 6.4, 0.9],
+    ['stone', -5.0, 8.2, 2.8], ['stone', 11.8, -11.4, 1.7], ['stone', -13.6, 6.4, 0.9],
     // branches fallen under the birches and the bushes
     ['branch', 7.0, -6.6, 0.4], ['branch', 10.4, -1.4, 2.2], ['branch', 11.2, 7.6, 1.3], ['branch', -4.6, 9.4, 2.9],
     ['branch', -9.6, 4.2, 0.7], ['branch', 2.4, 12.4, 1.8],

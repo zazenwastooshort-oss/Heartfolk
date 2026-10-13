@@ -16,13 +16,13 @@ import type { Layout } from '../world/layout';
 import { siteOf } from '../world/layout';
 import { isNight, nightOf } from '../core/clock';
 import { goVisit } from '../actors/player';
+import { canStoke } from '../core/camp';
 import { STOKE, WOODPILE } from '../data/fire';
 import { backpackCount, backpackFull, deposit, isStore, stopStoking, useUp } from './backpack';
 import { backToWork } from './hauling';
 
-/** Whether the fire is his to stoke: the campfire stands, with the firewood pile or the storage chest to take logs from. */
-export const canStoke = (state: GameState, layout: Layout) =>
-  !!siteOf(layout, 'hearth') && state.built.includes('campfire') && (isBuilt(state, layout, 'woodpile') || isBuilt(state, layout, 'chest'));
+// whether the fire is his to stoke (the campfire, with the pile or the chest to take logs from): core/camp.ts
+export { canStoke };
 
 const isBuilt = (state: GameState, layout: Layout, id: 'woodpile' | 'chest') => !!siteOf(layout, id) && state.built.includes(id);
 

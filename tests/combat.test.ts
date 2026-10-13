@@ -572,7 +572,7 @@ describe('saving practice', () => {
     delete raw.health; delete raw.equipment; delete raw.combatStyle;
     raw.skills = { mining: 900, woodcutting: 2400 };
     const back = readSave(JSON.stringify(raw), CAMP).state;
-    expect(SAVE_VERSION).toBe(11);
+    expect(SAVE_VERSION).toBe(12);
     expect(back.version).toBe(SAVE_VERSION);
     expect(allGoalsDone(back)).toBe(false);
     expect(currentGoal(back)).toBe(GOALS[at('chest') + 1]);

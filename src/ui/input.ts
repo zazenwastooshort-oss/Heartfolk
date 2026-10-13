@@ -1,9 +1,7 @@
 // Taps and drags on the scene: a tap sends a command (walk here, work this rock or tree, visit this building or land,
 // gather these or pick this up, build here, empty the backpack into the storage chest; since chapter 2 fish here, pick
 // these berries, cook at the campfire, practise on the training dummy, fight a rat; carry on building something half built);
-// a drag turns the camera. Wheel and pinch zoom. Arrow keys turn the camera too. While the Build window places
-// something (ui/build.ts, PlacingHooks) a tap or a click on the ground moves its see-through copy there instead of
-// walking, a drag that starts on the copy moves it, and the mouse carries it about until it is set down.
+// a drag turns the camera. Wheel and pinch zoom. Arrow keys turn the camera too.
 import * as THREE from 'three';
 import type { View } from '../render/view';
 import type { Command } from '../systems/commands';
@@ -12,16 +10,6 @@ import { RESOURCES, SKILLS } from '../data/skills';
 import { GATHERS, PICKUPS } from '../data/pickups';
 import { MAKES, type MakeId } from '../data/making';
 import { fightLabel } from '../core/targets';
-
-/** Placing something from the Build window (ui/build.ts): whether it is under way, and where on the ground the mouse
- *  hovers, a tap lands, a drag starts (whether that grabs the see-through copy) and a grabbed copy is dragged to. */
-export interface PlacingHooks {
-  active(): boolean;
-  hover(at: { x: number; z: number }): void;
-  tap(at: { x: number; z: number }): void;
-  grab(at: { x: number; z: number }): boolean;
-  drag(at: { x: number; z: number }): void;
-}
 
 type Target =
   | { kind: 'node'; id: string; point: THREE.Vector3 }
@@ -49,7 +37,7 @@ function shown(o: THREE.Object3D | null): boolean {
   return true;
 }
 
-export function bindInput(view: View, layout: Layout, queue: Command[], onHover: (label: string | null) => void, placing?: PlacingHooks): void {
+export function bindInput(view: View, layout: Layout, queue: Command[], onHover: (label: string | null) => void): void {
   const el = view.renderer.domElement;
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   const pointers = new Map<number, { x: number; y: number }>();
@@ -57,18 +45,6 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
   // where the mouse is, so the hover text can follow a change under a still mouse (something picked up, the campfire
   // built on its spot): it is looked at again once a second while no button is down
   let mouse: { clientX: number; clientY: number } | null = null;
-  // (placing something) a drag that started on its see-through copy moves it, instead of turning the camera
-  let grabbed = false;
-  const placingNow = () => !!placing?.active();
-
-  /** Where on the ground a pointer is, or null off it. */
-  function groundAt(e: { clientX: number; clientY: number }): { x: number; z: number } | null {
-    const b = el.getBoundingClientRect();
-    ndc.set((e.clientX - b.left) / b.width * 2 - 1, -(e.clientY - b.top) / b.height * 2 + 1);
-    ray.setFromCamera(ndc, view.cam.camera);
-    const g = ray.intersectObjects(view.ground, false)[0];
-    return g ? { x: g.point.x, z: g.point.z } : null;
-  }
 
   function pick(e: { clientX: number; clientY: number }): Target {
     const b = el.getBoundingClientRect();
@@ -121,7 +97,6 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
   }
 
   function hover(at: { clientX: number; clientY: number }): void {
-    if (placingNow()) { const g = groundAt(at); if (g) placing!.hover(g); onHover(null); el.style.cursor = 'crosshair'; return; }
     const l = label(pick(at));
     onHover(l); el.style.cursor = l ? 'pointer' : 'default';
   }
@@ -132,19 +107,13 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
     el.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     down = pointers.size === 1 ? { x: e.clientX, y: e.clientY } : null;
-    const g = pointers.size === 1 && placingNow() ? groundAt(e) : null;
-    grabbed = !!g && placing!.grab(g);
   });
   el.addEventListener('pointermove', e => {
     if (e.pointerType === 'mouse') mouse = { clientX: e.clientX, clientY: e.clientY };
     const prev = pointers.get(e.pointerId);
     if (!prev) { hover(e); return; }
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.size === 1 && grabbed && placingNow()) {
-      const g = groundAt(e);
-      if (g) placing!.drag(g);
-      if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) down = null;
-    } else if (pointers.size === 1) {
+    if (pointers.size === 1) {
       view.cam.turn((e.clientX - prev.x) * 0.008, (e.clientY - prev.y) * 0.3);   // the scene follows the finger sideways, as in most games
       if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) down = null;
     } else if (pointers.size === 2) {
@@ -157,10 +126,7 @@ export function bindInput(view: View, layout: Layout, queue: Command[], onHover:
   const end = (e: PointerEvent) => {
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinchD = 0;
-    if (pointers.size === 0) grabbed = false;
     if (!down || e.type === 'pointercancel') return;
-    // placing something: a tap or a click puts its see-through copy there, and sends him nowhere
-    if (placingNow()) { down = null; const g = groundAt(e); if (g) placing!.tap(g); return; }
     const t = pick(e); down = null;
     if (!t) return;
     const at = { x: t.point.x, z: t.point.z };

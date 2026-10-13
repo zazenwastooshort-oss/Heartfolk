@@ -22,6 +22,7 @@ import { AWAY } from '../src/data/away';
 import { STOKE } from '../src/data/fire';
 import { RESOURCES } from '../src/data/skills';
 import { levelFor } from '../src/data/xp';
+import { MAKES } from '../src/data/making';
 
 /** Any real time will do: the game never reads the clock itself, main.ts hands it in. */
 const NOW = Date.UTC(2026, 9, 12, 9, 0, 0);
@@ -50,7 +51,7 @@ function campSet(seed = 5): Setup {
 function working(nodeId = 'camp_birch1', hour = 9): Setup {
   const s = campSet();
   s.state.built = s.state.built.filter(b => b !== 'shelter');   // (no shelter: he works through the night, not to bed)
-  s.state.bank = { birch_logs: 6 };
+  s.state.bank = { birch_logs: 6, bark: MAKES.woodshed.needs.bark! };   // (the woodshed's bark: none peeled while he chops)
   s.state.time = at(0, hour);
   send(s, { type: 'work', nodeId });
   run(s, 10);
@@ -132,14 +133,17 @@ describe('saves say when they were written (format 8)', () => {
     const s = working();
     const v7 = JSON.stringify({ ...JSON.parse(serialize(s.state)), version: 7 });
     const loaded = readSave(v7, CAMP);
-    expect(SAVE_VERSION).toBe(11);
+    expect(SAVE_VERSION).toBe(12);
     expect(loaded.state.version).toBe(SAVE_VERSION);
     expect(loaded.savedAt).toBeNull();
-    expect(loaded.state).toEqual(s.state);
+    // (this one has the chest standing with no shelter, which play never leaves: the camp build's migration gives it the
+    // tent its chest now stands in)
+    const was = { ...s.state, built: [...s.state.built, 'shelter' as const] };
+    expect(loaded.state).toEqual(was);
     const { away, summary } = catchUpAway(loaded.state, loaded.savedAt, NOW, s.ctx);
     expect(away.game).toBe(0);
     expect(didSomething(summary)).toBe(false);
-    expect(loaded.state).toEqual(s.state);
+    expect(loaded.state).toEqual(was);
     const store = memory();
     save(store, loaded.state, NOW);
     expect(load(store, CAMP)!.savedAt).toBe(NOW);
