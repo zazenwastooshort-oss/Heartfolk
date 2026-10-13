@@ -6,6 +6,15 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.28', date: '13 Oct 2026', notes: [
+      'He sleeps until 7:00 now, and the moonlight moves across the sky, so you can watch the night turn to dawn.',
+      'If you switch away or your screen goes off while he sleeps, that time no longer races by twenty times over.',
+      'Tapping the goal or his thought while he sleeps no longer wakes him.',
+      'One tap on "A cooked meal" is enough: he catches the fish, then takes them to the fire and cooks them himself.',
+      'Building never uses what your current goal still needs.',
+    ],
+  },
+  {
     version: '0.0.27', date: '13 Oct 2026', notes: [
       'He thinks out loud now: short thoughts over his head as he finds his way, all kept in a journal in his book.',
       'Tap the goal at the top, or his thought, and he sets off to do it.',
