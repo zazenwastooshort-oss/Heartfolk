@@ -675,7 +675,7 @@ describe('saving the goblin camp', () => {
     const raw = JSON.parse(serialize(s.state, Date.now()));
     delete raw.goblins; delete raw.goblinCamp;
     raw.version = 10;                                          // as 0.0.22 to 0.0.24 wrote it
-    expect(SAVE_VERSION).toBe(12);
+    expect(SAVE_VERSION).toBe(13);
     const v23 = readSave(JSON.stringify(raw), CAMP).state;
     expect(v23.goblinCamp).toEqual({ chiefOut: false, cleared: false });
     expect(Object.keys(v23.goblins)).toEqual([...GOBLINS, CHIEF_ID]);

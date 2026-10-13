@@ -15,12 +15,14 @@ import { CHIEF } from '../data/goblins';
 import type { Thoughts } from './thoughts';
 import { COOK } from '../data/cooking';
 import { freshNeeds, type Needs } from './needs';
+import { TOOL_MAKER } from '../data/discovery';
 
 /** The save format. 10 since 0.0.22: his health, and the combat and food skills. 11 since 0.0.25: "Ready for the
  *  goblins" came in before the goblin camp. 12 since the camp build (13 Oct 2026): what was built in stages before it
  *  became the camp's new upgrades or was given back to the chest, nothing is placed any more, and at most one thing is
- *  under way (core/save.ts, migrations[11]). */
-export const SAVE_VERSION = 12;
+ *  under way (core/save.ts, migrations[11]). 13 since Discovery (game 0.0.38): what he has discovered (`discovered`);
+ *  an older save is given everything it has already come across (core/save.ts, migrations[12]). */
+export const SAVE_VERSION = 13;
 
 /** gather: working a rock or a tree; progress runs 0..1 through one swing of that skill's tool. `mayMoveOn` is set
  *  when the node runs out while he works it, so he can move on to another; a node that was already down when he got
@@ -191,6 +193,11 @@ export interface GameState {
   /** (13 Oct 2026) the tools he owns that are kept in the storage chest, not carried (core/tools.ts, systems/tools.ts):
    *  none before the chest stands, and none in an old save (its tools are carried) */
   toolsInChest: ToolId[];
+  /** (Discovery, game 0.0.38) the things he has discovered (data/discovery.ts nodes: items and things in MAKES, by id),
+   *  each once, in the order he found them, a new one always at the end: the first tap on it (or on what gives it) in
+   *  the world, or it coming into his hands, or his making or building it (systems/discovery.ts). A new game starts
+   *  with the tools it starts with (none at the camp). core/discovery.ts reads it: what the Discovery tree shows */
+  discovered: string[];
 }
 
 /** Whether there is a shelter to sleep in (systems/sleep.ts): any of the shelters (the tent, the wall tent, the log
@@ -274,6 +281,7 @@ export function goalFirst(state: GameState, id: string): Goal | null {
 export const canDrop = (item: string) => item !== CHIEF.drop && !Object.values(PICKUPS).some(p => p.respawn === null && p.gives !== 'book' && p.gives.item === item);
 
 export function createState(layout: Layout, seed = 1): GameState {
+  const tools = Object.fromEntries(TOOL_IDS.map(t => [t, layout.startTools ? layout.startTools.includes(t) : true])) as Record<ToolId, boolean>;
   return {
     version: SAVE_VERSION,
     time: DAY_SECONDS * 0.32,   // start mid-morning (about 7:40)
@@ -283,7 +291,7 @@ export function createState(layout: Layout, seed = 1): GameState {
     bank: {},
     nodes: Object.fromEntries(layout.nodes.map(n => [n.id, { id: n.id, depletedUntil: 0 }])),
     parcels: Object.fromEntries(layout.parcels.map(p => [p.id, { claimed: false }])),
-    tools: Object.fromEntries(TOOL_IDS.map(t => [t, layout.startTools ? layout.startTools.includes(t) : true])) as Record<ToolId, boolean>,
+    tools,
     hasBook: false,
     taken: {},
     built: [],
@@ -307,5 +315,7 @@ export function createState(layout: Layout, seed = 1): GameState {
     lostWay: false,
     needs: freshNeeds(),
     toolsInChest: [],
+    // what a new game starts with is found already, with no notice (the brief's D5): the tools it starts with
+    discovered: TOOL_IDS.flatMap(t => { const m = tools[t] ? TOOL_MAKER[t] : null; return m ? [m] : []; }),
   };
 }

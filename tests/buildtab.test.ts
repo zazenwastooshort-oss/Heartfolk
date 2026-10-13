@@ -117,7 +117,8 @@ describe('pressing a row (T5.3)', () => {
     const s = camp(BASE);
     s.state.bank = { stone: 12, clay: 3 };
     send(s, rowCommand(row(s, 'stone_hearth')));
-    expect(s.log).toEqual([{ type: 'missing', make: 'stone_hearth', items: { clay: 1 } }]);
+    // (pressing it discovers the stone hearth: Discovery)
+    expect(s.log.filter(e => e.type !== 'discovered')).toEqual([{ type: 'missing', make: 'stone_hearth', items: { clay: 1 } }]);
     expect(s.state.bank).toEqual({ stone: 12, clay: 3 });
     expect(s.state.underway).toEqual({});
     s.state.bank.clay = 4;
@@ -133,7 +134,7 @@ describe('pressing a row (T5.3)', () => {
     const s = camp(['campfire', 'woodpile'], 'chest');
     s.state.bank = { ...MAKES.chest.needs };
     send(s, { type: 'build', id: 'chest' });
-    expect(s.log).toEqual([{ type: 'cantBuild', make: 'chest', reason: 'noShelter' }]);
+    expect(s.log.filter(e => e.type !== 'discovered')).toEqual([{ type: 'cantBuild', make: 'chest', reason: 'noShelter' }]);
     expect(s.state.bank).toEqual(MAKES.chest.needs);
     expect(s.state.underway).toEqual({});
   });

@@ -392,7 +392,7 @@ describe('saving the campfire and the goals', () => {
   });
 
   it('a version 5 save that already salvaged the wreck counts it done, and building the fire keeps it done', () => {
-    expect(SAVE_VERSION).toBe(12);
+    expect(SAVE_VERSION).toBe(13);
     const s = readyForFire();
     const { built: _b, goalsDone: _g, ...rest } = JSON.parse(serialize(s.state));
     const v5 = { ...rest, version: 5 };
@@ -588,7 +588,7 @@ describe('old saves that already have an axe', () => {
     const from = loaded.log.length;
     send(loaded, { type: 'make', id: 'stone_axe' });
     run(loaded, STONE_AXE.time + 1);
-    expect(since(loaded, from)).toEqual([]);
+    expect(since(loaded, from).filter(e => e.type !== 'discovered')).toEqual([]);     // (what was put in his hands is discovered)
     expect(loaded.state.player.backpack).toEqual({ branch: 2, stone: 2 });
   });
 
@@ -966,7 +966,7 @@ describe('old saves that already have a pick', () => {
     const from = loaded.log.length;
     send(loaded, { type: 'make', id: 'stone_pickaxe' });
     run(loaded, STONE_PICK.time + 1);
-    expect(since(loaded, from)).toEqual([]);
+    expect(since(loaded, from).filter(e => e.type !== 'discovered')).toEqual([]);     // (what was put in his hands is discovered)
     expect(loaded.state.player.backpack).toEqual({ branch: 2, stone: 3 });
     // and he can mine at once
     send(loaded, { type: 'work', nodeId: 'camp_copper2' });

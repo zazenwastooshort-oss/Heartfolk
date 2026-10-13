@@ -36,6 +36,7 @@ import { BuildWindow } from './ui/build';
 import { CampMenu } from './ui/campmenu';
 import { NeedsHud } from './ui/needs';
 import { BedtimeSetting } from './ui/bedtime';
+import { DiscoveryNotices } from './ui/discovery';
 
 // An artifact viewer can swap in a new version of the page while it is open and hand the game's snapshot
 // to the new version, so play carries on. Everywhere else `hot` is absent, hence the optional chaining.
@@ -90,6 +91,7 @@ function start(data: HotData): void {
   const bubble = new ThoughtBubble(state, view, queue);             // his thoughts over his head; a tap sends him off to do the goal
   const activity = new ActivityTag(view, layout);                   // what he is doing, over his head (Settings can hide it)
   const needs = new NeedsHud(layout, events, hud);                  // Hungry in the strip; meals, bedtime, his tools from the chest
+  const discoveries = new DiscoveryNotices(events, hud);            // (Discovery) "Discovered: copper ore.", once for each thing
   events.on(e => { if (e.type === 'strike') view.strike(e.nodeId); });     // chips fly where the tool lands
   events.on(e => { if (e.type === 'hit') view.hit(e.target, e.damage); }); // the training dummy wobbles when struck
   const build = new BuildWindow(windows, events, layout, queue, hud);   // the Build window: what can be built, and how far along
@@ -154,6 +156,7 @@ function start(data: HotData): void {
       simulate(real);
       view.draw(state, dt);
       hud.update(state, dt);
+      discoveries.update();                                         // after the HUD's own notices of this frame
       combat.update(dt);
       sleepHud.update(state, dt);
       bubble.update(state, dt);

@@ -276,7 +276,7 @@ describe('practising on the dummy', () => {
     send(t, { type: 'fight', target: 'dummy' });
     send(t, { type: 'fight', target: 'goblin_king' });
     run(t, 3);
-    expect(t.log.filter(e => e.type !== 'goalDone')).toEqual([]);      // (wearing the club finished its goal)
+    expect(t.log.filter(e => e.type !== 'goalDone' && e.type !== 'discovered')).toEqual([]);      // (wearing the club finished its goal, and is discovered)
     expect(t.state.player.task.kind).toBe('idle');
   });
 
@@ -577,7 +577,7 @@ describe('saving practice', () => {
     delete raw.health; delete raw.equipment; delete raw.combatStyle;
     raw.skills = { mining: 900, woodcutting: 2400 };
     const back = readSave(JSON.stringify(raw), CAMP).state;
-    expect(SAVE_VERSION).toBe(12);
+    expect(SAVE_VERSION).toBe(13);
     expect(back.version).toBe(SAVE_VERSION);
     expect(allGoalsDone(back)).toBe(false);
     expect(currentGoal(back)).toBe(GOALS[at('chest') + 1]);
