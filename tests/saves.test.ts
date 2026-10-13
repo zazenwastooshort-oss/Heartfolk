@@ -27,6 +27,8 @@ import { GOALS } from '../src/data/goals';
 import { LINES, LOAD } from '../src/data/building';
 import { MAKES, type MakeId } from '../src/data/making';
 import { CHANGELOG } from '../src/data/changelog';
+import { isNode } from '../src/data/discovery';
+import type { GameEvent } from '../src/core/events';
 
 const DIR = new URL('./fixtures/saves/', import.meta.url);
 const FILES = readdirSync(DIR).filter(f => f.endsWith('.json')).sort();
@@ -576,5 +578,68 @@ describe('markers on old saves: only where the goal up now builds something', ()
       expect(outsideOf(CAMP, 'shelter', place.pos), file).toBeLessThan(0);
       expect(toStep(tent, place.pos)[1], file).toBeGreaterThan(0);
     }
+  });
+});
+
+// ---- Discovery (format 13, game 0.0.38; the brief's In 6): an old save is given what it has already come across ----
+
+describe('Discovery: every old save loads into format 13 with what it has already come across discovered', () => {
+  /** What the book's pages (Food, Materials and places) are about, written out here on its own. */
+  const PAGE_THINGS: Record<string, string[]> = {
+    'food:berries': ['berries'], 'food:raw_fish': ['raw_fish'], 'food:cooked_fish': ['cooked_fish'], 'food:burnt_fish': ['burnt_fish'],
+    'place:falls': ['plank', 'tarp'], 'place:wreck': ['plank', 'tarp'], 'place:stones': ['stone'], 'place:branches': ['branch'],
+    'place:birch': ['birch_logs'], 'place:copper': ['copper_ore'], 'place:bushes': ['berries'], 'place:fishing': ['raw_fish'],
+    'place:nest': ['rat_hide'], 'place:goblins': ['old_map'],
+  };
+  const TOOL_MADE: Record<string, string> = { axe: 'stone_axe', pick: 'stone_pickaxe', rod: 'rod' };
+
+  /** What a save, as read back, has come across (In 6): what he owns or stores (and the logs on the pile and in his arms),
+   *  his tools and what he wears, everything built or begun, every goal done and the things it made or asked for, and
+   *  the things of the book's pages already come unstuck. */
+  function cameAcross(state: GameState): string[] {
+    const out = new Set<string>(), p = state.player;
+    for (const items of [p.backpack, state.bank]) for (const [id, n] of Object.entries(items)) if (n > 0) out.add(id);
+    if (state.woodpile > 0 || (p.stoke?.logs ?? 0) > 0) out.add(STOKE.item);
+    for (const [tool, has] of Object.entries(state.tools)) if (has) out.add(TOOL_MADE[tool]!);
+    for (const gear of Object.values(state.equipment)) if (gear) out.add(gear);
+    for (const id of [...state.built, ...Object.keys(state.underway)]) out.add(id);
+    for (const g of GOALS) if (state.goalsDone.includes(g.id)) for (const id of [...Object.keys(g.needs), ...(g.makes ? [g.makes] : [])]) out.add(id);
+    for (const key of state.thoughts.known) for (const id of key.startsWith('make:') ? [key.slice(5)] : PAGE_THINGS[key] ?? []) out.add(id);
+    return [...out].filter(isNode).sort();
+  }
+
+  it.each(ALL)('%s: everything it had come across, and nothing else; none of it told as new', file => {
+    const { state } = readSave(rawOf(file), CAMP);
+    expect(state.version).toBe(13);
+    expect([...state.discovered].sort()).toEqual(cameAcross(state));
+    expect(new Set(state.discovered).size).toBe(state.discovered.length);
+    // played on a moment: nothing he held when it was opened is told as discovered
+    const held = new Set(cameAcross(state)), told: string[] = [], events = new EventBus();
+    events.on((e: GameEvent) => { if (e.type === 'discovered') told.push(e.id); });
+    for (let t = 0; t < 1; t += STEP) step(state, STEP, { layout: CAMP, rng: createRng(1), events });
+    expect(told.filter(id => held.has(id))).toEqual([]);
+  });
+
+  it('the whole camp (format 12, 0.0.37) shows every building, its materials and what was on the way discovered', () => {
+    // (as 0.0.37 wrote it: format 12, nothing discovered saved; made again with HEARTHFOLK_WHOLE_CAMP=1 it would be 13)
+    const whole = JSON.parse(readFileSync(new URL('./fixtures/camp/whole-camp.json', import.meta.url), 'utf8'));
+    delete whole.discovered;
+    const { state } = readSave(JSON.stringify({ ...whole, version: 12 }), CAMP);
+    expect([...state.discovered].sort()).toEqual(cameAcross(state));
+    for (const id of ['log_cabin', 'wall_tent', 'shelter', 'chest', 'stone_hearth', 'campfire', 'woodshed', 'woodpile', 'dummy',
+      'stone_axe', 'stone_pickaxe', 'birch_logs', 'stone', 'clay', 'fibre', 'bark', 'plank', 'tarp', 'branch', 'copper_ore']) {
+      expect(state.discovered, id).toContain(id);
+    }
+    // and a new save of it reads back exactly
+    expect(readSave(serialize(state, 1), CAMP).state).toEqual(state);
+  });
+
+  it('a list in a format 12 save (hand-edited) is not kept: the save is given what it has come across instead', () => {
+    const raw = JSON.parse(rawOf('0.0.30-played-chapter1.json'));
+    const { state: plain } = readSave(JSON.stringify(raw), CAMP);
+    const twelve = { ...JSON.parse(serialize(plain)), version: 12, discovered: ['log_cabin', 'old_map'] };
+    const { state } = readSave(JSON.stringify(twelve), CAMP);
+    expect(state.discovered).toEqual(plain.discovered);
+    expect(state.discovered).not.toContain('log_cabin');
   });
 });

@@ -16,6 +16,8 @@
 //   cooks: each fire built at the fire spot (the campfire, the stone hearth) to what cooking makes (COOK);
 //   upgrade: a camp building to the upgrade built in its place (STAGED's upgrades), the tent to the wall tent;
 //   inside: the shelter to what stands in it (STAGED's inside: the storage chest).
+// Berries alone join nothing: picked off the bushes and eaten as they are, no recipe uses them (a node from the ground,
+// on its own in the food band).
 // Each node has a kind (material, food, tool, gear, building), a band (D4: the camp, food, fighting) and a depth, its
 // column: things from the ground first (nothing joins into them), then what they make, then what that makes, so a
 // material gathered with a tool sits after the tool (1 more than the deepest thing joining into it).
@@ -41,7 +43,8 @@ export const BANDS: Band[] = ['camp', 'food', 'fighting'];
 /** How one thing leads to another (the list at the top). */
 export type JoinHow = 'needs' | 'gathers' | 'drops' | 'cooks' | 'upgrade' | 'inside';
 
-/** A node. name: as the game writes it ("Birch logs", "Stone axe", "Tent"). depth: its column (at the top). order: its
+/** A node. name: as the game writes it ("Birch logs", "Stone axe", "Tent"; "Tarp" and "Torn map", of which there is
+ *  only one: ONLY_ONE). depth: its column (at the top). order: its
  *  place among all the nodes (the items in ITEMS' order, then MAKES' order), which the layout starts from. */
 export interface DiscoveryNode { id: string; name: string; kind: NodeKind; band: Band; depth: number; order: number }
 
@@ -112,6 +115,13 @@ function bandOf(id: string, kind: NodeKind): Band {
   return 'camp';
 }
 
+/** Items there is only ever one of, called by their name for one ("Tarp", "Torn map", not "Tarps"): picked up on its
+ *  own and never back (the torn tarp), or left once (the goblin chief's map). */
+const ONLY_ONE = new Set([
+  ...Object.values(PICKUPS).flatMap(p => p.respawn === null && p.gather === null && p.gives !== 'book' ? [p.gives.item] : []),
+  CHIEF.drop,
+]);
+
 function nodes(): Record<string, DiscoveryNode> {
   const ids = [...Object.keys(ITEMS), ...Object.keys(MAKES)];
   const depth = new Map<string, number>();
@@ -125,7 +135,8 @@ function nodes(): Record<string, DiscoveryNode> {
     return d;
   };
   return Object.fromEntries(ids.map((id, order) => {
-    const kind = kindOf(id), name = Object.hasOwn(MAKES, id) ? MAKES[id as MakeId].name : ITEMS[id]!.name;
+    const item = ITEMS[id], kind = kindOf(id);
+    const name = item ? (ONLY_ONE.has(id) && item.one) || item.name : MAKES[id as MakeId].name;
     return [id, { id, name, kind, band: bandOf(id, kind), depth: depthOf(id), order }];
   }));
 }

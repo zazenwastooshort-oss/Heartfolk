@@ -319,7 +319,7 @@ const either = (ids: string[]) => ids.map(id => `the ${lower(id)}`).join(' or ')
  *  has words for it, else from the pickups, the resources, the creatures and cooking: "Copper ore: mine the copper
  *  rocks with a pickaxe." */
 export function fromLines(item: string): string[] {
-  const def = ITEMS[item];
+  const def = ITEMS[item] && NODES[item];
   if (!def) return [];
   const source = SOURCES[item];
   if (source) return [source];
@@ -335,7 +335,7 @@ export function fromLines(item: string): string[] {
       const what = r.hover ? `${r.hover.verb.toLowerCase()} ${r.hover.name.toLowerCase()} at the ${plural(r.name)}` : `${SKILLS[r.skill].verb.toLowerCase()} the ${plural(r.name)}`;
       return `${def.name}: ${what} with ${tool.a}.`;
     }
-    if ('foe' in o) return o.foe === 'rat' ? `${def.name}: ${plural(RAT.name)} leave one now and then, when beaten.` : `${def.name}: the ${CHIEF.name.toLowerCase()} leaves one when he is beaten.`;
+    if ('foe' in o) return o.foe === 'rat' ? `${def.name}: ${plural(RAT.name)} leave one now and then, when beaten.` : `${def.name}: the ${CHIEF.name.toLowerCase()} leaves it when he is beaten.`;
     if ('peel' in o) return `${def.name}: peeled now and then off ${plural(RESOURCES[o.peel]?.name ?? o.peel)} as they are cut.`;
     return o.cook === COOK.cooked ? `${def.name}: cook ${lower(COOK.raw)} at ${either(FIRES)}.` : `${def.name}: now and then one burns, cooking ${lower(COOK.raw)}.`;
   });
