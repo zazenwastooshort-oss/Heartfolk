@@ -27,7 +27,7 @@
   --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --edge: 16px;
   /* the top bar's first line, and the row of buttons down the right side (its width) */
-  --top: calc(10px + env(safe-area-inset-top, 0px)); --rail: 72px;
+  --top: calc(10px + env(safe-area-inset-top, 0px)); --band: 58px;
   /* the rustic look (13 Oct 2026; the owner: "clean but it should also fit the rustic type feel of the game"): canvas
      panels in a dark wooden frame with a stitched edge, wooden header boards and buttons, parchment for paper things,
      rope bars. The textures are small tiles drawn in inline SVG (noise turned into canvas, wood grain, paper fibre) */
@@ -76,13 +76,14 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 /* the icons on the buttons, drawn in code: cream lines */
 .icon { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
-/* the top: the name and, with a mouse, what is under it; the goal card under them; the version and the clock */
+/* the top: the name and, with a mouse, what is under it; everything else is in the bar at the foot (.dock) */
 .topbar { position: absolute; top: var(--top); left: var(--edge); right: var(--edge); z-index: 1; pointer-events: none; }
 .top-left { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .brand { margin: 0; font-family: var(--display); font-weight: 700; font-size: 1.2rem; line-height: 1.1; text-shadow: 0 1px 3px var(--shadow); }
 .hover { margin-top: -3px; font: 700 0.875rem/1.3 var(--body); text-shadow: 1px 1px 0 #000; }
 .hover b { color: #00ffff; }
-.top-right { position: absolute; top: 0; right: 0; display: flex; align-items: center; gap: 8px; }
+/* the end of the bar at the foot: What's new (on a wider screen), the day and night dial and the clock */
+.dock-time { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 4px 0 2px; }
 /* the clock on a small wooden sign, tucked behind the dial's carved disc */
 .clock { position: relative; margin-left: -16px; padding: 4px 8px 4px 15px; border-radius: 3px 5px 5px 3px; background: var(--m-wood); color: var(--ink);
   box-shadow: var(--lift), 0 0 0 1px var(--wood-dark); font: 700 0.875rem/1.2 var(--body); text-shadow: 0 1px 0 rgba(0, 0, 0, .55); font-variant-numeric: tabular-nums; }
@@ -91,34 +92,29 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
   background: var(--tex-grain), radial-gradient(circle at 40% 35%, #76522f, var(--wood-low) 72%);
   box-shadow: inset 0 0 0 1px rgba(255, 228, 190, .18), inset 0 -2px 2px rgba(0, 0, 0, .35), 0 0 0 1px var(--wood-dark), 0 2px 3px rgba(0, 0, 0, .4); }
 .dial svg { display: block; width: 100%; height: 100%; }
-/* the chips: tags tied on with string, hanging from the top of the screen (a hole at the left, the string up from it) */
+/* the chips: paper tags with a nail hole at the left, in the bar at the foot */
 .rested, .ver { --hole: 8px; position: relative; box-sizing: border-box; padding: 5px 9px 5px calc(var(--hole) + 9px); border: 0; border-radius: 2px 5px 5px 2px; color: var(--paper-ink);
   background: radial-gradient(circle at var(--hole) 50%, var(--wood-dark) 0 2px, rgba(36, 23, 12, .45) 2.5px, transparent 3.2px), var(--tex-paper), linear-gradient(#e6d5ab, #d8c393);
   box-shadow: inset 0 0 0 1px rgba(90, 60, 30, .35), 0 2px 3px rgba(0, 0, 0, .4); white-space: nowrap; }
-.rested::before, .ver::before { content: ''; position: absolute; left: calc(var(--hole) - .75px); bottom: 50%; width: 1.5px; height: calc(50% + var(--top) + 12px); background: #d6c49c;
-  box-shadow: 0 0 0 .5px rgba(36, 23, 12, .35); transform: rotate(4deg); transform-origin: 50% 100%; }
 .rested { font: 600 0.6875rem/1 var(--body); color: #2f4a26; }
 .rested[hidden] { display: none; }
 .ver { pointer-events: auto; font: 600 0.75rem/1 var(--body); cursor: pointer; }
 /* the button looks small, but a finger finds it: its tap area is 44 px tall */
 .ver::after { content: ''; position: absolute; inset: -12px -4px; }
 .ver:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-/* a narrow phone: the tags, the disc and the sign sit a little closer, so they keep clear of the name */
+/* a narrow phone: the disc and the sign a little smaller */
 @media (max-width: 400px) {
-  .top-right { gap: 4px; }
+  .dock-time { gap: 4px; }
   .dial { width: 26px; height: 26px; }
   .rested, .ver { --hole: 6px; }
   .clock { padding-left: 12px; margin-left: -12px; }
-  /* while Rested shows, the version tag steps aside where the name needs its room (Settings has it too) */
-  html[data-text-size="large"] .top-right:has(.rested:not([hidden])) .ver { display: none; }
 }
-@media (max-width: 340px) { .top-right:has(.rested:not([hidden])) .ver { display: none; } }
 
 /* the goal card (src/data/goals.ts, src/ui/hud.ts): the goal, his thought about it in his own words (data/thoughts.ts)
    and how many of each thing he has, with a thin bar along its foot; tapping it sends him off to do it (the survival
    book: systems/nextstep.ts). Its Build or Make button shows while he can make the thing, so that stays one tap away */
-.goal { pointer-events: auto; position: relative; box-sizing: border-box; min-width: 190px; max-width: min(340px, 100%);
-  display: flex; flex-direction: column; overflow: hidden; color: var(--ink);
+.goal { pointer-events: auto; position: relative; box-sizing: border-box; flex: 1 1 280px; min-width: 120px;
+  display: flex; flex-direction: row; align-items: center; overflow: hidden; color: var(--ink);
   border: 3px solid transparent; border-radius: 8px; background: var(--tex-canvas) padding-box, linear-gradient(#27451f, var(--canvas-low)) padding-box,
   var(--tex-grain) border-box, linear-gradient(var(--frame-light), var(--frame)) border-box; box-shadow: 0 0 0 1px var(--wood-dark), 0 3px 10px rgba(0, 0, 0, .4); }
 /* a stitched edge inside the frame, as on the windows */
@@ -138,21 +134,20 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .goal-bar i { position: relative; display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s ease-out; }
 .goal-bar i::after, .bar i::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: var(--dyed); }
 .goal.ready .goal-bar i { background: var(--xp); }
-.goal-build { margin: 0 9px 12px; min-height: 44px; padding: 10px 14px; font: 700 0.9375rem/1 var(--body); }
+.goal-build { flex: none; margin: 4px 8px 8px 0; min-height: 44px; padding: 10px 14px; font: 700 0.9375rem/1 var(--body); }
+.goal-open { flex: 1 1 auto; min-width: 0; }
+.goal-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .goal-build:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
-/* the how-to-play hint for a new player, and notices: just under the goal card, in the middle of the room the windows
-   leave (src/ui/windows.ts sets --below-card on the stage to the card's foot, and --free-width to how much of the
-   screen's width is left of the open windows); on a phone held upright, with a window too tall to leave room above
-   it, a notice shows below it */
-.hint, .notice { position: absolute; left: calc(var(--free-width, 100%) / 2); top: var(--below-card, calc(110px + env(safe-area-inset-top, 0px)));
-  transform: translateX(-50%); width: max-content; max-width: calc(var(--free-width, 100%) - 2 * var(--edge)); box-sizing: border-box; padding: 8px 12px; border-radius: 6px;
+/* the how-to-play hint for a new player, and notices: at the top, in the middle, over the world (the bar at the foot
+   holds the rest; the windows start below this band: --band) */
+.hint, .notice { position: absolute; left: 50%; top: calc(var(--top) + 2px);
+  transform: translateX(-50%); width: max-content; max-width: min(520px, calc(100% - 2 * var(--edge) - 260px)); box-sizing: border-box; padding: 8px 12px; border-radius: 6px;
   background: var(--m-canvas); font-size: 0.8125rem; text-align: center; pointer-events: none; }
 .hint { z-index: 1; color: var(--chip-text); transition: opacity .5s ease-out; box-shadow: inset 0 0 0 1px rgba(241, 232, 212, .1), 0 0 0 2px var(--frame), 0 3px 10px rgba(0, 0, 0, .35); }
 .hint b { color: #ffffff; font-weight: 600; }
 .hint.gone, .hint.waiting { opacity: 0; }
-/* a notice: a slip of parchment taped up, dark ink; it floats over the scene (on a phone, over the strip below an open
-   window), so it has a shadow */
+/* a notice: a slip of parchment taped up, dark ink; it floats over the scene, so it has a shadow */
 .notice { z-index: 4; color: var(--paper-ink); opacity: 0; transition: opacity .3s ease-out; padding: 9px 14px; border-radius: 2px; background: var(--m-paper);
   box-shadow: inset 0 0 0 1px rgba(110, 74, 36, .3), inset 0 0 12px rgba(150, 104, 52, .22), 0 4px 14px rgba(0, 0, 0, .45); }
 .notice::before { content: ''; position: absolute; top: -6px; left: 50%; width: 38px; height: 12px; margin-left: -19px; transform: rotate(-3deg);
@@ -174,15 +169,25 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .thought.show { opacity: 1; }
 .thought::after { content: ''; position: absolute; left: 50%; bottom: -6px; width: 10px; height: 10px; margin-left: -5px; transform: rotate(45deg);
   background: #e9dbb9; border: solid rgba(110, 74, 36, .5); border-width: 0 1px 1px 0; }
+/* what he is doing, over his head (src/ui/activity.ts): a small parchment tag with an inked icon and a few words, and a
+   thin rope bar for what has a clear end; it never takes a tap */
+.activity { position: absolute; z-index: 1; transform: translate(-50%, -100%); display: flex; flex-direction: column; gap: 3px; box-sizing: border-box;
+  padding: 3px 8px 4px; border-radius: 5px; background: var(--m-paper); color: var(--paper-ink); border: 1px solid rgba(110, 74, 36, .5);
+  font: 600 0.6875rem/1.2 var(--body); white-space: nowrap; pointer-events: none; box-shadow: 0 2px 6px rgba(0, 0, 0, .3); }
+.act-row { display: flex; align-items: center; gap: 5px; }
+.act-icon .icon { display: block; width: 14px; height: 14px; stroke-width: 2.2; }
+.activity .bar { height: 4px; }
 /* a bar: a twisted rope, the fill dyed into it (the fill's colour may come from the page: a skill's own) */
 .bar { height: 6px; background: var(--rope); border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 1px rgba(0, 0, 0, .35), 0 0 0 1px rgba(20, 12, 4, .5); }
 .bar i { position: relative; display: block; height: 100%; width: 0; background: var(--xp); border-radius: 3px; transition: width .25s ease-out; }
 
-/* the strip at the foot: his health (src/ui/combat.ts, once he has a weapon or is hurt) and the skill gaining XP, its
-   level and a thin bar (src/ui/hud.ts) */
-.strip { position: absolute; z-index: 1; left: var(--edge); bottom: calc(var(--edge) + env(safe-area-inset-bottom, 0px));
-  max-width: calc(100% - 2 * var(--edge) - var(--rail) - 8px); display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px; pointer-events: none; }
-.pill { position: relative; box-sizing: border-box; min-width: 118px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+/* his state at the left of the bar at the foot: his health (src/ui/combat.ts, once he has a weapon or is hurt), hunger
+   (src/ui/needs.ts), Rested (src/ui/sleep.ts) and the skill gaining XP, its level and a thin bar (src/ui/hud.ts); none
+   showing, it takes no room */
+.strip { flex: 0 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; pointer-events: none; }
+.strip:not(:has(> :not([hidden]))) { display: none; }
+.strip .rested { pointer-events: auto; }
+.pill { position: relative; box-sizing: border-box; min-width: 92px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
   padding: 5px 10px 13px; background: var(--m-canvas); color: var(--ink); border: 2px solid var(--frame); border-radius: 7px;
   box-shadow: inset 0 0 0 1px rgba(241, 232, 212, .1), 0 0 0 1px var(--wood-dark), 0 2px 8px rgba(0, 0, 0, .3); font-size: 0.75rem; line-height: 1.2; }
 .pill .name { font-weight: 600; }
@@ -191,43 +196,45 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 .pill .bar { position: absolute; left: 9px; right: 9px; bottom: 5px; height: 5px; }
 .hp .bar i { background: #8fc46e; }
 
-/* the row of buttons that open the windows: down the right side, under the clock. A strip of planks: each button a
-   board nailed to a dark backing, its icon hand-inked (src/ui/pictures.ts, put on by src/ui/rail.ts). The sizes along
-   the row (a button's 56 px, the 3 px gap, the padding) are RAIL_SIDE and RAIL_UPRIGHT in src/ui/rail.ts, which moves
-   the buttons that don't fit into More's menu */
-.rail { position: absolute; z-index: 3; top: calc(var(--top) + 34px); right: var(--edge); box-sizing: border-box; width: var(--rail);
-  display: flex; flex-direction: column; gap: 3px; padding: 6px 5px; pointer-events: auto;
-  background: var(--tex-grain), linear-gradient(#3b2817, #2a1b0e); border: 1px solid var(--wood-dark); border-radius: 7px;
-  box-shadow: inset 0 0 0 1px rgba(255, 228, 190, .06), 0 3px 10px rgba(0, 0, 0, .4); }
-.rail-btn { position: relative; box-sizing: border-box; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 4px; padding: 6px 2px 5px; border: 0; border-radius: 3px; background: var(--nails), var(--m-wood); color: var(--ink); box-shadow: var(--lift);
+/* the row of buttons that open the windows, in the bar at the foot: boards standing on end, nailed at the top and the
+   bottom, each icon hand-inked (src/ui/pictures.ts, put on by src/ui/rail.ts). The sizes along the row (a button's
+   54 px, 60 px on a wider screen, the 3 px gap) are RAIL_PHONE and RAIL_WIDE in src/ui/rail.ts, which moves the
+   buttons that don't fit into More's menu */
+.rail { position: relative; flex: 0 1 auto; min-width: 0; box-sizing: border-box; display: flex; flex-direction: row; gap: 3px; pointer-events: auto; }
+.rail-btn { position: relative; box-sizing: border-box; flex: 1 1 0; min-width: 60px; min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; padding: 6px 0 5px; border: 0; border-radius: 3px; color: var(--ink); box-shadow: var(--lift);
+  background: var(--nails-up), var(--tex-grain-up), linear-gradient(90deg, var(--wood), var(--wood-low));
   font: 600 clamp(10px, 0.6875rem, 12px)/1 var(--body); text-shadow: 0 1px 0 rgba(0, 0, 0, .55); cursor: pointer; }
 .rail-btn .icon { width: 24px; height: 24px; flex: none; stroke-width: 1.7; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, .45)); }
 /* while its window is open: the board painted green and pushed in */
-.rail-btn.on { background: var(--nails), var(--m-plank); box-shadow: var(--sunk); }
+.rail-btn.on { background: var(--nails-up), var(--tex-grain-up), linear-gradient(90deg, var(--plank), var(--plank-low)); box-shadow: var(--sunk); }
 .rail-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
 /* the More button's menu (src/ui/rail.ts): the buttons that didn't fit, each a board with its icon and label side by
-   side; beside the row down the right side, above it along the bottom. Over the windows while it is open */
+   side, above the row. Over the windows while it is open */
 .rail.menu-open { z-index: 5; }
-.rail-menu { position: absolute; right: calc(100% + 6px); bottom: -1px; box-sizing: border-box; min-width: 156px; display: flex; flex-direction: column; gap: 3px;
+.rail-menu { position: absolute; right: -1px; bottom: calc(100% + 11px); box-sizing: border-box; min-width: 156px; display: flex; flex-direction: column; gap: 3px;
   padding: 5px; background: var(--tex-grain), linear-gradient(#3b2817, #2a1b0e); border: 1px solid var(--wood-dark); border-radius: 7px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, .5); }
 .rail-menu .rail-btn { flex: none; min-width: 0; min-height: 48px; flex-direction: row; justify-content: flex-start; gap: 10px; padding: 6px 16px 6px 14px;
   background: var(--nails), var(--m-wood); font-size: 0.8125rem; }
 .rail-menu .rail-btn.on { background: var(--nails), var(--m-plank); }
-/* the room the row may take, measured by src/ui/rail.ts (never seen) */
-.rail-room { position: absolute; visibility: hidden; pointer-events: none; top: calc(var(--top) + 34px); bottom: calc(var(--edge) + env(safe-area-inset-bottom, 0px));
-  right: var(--edge); width: 1px; }
 /* how many things are in the backpack; amber once it is full */
 .badge { position: absolute; top: 3px; right: 3px; min-width: 18px; box-sizing: border-box; padding: 2px 4px; border-radius: 999px;
   background: rgba(10, 20, 9, .55); color: var(--ink); font: 700 10px/1.2 var(--body); font-variant-numeric: tabular-nums; text-align: center; }
 .badge.full { background: var(--accent); color: var(--button-ink); }
 
-/* the windows (src/ui/windows.ts): beside the row of buttons, the first next to it and a second (on a wide screen) to
-   its left; each scrolls inside when tall. Where one would cover the goal card (a mid-size screen), windows.ts starts
-   them under the card (--wins-top) or, on a short screen, between the card and the buttons (--wins-left), narrower */
-.wins { position: absolute; z-index: 3; pointer-events: none; display: flex; flex-direction: row-reverse; align-items: flex-start; gap: 8px;
-  top: var(--wins-top, calc(var(--top) + 34px)); bottom: calc(var(--edge) + env(safe-area-inset-bottom, 0px)); left: var(--wins-left, var(--edge)); right: calc(var(--edge) + var(--rail) + 8px); }
+/* the bar at the foot (13 Oct 2026): one dark wooden board along the bottom of every screen, his state, the goal,
+   the row of buttons and the clock side by side on it; on a phone held upright in rows (below). Over the windows and
+   the world */
+.dock { position: absolute; z-index: 4; left: var(--edge); right: var(--edge); bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 5px; pointer-events: auto;
+  background: var(--tex-grain), linear-gradient(#3b2817, #2a1b0e); border: 1px solid var(--wood-dark); border-radius: 9px;
+  box-shadow: inset 0 0 0 1px rgba(255, 228, 190, .06), 0 3px 12px rgba(0, 0, 0, .45); }
+/* the windows (src/ui/windows.ts): standing on the bar at the foot, from the right, the first at the right and a
+   second (on a wide screen) to its left; below the band at the top where notices show; each scrolls inside when
+   tall (--above-dock: the top of the bar, set by windows.ts) */
+.wins { position: absolute; z-index: 3; pointer-events: none; display: flex; flex-direction: row-reverse; align-items: flex-end; gap: 8px;
+  top: calc(var(--top) + var(--band)); bottom: var(--above-dock, calc(88px + env(safe-area-inset-bottom, 0px))); left: var(--edge); right: var(--edge); }
 .wins > .win { flex: none; width: min(var(--w, 360px), 100%); }
 /* one look for every window: forest-green canvas in a dark wooden frame with a stitched edge, cream text, a wooden
    header board nailed across the top with the title and a small wooden close button; a new window gets it all from
@@ -492,25 +499,26 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
 @keyframes lit { from { background: rgba(232, 166, 94, .16); box-shadow: 0 0 0 2px rgba(232, 166, 94, .85); } to { background: transparent; box-shadow: 0 0 0 2px rgba(232, 166, 94, 0); } }
 .pack-sec.lit { border-radius: 6px; animation: lit 1.6s ease-out; }
 
-/* a phone held upright: the buttons along the bottom, the strip just above them, and one window at a time between the
-   goal card and the strip, so the card's Build button stays in sight (src/ui/windows.ts sets --below-card and
-   --above-bottom) */
-@media (max-width: 600px) {
-  .rail { top: auto; left: var(--edge); bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: auto; flex-direction: row; padding: 4px 5px; }
-  /* the boards stand on end, nailed at the top and bottom */
-  .rail-btn { flex: 1 1 0; min-width: 54px; min-height: 52px; padding-left: 0; padding-right: 0; background: var(--nails-up), var(--tex-grain-up), linear-gradient(90deg, var(--wood), var(--wood-low)); }
-  .rail-btn.on { background: var(--nails-up), var(--tex-grain-up), linear-gradient(90deg, var(--plank), var(--plank-low)); }
-  .rail-menu { right: -1px; bottom: calc(100% + 6px); }
-  .rail-room { top: auto; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); left: var(--edge); width: auto; height: 1px; }
-  .strip { bottom: calc(10px + env(safe-area-inset-bottom, 0px) + 62px + 8px); max-width: calc(100% - 2 * var(--edge)); }
-  .wins { top: var(--below-card, calc(110px + env(safe-area-inset-top, 0px))); bottom: var(--above-bottom, calc(84px + env(safe-area-inset-bottom, 0px)));
-    left: var(--edge); right: var(--edge); align-items: flex-end; }
+/* a phone held upright (and a tablet held upright): the bar at the foot in rows: the goal and the clock, his state (when
+   any shows), the row of buttons; the windows the width of the screen, above the bar (one at a time on a phone); on a
+   phone the name at the top makes way for notices */
+@media (max-width: 600px), (max-width: 900px) and (min-height: 600px) {
+  .dock { flex-wrap: wrap; row-gap: 5px; }
+  .dock > .goal { order: 1; flex: 1 1 0; }
+  .dock > .dock-time { order: 2; }
+  .dock > .strip { order: 3; flex: 1 0 100%; }
+  .dock > .rail { order: 4; flex: 1 0 100%; }
   .wins > .win { flex: 1 1 auto; width: auto; }
-  /* with a window open, a notice shows above it, under the goal card as ever, where the window leaves room there; a
-     window too tall for that, and the notice goes below it, over the strip just above the buttons, clear of the
-     window's title and its x (src/ui/windows.ts noticeGoesLow marks the stage) */
-  .notice-low .notice { top: auto; bottom: calc(10px + env(safe-area-inset-bottom, 0px) + 62px + 8px); }
 }
+@media (max-width: 600px) {
+  .rail-btn { min-width: 54px; }
+  .goal-thought, .brand { display: none; }
+  .hint, .notice { max-width: calc(100% - 2 * var(--edge)); }
+}
+/* a phone held sideways: one row, narrower buttons, the goal in a line */
+@media (max-height: 499px) { .goal-thought { display: none; } .rail-btn { min-width: 54px; } }
+/* What's new keeps to wider screens (Settings has it everywhere) */
+@media (max-width: 899px) { .ver { display: none; } }
 /* hover looks only with a mouse: on a touch screen a tapped button would keep its hover look until the next tap
    somewhere else, and look chosen. A press shows on every screen (:active) */
 @media (hover: hover) {
@@ -543,50 +551,55 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
     <div class="top-left">
       <h1 class="brand">Hearthfolk</h1>
       <div class="hover" id="hover">Walk here</div>
-      <div class="goal" id="goal" hidden>
-        <button class="goal-open" id="goalOpen" type="button">
-          <span class="goal-title" id="goalTitle">Salvage the wreck</span>
-          <span class="goal-thought" id="goalThought"></span>
-          <span class="goal-count" id="goalCount">0 / 7 planks, 0 / 1 tarp, 0 / 1 book</span>
-          <svg class="icon goal-more" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.8 12.3c4.3-.4 8.6-.5 13-.2"/><path d="M13.2 7.2c1.8 1.5 3.4 3.1 4.8 4.9-1.5 1.7-3.1 3.3-4.9 4.8"/></svg>
-        </button>
-        <button class="goal-build" id="goalBuild" type="button" hidden>Build</button>
-        <span class="goal-bar" aria-hidden="true"><i id="goalBar"></i></span>
-      </div>
     </div>
-    <div class="top-right"><button class="ver" id="ver" type="button">What's new</button><span class="rested" id="rested" title="Well rested: gathering goes faster until nightfall" hidden>Rested</span><div class="dial" id="dial" aria-hidden="true"></div><div class="clock" id="clock">07:40</div></div>
   </div>
   <div class="hint" id="hint">
     <span class="touch"><b>Tap a plank or a stone</b> to gather them one after another, <b>the grass</b> to walk. Drag to turn, pinch to zoom.</span>
     <span class="mouse"><b>Click a plank or a stone</b> to gather them one after another, <b>the grass</b> to walk. Drag or arrow keys to turn, scroll to zoom.</span>
   </div>
-  <div class="strip" id="strip">
-    <div class="pill hp" id="healthRow" hidden><span class="name">Health</span><small id="healthText">10 / 10</small><span class="bar"><i id="healthBar"></i></span></div>
-    <div class="pill hunger" id="hungerRow" title="Hungry: gathering goes slower until he eats" hidden><span class="name">Hungry</span><span class="bar"><i id="hungerBar"></i></span></div>
-    <div class="pill xp" id="xpRow" hidden><span class="name" id="xpName">Woodcutting</span><b id="xpLvl">1</b><span class="bar"><i id="xpBar"></i></span></div>
+  <!-- the bar at the foot (13 Oct 2026, the owner: "a permanent bar on the bottom which keeps all of these stuff together"):
+       his state, the goal, the row of buttons that open the windows, and the clock -->
+  <div class="dock" id="dock">
+    <div class="strip" id="strip">
+      <div class="pill hp" id="healthRow" hidden><span class="name">Health</span><small id="healthText">10 / 10</small><span class="bar"><i id="healthBar"></i></span></div>
+      <div class="pill hunger" id="hungerRow" title="Hungry: gathering goes slower until he eats" hidden><span class="name">Hungry</span><span class="bar"><i id="hungerBar"></i></span></div>
+      <div class="pill xp" id="xpRow" hidden><span class="name" id="xpName">Woodcutting</span><b id="xpLvl">1</b><span class="bar"><i id="xpBar"></i></span></div>
+      <span class="rested" id="rested" title="Well rested: gathering goes faster until nightfall" hidden>Rested</span>
+    </div>
+    <div class="goal" id="goal" hidden>
+      <button class="goal-open" id="goalOpen" type="button">
+        <span class="goal-title" id="goalTitle">Salvage the wreck</span>
+        <span class="goal-thought" id="goalThought"></span>
+        <span class="goal-count" id="goalCount">0 / 7 planks, 0 / 1 tarp, 0 / 1 book</span>
+        <svg class="icon goal-more" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.8 12.3c4.3-.4 8.6-.5 13-.2"/><path d="M13.2 7.2c1.8 1.5 3.4 3.1 4.8 4.9-1.5 1.7-3.1 3.3-4.9 4.8"/></svg>
+      </button>
+      <button class="goal-build" id="goalBuild" type="button" hidden>Build</button>
+      <span class="goal-bar" aria-hidden="true"><i id="goalBar"></i></span>
+    </div>
+    <nav class="rail" id="rail" aria-label="Windows">
+      <button class="rail-btn" type="button" data-opens="backpack" aria-controls="backpackWin" aria-expanded="false">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5V5.2a3 3 0 0 1 6 0v1.3"/><path d="M5.5 10a3.5 3.5 0 0 1 3.5-3.5h6a3.5 3.5 0 0 1 3.5 3.5v9a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19z"/><path d="M5.5 12.5h13"/><path d="M10 12.5V15h4v-2.5"/></svg>
+        <span>Backpack</span><b class="badge" id="packBadge" hidden></b>
+      </button>
+      <button class="rail-btn" type="button" data-opens="skills" aria-controls="skillsWin" aria-expanded="false">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="13" width="4" height="7" rx="1"/><rect x="10" y="8.5" width="4" height="11.5" rx="1"/><rect x="16" y="4" width="4" height="16" rx="1"/></svg>
+        <span>Skills</span>
+      </button>
+      <button class="rail-btn" type="button" data-opens="build" aria-controls="buildWin" aria-expanded="false" hidden>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 19.5 13 11"/><path d="M10.6 7.4l3.6-3.6 6 6-3.6 3.6z"/><path d="M12.4 9.2l3.4 3.4"/></svg>
+        <span>Build</span>
+      </button>
+      <button class="rail-btn" type="button" data-opens="book" aria-controls="book" aria-expanded="false" hidden>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.8C10.2 5.4 7.6 4.8 4 5.2v13.3c3.6-.4 6.2.2 8 1.6 1.8-1.4 4.4-2 8-1.6V5.2c-3.6-.4-6.2.2-8 1.6z"/><path d="M12 6.8v13.3"/></svg>
+        <span>Book</span>
+      </button>
+      <button class="rail-btn" type="button" data-opens="settings" aria-controls="settingsWin" aria-expanded="false">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="16" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></svg>
+        <span>Settings</span>
+      </button>
+    </nav>
+    <div class="dock-time"><button class="ver" id="ver" type="button">What's new</button><div class="dial" id="dial" aria-hidden="true"></div><div class="clock" id="clock">07:40</div></div>
   </div>
-  <nav class="rail" id="rail" aria-label="Windows">
-    <button class="rail-btn" type="button" data-opens="backpack" aria-controls="backpackWin" aria-expanded="false">
-      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5V5.2a3 3 0 0 1 6 0v1.3"/><path d="M5.5 10a3.5 3.5 0 0 1 3.5-3.5h6a3.5 3.5 0 0 1 3.5 3.5v9a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19z"/><path d="M5.5 12.5h13"/><path d="M10 12.5V15h4v-2.5"/></svg>
-      <span>Backpack</span><b class="badge" id="packBadge" hidden></b>
-    </button>
-    <button class="rail-btn" type="button" data-opens="skills" aria-controls="skillsWin" aria-expanded="false">
-      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="13" width="4" height="7" rx="1"/><rect x="10" y="8.5" width="4" height="11.5" rx="1"/><rect x="16" y="4" width="4" height="16" rx="1"/></svg>
-      <span>Skills</span>
-    </button>
-    <button class="rail-btn" type="button" data-opens="build" aria-controls="buildWin" aria-expanded="false" hidden>
-      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 19.5 13 11"/><path d="M10.6 7.4l3.6-3.6 6 6-3.6 3.6z"/><path d="M12.4 9.2l3.4 3.4"/></svg>
-      <span>Build</span>
-    </button>
-    <button class="rail-btn" type="button" data-opens="book" aria-controls="book" aria-expanded="false" hidden>
-      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.8C10.2 5.4 7.6 4.8 4 5.2v13.3c3.6-.4 6.2.2 8 1.6 1.8-1.4 4.4-2 8-1.6V5.2c-3.6-.4-6.2.2-8 1.6z"/><path d="M12 6.8v13.3"/></svg>
-      <span>Book</span>
-    </button>
-    <button class="rail-btn" type="button" data-opens="settings" aria-controls="settingsWin" aria-expanded="false">
-      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="16" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></svg>
-      <span>Settings</span>
-    </button>
-  </nav>
   <div class="wins" id="wins">
     <section class="win" id="backpackWin" data-win="backpack" data-width="368" role="dialog" aria-labelledby="backpackTitle" hidden>
       <div class="win-bar"><h2 class="win-title" id="backpackTitle">Backpack</h2><button class="win-x" type="button" aria-label="Close the backpack"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
@@ -643,6 +656,10 @@ body { background: var(--scene); color: var(--label); font: 0.875rem/1.4 var(--b
         <section class="set">
           <h3 id="textSizeName">Text size</h3>
           <div class="seg" id="textSize" role="group" aria-labelledby="textSizeName"><button type="button" data-size="small">Small</button><button type="button" data-size="normal">Normal</button><button type="button" data-size="large">Large</button></div>
+        </section>
+        <section class="set">
+          <h3 id="activityName">Over his head</h3>
+          <div class="seg" id="activityShow" role="group" aria-labelledby="activityName"><button type="button" data-show="on">What he's doing</button><button type="button" data-show="off">Nothing</button></div>
         </section>
         <section class="set">
           <h3 id="bedtimeName">Bedtime</h3>

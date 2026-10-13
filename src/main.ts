@@ -30,6 +30,7 @@ import { showArmour } from './ui/armour';
 import { playTime } from './systems/sleep';
 import { SleepHud, sleepNotices } from './ui/sleep';
 import { ThoughtBubble } from './ui/thoughts';
+import { ActivityTag } from './ui/activity';
 import { BuildWindow } from './ui/build';
 import { CampMenu } from './ui/campmenu';
 import { NeedsHud } from './ui/needs';
@@ -86,6 +87,7 @@ function start(data: HotData): void {
   sleepNotices(events, hud);                                        // to bed in the shelter, and up well rested
   const sleepHud = new SleepHud(layout, hud);                       // the day and night dial, Rested, the z over the tent
   const bubble = new ThoughtBubble(state, view, queue);             // his thoughts over his head; a tap sends him off to do the goal
+  const activity = new ActivityTag(view, layout);                   // what he is doing, over his head (Settings can hide it)
   const needs = new NeedsHud(layout, events, hud);                  // Hungry in the strip; meals, bedtime, his tools from the chest
   events.on(e => { if (e.type === 'strike') view.strike(e.nodeId); });     // chips fly where the tool lands
   events.on(e => { if (e.type === 'hit') view.hit(e.target, e.damage); }); // the training dummy wobbles when struck
@@ -98,7 +100,7 @@ function start(data: HotData): void {
   const skills = new SkillsWindow(windows, events);                 // each skill's level, and what he trains
   const book = new Book(state, events, layout, windows);            // his book: a page per goal, opened from its button or the goal card
   const news = new News(!newGame);                                  // a returning player sees what changed since
-  new Settings(windows, news, () => { startingOver = true; clearSave(browserStorage); location.reload(); });   // text size, What's new, Start over
+  new Settings(windows, news, () => { startingOver = true; clearSave(browserStorage); location.reload(); }, activity);   // text size, the tag, What's new, Start over
   const bedtime = new BedtimeSetting(queue);                        // his bedtime, in the Settings window
   new Intro(newGame);                                               // a new one is told what the game is about
   const awayNote = new AwayNote();                                  // and what he did while they were away
@@ -150,6 +152,7 @@ function start(data: HotData): void {
       combat.update(dt);
       sleepHud.update(state, dt);
       bubble.update(state, dt);
+      activity.update(state);
       needs.update(state);
       bedtime.update(state);
       rats.update(dt);

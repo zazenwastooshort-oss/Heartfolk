@@ -1,19 +1,15 @@
 // The windows (the UI foundation, the owner's go of 12 Oct 2026): panels that open from the row of buttons (index.html's
 // .rail: Backpack, Skills, Book, Settings) and close with their x, with the same button, or with Esc. On a phone one
-// window is open at a time, so opening one closes the other; on a wide screen two may stand side by side beside the
-// buttons, while they fit clear of the goal card. One look for all (index.html's .win): forest-green canvas in a wooden
+// window is open at a time, so opening one closes the other; on a wide screen two may stand side by side on the bar at
+// the foot, while they fit across it. One look for all (index.html's .win): forest-green canvas in a wooden
 // frame, cream text, a header board with the close button, scrolling inside when tall. A window is a <section class="win" data-win="id"
 // data-width="360"> in #wins with its title bar and body, and its button a <button data-opens="id"> in the row: a new
 // window later is one more of each (tests/windows.test.ts checks every window has both). The notes over the game (.note:
 // the welcome, "What's new", "While you were away") are parchment with dark ink; their x does what their own button
-// does, and Esc closes a note before any window. With the buttons down the right side the windows stand against them from the top,
-// unless that would cover the goal card (a mid-size screen: a tablet held upright, a phone held sideways): then they
-// start under the card where there's height for them, or else stand between the card and the buttons, narrower
-// (`windowSpot`), so its Build button stays one tap away. This also keeps places on the stage up to date: --below-card
-// (the goal card's foot: the hint and notices go under it, and on a phone held upright the windows too), --above-bottom
-// (the top of the strip or of the buttons at the foot, where a phone's window ends), --free-width (how much of the
-// screen's width is left of the open windows, or of the buttons: the hint and notices sit in the middle of it), and
-// --wins-top or --wins-left while the windows make way for the card. Changes nothing in the game.
+// does, and Esc closes a note before any window. The windows stand on the bar at the foot (index.html's .dock, 13 Oct
+// 2026: the owner's "permanent bar on the bottom"), from the right, below the band at the top where notices show; this
+// keeps --above-dock on the stage up to date (the top of the bar, measured from the foot of the screen). Changes nothing
+// in the game.
 
 /** An open window: its id and when it opened (a count). Kept in slot order: slot 0 is next to the buttons. */
 export interface Opened { id: string; at: number }
@@ -48,45 +44,10 @@ export function fitting(open: readonly Opened[], fits: (ids: string[]) => boolea
 
 /** Room between things (px), and from the screen's edge (as index.html's --edge). */
 export const GAP = 8, EDGE = 16;
-/** How much of a wide screen's left side the goal card may take (px, its widest: .goal's max-width in index.html): a
- *  second window opens only clear of it. */
-export const GOAL_ROOM = 340;
-/** Making way for the goal card: the least height under it worth starting the windows there, and the least width
- *  between it and the buttons worth standing them there (px; the backpack's 7 slots across stay about 40 px). */
-export const MIN_UNDER = 360, MIN_BESIDE = 320;
-
-/** Where the open windows stand with the buttons down the right side: against them from the top ('top'), unless that
- *  would cover the goal card; then under the card where there is height enough ('under'), else between the card and
- *  the buttons, narrower ('beside'), while that leaves width enough; else whichever of the two leaves more. `right` and
- *  `bottom` are the windows' room's right and bottom edges, `card` the goal card's box (null while there is none) and
- *  `widths` the open windows' widths, the first next to the buttons (px, from the screen's top left). */
-export type Spot = 'top' | 'under' | 'beside';
-export interface Room { right: number; bottom: number; card: { right: number; bottom: number } | null; widths: number[] }
-
-export function windowSpot({ right, bottom, card, widths }: Room): Spot {
-  if (!card || !widths.length) return 'top';
-  const left = right - widths.reduce((a, w) => a + w, GAP * (widths.length - 1));
-  if (left >= card.right + GAP) return 'top';
-  const under = bottom - (card.bottom + GAP), beside = right - (card.right + GAP);
-  if (under >= MIN_UNDER) return 'under';
-  if (beside >= MIN_BESIDE) return 'beside';
-  return under >= beside ? 'under' : 'beside';
-}
-
-/** On a phone held upright, with a window open, whether a notice goes low, over the strip just above the buttons
- *  (index.html .notice-low): only when the open window leaves too little room above it, between the goal card's foot
- *  and its top, for the notice (`notice` px high) in its usual place just under the card. A short window stands at the
- *  foot of its room, so the notice shows above it, clear of all of it; a tall one leaves no room, and the notice goes
- *  below it, clear of its title and its x (px, from the screen's top). */
-export function noticeGoesLow({ cardFoot, windowTop, notice }: { cardFoot: number; windowTop: number; notice: number }): boolean {
-  return windowTop - GAP - (cardFoot + GAP) < notice;
-}
 
 const $ = (id: string) => document.getElementById(id)!;
 /** A phone: held upright (narrow) or sideways (short). One window at a time. */
 const PHONE = '(max-width: 600px), (max-height: 499px)';
-/** Held upright (index.html): the buttons along the bottom, and a window between the goal card and the strip. */
-const UPRIGHT = '(max-width: 600px)';
 
 interface Win { id: string; el: HTMLElement; button: HTMLButtonElement | null; width: number; available: boolean }
 
@@ -97,8 +58,8 @@ export class Windows {
   private listeners: ((id: string, open: boolean) => void)[] = [];
   private stage = $('stage');
   private rail = $('rail');
+  private dock = $('dock');
   private phone = matchMedia(PHONE);
-  private upright = matchMedia(UPRIGHT);
 
   constructor() {
     for (const el of document.querySelectorAll<HTMLElement>('#wins > .win[data-win]')) {
@@ -124,9 +85,9 @@ export class Windows {
       else return;
       e.preventDefault(); e.stopPropagation();
     }, true);
-    // where the goal card ends and the strip and buttons begin change with the screen, the text size and what they show
+    // where the bar at the foot begins changes with the screen, the text size and what it shows
     const place = new ResizeObserver(() => this.place());
-    for (const id of ['stage', 'goal', 'strip', 'rail', 'notice']) place.observe($(id));
+    for (const el of [this.stage, this.dock]) place.observe(el);
     for (const w of this.wins.values()) place.observe(w.el);
     window.addEventListener('resize', () => { this.refit(); this.place(); });
     this.place();
@@ -184,11 +145,11 @@ export class Windows {
   }
 
   /** Whether these windows fit side by side: one always does; on a phone no more; on a wider screen while they fit
-   *  between the goal card and the buttons. */
+   *  across it, within its edges. */
   private fits = (ids: string[]): boolean => {
     if (ids.length <= 1) return true;
     if (this.phone.matches) return false;
-    const room = this.rail.getBoundingClientRect().left - GAP - EDGE - ($('goal').hidden ? 0 : GOAL_ROOM + GAP);
+    const room = this.stage.getBoundingClientRect().width - 2 * EDGE;
     return ids.reduce((a, id) => a + (this.wins.get(id)?.width ?? 0), 0) + GAP * (ids.length - 1) <= room;
   };
 
@@ -215,35 +176,10 @@ export class Windows {
     for (const w of gone) this.tell(w.id, false);
   }
 
-  /** --below-card: just under the goal card (or the top bar where there is no card). On a phone held upright,
-   *  --above-bottom: just over the strip (while it shows) or the buttons, measured from the foot of the screen, and
-   *  --free-width the whole width (with a window open, a notice shows above it where it leaves room, else below it,
-   *  over the strip: noticeGoesLow, index.html .notice-low). With the
-   *  buttons down the right side, the windows make way for the goal card (windowSpot: --wins-top under it, or
-   *  --wins-left beside it), and --free-width is the width left of the open windows, or of the buttons while none is
-   *  open or the windows are under the card (a notice shows over them then). */
+  /** --above-dock: just over the bar at the foot, measured from the foot of the screen, where the windows stand. */
   private place(): void {
-    const stage = this.stage.getBoundingClientRect(), card = $('goal'), cardBox = card.hidden ? null : card.getBoundingClientRect();
-    const under = (cardBox ?? document.querySelector('.topbar')!.getBoundingClientRect()).bottom;
-    this.setVar('--below-card', under - stage.top + GAP);
-    const shown = this.opened.map(o => this.wins.get(o.id)!.el.getBoundingClientRect()).filter(b => b.height > 0);
-    if (this.upright.matches) {
-      const strip = $('strip').getBoundingClientRect(), top = Math.min(this.rail.getBoundingClientRect().top, strip.height > 0 ? strip.top : Infinity);
-      this.setVar('--above-bottom', stage.bottom - top + GAP);
-      this.setVar('--free-width', stage.width);
-      this.setVar('--wins-top', null); this.setVar('--wins-left', null);
-      const low = shown.length > 0 && noticeGoesLow({ cardFoot: under, windowTop: Math.min(...shown.map(b => b.top)), notice: $('notice').getBoundingClientRect().height });
-      this.stage.classList.toggle('notice-low', low);
-      return;
-    }
-    this.stage.classList.remove('notice-low');
-    // the windows' room ends at the buttons and the screen's foot, whether or not they make way for the card
-    const room = $('wins').getBoundingClientRect();
-    const spot = windowSpot({ right: room.right, bottom: room.bottom, card: cardBox, widths: this.opened.map(o => this.wins.get(o.id)!.width) });
-    this.setVar('--wins-top', spot === 'under' ? under - stage.top + GAP : null);
-    this.setVar('--wins-left', spot === 'beside' ? cardBox!.right - stage.left + GAP : null);
-    const lefts = spot === 'under' ? [] : this.opened.map(o => this.wins.get(o.id)!.el.getBoundingClientRect().left);
-    this.setVar('--free-width', (lefts.length ? Math.min(...lefts) : this.rail.getBoundingClientRect().left) - GAP - stage.left);
+    const stage = this.stage.getBoundingClientRect(), dock = this.dock.getBoundingClientRect();
+    this.setVar('--above-dock', stage.bottom - dock.top + GAP);
   }
 
   /** Set a place on the stage (px), or take it away (null) so index.html's own value holds. */

@@ -6,6 +6,13 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.32', date: '13 Oct 2026', notes: [
+      'Everything you check now sits in one bar along the bottom: his health, hunger and the skill he is training, your goal, the buttons and the clock. The top of the screen is left to the world.',
+      'A small tag over his head says what he is doing, like "Chopping birch" or "Building the wall tent", with a bar for how far along it is. You can hide it in Settings.',
+      'Tabs like the Backpack and Skills open just above the bar, and notices show at the top.',
+    ],
+  },
+  {
     version: '0.0.31', date: '13 Oct 2026', notes: [
       'Nothing at the camp shows until your goal needs it. Then a few stakes, a string and a little flag mark the spot.',
       'Everything at the camp now goes up stage by stage while he works at it with a mallet. Every knock trains Carpentry, and each level makes him a little quicker.',

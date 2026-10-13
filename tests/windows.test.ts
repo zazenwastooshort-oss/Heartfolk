@@ -1,12 +1,12 @@
 // The UI foundation (12 Oct 2026): windows that open from a row of buttons (ui/windows.ts), one at a time on a phone and
-// two side by side on a wide screen (the backpack and the book at 1280 px, by index.html's own widths); windows making
-// way for the goal card on mid-size screens (windowSpot); every window in index.html has its button, title bar and
-// close button; the compact goal card's words (ui/hud.ts); the Skills window's lines (ui/skills.ts) and the notices
+// two side by side on a wide screen (the backpack and the book at 1280 px, by index.html's own widths); the bar at the
+// foot holding his state, the goal, the buttons and the clock, with the windows standing on it (13 Oct 2026); every
+// window in index.html has its button, title bar and close button; the compact goal card's words (ui/hud.ts); the Skills window's lines (ui/skills.ts) and the notices
 // that point to its Train choice (ui/combat.ts); the text size remembered by Settings (ui/settings.ts); the Backpack
 // button's count (ui/backpack.ts).
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { EDGE, GAP, GOAL_ROOM, MIN_BESIDE, MIN_UNDER, closing, fitting, noticeGoesLow, opening, windowSpot, type Opened, type Room } from '../src/ui/windows';
+import { EDGE, GAP, closing, fitting, opening, type Opened } from '../src/ui/windows';
 import { goalLevelText, switchedText } from '../src/ui/combat';
 import { DUMMY } from '../src/data/combat';
 import { goalCard } from '../src/ui/hud';
@@ -27,17 +27,10 @@ const ids = (open: Opened[]) => open.map(w => w.id);
 const phone = (list: string[]) => list.length <= 1;
 /** Each window's width, as index.html gives it (data-width). */
 const WIDTHS: Record<string, number> = Object.fromEntries([...html.matchAll(/data-win="(\w+)" data-width="(\d+)"/g)].map(m => [m[1]!, Number(m[2])]));
-/** A wide screen with `room` pixels beside the buttons. */
+/** A wide screen with `room` pixels across it for windows. */
 const wide = (room: number) => (list: string[]) => list.reduce((a, id) => a + WIDTHS[id]!, 0) + GAP * (list.length - 1) <= room;
 /** A number of pixels from index.html's CSS, found by a pattern with one group. */
 const cssPx = (pattern: RegExp) => Number(html.match(pattern)?.[1]);
-/** The row of buttons' width down the right side (index.html's --rail). */
-const RAIL = cssPx(/--rail: (\d+)px/);
-/** The windows' room with the buttons down the right side of a `w` x `h` screen (index.html: the screen's edge, the row
- *  of buttons and a gap), the goal card's box as measured in the game (its right and bottom edges), and the windows
- *  open, the first next to the buttons. */
-const roomAt = (w: number, h: number, card: Room['card'], ...open: string[]): Room =>
-  ({ right: w - EDGE - RAIL - GAP, bottom: h - EDGE, card, widths: open.map(id => WIDTHS[id]!) });
 
 describe('windows: opening and closing', () => {
   it('on a phone, opening one closes the one open', () => {
@@ -82,81 +75,48 @@ describe('windows: opening and closing', () => {
   });
 });
 
-describe('windows make way for the goal card, so its Build button stays one tap away', () => {
-  // the goal card's right and bottom edges as measured in the game (the "Build the training dummy" card, and the
-  // Practice card with its three counts, at Normal and Large text)
-  const build = { right: 246, bottom: 129 }, buildTablet = { right: 246, bottom: 150 }, buildLarge = { right: 280, bottom: 161 };
-  const practiceLarge = { right: 325, bottom: 125 }, widest = { right: EDGE + GOAL_ROOM, bottom: 125 };
+describe('the bar at the foot (index.html .dock; the owner, 13 Oct 2026: "a permanent bar on the bottom")', () => {
+  const dock = html.slice(html.indexOf('<div class="dock" id="dock">'), html.indexOf('<div class="wins" id="wins">'));
+  const top = html.slice(html.indexOf('<div class="topbar">'), html.indexOf('<div class="hint" id="hint">'));
+  const at = (s: string) => dock.indexOf(s);
 
-  it('on a tablet held upright (650 x 900, 768 x 1024) the book starts under the card', () => {
-    expect(windowSpot(roomAt(650, 900, build, 'book'))).toBe('under');
-    expect(windowSpot(roomAt(768, 1024, buildTablet, 'book'))).toBe('under');
-    expect(windowSpot(roomAt(768, 1024, buildLarge, 'book'))).toBe('under');
-    // the backpack clears the card there, so it stands beside the buttons from the top as usual
-    expect(windowSpot(roomAt(768, 1024, buildLarge, 'backpack'))).toBe('top');
+  it('holds his state, the goal, the row of buttons and the clock, in that order', () => {
+    for (const id of ['strip', 'healthRow', 'hungerRow', 'xpRow', 'rested', 'goal', 'goalOpen', 'goalBuild', 'rail', 'ver', 'dial', 'clock']) {
+      expect(dock, id).toContain(`id="${id}"`);
+    }
+    expect(at('id="strip"')).toBeLessThan(at('id="goal"'));
+    expect(at('id="goal"')).toBeLessThan(at('id="rail"'));
+    expect(at('id="rail"')).toBeLessThan(at('id="clock"'));
   });
 
-  it('on a phone held sideways (844 x 390) the book stands between the card and the buttons, narrower', () => {
-    const room = roomAt(844, 390, practiceLarge, 'book');
-    expect(windowSpot(room)).toBe('beside');
-    expect(room.right - (practiceLarge.right + GAP)).toBeGreaterThanOrEqual(MIN_BESIDE);
-    expect(windowSpot(roomAt(844, 390, practiceLarge, 'backpack'))).toBe('top');
+  it('leaves the top to the world: only the name, and with a mouse the words for what is under it', () => {
+    expect(top).toContain('class="brand"');
+    expect(top).toContain('id="hover"');
+    for (const id of ['goal', 'clock', 'dial', 'ver', 'rested', 'strip', 'rail']) expect(top, id).not.toContain(`id="${id}"`);
   });
 
-  it('on a small phone held sideways (667 x 375) it takes whichever leaves more: under the card', () => {
-    const room = roomAt(667, 375, widest, 'book');
-    expect(room.bottom - (widest.bottom + GAP)).toBeLessThan(MIN_UNDER);
-    expect(room.right - (widest.right + GAP)).toBeLessThan(MIN_BESIDE);
-    expect(windowSpot(room)).toBe('under');
-  });
-
-  it('on a wide screen (1280 x 800, 1920 x 1080) two stand from the top, clear of the widest card', () => {
-    expect(windowSpot(roomAt(1280, 800, widest, 'backpack', 'book'))).toBe('top');
-    expect(windowSpot(roomAt(1920, 1080, widest, 'backpack', 'book'))).toBe('top');
-  });
-
-  it('with no window open, or no goal card (the village), nothing moves', () => {
-    expect(windowSpot(roomAt(650, 900, build))).toBe('top');
-    expect(windowSpot(roomAt(650, 900, null, 'book'))).toBe('top');
-  });
-
-  it('index.html lets the windows move under the card or beside it', () => {
+  it('the windows stand on the bar, below the band at the top where the hint and notices show', () => {
     const wins = html.match(/\.wins \{[^}]*\}/)?.[0] ?? '';
-    expect(wins).toContain('top: var(--wins-top, calc(var(--top) + 34px))');
-    expect(wins).toContain('left: var(--wins-left, var(--edge))');
+    expect(wins).toContain('bottom: var(--above-dock');
+    expect(wins).toContain('top: calc(var(--top) + var(--band))');
     expect(wins).toContain(`gap: ${GAP}px`);
-    expect(wins).toContain(`right: calc(var(--edge) + var(--rail) + ${GAP}px)`);
+    expect(html).toMatch(/\.hint, \.notice \{[^}]*top: calc\(var\(--top\) \+ 2px\)/);
+    expect(readFileSync(new URL('../src/ui/windows.ts', import.meta.url), 'utf8')).toContain("setVar('--above-dock'");
   });
 
-  it('on a phone held upright, with a window open, a notice shows above it where it leaves room, under the goal card as ever; with a tall one, below it, over the strip, clear of its title and its x', () => {
-    const upright = html.slice(html.indexOf('@media (max-width: 600px)'));
-    const rule = upright.match(/\.notice-low \.notice \{[^}]*\}/)?.[0] ?? '';
-    const strip = upright.match(/\.strip \{ bottom: ([^;]*);/)?.[1];
-    expect(rule).toContain('top: auto');
-    expect(strip).toBeDefined();
-    expect(rule).toContain(`bottom: ${strip}`);
-    expect(readFileSync(new URL('../src/ui/windows.ts', import.meta.url), 'utf8')).toMatch(/classList\.toggle\('notice-low', low\)/);
-    // at 375 x 812, the card's foot at 150: the Build window with one line ([581, 732]) leaves room above it for a
-    // notice two lines high (52 px), so it shows under the card, clear of the window; the Backpack, nearly all the
-    // height, doesn't, and the notice goes low
-    expect(noticeGoesLow({ cardFoot: 150, windowTop: 581, notice: 52 })).toBe(false);
-    expect(noticeGoesLow({ cardFoot: 150, windowTop: 166, notice: 52 })).toBe(true);
-    expect(noticeGoesLow({ cardFoot: 150, windowTop: 150 + 2 * GAP + 52, notice: 52 })).toBe(false);
-    expect(noticeGoesLow({ cardFoot: 150, windowTop: 150 + 2 * GAP + 51, notice: 52 })).toBe(true);
+  it('on a phone or a tablet held upright the bar is in rows: the goal and the clock, his state, then the buttons', () => {
+    const rows = html.replace(/\r\n/g, '\n').slice(html.replace(/\r\n/g, '\n').indexOf('@media (max-width: 600px), (max-width: 900px) and (min-height: 600px) {'));
+    expect(rows).toMatch(/^@media[^{]*\{\n  \.dock \{ flex-wrap: wrap;/);
+    expect(rows).toContain('.dock > .goal { order: 1;');
+    expect(rows).toContain('.dock > .strip { order: 3; flex: 1 0 100%; }');
+    expect(rows).toContain('.dock > .rail { order: 4; flex: 1 0 100%; }');
   });
 });
 
 describe('two windows side by side on a 1280 px wide screen (index.html)', () => {
-  it('the gaps and the goal card are measured as index.html draws them', () => {
+  it('the backpack and the book fit across it, within its edges', () => {
     expect(cssPx(/--edge: (\d+)px/)).toBe(EDGE);
-    expect(cssPx(/\.goal \{[^}]*max-width: min\((\d+)px, 100%\)/)).toBe(GOAL_ROOM);
-    expect(RAIL).toBeGreaterThan(0);
-  });
-
-  it('the backpack and the book fit beside each other, clear of the goal card', () => {
-    // the room for windows: the screen less its edges, the row of buttons, the widest goal card and the gaps (460 px)
-    const room = 1280 - EDGE - RAIL - GAP - EDGE - GOAL_ROOM - GAP;
-    expect(WIDTHS.backpack! + GAP + WIDTHS.book!).toBeLessThanOrEqual(room);
+    const room = 1280 - 2 * EDGE;
     expect(wide(room)(['backpack', 'book'])).toBe(true);
     let open = opening([], 'backpack', 1, wide(room));
     open = opening(open, 'book', 2, wide(room));
