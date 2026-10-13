@@ -92,7 +92,7 @@ describe('the rats (data)', () => {
     expect(RAT.every).toBeGreaterThanOrEqual(2.4);           // no quicker than OSRS's rats
     expect(RAT.first).toBeLessThan(RAT.every);
     expect(BITE_LANDS).toBeLessThan(RAT.every);
-    expect(RAT.drop).toEqual({ item: 'rat_hide', chance: 0.5 });
+    expect(RAT.drop).toEqual({ item: 'rat_hide', chance: 0.5, atLeast: 3 });           // and a hide at least every third rat
     expect(ITEMS[RAT.drop.item]).toBeDefined();
     expect(RAT.back).toBeGreaterThanOrEqual(45);
     expect(RAT.back).toBeLessThanOrEqual(90);

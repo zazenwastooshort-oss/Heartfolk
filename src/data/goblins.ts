@@ -29,7 +29,8 @@ export const GOBLIN = {
  *  this many seconds; knocked back into his tent (he knocked the player out), he heals at once. */
 export const CHIEF = {
   name: 'Goblin chief',
-  health: 20, attack: 8, attackBonus: 0, defence: 8, defenceBonus: 0, maxHit: 3,
+  // a bit more bite than at first (13 Oct 2026, the chapter review: no knock-outs in 20 bot runs): attack 8 to 10, max hit 3 to 4
+  health: 20, attack: 10, attackBonus: 0, defence: 8, defenceBonus: 0, maxHit: 4,
   every: 3.6, first: 1.4,
   radius: 0.32,
   xp: 12,

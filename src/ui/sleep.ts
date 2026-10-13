@@ -19,7 +19,8 @@ export const SLEEP_TEXT = {
   cantSleep: (shelter: string) => `He isn't tired yet. He can sleep in the ${shelter} once night falls.`,
   bedLater: "He'll stoke the fire first, then go to bed.",
   fellAsleep: (until: number) => `Goodnight. He sleeps until ${wakeLabel(until)}.`,
-  awake: 'He wakes up well rested: gathering goes faster until nightfall.',
+  awake: 'He wakes up healed and well rested: gathering goes faster until nightfall.',
+  wellFed: 'A hot meal: he is well fed, and learns a little quicker for a while.',
 } as const;
 
 /** The dial hand's angle in degrees, clockwise from the top: noon at the top, midnight at the bottom. */
@@ -43,7 +44,7 @@ export function dialSvg(): string {
 /** The notices that go with sleeping. */
 export function sleepNotices(events: EventBus, hud: Hud): void {
   events.on(e => {
-    if (e.type === 'bedLater' || e.type === 'awake') hud.notice(SLEEP_TEXT[e.type]);
+    if (e.type === 'bedLater' || e.type === 'awake' || e.type === 'wellFed') hud.notice(SLEEP_TEXT[e.type]);
     else if (e.type === 'cantSleep') hud.notice(SLEEP_TEXT.cantSleep(MAKES[e.shelter].name.toLowerCase()));
     else if (e.type === 'fellAsleep') hud.notice(SLEEP_TEXT.fellAsleep(e.until));
   });
@@ -54,17 +55,20 @@ export class SleepHud {
   private zIn = 0;
   private hand: Element | null;
   private rested: HTMLElement | null;
+  private fed: HTMLElement | null;
 
   constructor(private layout: Layout, private hud: Hud) {
     const dial = document.getElementById('dial');
     if (dial) dial.innerHTML = dialSvg();
     this.hand = document.getElementById('dialHand');
     this.rested = document.getElementById('rested');
+    this.fed = document.getElementById('fed');
   }
 
   update(state: GameState, dt: number): void {
     this.hand?.setAttribute('transform', `rotate(${dialAngle(state.time).toFixed(1)} 12 12)`);
     if (this.rested) this.rested.hidden = !(state.time < state.restedUntil);
+    if (this.fed) this.fed.hidden = !(state.time < state.fedUntil);
     if (state.player.task.kind !== 'sleep') { this.zIn = 0; return; }
     this.zIn -= dt;
     if (this.zIn > 0) return;

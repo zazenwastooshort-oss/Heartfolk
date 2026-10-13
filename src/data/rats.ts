@@ -11,7 +11,8 @@
  *  strike it, through strikeReach in systems/combat.ts (his swing reaches down to it as he leans in: render/view.ts).
  *  xp: XP for each point of damage to the style he trains (as the training dummy's), a third as much to Vitality.
  *  drop: what a beaten rat leaves (a rat hide, what hide armour is made from) and how often (about half the time); it
- *  goes into his backpack. back: seconds until a beaten rat comes back at its nest. regen: a hurt rat he isn't
+ *  goes into his backpack. atLeast (13 Oct 2026, from the chapter review: "fair rat hides: guarantee one at least every
+ *  few rats"): a hide at least every this many rats, so the goal's time doesn't hang on luck (GameState.ratsSinceHide). back: seconds until a beaten rat comes back at its nest. regen: a hurt rat he isn't
  *  fighting gets 1 health back every this many seconds. */
 export const RAT = {
   name: 'Rat',
@@ -19,7 +20,7 @@ export const RAT = {
   every: 3, first: 1.4,
   radius: 0.37,
   xp: 12,
-  drop: { item: 'rat_hide', chance: 0.5 },
+  drop: { item: 'rat_hide', chance: 0.5, atLeast: 3 },
   back: 60,
   regen: 20,
 };

@@ -34,7 +34,8 @@ describe('eating', () => {
     expect(eat(state, 'cooked_fish', events)).toBe(true);
     expect(state.health).toBe(3 + FOOD.cooked_fish!.heals);
     expect(state.player.backpack.cooked_fish).toBe(1);
-    expect(seen.at(-1)).toEqual({ type: 'ate', item: 'cooked_fish', healed: FOOD.cooked_fish!.heals, health: state.health });
+    expect(seen.at(-2)).toEqual({ type: 'ate', item: 'cooked_fish', healed: FOOD.cooked_fish!.heals, health: state.health });
+    expect(seen.at(-1)).toEqual({ type: 'wellFed' });                  // a cooked meal leaves him well fed (since 13 Oct 2026)
     state.health = maxHealth(state) - 0.5;
     expect(eat(state, 'berries', events)).toBe(true);
     expect(state.health).toBe(maxHealth(state));

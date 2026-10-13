@@ -25,6 +25,9 @@ import { MAKES, makeDef } from '../data/making';
 import { clockLabel } from '../core/clock';
 import { goalThought } from '../data/thoughts';
 
+/** Seconds after a goal starts before its tip shows, so the notices of finishing the last one are read first. */
+const GOAL_TIP_AFTER = 3;
+
 const $ = (id: string) => document.getElementById(id)!;
 /** Set an element's text only when it changed (the HUD and the windows are updated every frame). */
 export const setText = (el: HTMLElement, text: string) => { if (el.textContent !== text) el.textContent = text; };
@@ -252,6 +255,20 @@ export class Hud {
     this.floats.push({ el, pos: new THREE.Vector3(at.x, big ? 2.5 : 2.15, at.z), t: 0 });
   }
 
+  /** The goal shown last (null before the first frame), and a new goal's tip waiting to show (after the notices of
+   *  finishing the last one have been read). */
+  private goalSeen: string | null = null;
+  private tip: { text: string; in: number } | null = null;
+
+  /** A new goal's tip shows once, as a notice, a moment after it starts (13 Oct 2026, from the chapter review the owner
+   *  agreed to: "show each new goal's tip once when it starts"); not for the goal a game opens on. */
+  private goalTip(state: GameState, dt: number): void {
+    const goal = currentGoal(state);
+    if (this.goalSeen !== null && goal.id !== this.goalSeen && !allGoalsDone(state) && goal.hint) this.tip = { text: goal.hint, in: GOAL_TIP_AFTER };
+    this.goalSeen = goal.id;
+    if (this.tip && (this.tip.in -= dt) <= 0) { this.notice(this.tip.text); this.tip = null; }
+  }
+
   update(state: GameState, dt: number): void {
     // the how-to-play hint fades once the player has sent the miner somewhere (or a save already has him busy)
     if (!this.hintGone && state.player.task.kind !== 'idle') this.hideHint();
@@ -266,7 +283,7 @@ export class Hud {
     this.maxHealth = maxHealth(state);
     this.updateStrip(state);
     setText($('clock'), clockLabel(state.time));
-    if (this.layout.camp) this.updateGoal(state);
+    if (this.layout.camp) { this.updateGoal(state); this.goalTip(state, dt); }
     const b = this.view.renderer.domElement.getBoundingClientRect();
     for (let i = this.floats.length - 1; i >= 0; i--) {
       const f = this.floats[i]!; f.t += dt;

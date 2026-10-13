@@ -6,6 +6,15 @@ export interface Release { version: string; date: string; notes: string[] }
 
 export const CHANGELOG: Release[] = [
   {
+    version: '0.0.33', date: '13 Oct 2026', notes: [
+      'A cooked meal leaves him well fed: for half a day he learns a little quicker. Look for the Well fed tag beside Rested.',
+      'A night in the shelter heals him fully as well as resting him.',
+      'Rat hides are fairer now: at least every third rat leaves one.',
+      'The goblin chief hits a little harder, so the last fight of chapter 2 has some bite.',
+      'When a new goal starts, its tip shows once at the top.',
+    ],
+  },
+  {
     version: '0.0.32', date: '13 Oct 2026', notes: [
       'Everything you check now sits in one bar along the bottom: his health, hunger and the skill he is training, your goal, the buttons and the clock. The top of the screen is left to the world.',
       'A small tag over his head says what he is doing, like "Chopping birch" or "Building the wall tent", with a bar for how far along it is. You can hide it in Settings.',

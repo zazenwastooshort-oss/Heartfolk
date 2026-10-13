@@ -28,6 +28,7 @@ import { HUNGER_PER_SECOND, atGoblins, bedtimeNow, goalsFood, goblinRace, hunger
 import { chestHere } from '../core/camp';
 import { HUNGER, NEEDS_RETRY } from '../data/needs';
 import { FOOD } from '../data/food';
+import { fill } from './food';
 import { KEEP_FOOD } from '../data/hauling';
 import { GOBLIN } from '../data/goblins';
 import { goVisit } from '../actors/player';
@@ -51,15 +52,17 @@ const goingTo = (state: GameState, id: string) => state.player.pending?.kind ===
  *  each heals him as food does. `took`: food he has just taken out of the chest to take along, for the notice. */
 function eatUp(state: GameState, events: EventBus, took?: Record<string, number>): void {
   const pack = state.player.backpack, n = state.needs, max = maxHealth(state), items: Record<string, number> = {};
+  let fed = false;
   for (const food of FILLING_FIRST) {
     while (n.fullness < HUNGER.full && (pack[food] ?? 0) > 0 && spareFood(state, food) > 0) {
       if (--pack[food]! <= 0) delete pack[food];
-      n.fullness = Math.min(1, n.fullness + FOOD[food]!.fills);
+      if (fill(state, food)) fed = true;
       state.health = Math.min(max, state.health + FOOD[food]!.heals);
       items[food] = (items[food] ?? 0) + 1;
     }
   }
   if (Object.keys(items).length) events.emit(took && Object.keys(took).length ? { type: 'meal', items, fullness: n.fullness, took } : { type: 'meal', items, fullness: n.fullness });
+  if (fed) events.emit({ type: 'wellFed' });
 }
 
 /** Beside the chest, hungry with nothing to spare on him: out of the chest comes what he eats (the most filling first,

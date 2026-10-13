@@ -11,7 +11,8 @@ import { SLOTS, STYLES, gearDef, type CombatStyle, type GearId, type Slot } from
 import { targetOf } from './targets';
 import { savedRats } from './rats';
 import { savedGoblins } from './goblins';
-import { KNOCKED_OUT } from '../data/rats';
+import { KNOCKED_OUT, RAT } from '../data/rats';
+import { FED } from '../data/food';
 import { CHIEF } from '../data/goblins';
 import { savedThoughts } from './thoughts';
 import { lineOf, savedBuilding, walkGrid } from './building';
@@ -533,6 +534,10 @@ export function readSave(raw: string, layout: Layout): Loaded {
   // means not rested all the same)
   state.restedUntil = typeof data.restedUntil === 'number' && Number.isFinite(data.restedUntil) && data.restedUntil > 0
     ? (data.restedUntil <= restedTill(state.time) + 1e-6 ? data.restedUntil : restedTill(state.time)) : 0;
+  // well fed: a finite time up to a meal's worth ahead; a hide due: a whole number short of RAT.drop.atLeast (none saved,
+  // from before 0.0.33, or damaged: not fed, none due)
+  state.fedUntil = typeof data.fedUntil === 'number' && Number.isFinite(data.fedUntil) && data.fedUntil > 0 ? Math.min(data.fedUntil, state.time + FED.time) : 0;
+  state.ratsSinceHide = Number.isSafeInteger(data.ratsSinceHide) && data.ratsSinceHide > 0 ? Math.min(data.ratsSinceHide, RAT.drop.atLeast - 1) : 0;
   const max = maxHealth(state);
   state.health = typeof data.health === 'number' && Number.isFinite(data.health) && data.health > 0 ? Math.min(data.health, max) : max;
   // the firewood pile's logs: a whole number up to what it holds, and none unless it stands

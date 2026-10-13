@@ -107,7 +107,7 @@ describe('the goblins (data)', () => {
     expect(GOBLIN).toMatchObject({ health: 10, maxHit: 2, every: 3.6 });
     expect(GOBLIN.attack).toBeGreaterThanOrEqual(4); expect(GOBLIN.attack).toBeLessThanOrEqual(6);
     expect(GOBLIN.defence).toBeGreaterThanOrEqual(4); expect(GOBLIN.defence).toBeLessThanOrEqual(6);
-    expect(CHIEF).toMatchObject({ health: 20, maxHit: 3, drop: 'old_map' });
+    expect(CHIEF).toMatchObject({ health: 20, attack: 10, maxHit: 4, drop: 'old_map' });   // a bit more bite since 13 Oct 2026
     expect(CHIEF.attack).toBeGreaterThanOrEqual(7); expect(CHIEF.defence).toBeGreaterThanOrEqual(7);
     for (const n of [GOBLIN, CHIEF]) {
       expect(n.health).toBeGreaterThan(RAT.health); expect(n.maxHit).toBeGreaterThan(RAT.maxHit);

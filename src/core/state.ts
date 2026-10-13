@@ -166,6 +166,12 @@ export interface GameState {
   /** the in-game time he stays well rested until, after a full night's sleep in the shelter (systems/sleep.ts); 0 for
    *  not rested */
   restedUntil: number;
+  /** the in-game time he stays well fed until, after a cooked meal (systems/food.ts): the XP he gains comes a little
+   *  quicker (FED in data/food.ts); 0 for not */
+  fedUntil: number;
+  /** (chapter 2) rats beaten since the last one left a hide: the next one always does once RAT.drop.atLeast - 1 have
+   *  gone by without (systems/rats.ts) */
+  ratsSinceHide: number;
   /** (chapter 2, the survival book) his thoughts so far, the journal in his book, and the book's pages come unstuck
    *  (core/thoughts.ts, systems/thoughts.ts); none in the village */
   thoughts: Thoughts;
@@ -293,6 +299,8 @@ export function createState(layout: Layout, seed = 1): GameState {
     goblins: freshGoblins(layout, DAY_SECONDS * 0.32),
     goblinCamp: { chiefOut: false, cleared: false },
     restedUntil: 0,
+    fedUntil: 0,
+    ratsSinceHide: 0,
     thoughts: { journal: [], known: [], last: null, saidAt: null, passingAt: null },
     underway: {},
     resumeAt: 0,

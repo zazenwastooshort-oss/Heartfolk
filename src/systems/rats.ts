@@ -229,11 +229,16 @@ export function potter(state: GameState, layout: Layout, ground: Ground, index: 
 const otherRats = (state: GameState, layout: Layout, spot: RatSpot) => () =>
   ratsOf(layout).flatMap(o => { const s = state.rats[o.id]; return o.id !== spot.id && o.nest === spot.nest && s && s.downUntil === null ? [s] : []; });
 
+/** Whether a beaten rat leaves a hide: by luck (RAT.drop.chance, against `roll`, 0..1), or for sure once
+ *  RAT.drop.atLeast - 1 rats (`since`) have gone by without one (fair rat hides, 13 Oct 2026). */
+export const dropsHide = (roll: number, since: number) => roll < RAT.drop.chance || since >= RAT.drop.atLeast - 1;
+
 /** His strikes took a rat's last health (systems/combat.ts): it topples over, maybe leaving a rat hide in his backpack
  *  (when there is room), and comes back at its nest RAT.back seconds later. */
 function beaten(state: GameState, spot: RatSpot, r: RatState, rng: Rng, events: EventBus): void {
   r.health = 0; r.downUntil = state.time + RAT.back; r.to = null; r.bite = null;
-  const item = rng.next() < RAT.drop.chance && addToBackpack(state, RAT.drop.item) ? RAT.drop.item : null;
+  const item = dropsHide(rng.next(), state.ratsSinceHide) && addToBackpack(state, RAT.drop.item) ? RAT.drop.item : null;
+  state.ratsSinceHide = item ? 0 : state.ratsSinceHide + 1;
   events.emit({ type: 'beaten', target: spot.id, item });
 }
 

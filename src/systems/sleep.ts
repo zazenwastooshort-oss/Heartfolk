@@ -6,7 +6,7 @@
 // main.ts), so the night is seen to pass. He gets up well rested, his gathering yielding more often until nightfall
 // (SLEEP in data/sleep.ts), and systems/needs.ts sends him back to what he was doing, or to what was tapped while he
 // slept.
-import { canSleep, type GameState } from '../core/state';
+import { canSleep, maxHealth, type GameState } from '../core/state';
 import type { EventBus } from '../core/events';
 import { isNight, nightOf } from '../core/clock';
 import type { Layout } from '../world/layout';
@@ -66,6 +66,7 @@ export function updateSleep(state: GameState, layout: Layout, visited: string | 
   if (p.task.kind === 'sleep' && (!n.bed || n.bed.until === null || state.time >= n.bed.until)) {
     p.task = { kind: 'idle' };
     state.restedUntil = restedTill(state.time);
+    state.health = maxHealth(state);                       // a night's sleep heals him (13 Oct 2026, the chapter review)
     events.emit({ type: 'awake' });
   }
 }

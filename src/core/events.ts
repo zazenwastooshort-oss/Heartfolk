@@ -61,6 +61,8 @@ export type GameEvent =
   | { type: 'fellAsleep'; until: number }
   /** dawn: he got up after a full night's sleep, well rested */
   | { type: 'awake' }
+  /** a cooked meal left him well fed (systems/food.ts; he wasn't already): his XP comes a little quicker for a while */
+  | { type: 'wellFed' }
   /** he ate one `item` from his backpack (chapter 2, 0.0.22): it healed `healed`, and his health is now `health` */
   | { type: 'ate'; item: string; healed: number; health: number }
   /** asked to eat `item`: it isn't food ('notFood'), he carries none ('none'), or his health is full ('full') */
