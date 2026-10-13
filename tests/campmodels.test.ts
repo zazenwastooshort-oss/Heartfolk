@@ -24,6 +24,8 @@ import { createState, type GameState } from '../src/core/state';
 import { markerShown, stepShown } from '../src/core/building';
 import { chestPlace, outermost, tapBoxOf } from '../src/core/camp';
 import { DAY_SECONDS } from '../src/core/clock';
+import { firstHit } from '../src/ui/input';
+import { OrbitCamera } from '../src/render/camera';
 
 let models: THREE.Object3D;
 let P: Protos;
@@ -311,7 +313,8 @@ describe('tap areas and rings follow each step (T11.3, In 11)', () => {
   });
 
   it('is tagged with its spot alone, shown whenever something shows there (what a tap does: core/camp.ts campTap, stage 5)', () => {
-    const tagOf = (state: GameState, line: LineId) => { const t = view(state).pickables.find(o => o.userData.campSpot === line)!; return t.visible ? { ...t.userData } : null; };
+    // (beside its spot, the tap area knows what is drawn there: the steps, the marker, at the tent's spot the chest)
+    const tagOf = (state: GameState, line: LineId) => { const t = view(state).pickables.find(o => o.userData.campSpot === line)!; const { drawn: _, ...tag } = t.userData; return t.visible ? tag : null; };
     // the campfire's marker
     const fresh = createState(CAMP, 3);
     fresh.goalsDone = GOALS.slice(0, GOALS.findIndex(g => g.makes === 'campfire')).map(g => g.id);
@@ -350,5 +353,71 @@ describe("his fish at the fire (render/cooking.ts, D20)", () => {
     const cooking = fishOf();
     state.player.task = { kind: 'idle' }; v.update(state, 5, 0.1, 0);
     expect(fishOf()).toBeGreaterThan(cooking);
+  });
+});
+
+describe("a tap at the camp goes to what is under it (ui/input.ts firstHit; the camp build's stage 6)", () => {
+  // The whole camp at its largest, seen as in the game (the camera 17 m out, 50 degrees up, from the front, following
+  // him by the fire): the log cabin's tap area, round all of it and as tall as its chimney, covers on screen the training
+  // dummy standing beyond its roof. A tap on the dummy is on the dummy, a tap on the cabin on the cabin, and one on the
+  // grass beside a building (in its tap area, on nothing drawn) still on that building.
+  const state = camp([...BASE, 'wall_tent', 'log_cabin', 'stone_hearth', 'woodshed']);
+  state.woodpile = WOODPILE.max;
+  const grass = new THREE.Mesh(new THREE.PlaneGeometry(80, 80).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial());
+  const cam = new OrbitCamera(), ray = new THREE.Raycaster();
+  let v: CampView;
+  beforeAll(() => {
+    const scene = new THREE.Scene();
+    v = new CampView(scene, CAMP, models);
+    v.update(state, 1, 0.5, 0); v.update(state, 2, 0.5, 0);
+    scene.add(grass); scene.updateMatrixWorld(true);
+    cam.dist = 17; cam.pitch = 50; cam.yaw = Math.PI / 2; cam.resize(1280 / 800); cam.follow(new THREE.Vector3(1.0, 0, 0.5), 1);
+    cam.camera.updateMatrixWorld(true);
+  });
+  /** The ray from the camera through a point in the camp, as a tap on it on the screen. */
+  const through = (x: number, y: number, z: number) => {
+    const ndc = new THREE.Vector3(x, y, z).project(cam.camera);
+    ray.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), cam.camera);
+    return ray;
+  };
+  const spotOf = (r: THREE.Raycaster) => firstHit(r, v.pickables, [grass]).hit?.object.userData.campSpot ?? null;
+  /** The old way: the nearest tap area shown along the ray. */
+  const nearestArea = (r: THREE.Raycaster) => r.intersectObjects(v.pickables, false).find(h => h.object.visible)?.object.userData.campSpot ?? null;
+  const dummy = stepPlace(CAMP, 'dummy')!.pos;
+
+  it("the training dummy behind the log cabin's tap area: the dummy", () => {
+    for (const y of [0.9, 1.2, 1.5]) {
+      const r = through(dummy.x, y, dummy.z);
+      expect(nearestArea(r), `the cabin's tap area is in front at ${y} m`).toBe('tent');
+      expect(spotOf(r), `${y} m up the dummy`).toBe('dummy');
+    }
+  });
+
+  it('the log cabin, the stone hearth and the woodshed themselves, and the chest on the porch: each its own', () => {
+    const cabin = stepPlace(CAMP, 'log_cabin')!, chest = chestPlace(state, CAMP)!;
+    expect(spotOf(through(cabin.pos.x, 2.5, cabin.pos.z))).toBe('tent');
+    expect(spotOf(through(chest.pos.x, chest.floor + 0.3, chest.pos.z))).toBe('tent');
+    const hearth = stepPlace(CAMP, 'stone_hearth')!.pos, shed = stepPlace(CAMP, 'woodshed')!.pos;
+    expect(spotOf(through(hearth.x, 0.3, hearth.z))).toBe('hearth');
+    expect(spotOf(through(shed.x, 1.0, shed.z))).toBe('woodpile');
+  });
+
+  it('on the grass beside a building, in its tap area but on nothing drawn: still that building; further out, the ground', () => {
+    const shed = stepPlace(CAMP, 'woodshed')!, box = tapBoxOf(state, CAMP, 'woodpile')!;
+    // a little in from the edge of its tap area, on the side away from the fire
+    const beside = toGround(shed, [0, -(box.radius - 0.2)]);
+    expect(firstHit(through(beside.x, 0, beside.z), v.pickables, [grass]).hit, 'on nothing drawn there').not.toBeNull();
+    expect(spotOf(through(beside.x, 0, beside.z))).toBe('woodpile');
+    const out = toGround(shed, [0, -(box.radius + 1)]), far = firstHit(through(out.x, 0, out.z), v.pickables, [grass]);
+    expect(far.hit).toBeNull();
+    expect(far.ground).not.toBeNull();
+  });
+
+  it("a tree behind the cabin's tap area: the tree", () => {
+    const tree = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 4), new THREE.MeshBasicMaterial());
+    tree.position.set(dummy.x - 0.9, 2, dummy.z - 0.4); tree.userData.nodeId = 'a_tree'; tree.updateMatrixWorld(true);
+    const r = through(tree.position.x, 1.5, tree.position.z);
+    expect(nearestArea(r)).toBe('tent');
+    expect(firstHit(r, [...v.pickables, tree], [grass]).hit?.object.userData.nodeId).toBe('a_tree');
   });
 });

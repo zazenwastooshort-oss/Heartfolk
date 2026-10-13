@@ -538,6 +538,22 @@ describe('the stone hearth and the woodshed (T7.1 to T7.3)', () => {
     expect(atStand('woodshed', s.where.filter(w => w.e.type === 'visited' && w.e.id === 'woodpile').at(-1)!.pos)).toBe(true);
   });
 
+  it('T7.3: a full firewood pile when the woodshed is begun and built: every log kept, none taken for the shed (stage 6 edge case)', () => {
+    const s = camp(SHELTERED[0]!);
+    s.state.woodpile = WOODPILE.max;
+    s.state.bank = { ...s.state.bank, birch_logs: 10, bark: 6 };
+    const logs = () => s.state.woodpile + (s.state.bank.birch_logs ?? 0) + (s.state.player.backpack.birch_logs ?? 0);
+    send(s, { type: 'build', id: 'woodshed' });
+    expect(s.state.underway.woodshed).toBe(0);
+    expect(s.state.woodpile).toBe(WOODPILE.max);                      // what the shed needs came from the chest
+    expect(s.state.bank.birch_logs ?? 0).toBe(0);
+    const before = logs();
+    runUntil(s, () => s.state.built.includes('woodshed'), MAKES.woodshed.time + 30);
+    expect(s.state.built).toContain('woodshed');
+    expect(s.state.woodpile).toBe(WOODPILE.max);
+    expect(logs()).toBe(before);
+  });
+
   it('T7.3: while the woodshed goes up, the pile is stacked and stoked from from the woodshed\'s stands, and he comes back to the build', () => {
     const s = camp(SHELTERED[0]!, NIGHTFALL - 1, ['campfire', 'woodpile', 'dummy']);
     s.state.woodpile = 6;

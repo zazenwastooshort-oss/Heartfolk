@@ -486,7 +486,8 @@ describe('the "While you were away" note', () => {
 });
 
 describe('hidden, then closed (0.0.21)', () => {
-  it('the time hidden before the game closed counts at full speed and isn’t told; only the time closed is away time', () => {
+  // (a long simulation: about 3 s alone, more beside the whole suite on a busy machine, so it is given the time)
+  it('the time hidden before the game closed counts at full speed and isn’t told; only the time closed is away time', { timeout: 20_000 }, () => {
     const s = working();
     // played up to 3 hours ago, then hidden; the page closed an hour ago
     const loaded = readSave(serialize(s.state, NOW - 3 * HOUR, NOW - HOUR), CAMP);

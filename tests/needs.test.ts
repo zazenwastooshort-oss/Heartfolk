@@ -81,7 +81,8 @@ function campAt(goal: string, { shelter = true, hour = 8 } = {}): Setup {
 }
 
 describe('hunger (data)', () => {
-  it('about one cooked fish a day: a fish is a meal, berries a little; hungry about 13 minutes after the first goal about food', () => {
+  // (a long simulation, given the time it needs beside the whole suite on a busy machine)
+  it('about one cooked fish a day: a fish is a meal, berries a little; hungry about 13 minutes after the first goal about food', { timeout: 20_000 }, () => {
     expect(FOOD.cooked_fish!.fills).toBeGreaterThanOrEqual(HUNGER.full - HUNGER.hungry);
     expect(FOOD.cooked_fish!.fills / HUNGER.perDay).toBeCloseTo(1, 1);
     expect(FOOD.berries!.fills).toBeLessThan(FOOD.cooked_fish!.fills / 2);

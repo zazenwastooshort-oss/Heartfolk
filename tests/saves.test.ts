@@ -13,18 +13,18 @@ import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { campBuildSave, load, readSave, SAVE_KEY, serialize, UNREAD_KEY, type Storage } from '../src/core/save';
 import { createState, currentGoal, SAVE_VERSION, type GameState } from '../src/core/state';
-import { begunIds, walkGrid } from '../src/core/building';
-import { atSpot, buildSpot, useSpot } from '../src/core/camp';
+import { begunIds, markerShown, walkGrid } from '../src/core/building';
+import { atSpot, buildSpot, chestPlace, useSpot } from '../src/core/camp';
 import { EventBus } from '../src/core/events';
 import { createRng, type Rng } from '../src/core/rng';
 import { STEP } from '../src/core/loop';
 import { step } from '../src/sim';
 import { CAMP } from '../src/world/camp';
 import { VILLAGE } from '../src/world/layout';
-import { outsideOf } from '../src/world/steps';
+import { outsideOf, stepPlace, toStep } from '../src/world/steps';
 import { STOKE } from '../src/data/fire';
 import { GOALS } from '../src/data/goals';
-import { LOAD } from '../src/data/building';
+import { LINES, LOAD } from '../src/data/building';
 import { MAKES, type MakeId } from '../src/data/making';
 
 const DIR = new URL('./fixtures/saves/', import.meta.url);
@@ -410,5 +410,45 @@ describe('on his way to the camp\'s places when it was saved: the chest at the s
       if (pending.kind === 'raise' && state.player.task.kind === 'raise' && state.player.task.id === pending.id) there = true;
     }
     expect(there).toBe(true);
+  });
+});
+
+// ---- markers on old saves (the camp build's In 1: nothing shows until its goal comes up; stage 6's edge cases) ----
+
+describe('markers on old saves: only where the goal up now builds something', () => {
+  /** The things with a marker: each spot's first step, and the storage chest in the shelter. */
+  const MARKED: MakeId[] = [...Object.values(LINES).map(l => l[0]!), 'chest'];
+  /** The goal that builds `id`. */
+  const goalOf = (id: MakeId) => GOALS.find(g => g.makes === id)!;
+
+  it.each(ALL)('%s: a marker only for the thing the goal up now builds (or one a done goal never got built), not begun', file => {
+    const { state } = readSave(rawOf(file), CAMP), now = currentGoal(state);
+    for (const id of MARKED) {
+      const due = state.goalsDone.includes(goalOf(id).id) || now.id === goalOf(id).id;
+      expect(markerShown(state, CAMP, id), id).toBe(due && !state.built.includes(id) && state.underway[id] === undefined);
+    }
+  });
+
+  it("at the copper goal no chest marker yet; at the chest's own goal, with the tent standing, its chalk square just inside the tent", () => {
+    // each release's save with the tent standing, its goals moved on to the copper goal and then the chest's (as play
+    // would have them: nothing more built)
+    const upTo = (file: string, goal: string) => {
+      const raw = JSON.parse(rawOf(file)) as Saved;
+      raw.goalsDone = GOALS.slice(0, GOALS.findIndex(g => g.id === goal)).map(g => g.id);
+      return readSave(JSON.stringify(raw), CAMP).state;
+    };
+    const tents = ALL.filter(f => f.endsWith('-built-to-shelter.json'));
+    expect(tents.length).toBeGreaterThan(0);
+    for (const file of tents) {
+      const copper = upTo(file, 'copper'), chest = upTo(file, 'chest');
+      expect(currentGoal(copper).id, file).toBe('copper');
+      expect(markerShown(copper, CAMP, 'chest'), file).toBe(false);
+      expect(currentGoal(chest).id, file).toBe('chest');
+      expect(markerShown(chest, CAMP, 'chest'), file).toBe(true);
+      // the chalk square is just inside the tent's open front
+      const place = chestPlace(chest, CAMP)!, tent = stepPlace(CAMP, 'shelter')!;
+      expect(outsideOf(CAMP, 'shelter', place.pos), file).toBeLessThan(0);
+      expect(toStep(tent, place.pos)[1], file).toBeGreaterThan(0);
+    }
   });
 });

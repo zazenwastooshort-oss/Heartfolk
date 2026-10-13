@@ -113,17 +113,22 @@ export interface Shape {
  *  nothing. */
 export const SHAPES: Partial<Record<MakeId, Shape>> = {
   // the fire spot: a ring of stones round the fire; then (turned a little, so its seats clear the woodshed) a raised
-  // ring of stones with a spit across it, a split log on stumps behind, a plain log in front and a stump stool
+  // ring of stones with a spit across it, a split log on stumps behind, a plain log in front and a stump stool. Each
+  // seat is in the way along all of its length, a ring every quarter metre or less, each wide enough that a walk past
+  // it keeps his legs clear of the log (world/nav.ts keeps less room round a ring than round a box; the camp build's
+  // stage 6, tests/wholecamp.test.ts)
   campfire: { blocks: [{ ring: [0, 0, 0.62] }], reach: 0.62, tall: 0.8 },
   stone_hearth: {
     turn: 0.35,
     blocks: [
       { ring: [0, 0, 1.15] },
-      { ring: [-0.93, -1.45, 0.2] }, { ring: [-0.19, -1.54, 0.2] }, { ring: [0.56, -1.63, 0.2] },
-      { ring: [-1.08, 1.2, 0.2] }, { ring: [-0.51, 1.41, 0.2] }, { ring: [0.05, 1.61, 0.2] },
-      { ring: [1.24, -0.76, 0.22] },
+      { ring: [0.56, -1.63, 0.3] }, { ring: [0.31, -1.6, 0.3] }, { ring: [0.06, -1.57, 0.3] }, { ring: [-0.19, -1.54, 0.3] },
+      { ring: [-0.43, -1.51, 0.3] }, { ring: [-0.68, -1.48, 0.3] }, { ring: [-0.93, -1.45, 0.3] },
+      { ring: [-1.08, 1.2, 0.3] }, { ring: [-0.89, 1.27, 0.3] }, { ring: [-0.7, 1.34, 0.3] }, { ring: [-0.51, 1.41, 0.3] },
+      { ring: [-0.33, 1.48, 0.3] }, { ring: [-0.14, 1.55, 0.3] }, { ring: [0.05, 1.61, 0.3] },
+      { ring: [1.24, -0.76, 0.3] },
     ],
-    reach: 1.95, tall: 1.0,
+    reach: 2.05, tall: 1.0,
     stands: [[-1.8, 0], [1.8, 0.25]],
     spit: { posts: [[-0.95, 0], [0.95, 0]], height: 0.86 },
   },

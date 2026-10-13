@@ -13,8 +13,8 @@
 // were no logs (FIRE_LOOK in data/fire.ts). The firewood pile and the woodshed show as many logs as the pile holds;
 // the hearth's own fish on its spit are put aside while his cook there (render/cooking.ts); the training dummy wobbles
 // when struck. Each spot has one invisible tap area round what shows there, growing with each step (core/camp.ts
-// tapBoxOf), tagged with its spot for ui/input.ts: what a tap there does and its menu are core/camp.ts's (campTap,
-// campActions). Made once village.glb is loaded (the campfire and the tent are its models). Reads state; never changes
+// tapBoxOf), tagged with its spot and what is drawn there for ui/input.ts (a tap on what is drawn there is on it, even
+// behind another spot's tap area): what a tap there does and its menu are core/camp.ts's (campTap, campActions). Made once village.glb is loaded (the campfire and the tent are its models). Reads state; never changes
 // it.
 import * as THREE from 'three';
 import type { GameState } from '../core/state';
@@ -104,7 +104,9 @@ export class CampView {
       const first = LINES[line][0]!, place = stepPlace(layout, first), shape = shapeOf(first);
       const marker = place && shape ? this.markerView(markerModel(shape), place.pos, place.rot) : null;
       const tap = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 16), new THREE.MeshBasicMaterial({ visible: false }));
-      tap.visible = false; tap.userData.campSpot = line;
+      // its spot, and what is drawn there (ui/input.ts: a tap on what is drawn is on it, even where another spot's
+      // bigger tap area is in front of it)
+      tap.visible = false; tap.userData.campSpot = line; tap.userData.drawn = [...steps.map(v => v.root), ...(marker ? [marker.root] : [])];
       scene.add(tap); this.pickables.push(tap);
       this.spots.push({ line, steps, marker, rings: new Map(), tap, phase: this.spots.length * 0.9 });
     }
@@ -113,6 +115,7 @@ export class CampView {
       const root = new THREE.Group(); scene.add(root);
       this.chest = { id: 'chest', root, stages: [], stage: -1, pop: 1 };
       this.chestMarker = this.markerView(markerModel(shapeOf('chest')!, true), { x: 0, z: 0 }, 0);
+      (this.spots.find(s => s.line === 'tent')!.tap.userData.drawn as THREE.Object3D[]).push(root, this.chestMarker.root);
     }
     // the fire's flames (the village hearth's, smaller and glowing), light (always in the scene, dark until it is lit,
     // so lighting it costs no shader rebuild) and smoke, the campfire's and then the stone hearth's
@@ -184,6 +187,7 @@ export class CampView {
     const geo = new THREE.RingGeometry(inner, inner + RING.width, RING.segments, 1, -Math.PI / 2).rotateX(Math.PI / 2);
     const group = new THREE.Group(), track = new THREE.Mesh(geo, this.ringMats.track), fill = new THREE.Mesh(geo.clone(), this.ringMats.fill.clone());
     track.position.y = 0.03; fill.position.y = 0.035; group.add(track, fill); group.visible = false;
+    group.userData.noTap = true;                 // on the grass round it, not part of it (ui/input.ts)
     at.add(group);
     r = { group, fill, inner };
     rings.set(id, r);

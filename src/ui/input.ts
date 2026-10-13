@@ -46,6 +46,53 @@ function shown(o: THREE.Object3D | null): boolean {
   return true;
 }
 
+/** What `ray` meets of what is drawn under `roots` and shown, nearest first (not what is marked `noTap`: the ring round
+ *  something under way lies on the grass round it). */
+function meetsShown(ray: THREE.Raycaster, roots: readonly THREE.Object3D[]): THREE.Intersection[] {
+  const out: THREE.Intersection[] = [];
+  const visit = (o: THREE.Object3D) => {
+    if (!o.visible || o.userData.noTap) return;
+    o.raycast(ray, out);
+    for (const c of o.children) visit(c);
+  };
+  for (const r of roots) if (shown(r)) visit(r);
+  return out.sort((a, b) => a.distance - b.distance);
+}
+
+/** What a tap along `ray` is on: the nearest thing it meets that can be tapped (`hit`, or null), and the ground (null
+ *  off it). The camp's tap areas are generous (round all of what shows at a spot and as tall as its tallest part:
+ *  core/camp.ts tapBoxOf, render/structures.ts), so a big one (the log cabin's) covers on screen what stands near it,
+ *  beside or behind its roof (the training dummy, a tree, a stone): a tap on one of the camp's buildings counts where
+ *  the ray meets what is drawn there (`userData.drawn`), like a tap on anything else, the nearest first; only a ray
+ *  meeting no building nor anything else, just the tap areas round them (the grass round a marker, beside a wall),
+ *  goes to the spot whose middle it passes nearest, for the size of its area. Hidden things (something picked up, a
+ *  spot with nothing at it) are still in the scene but can't be tapped. */
+export function firstHit(ray: THREE.Raycaster, pickables: readonly THREE.Object3D[], ground: readonly THREE.Object3D[]):
+  { hit: { object: THREE.Object3D; point: THREE.Vector3 } | null; ground: THREE.Intersection | null } {
+  const floor = ray.intersectObjects(ground as THREE.Object3D[], false)[0] ?? null, limit = floor ? floor.distance + 0.01 : Infinity;
+  let best: { object: THREE.Object3D; point: THREE.Vector3; distance: number } | null = null;
+  const beside: THREE.Intersection[] = [];
+  for (const h of ray.intersectObjects(pickables as THREE.Object3D[], false)) {
+    if (h.distance > Math.min(limit, best?.distance ?? Infinity)) break;
+    const u = h.object.userData;
+    if ((u.pickupId || u.fightId || u.campSpot) && !shown(h.object)) continue;
+    if (!u.campSpot) { best = h; continue; }
+    const on = meetsShown(ray, (u.drawn as THREE.Object3D[] | undefined) ?? [])[0];
+    if (on && on.distance <= limit) { if (!best || on.distance < best.distance) best = { object: h.object, point: on.point, distance: on.distance }; }
+    else beside.push(h);
+  }
+  if (best) return { hit: best, ground: floor };
+  let near: THREE.Intersection | null = null, nearest = Infinity;
+  const bottom = new THREE.Vector3(), top = new THREE.Vector3();
+  for (const h of beside) {
+    const o = h.object;
+    bottom.set(o.position.x, o.position.y - o.scale.y / 2, o.position.z); top.set(o.position.x, o.position.y + o.scale.y / 2, o.position.z);
+    const off = Math.sqrt(ray.ray.distanceSqToSegment(bottom, top)) / Math.max(o.scale.x, 1e-6);
+    if (off < nearest) { nearest = off; near = h; }
+  }
+  return { hit: near, ground: floor };
+}
+
 /** The ring's length round the held finger (index.html's #holdCue circle, r 20). */
 const CUE_RING = 2 * Math.PI * 20;
 
@@ -67,10 +114,8 @@ export function bindInput(view: View, layout: Layout, queue: Command[], state: G
     const b = el.getBoundingClientRect();
     ndc.set((e.clientX - b.left) / b.width * 2 - 1, -(e.clientY - b.top) / b.height * 2 + 1);
     ray.setFromCamera(ndc, view.cam.camera);
-    // something already picked up, or a spot with nothing at it, is hidden, but still in the scene: it can't be tapped
-    const hit = ray.intersectObjects(view.pickables, false).find(h => !(h.object.userData.pickupId || h.object.userData.fightId || h.object.userData.campSpot) || shown(h.object));
-    const ground = ray.intersectObjects(view.ground, false)[0];
-    if (hit && (!ground || hit.distance <= ground.distance + 0.01)) {
+    const { hit, ground } = firstHit(ray, view.pickables, view.ground);
+    if (hit) {
       const u = hit.object.userData;
       if (u.nodeId) {
         const spot = layout.nodes.find(n => n.id === u.nodeId);
